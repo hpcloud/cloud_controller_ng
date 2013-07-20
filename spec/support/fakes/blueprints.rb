@@ -178,6 +178,11 @@ module VCAP::CloudController::Models
     timestamp         { Time.now }
   end
 
+  Session.blueprint do
+    app         { App.make }
+    public_key  { Sham.description }
+  end
+
   ServiceCreateEvent.blueprint do
     BillingEvent.blueprint
     space_guid        { Sham.guid }

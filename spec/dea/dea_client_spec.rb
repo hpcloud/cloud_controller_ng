@@ -143,6 +143,45 @@ module VCAP::CloudController
       end
     end
 
+    describe "#start_ssh" do
+      let(:app) { double :app }
+
+      let(:session) do
+        double :session, :public_key => "some public key",
+          :guid => "some guid", :app => app
+      end
+
+      it "sends ssh.start with the public key and the app's droplet URI" do
+        Staging.stub(:droplet_download_uri).with(app) { "https://some-download-uri" }
+
+        @message_bus.should_receive(:publish).with(
+          "ssh.start",
+          hash_including(
+            :session => "some guid",
+            :public_key => "some public key",
+            :package => "https://some-download-uri"))
+
+        DeaClient.start_ssh(session)
+      end
+    end
+
+    describe "#stop_ssh" do
+      let(:app) { double :app }
+
+      let(:session) do
+        double :session, :public_key => "some public key",
+          :guid => "some guid", :app => app
+      end
+
+      it "sends ssh.start with the public key and the app's droplet URI" do
+        @message_bus.should_receive(:publish).with(
+          "ssh.stop",
+          hash_including(:session => session.guid))
+
+        DeaClient.stop_ssh(session)
+      end
+    end
+
     describe "stop_indices" do
       it "should send stop messages to deas" do
         @app.instances = 3
@@ -153,9 +192,10 @@ module VCAP::CloudController
             :indices   => [0, 2],
           )
         )
-          with_em_and_thread do
-            DeaClient.stop_indices(@app, [0,2])
-          end
+
+        with_em_and_thread do
+          DeaClient.stop_indices(@app, [0,2])
+        end
       end
     end
 

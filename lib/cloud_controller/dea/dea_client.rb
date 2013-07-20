@@ -40,6 +40,18 @@ module VCAP::CloudController
         app.routes_changed = false
       end
 
+      def start_ssh(session)
+        dea_publish_start_ssh(
+          :session => session.guid,
+          :public_key => session.public_key,
+          :package => Staging.droplet_download_uri(session.app)
+        )
+      end
+
+      def stop_ssh(session)
+        dea_publish_stop_ssh(:session => session.guid)
+      end
+
       def stop(app)
         dea_publish_stop(:droplet => app.guid)
       end
@@ -344,6 +356,16 @@ module VCAP::CloudController
       def dea_publish_start(dea_id, args)
         logger.debug "sending 'dea.start' for dea_id: #{dea_id} with '#{args}'"
         message_bus.publish("dea.#{dea_id}.start", args)
+      end
+
+      def dea_publish_start_ssh(args)
+        logger.debug "sending 'ssh.start' with '#{args}'"
+        message_bus.publish("ssh.start", args)
+      end
+
+      def dea_publish_stop_ssh(args)
+        logger.debug "sending 'ssh.stop' with '#{args}'"
+        message_bus.publish("ssh.stop", args)
       end
 
       def dea_request_find_droplet(args, opts = {})
