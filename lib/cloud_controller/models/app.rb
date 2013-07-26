@@ -200,14 +200,11 @@ module VCAP::CloudController
         json = Yajl::Encoder.encode(env)
         generate_salt
         self.encrypted_environment_json = VCAP::CloudController::Encryptor.encrypt(json, salt)
-        super(json)
       end
 
       def environment_json
         if encrypted_environment_json
           json = VCAP::CloudController::Encryptor.decrypt(encrypted_environment_json, salt)
-        else
-          json = super
         end
 
         json.nil? ? nil : Yajl::Parser.parse(json)

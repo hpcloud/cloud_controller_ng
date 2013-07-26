@@ -263,6 +263,10 @@ module VCAP::CloudController
           expect(app.environment_json).to eq env
         end
 
+        it "does not have store unecrypted" do
+          expect(last_row[:environment_json]).to be_nil
+        end
+
         it "salt is unique for each app" do
           app_2 = Models::App.make(:environment_json => env)
           expect(app.salt).not_to eq app_2.salt
