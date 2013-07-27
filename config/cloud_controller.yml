@@ -3,23 +3,23 @@ local_route: 127.0.0.1
 port: 8181
 pid_filename: /tmp/cloud_controller.pid
 message_bus_uri: nats://127.0.0.1:4222
+nats_uri: nats://127.0.0.1:4222
 
 external_domain: api2.vcap.me
 
-bootstrap_admin_email: sre@vmware.com
+bootstrap_admin_email: stackato@stackato.com
 
-system_domain_organization: the-system_domain-org-name
+system_domain_organization: my-org-name
 system_domain: vcap.me
 app_domains:
-  - customer-app-domain1.com
-  - customer-app-domain2.com
+  - vcap.me
 
 info:
-  name: "vcap"
+  name: "stackato"
   build: "2222"
   version: 2
-  support_address: "http://support.cloudfoundry.com"
-  description: "Cloud Foundry sponsored by Pivotal"
+  support_address: "stackato-support@activestate.com"
+  description: "ActiveState Stackato"
   api_version: "2.0.0"
 # TODO: put back once json schema is sorted out
 # allow_debug: false
@@ -29,11 +29,11 @@ nginx:
   instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 logging:
-  file: /tmp/cloud_controller.log
+  file: /home/stackato/stackato/logs/cloud_controller.log
   level: debug2
 
 db:
-  database: "sqlite:///tmp/cloud_controller.db"
+  database: "sqlite:///home/stackato/stackato/db/cloud_controller.db"
   max_connections: 32
   pool_timeout: 10
 
@@ -51,7 +51,7 @@ bulk_api:
 # App staging parameters
 staging:
   # Max duration for staging process
-  max_staging_runtime: 120 # secs
+  max_staging_runtime: 480 # secs
   auth:
     user: zxsfhgjg
     password: ZNVfdase9
@@ -60,7 +60,7 @@ quota_definitions:
   free:
     non_basic_services_allowed: false
     total_services: 2
-    memory_limit: 512 # 0.5 GB
+    memory_limit: 2048 # 2 GB
   paid:
     non_basic_services_allowed: true
     total_services: 500
