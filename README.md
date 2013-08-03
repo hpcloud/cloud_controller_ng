@@ -58,6 +58,11 @@ variable to test against postgres and mysql. Examples:
 
 Travis currently runs 3 build jobs against sqlite, postgres, and mysql.
 
+## API documentation
+
+You can generate the API documentation by running `bin/document_api`. You can then use the
+`cf curl` command to interact with the API.
+
 ## Logs
 
 Cloud Controller uses [Steno](http://github.com/cloudfoundry/steno) to manage its logs.

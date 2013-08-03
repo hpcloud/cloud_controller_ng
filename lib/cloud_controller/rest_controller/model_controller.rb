@@ -58,14 +58,10 @@ module VCAP::CloudController::RestController
 
       raise InvalidRequest unless request_attrs
 
-      before_update(obj)
-
       model.db.transaction do
         obj.lock!
         obj.update_from_hash(request_attrs)
       end
-
-      after_update(obj)
 
       [HTTP::CREATED, serialization.render_json(self.class, obj, @opts)]
     end
@@ -199,20 +195,14 @@ module VCAP::CloudController::RestController
     # the use has access.
     def find_guid_and_validate_access(op, guid)
       obj = model.find(:guid => guid)
-
-      if obj
-        validate_access(op, obj, user, roles)
-      else
-        raise self.class.not_found_exception.new(guid) if obj.nil?
-      end
-
+      raise self.class.not_found_exception.new(guid) if obj.nil?
+      validate_access(op, obj, user, roles)
       obj
     end
 
-    # Find an object and validate that the given user has rights
-    # to access the instance.
+    # Validate that the current logged in user can have access to the target object.
     #
-    # Raises an exception if the user does not have rights to peform
+    # Raises an exception if the user does not have rights to perform
     # the operation on the object.
     #
     # @param [Symbol] op The type of operation to check for access
@@ -286,8 +276,8 @@ module VCAP::CloudController::RestController
       #
       # @return [Sequel::Model] The class of the model associated with
       # this rest endpoint.
-      def model(name = model_class_name)
-        @model ||= Models.const_get(name)
+      def model(name = nil)
+        @model ||= Models.const_get(model_class_name(name))
       end
 
       # Get and set the model class name associated with this rest/api endpoint.
@@ -299,7 +289,11 @@ module VCAP::CloudController::RestController
       # this rest endpoint.
       def model_class_name(name = nil)
         @model_class_name = name if name
-        @model_class_name || class_basename
+        @model_class_name ||= guess_model_class_name
+      end
+
+      def guess_model_class_name
+        class_basename.sub(/Controller$/, '').singularize
       end
 
       def serialization(klass = nil)

@@ -15,6 +15,7 @@ require "uaa/token_coder"
 
 require "sinatra/vcap"
 require "cloud_controller/security_context"
+require "active_support/core_ext/hash"
 
 module VCAP::CloudController
   autoload :Models, "cloud_controller/models"
@@ -107,7 +108,7 @@ require "cloud_controller/app_package"
 require "cloud_controller/app_manager"
 require "cloud_controller/app_stager_task"
 require "cloud_controller/stager_pool"
-require "cloud_controller/api"
+require "cloud_controller/controllers"
 require "cloud_controller/roles"
 require "cloud_controller/encryptor"
 
