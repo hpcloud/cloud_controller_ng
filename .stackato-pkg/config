@@ -12,6 +12,19 @@ PKG_ARCH="all"
 PKG_DESCR_SHORT="stackato-vcap-cloud-controller-ng"
 PKG_DESCR_LONG="Packaged distribution of cloud_controller_ng."
 PKG_GITDESCRIBE="GITDESCRIBE-PKG"
-PKG_DEPENDS="libxml2-dev, libxslt-dev, libmysqld-dev, libmysqlclient-dev, mysql-client, libsqlite3-dev, libpq-dev"
+
+# reqs for nokogiri gem
+gem_nokogiri_deps="libxml2-dev, libxslt-dev"
+
+# reqs for mysql2 gem
+gem_mysql_deps="libmysqld-dev, libmysqlclient-dev, mysql-client"
+
+# reqs for sqlite3 gem
+gem_sqlite_deps="libsqlite3-dev"
+
+# reqs for pg gem
+gem_pg_deps="libpq-dev"
+
+PKG_DEPENDS="stackato-rubies, $gem_nokogiri_deps, $gem_mysql_deps, $gem_sqlite_deps, $gem_pg_deps"
 PKG_BUILD_DEPENDS="build-essential"
 PKG_WARNING="No repo tag.  Setting static version"
