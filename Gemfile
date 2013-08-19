@@ -20,6 +20,9 @@ gem "stager-client", "~> 0.0.02", :git => "https://github.com/cloudfoundry/stage
 gem "cf-message-bus", :git => "https://github.com/cloudfoundry/cf-message-bus.git"
 gem "vcap_common", :git => "https://github.com/cloudfoundry/vcap-common.git", :tag => "v2.2.0"
 
+# Stackato additions
+gem 'stackato-kato'
+
 # These are outside the test group in order to run rake tasks
 gem "rspec"
 gem "ci_reporter"
