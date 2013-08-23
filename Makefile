@@ -34,7 +34,15 @@ install:
 	if [ -d etc ] ; then rsync -ap etc $(BASEDIR) ; fi
 	chown -R stackato.stackato $(HOMEDIR)
 	chmod a+x $(INSTDIR)/bin/*
+	
+	# Custom Postgresql Server Configuration
 	chown postgres:postgres $(INSTDIR)/config/postgresql/*.conf
+	
+	# Supervisord config
+	cp -fp config/supervisord/* $(HOMEDIR)/etc/supervisord.conf.d/
+	
+	# Kato config
+	cp -rfp config/kato/* $(HOMEDIR)/etc/kato/
 
 uninstall:
 	rm -rf $(INSTDIR)
