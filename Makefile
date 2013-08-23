@@ -40,7 +40,7 @@ install:
 	
 	# Custom Postgresql Server Configuration
 	mkdir -p $(PG_CONF_DIR) && \
-	cp -fp $(INSTDIR)/config/postgresql/*.conf $PG_CONF_DIR/
+	cp -fp $(INSTDIR)/config/postgresql/*.conf $(PG_CONF_DIR)/
 	
 	# Supervisord config
 	mkdir -p $(SUPERVISORD_CONF_DIR) \
