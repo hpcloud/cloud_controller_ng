@@ -34,6 +34,7 @@ install:
 	if [ -d etc ] ; then rsync -ap etc $(BASEDIR) ; fi
 	chown -R stackato.stackato $(HOMEDIR)
 	chmod a+x $(INSTDIR)/bin/*
+	chown postgres:postgres $(INSTDIR)/config/postgresql/*.conf
 
 uninstall:
 	rm -rf $(INSTDIR)
