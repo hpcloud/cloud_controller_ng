@@ -43,11 +43,11 @@ install:
 	cp -fp $(INSTDIR)/config/postgresql/*.conf $(PG_CONF_DIR)/
 	
 	# Supervisord config
-	mkdir -p $(SUPERVISORD_CONF_DIR) \
+	mkdir -p $(SUPERVISORD_CONF_DIR) && \
 	cp -fp config/supervisord/* $(SUPERVISORD_CONF_DIR)/
 	
 	# Kato config
-	mkdir -p $(KATO_CONF_DIR) \
+	mkdir -p $(KATO_CONF_DIR) && \
 	cp -rfp config/kato/* $(KATO_CONF_DIR)/
 	
 	chown -R stackato.stackato $(HOMEDIR)
