@@ -23,9 +23,7 @@ HOMEDIR=$(DESTDIR)$(prefix)$(INSTALLHOME)
 BASEDIR=$(DESTDIR)$(prefix)$(INSTALLBASE)
 INSTDIR=$(DESTDIR)$(prefix)$(DIRNAME)
 
-KATO_CONF_DIR = $(BASEDIR)/etc/kato
-PG_CONF_DIR = $(DESTDIR)/etc/postgresql/9.1/cloud_controller_ng
-SUPERVISORD_CONF_DIR = $(BASEDIR)/etc/supervisord.conf.d
+PG_CONF_DIR=$(DESTDIR)/etc/postgresql/9.1/cloud_controller_ng
 
 RSYNC_EXCLUDE=--exclude=/.git* --exclude=/Makefile --exclude=/.stackato-pkg --exclude=/debian --exclude=/etc
 
@@ -41,14 +39,6 @@ install:
 	# Custom Postgresql Server Configuration
 	mkdir -p $(PG_CONF_DIR) && \
 	cp -fp $(INSTDIR)/config/postgresql/*.conf $(PG_CONF_DIR)/
-	
-	# Supervisord config
-	mkdir -p $(SUPERVISORD_CONF_DIR) && \
-	cp -fp config/supervisord/* $(SUPERVISORD_CONF_DIR)/
-	
-	# Kato config
-	mkdir -p $(KATO_CONF_DIR) && \
-	cp -rfp config/kato/* $(KATO_CONF_DIR)/
 	
 	chown -R stackato.stackato $(HOMEDIR)
 
