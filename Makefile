@@ -23,9 +23,9 @@ HOMEDIR=$(DESTDIR)$(prefix)$(INSTALLHOME)
 BASEDIR=$(DESTDIR)$(prefix)$(INSTALLBASE)
 INSTDIR=$(DESTDIR)$(prefix)$(DIRNAME)
 
-KATO_CONF_DIR = $(HOMEDIR)/etc/kato
+KATO_CONF_DIR = $(BASEDIR)/etc/kato
 PG_CONF_DIR = $(DESTDIR)/etc/postgresql/9.1/cloud_controller_ng
-SUPERVISORD_CONF_DIR = $(HOMEDIR)/etc/supervisord.conf.d
+SUPERVISORD_CONF_DIR = $(BASEDIR)/etc/supervisord.conf.d
 
 RSYNC_EXCLUDE=--exclude=/.git* --exclude=/Makefile --exclude=/.stackato-pkg --exclude=/debian --exclude=/etc
 
