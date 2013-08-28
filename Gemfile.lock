@@ -54,6 +54,12 @@ GIT
   specs:
     vcap-concurrency (0.1.0)
 
+PATH
+  remote: ../steno-codec-text
+  specs:
+    steno-codec-text (0.1)
+      steno (~> 1.1.0)
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -266,6 +272,7 @@ DEPENDENCIES
   sqlite3
   stager-client (~> 0.0.02)!
   steno
+  steno-codec-text!
   timecop
   vcap-concurrency!
   vcap_common!
