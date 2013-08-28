@@ -1,6 +1,7 @@
 # Copyright (c) 2009-2012 VMware, Inc.
 
 require "steno"
+require "steno/codec/text"
 require "optparse"
 require "vcap/uaa_util"
 require "cf_message_bus/message_bus"
@@ -73,6 +74,7 @@ module VCAP::CloudController
 
     def setup_logging
       steno_config = Steno::Config.to_config_hash(@config[:logging])
+      steno_config[:codec] = Steno::Codec::Text.new
       steno_config[:context] = Steno::Context::ThreadLocal.new
       steno_config[:sinks] << @log_counter
       Steno.init(Steno::Config.new(steno_config))
