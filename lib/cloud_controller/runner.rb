@@ -64,14 +64,6 @@ module VCAP::CloudController
       exit 1
     end
 
-    def create_pidfile
-      pid_file = VCAP::PidFile.new(@config[:pid_filename])
-      pid_file.unlink_at_exit
-    rescue
-      puts "ERROR: Can't create pid file #{@config[:pid_filename]}"
-      exit 1
-    end
-
     def setup_logging
       steno_config = Steno::Config.to_config_hash(@config[:logging])
       steno_config[:codec] = Steno::Codec::Text.new
@@ -130,8 +122,6 @@ module VCAP::CloudController
     private
 
     def start_cloud_controller(message_bus)
-      create_pidfile
-
       setup_logging
       setup_db
 
