@@ -132,26 +132,7 @@ class VCAP::CloudController::Config < VCAP::Config
     }
   end
 
-  def initialize(config_overrides = {})
-    config = Kato::Config.get("cloud_controller_ng").symbolize_keys
-
-    unless config
-      $stderr.puts %[FATAL: Unable to load config]
-      exit 1
-    end
-
-    config.update(config_overrides)
-
-    # Store current config for the diff in config_watch
-    @confdis_config = config
-    EM.next_tick do
-      config_watch
-    end
-
-    config
-  end
-
-  def config_watch
+  def self.config_watch
     Kato::Config.watch "cloud_controller_ng" do |new_config|
       new_config = new_config.symbolize_keys
       updates = Kato::Config.diff(@confdis_config, new_config)
@@ -191,6 +172,25 @@ class VCAP::CloudController::Config < VCAP::Config
         config.merge!(new_config)
       end
     end
+  end
+
+  def self.from_redis(config_overrides = {})
+    config = Kato::Config.get("cloud_controller_ng").symbolize_keys
+
+    unless config
+      $stderr.puts %[FATAL: Unable to load config]
+      exit 1
+    end
+
+    config.update(config_overrides)
+
+    # Store current config for the diff in config_watch
+    @confdis_config = config
+    EM.next_tick do
+      config_watch
+    end
+
+    config
   end
 
   def self.from_file(file_name)

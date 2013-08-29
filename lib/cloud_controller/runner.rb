@@ -53,7 +53,7 @@ module VCAP::CloudController
     end
 
     def parse_config
-      @config = VCAP::CloudController::Config.new()
+      @config = VCAP::CloudController::Config.from_redis
     rescue => e
       exit 1
     end
