@@ -187,7 +187,7 @@ class VCAP::CloudController::Config < VCAP::Config
     # Store current config for the diff in config_watch
     @confdis_config = config
     EM.next_tick do
-      config_watch
+      self.config_watch
     end
 
     config
