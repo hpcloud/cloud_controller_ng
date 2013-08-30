@@ -1,3 +1,4 @@
+require "steno"
 require "vcap/config"
 require "cloud_controller/account_capacity"
 require "uri"
@@ -132,6 +133,10 @@ class VCAP::CloudController::Config < VCAP::Config
     }
   end
 
+  def self.logger
+    @logger ||= Steno.logger("cc.config")
+  end
+
   def self.config_watch
     Kato::Config.watch "cloud_controller_ng" do |new_config|
       new_config = new_config.symbolize_keys
@@ -142,8 +147,7 @@ class VCAP::CloudController::Config < VCAP::Config
         #       Better handle deletions.
         next if update[:del]
 
-        # TODO: Update to use the correct logger.
-        CloudController.logger.debug("Config update : #{update[:path]} = #{update[:value]}")
+        self.logger.debug("Config update : #{update[:path]} = #{update[:value]}")
 
         begin
 
@@ -151,14 +155,15 @@ class VCAP::CloudController::Config < VCAP::Config
           if match = update[:path].match("^/(default)_account_capacity/([^/]+)")
             who = match[1]
             key = match[2]
-            CloudController.logger.debug("Updating AccountCapacity #{who} #{key} = #{update[:value]}")
+            self.logger.debug("Updating AccountCapacity #{who} #{key} = #{update[:value]}")
             AccountCapacity.send(who)[key.to_sym] = update[:value]
           end
 
           # logging
           if update[:path] == "/logging/level"
-            CloudController.logger.warn("Changing logging level to '#{update[:value]}'")
-            CloudController.logger.log_level = update[:value].to_sym
+            self.logger.warn("Changing logging level to '#{update[:value]}'")
+            # TODO: Update log level of logger.
+            #self.logger.log_level = update[:value].to_sym
           end
 
         rescue Exception => e
@@ -190,6 +195,7 @@ class VCAP::CloudController::Config < VCAP::Config
       self.config_watch
     end
 
+    merge_defaults(config)
     config
   end
 
