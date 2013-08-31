@@ -33,7 +33,13 @@ logging:
   level: debug2
 
 db:
-  database: "sqlite:///home/stackato/stackato/db/cloud_controller.db"
+  database:
+    host: localhost
+    port: 5432
+    username: postgres
+    password: root
+    adapter: postgres
+    database: cloudcontroller
   max_connections: 32
   pool_timeout: 10
 
