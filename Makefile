@@ -23,6 +23,8 @@ HOMEDIR=$(DESTDIR)$(prefix)$(INSTALLHOME)
 BASEDIR=$(DESTDIR)$(prefix)$(INSTALLBASE)
 INSTDIR=$(DESTDIR)$(prefix)$(DIRNAME)
 
+PG_CONF_DIR=$(DESTDIR)/etc/postgresql/9.1/cloud_controller_ng
+
 RSYNC_EXCLUDE=--exclude=/.git* --exclude=/Makefile --exclude=/.stackato-pkg --exclude=/debian --exclude=/etc
 
 all:
@@ -32,11 +34,17 @@ install:
 	mkdir -p $(INSTDIR)
 	rsync -ap . $(INSTDIR) $(RSYNC_EXCLUDE)
 	if [ -d etc ] ; then rsync -ap etc $(BASEDIR) ; fi
-	chown -R stackato.stackato $(HOMEDIR)
 	chmod a+x $(INSTDIR)/bin/*
+	
+	# Custom Postgresql Server Configuration
+	mkdir -p $(PG_CONF_DIR) && \
+	cp -fp $(INSTDIR)/config/postgresql/*.conf $(PG_CONF_DIR)/
+	
+	chown -R stackato.stackato $(HOMEDIR)
 
 uninstall:
 	rm -rf $(INSTDIR)
+	rm -rf $(PG_CONF_DIR)
 
 clean:
 	@ true

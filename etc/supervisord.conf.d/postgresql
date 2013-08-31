@@ -1,0 +1,10 @@
+
+[program:postgresql]
+command=sudo /s/kato/bin/start-service postgresql
+priority=1
+redirect_stderr=true
+stdout_logfile=/s/logs/postgresql.log
+stdout_logfile_maxbytes=1MB
+stdout_logfile_backups=3
+stopsignal=INT
+autostart=false
