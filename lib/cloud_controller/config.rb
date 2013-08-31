@@ -162,8 +162,7 @@ class VCAP::CloudController::Config < VCAP::Config
           # logging
           if update[:path] == "/logging/level"
             self.logger.warn("Changing logging level to '#{update[:value]}'")
-            # TODO: Update log level of logger.
-            #self.logger.log_level = update[:value].to_sym
+            Steno.set_logger_regexp(/.+/, update[:value].to_sym)
           end
 
         rescue Exception => e
