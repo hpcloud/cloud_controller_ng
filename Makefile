@@ -1,5 +1,5 @@
 #
-# Makefile for stackato-vcap-cloud-controller-ng
+# Makefile for stackato-cloud-controller-ng
 #
 # Used solely by packaging systems.
 # Must support targets "all", "install", "uninstall".
@@ -12,7 +12,7 @@
 # is not intended to be relocatable.
 #
 
-NAME=stackato-vcap-cloud-controller-ng
+NAME=stackato-cloud-controller-ng
 
 INSTALLHOME=/home/stackato
 INSTALLBASE=$(INSTALLHOME)/stackato
