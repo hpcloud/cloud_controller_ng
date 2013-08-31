@@ -10,11 +10,10 @@ require "cloud_controller"
 require "irb/completion"
 require "pry"
 
-@config_file = File.expand_path("../../../config/cloud_controller.yml", __FILE__)
-@config = VCAP::CloudController::Config.from_file(@config_file)
+@config = VCAP::CloudController::Config.new()
 logger = Logger.new(STDOUT)
 
-VCAP::CloudController::DB.connect(logger, @config.fetch(:db).merge(log_level: :debug))
+VCAP::CloudController::DB.connect(logger, @config[:db].merge(log_level: :debug))
 
 module VCAP::CloudController
   binding.pry :quiet => true

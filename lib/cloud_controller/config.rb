@@ -1,6 +1,8 @@
+require "steno"
 require "vcap/config"
 require "cloud_controller/account_capacity"
 require "uri"
+require 'kato/config'
 
 # Config template for cloud controller
 class VCAP::CloudController::Config < VCAP::Config
@@ -129,6 +131,69 @@ class VCAP::CloudController::Config < VCAP::Config
         :guid => String,
       },
     }
+  end
+
+  def self.logger
+    @logger ||= Steno.logger("cc.config")
+  end
+
+  def self.config_watch
+    Kato::Config.watch "cloud_controller_ng" do |new_config|
+      new_config = new_config.symbolize_keys
+      updates = Kato::Config.diff(@config, new_config)
+      updates.each do |update|
+        # TODO: Currently blankly ignoring deletions, due to
+        #       additions added to AppConfig by CC runtime.
+        #       Better handle deletions.
+        next if update[:del]
+
+        self.logger.debug("Config update : #{update[:path]} = #{update[:value]}")
+
+        begin
+
+          # default_account_capacity
+          if match = update[:path].match("^/(default)_account_capacity/([^/]+)")
+            who = match[1]
+            key = match[2]
+            self.logger.debug("Updating AccountCapacity #{who} #{key} = #{update[:value]}")
+            AccountCapacity.send(who)[key.to_sym] = update[:value]
+          end
+
+          # logging
+          if update[:path] == "/logging/level"
+            self.logger.warn("Changing logging level to '#{update[:value]}'")
+            Steno.set_logger_regexp(/.+/, update[:value].to_sym)
+          end
+
+        rescue Exception => e
+          raise "Failed to update in-memory config for #{update[:path]} = #{update[:value]} " + e.message
+        end
+      end
+      if updates.size > 0
+        # XXX: This might blitz some changes by CC runtime.
+        #      Change CC to not use AppConfig for in-process
+        #      state.
+        @config.merge!(new_config)
+      end
+    end
+  end
+
+  def self.from_redis(config_overrides = {})
+    @config = Kato::Config.get("cloud_controller_ng").symbolize_keys
+
+    unless @config
+      $stderr.puts %[FATAL: Unable to load config]
+      exit 1
+    end
+
+    @config.update(config_overrides)
+
+    EM.next_tick do
+      self.config_watch
+    end
+
+    merge_defaults(@config)
+    @config
   end
 
   def self.from_file(file_name)

@@ -1,7 +1,7 @@
 
 [program:cloud_controller_ng]
-directory=/s/code/cloud_controller_ng
-command=/opt/rubies/current/bin/bundle exec bin/cloud_controller -m -c /home/stackato/stackato/code/cloud_controller_ng/config/cloud_controller.yml
+directory=/s/code/cloud_controller
+command=/opt/rubies/current/bin/bundle exec bin/cloud_controller -m
 priority=2
 redirect_stderr=true
 stdout_logfile=/s/logs/cloud_controller.log

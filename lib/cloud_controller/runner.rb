@@ -17,7 +17,6 @@ module VCAP::CloudController
 
       # default to production. this may be overriden during opts parsing
       ENV["RACK_ENV"] = "production"
-      @config_file = File.expand_path("../../../config/cloud_controller.yml", __FILE__)
       parse_options!
       parse_config
 
@@ -55,12 +54,8 @@ module VCAP::CloudController
     end
 
     def parse_config
-      @config = VCAP::CloudController::Config.from_file(@config_file)
-    rescue Membrane::SchemaValidationError => ve
-      puts "ERROR: There was a problem validating the supplied config: #{ve}"
-      exit 1
+      @config = VCAP::CloudController::Config.from_redis
     rescue => e
-      puts "ERROR: Failed loading config from file '#{@config_file}': #{e}"
       exit 1
     end
 
