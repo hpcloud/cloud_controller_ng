@@ -291,7 +291,7 @@ DEPENDENCIES
   ci_reporter
   cloudfront-signer
   debugger
-  eventmachine (~> 1.0.1)
+  eventmachine (~> 1.0.3)
   fog
   guard-rspec
   httpclient
