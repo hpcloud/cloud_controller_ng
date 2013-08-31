@@ -80,7 +80,7 @@ end
 
   def config
     @config ||= begin
-      VCAP::CloudController::Config.new()
+      VCAP::CloudController::Config.from_redis
     end
   end
 
