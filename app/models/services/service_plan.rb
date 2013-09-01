@@ -30,6 +30,7 @@ module VCAP::CloudController::Models
       validates_presence :description
       validates_presence :free
       validates_presence :service
+      validates_presence :unique_id
       validates_unique   [:service_id, :name]
     end
 
@@ -41,12 +42,10 @@ module VCAP::CloudController::Models
     end
 
     def self.user_visibility_filter(user)
-      filter = Sequel.|(
-        {public: true},
-        {id: ServicePlanVisibility.visible_private_plan_ids_for_user(user)}
+      Sequel.or(
+        public: true,
+        id: ServicePlanVisibility.visible_private_plan_ids_for_user(user)
       )
-
-      user_visibility_filter_with_admin_override(filter)
     end
 
     def trial_db?
@@ -55,6 +54,17 @@ module VCAP::CloudController::Models
 
     def bindable?
       service.bindable?
+    end
+
+    private
+
+    def before_validation
+      generate_unique_id if new?
+      super
+    end
+
+    def generate_unique_id
+      self.unique_id ||= SecureRandom.uuid
     end
   end
 end

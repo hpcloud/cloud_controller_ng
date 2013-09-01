@@ -4,14 +4,6 @@ module VCAP::CloudController
     path_base "spaces"
     model_class_name :Space
 
-    permissions_required do
-      read Permissions::CFAdmin
-      read Permissions::OrgManager
-      read Permissions::SpaceManager
-      read Permissions::SpaceDeveloper
-      read Permissions::SpaceAuditor
-    end
-
     def summary(guid)
       space = find_guid_and_validate_access(:read, guid)
 
@@ -22,7 +14,7 @@ module VCAP::CloudController
 
       started_apps = space.apps.select(&:started?)
       unless started_apps.empty?
-        HealthManagerClient.healthy_instances(started_apps).each do |app_guid, num|
+        health_manager_client.healthy_instances(started_apps).each do |app_guid, num|
           apps[app_guid][:running_instances] = num
         end
       end
@@ -43,6 +35,14 @@ module VCAP::CloudController
         :apps => apps.values,
         :services => services_summary,
       )
+    end
+
+    protected
+
+    attr_reader :health_manager_client
+
+    def inject_dependencies(dependencies)
+      @health_manager_client = dependencies[:health_manager_client]
     end
 
     private

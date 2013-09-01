@@ -1,43 +1,28 @@
+require "cloud_controller/upload_handler"
+require "jobs/runtime/app_bits_packer_job"
+require "presenters/api/job_presenter"
+
 module VCAP::CloudController
   rest_controller :AppBits do
     disable_default_routes
     path_base "apps"
     model_class_name :App
 
-    permissions_required do
-      full Permissions::CFAdmin
-      full Permissions::SpaceDeveloper
-    end
-
     def upload(guid)
       app = find_guid_and_validate_access(:update, guid)
 
-      unless params["resources"]
-        raise Errors::AppBitsUploadInvalid.new("missing :resources")
-      end
+      raise Errors::AppBitsUploadInvalid, "missing :resources" unless params["resources"]
 
-      resources = json_param("resources")
-      unless resources.kind_of?(Array)
-        raise Errors::AppBitsUploadInvalid.new("invalid :resources")
-      end
+      uploaded_zip_of_files_not_in_blobstore = UploadHandler.new(config).uploaded_file(params, "application")
+      app_bits_packer_job = AppBitsPackerJob.new(guid, uploaded_zip_of_files_not_in_blobstore.try(:path), json_param("resources"))
 
-      # TODO: validate upload path
-      if config[:nginx][:use_nginx]
-        if path = params["application_path"]
-          uploaded_file = Struct.new(:path).new(path)
-        end
+      if params["async"] == "true"
+        job = Delayed::Job.enqueue(app_bits_packer_job, queue: "cc#{config[:index]}")
+        [HTTP::CREATED, JobPresenter.new(job).to_json]
       else
-        application = params["application"]
-        if application.kind_of?(Hash) && application[:tempfile]
-          uploaded_file = application[:tempfile]
-        end
+        app_bits_packer_job.perform
+        HTTP::CREATED
       end
-
-      sha1 = AppPackage.to_zip(app.guid, resources, uploaded_file)
-      app.package_hash = sha1
-      app.save
-
-      HTTP::CREATED
     rescue VCAP::CloudController::Errors::AppBitsUploadInvalid, VCAP::CloudController::Errors::AppPackageInvalid
       app.mark_as_failed_to_stage
       raise
@@ -54,7 +39,7 @@ module VCAP::CloudController
         raise Errors::AppPackageNotFound.new(guid)
       end
 
-      if AppPackage.local?
+      if AppPackage.blob_store.local?
         if config[:nginx][:use_nginx]
           return [200, { "X-Accel-Redirect" => "#{package_uri}" }, ""]
         else

@@ -180,8 +180,8 @@ module VCAP::CloudController
 
       def after_destroy_commit
         AppManager.stop_droplet(self)
-        VCAP::CloudController::AppManager.delete_droplet(self)
-        VCAP::CloudController::AppPackage.delete_package(self.guid)
+        AppManager.delete_droplet(self)
+        AppPackage.delete_package(self.guid)
       end
 
       def command=(cmd)
@@ -306,7 +306,12 @@ module VCAP::CloudController
       end
 
       def self.user_visibility_filter(user)
-        user_visibility_filter_with_admin_override(:space => user.spaces_dataset)
+        Sequel.or([
+          [:space, user.spaces_dataset],
+          [:space, user.managed_spaces_dataset],
+          [:space, user.audited_spaces_dataset],
+          [:apps__space_id, user.managed_organizations_dataset.join(:spaces, :spaces__organization_id => :organizations__id).select(:spaces__id)]
+        ])
       end
 
       def needs_staging?
@@ -317,7 +322,7 @@ module VCAP::CloudController
         self.package_state == "STAGED"
       end
 
-      def failed?
+      def staging_failed?
         self.package_state == "FAILED"
       end
 
@@ -442,7 +447,7 @@ module VCAP::CloudController
 
       def running_instances
         return 0 unless started?
-        VCAP::CloudController::HealthManagerClient.healthy_instances(self)
+        health_manager_client.healthy_instances(self)
       end
 
       # returns True if we need to update the DEA's with
@@ -460,6 +465,10 @@ module VCAP::CloudController
       end
 
       private
+
+      def health_manager_client
+        CloudController::DependencyLocator.instance.health_manager_client
+      end
 
       def requested_memory
         default_memory = db_schema[:memory][:default].to_i

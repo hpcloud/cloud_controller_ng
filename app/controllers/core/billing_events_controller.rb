@@ -2,10 +2,6 @@ module VCAP::CloudController
   rest_controller :BillingEvents do
     serialization RestController::EntityOnlyObjectSerialization
 
-    permissions_required do
-      read Permissions::CFAdmin
-    end
-
     # override base enumeration functionality.  This is mainly becase we need
     # better controll over the dataset returned, and we don't have generic
     # functionality for the controller to configure its dataset.
@@ -16,7 +12,7 @@ module VCAP::CloudController
         raise Errors::BillingEventQueryInvalid
       end
 
-      ds = model.user_visible.filter(:timestamp => start_time..end_time)
+      ds = model.user_visible(SecurityContext.current_user, SecurityContext.admin?).filter(:timestamp => start_time..end_time)
       RestController::Paginator.render_json(self.class, ds, self.class.path,
                                             @opts.merge(:serialization => serialization))
     end

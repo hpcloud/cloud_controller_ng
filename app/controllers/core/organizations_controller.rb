@@ -1,14 +1,5 @@
 module VCAP::CloudController
-  rest_controller :Organizations do
-    permissions_required do
-      full Permissions::CFAdmin
-      read Permissions::OrgManager
-      update Permissions::OrgManager
-      read Permissions::OrgUser
-      read Permissions::BillingManager
-      read Permissions::Auditor
-    end
-
+  class OrganizationsController < RestController::ModelController
     define_attributes do
       attribute :name, String
       attribute :billing_enabled, Message::Boolean, :default => false
@@ -26,6 +17,9 @@ module VCAP::CloudController
     query_parameters :name, :space_guid, :user_guid,
                     :manager_guid, :billing_manager_guid,
                     :auditor_guid, :status
+
+    define_messages
+    define_routes
 
     def self.translate_validation_exception(e, attributes)
       quota_def_errors = e.errors.on(:quota_definition_id)

@@ -57,11 +57,13 @@ module VCAP::CloudController
 
       let(:decoded_response) { Yajl::Parser.parse(last_response.body) }
 
-      subject { post "/v2/apps", Yajl::Encoder.encode(initial_hash), json_headers(admin_headers) }
+      def create_app
+        post "/v2/apps", Yajl::Encoder.encode(initial_hash), json_headers(admin_headers)
+      end
 
       context "when name and space provided" do
         it "responds with new app data" do
-          subject
+          create_app
           last_response.status.should == 201
           decoded_response["entity"]["name"].should == "maria"
           decoded_response["entity"]["space_guid"].should == space_guid
@@ -74,7 +76,7 @@ module VCAP::CloudController
         end
 
         it "responds invalid arguments" do
-          subject
+          create_app
           last_response.status.should == 400
           last_response.body.should match /invalid amount of memory/
         end
@@ -83,7 +85,7 @@ module VCAP::CloudController
       context "when name is not provided" do
         let(:initial_hash) {{ :space_guid => space_guid }}
         it "responds with missing field name error" do
-          subject
+          create_app
           last_response.status.should == 400
           last_response.body.should match /Error: Missing field name/
         end
@@ -92,34 +94,35 @@ module VCAP::CloudController
       context "when space is not provided" do
         let(:initial_hash) {{ :name => "maria" }}
         it "responds with missing field space error" do
-          subject
+          create_app
           last_response.status.should == 400
           last_response.body.should match /Error: Missing field space/
         end
       end
 
       context "when detected_buildpack is provided" do
-        let(:initial_hash) do
-          { :name => "maria",
-            :space_guid => space_guid,
-            :detected_buildpack => "buildpack"
-          }
-        end
+        before { initial_hash[:detected_buildpack] = 'buildpack-name' }
 
-        it "responds with error" do
-          subject
-          last_response.status.should == 400
-          last_response.body.should match /.*error.*detected_buildpack.*/i
+        it "ignores the attribute" do
+          expect {
+            create_app
+          }.to change(Models::App, :count).by(1)
+
+          last_response.status.should == 201
+
+          app = Models::App.last
+          expect(app.detected_buildpack).to be_nil
+          expect(decoded_response['entity'].fetch('detected_buildpack')).to be_nil
         end
       end
 
       it "records a app.create event" do
-        subject
+        create_app
 
         last_response.status.should == 201
 
         new_app_guid = decoded_response['metadata']['guid']
-        event = Models::Event.find(:type => "app.create", :actee => new_app_guid)
+        event = Models::Event.find(:type => "audit.app.create", :actee => new_app_guid)
 
         expect(event).to be
         expect(event.actor).to eq(admin_user.guid)
@@ -129,9 +132,11 @@ module VCAP::CloudController
     describe "update app" do
       let(:update_hash) { {} }
 
-      let(:app_obj) { Models::App.make(:detected_buildpack => "buildpack-name") }
+      let(:app_obj) { Models::App.make(:detected_buildpack => 'buildpack-name') }
 
-      subject { put "/v2/apps/#{app_obj.guid}", Yajl::Encoder.encode(update_hash), json_headers(admin_headers) }
+      def update_app
+        put "/v2/apps/#{app_obj.guid}", Yajl::Encoder.encode(update_hash), json_headers(admin_headers)
+      end
 
       describe "update app debug" do
         context "set debug" do
@@ -140,7 +145,7 @@ module VCAP::CloudController
           end
 
           it "should work" do
-            subject
+            update_app
             app_obj.refresh
             app_obj.debug.should == "run"
             last_response.status.should == 201
@@ -156,7 +161,7 @@ module VCAP::CloudController
           end
 
           it "should work" do
-            subject
+            update_app
             app_obj.refresh
             app_obj.debug.should == "suspend"
             last_response.status.should == 201
@@ -171,7 +176,7 @@ module VCAP::CloudController
           end
 
           it "should work" do
-            subject
+            update_app
             app_obj.refresh
             app_obj.debug.should be_nil
             last_response.status.should == 201
@@ -186,14 +191,13 @@ module VCAP::CloudController
           end
 
           it "should do nothing" do
-            subject
+            update_app
             app_obj.refresh
             app_obj.debug.should == "run"
             last_response.status.should == 201
           end
         end
       end
-
         
       context "when detected buildpack is not provided" do
         let(:update_hash) do
@@ -201,28 +205,30 @@ module VCAP::CloudController
         end
 
         it "should work" do
-          subject
+          update_app
           last_response.status.should == 201
         end
       end
 
       context "when detected buildpack is provided" do
-        before { update_hash[:detected_buildpack] = "buildpack" }
+        before { update_hash[:detected_buildpack] = 'new-buildpack-name' }
 
-        it "should raise error" do
-          subject
-          last_response.status.should == 400
-          last_response.body.should match /.*error.*detected_buildpack.*/i
+        it "should ignore the attribute" do
+          update_app
+
+          last_response.status.should == 201
+
+          app_obj.reload
+          expect(app_obj.detected_buildpack).to be == 'buildpack-name'
+          expect(decoded_response['entity'].fetch('detected_buildpack')).to be == 'buildpack-name'
         end
       end
 
       context "when the app is already deleted" do
-        let(:app_obj) { Models::App.make(:detected_buildpack => "buildpack-name") }
-
         before { app_obj.soft_delete }
 
         it "should raise error" do
-          subject
+          update_app
 
           last_response.status.should == 404
         end
@@ -232,9 +238,9 @@ module VCAP::CloudController
         before { update_hash[:instances] = 2 }
 
         it "registers an app.start event" do
-          subject
+          update_app
 
-          event = Models::Event.find(:type => "app.update", :actee => app_obj.guid)
+          event = Models::Event.find(:type => "audit.app.update", :actee => app_obj.guid)
           expect(event).to be
           expect(event.actor).to eq(admin_user.guid)
         end
@@ -245,10 +251,12 @@ module VCAP::CloudController
       let(:app_obj) { Models::App.make(:detected_buildpack => "buildpack-name") }
       let(:decoded_response) { Yajl::Parser.parse(last_response.body) }
 
-      subject { get "/v2/apps/#{app_obj.guid}", {}, json_headers(admin_headers) }
+      def get_app
+        get "/v2/apps/#{app_obj.guid}", {}, json_headers(admin_headers)
+      end
 
       it "should return the detected buildpack" do
-        subject
+        get_app
         last_response.status.should == 200
         decoded_response["entity"]["detected_buildpack"].should eq("buildpack-name")
       end
@@ -261,7 +269,7 @@ module VCAP::CloudController
         end
 
         it "should raise error" do
-          subject
+          get_app
           last_response.status.should == 404
         end
       end
@@ -272,13 +280,15 @@ module VCAP::CloudController
 
       let(:decoded_response) { Yajl::Parser.parse(last_response.body) }
 
-      subject { delete "/v2/apps/#{app_obj.guid}", {}, json_headers(admin_headers) }
+      def delete_app
+        delete "/v2/apps/#{app_obj.guid}", {}, json_headers(admin_headers)
+      end
 
       context "when the app is not deleted" do
         let(:app_obj) { Models::App.make }
 
         it "should delete the app" do
-          subject
+          delete_app
           last_response.status.should == 204
         end
       end
@@ -291,7 +301,7 @@ module VCAP::CloudController
         end
 
         it "should raise error" do
-          subject
+          delete_app
           last_response.status.should == 404
         end
       end
@@ -306,7 +316,7 @@ module VCAP::CloudController
             called = true
           end
 
-          subject
+          delete_app
 
           called.should be_true
         end
@@ -318,7 +328,7 @@ module VCAP::CloudController
             called = true
           end
 
-          subject
+          delete_app
 
           called.should be_true
         end
@@ -333,10 +343,12 @@ module VCAP::CloudController
           app_obj.save
         end
 
-        subject { delete "/v2/apps/#{app_obj.guid}?recursive=true", {}, json_headers(admin_headers) }
+        def delete_app_recursively
+          delete "/v2/apps/#{app_obj.guid}?recursive=true", {}, json_headers(admin_headers)
+        end
 
         it "should delete the dependencies" do
-          subject
+          delete_app_recursively
           last_response.status.should == 204
 
           Models::App.deleted[:id => app_obj.id].deleted_at.should_not be_nil
@@ -350,7 +362,7 @@ module VCAP::CloudController
 
         context "with other empty associations" do
           it "should soft delete the app and NOT delete the app event" do
-            subject
+            delete_app
 
             last_response.status.should == 204
             Models::App.deleted[:id => app_obj.id].deleted_at.should_not be_nil
@@ -364,7 +376,7 @@ module VCAP::CloudController
           let!(:service_binding) { Models::ServiceBinding.make(:app => app_obj, :service_instance => svc_instance) }
 
           it "should raise an error" do
-            subject
+            delete_app
 
             last_response.status.should == 400
             decoded_response["description"].should =~ /service_bindings/i
@@ -374,9 +386,9 @@ module VCAP::CloudController
       end
 
       it "records an app.deleted event" do
-        subject
+        delete_app
         last_response.status.should == 204
-        event = Models::Event.find(:type => "app.delete", :actee => app_obj.guid)
+        event = Models::Event.find(:type => "audit.app.delete", :actee => app_obj.guid)
         expect(event).to be
         expect(event.actor).to eq(admin_user.guid)
       end
@@ -454,13 +466,13 @@ module VCAP::CloudController
         end
 
         it "returns X-App-Staging-Log header with staging log url" do
-          stager_response = AppStagerTask::Response.new(:task_streaming_log_url => "streaming-log-url")
-          AppManager.stub(:stage_app => stager_response)
+          stager_response = AppStagerTask::Response.new("task_streaming_log_url" => "streaming-log-url")
+          AppManager.stub(stage_app: stager_response)
 
           put "/v2/apps/#{app_obj.guid}", Yajl::Encoder.encode(:state => "STARTED"), json_headers(admin_headers)
           last_response.status.should == 201
           last_response.headers["X-App-Staging-Log"].should == "streaming-log-url"
-          end
+        end
       end
 
       context "when app will not be staged" do
@@ -574,56 +586,40 @@ module VCAP::CloudController
           let(:member_a) { @org_a_manager }
           let(:member_b) { @org_b_manager }
 
-          include_examples "permission checks", "OrgManager",
-            :model => Models::App,
+          include_examples "permission enumeration", "OrgManager",
+            :name => 'app',
             :path => "/v2/apps",
-            :enumerate => 0,
-            :create => :not_allowed,
-            :read => :allowed,
-            :modify => :not_allowed,
-            :delete => :not_allowed
+            :enumerate => 1
         end
 
         describe "OrgUser" do
           let(:member_a) { @org_a_member }
           let(:member_b) { @org_b_member }
 
-          include_examples "permission checks", "OrgUser",
-            :model => Models::App,
+          include_examples "permission enumeration", "OrgUser",
+            :name => 'app',
             :path => "/v2/apps",
-            :enumerate => 0,
-            :create => :not_allowed,
-            :read => :not_allowed,
-            :modify => :not_allowed,
-            :delete => :not_allowed
+            :enumerate => 0
         end
 
         describe "BillingManager" do
           let(:member_a) { @org_a_billing_manager }
           let(:member_b) { @org_b_billing_manager }
 
-          include_examples "permission checks", "BillingManager",
-            :model => Models::App,
+          include_examples "permission enumeration", "BillingManager",
+            :name => 'app',
             :path => "/v2/apps",
-            :enumerate => 0,
-            :create => :not_allowed,
-            :read => :not_allowed,
-            :modify => :not_allowed,
-            :delete => :not_allowed
+            :enumerate => 0
         end
 
         describe "Auditor" do
           let(:member_a) { @org_a_auditor }
           let(:member_b) { @org_b_auditor }
 
-          include_examples "permission checks", "Auditor",
-            :model => Models::App,
+          include_examples "permission enumeration", "Auditor",
+            :name => 'app',
             :path => "/v2/apps",
-            :enumerate => 0,
-            :create => :not_allowed,
-            :read => :not_allowed,
-            :modify => :not_allowed,
-            :delete => :not_allowed
+            :enumerate => 0
         end
       end
 
@@ -632,42 +628,30 @@ module VCAP::CloudController
           let(:member_a) { @space_a_manager }
           let(:member_b) { @space_b_manager }
 
-          include_examples "permission checks", "SpaceManager",
-            :model => Models::App,
+          include_examples "permission enumeration", "SpaceManager",
+            :name => 'app',
             :path => "/v2/apps",
-            :enumerate => 0,
-            :create => :not_allowed,
-            :read => :allowed,
-            :modify => :not_allowed,
-            :delete => :not_allowed
+            :enumerate => 1
         end
 
         describe "Developer" do
           let(:member_a) { @space_a_developer }
           let(:member_b) { @space_b_developer }
 
-          include_examples "permission checks", "Developer",
-            :model => Models::App,
+          include_examples "permission enumeration", "Developer",
+            :name => 'app',
             :path => "/v2/apps",
-            :enumerate => 1,
-            :create => :allowed,
-            :read => :allowed,
-            :modify => :allowed,
-            :delete => :allowed
+            :enumerate => 1
         end
 
         describe "SpaceAuditor" do
           let(:member_a) { @space_a_auditor }
           let(:member_b) { @space_b_auditor }
 
-          include_examples "permission checks", "SpaceAuditor",
-            :model => Models::App,
+          include_examples "permission enumeration", "SpaceAuditor",
+            :name => 'app',
             :path => "/v2/apps",
-            :enumerate => 0,
-            :create => :not_allowed,
-            :read => :allowed,
-            :modify => :not_allowed,
-            :delete => :not_allowed
+            :enumerate => 1
         end
       end
     end

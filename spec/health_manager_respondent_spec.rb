@@ -1,6 +1,4 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
-require File.expand_path("../spec_helper", __FILE__)
+require "spec_helper"
 require "cloud_controller/health_manager_respondent"
 
 module VCAP::CloudController
@@ -15,19 +13,12 @@ module VCAP::CloudController
     let(:instances) { [] }
 
     let(:payload) do
-      { :droplet => droplet,
-        :indices => indices,
-        :version => version,
-        :running => symbolize_keys(running), # ensure we handle this case
-        :instances => instances # used for stop requests
+      { "droplet" => droplet,
+        "indices" => indices,
+        "version" => version,
+        "running" => running,
+        "instances" => instances # used for stop requests
       }
-    end
-
-    def symbolize_keys(hash)
-      hash.inject({}) do |h, (k, v)|
-        h[k.to_sym] = v
-        h
-      end
     end
 
     subject { HealthManagerRespondent.new(dea_client, message_bus) }
@@ -71,6 +62,32 @@ module VCAP::CloudController
           dea_client.should_not_receive(:start_instances_with_message)
 
           subject.process_start(payload)
+        end
+      end
+
+      context "when the app exists but the droplet hash is not yet known" do
+        let(:package_state) { "PENDING" }
+        let(:app) do
+          Models::App.make :version => "some-version", :instances => 1, :state => "STARTED",
+            :package_hash => "dont_care", :droplet_hash => nil, :package_state => package_state
+        end
+
+        context "when app staging has failed" do
+          let(:package_state) { "FAILED" }
+          it "starts the instance" do
+            dea_client.should_receive(:start_instances_with_message).with(app, [2])
+
+            subject.process_start(payload)
+          end
+        end
+
+        context "when app was staged" do
+          it "ignores the request" do
+            expect(app.droplet_hash).to be_nil
+            dea_client.should_not_receive(:start_instances_with_message)
+
+            subject.process_start(payload)
+          end
         end
       end
 

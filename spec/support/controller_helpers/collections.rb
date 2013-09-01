@@ -31,6 +31,8 @@ module ControllerHelpers
       value.collect { |x| normalize_attributes(x) }
     when Numeric, nil, true, false
       value
+    when Time
+      value.iso8601
     else
       value.to_s
     end
@@ -55,8 +57,7 @@ module ControllerHelpers
 
     def headers
       @header ||= begin
-        user = VCAP::CloudController::Models::User.make(:admin => true)
-        json_headers(headers_for(user))
+        json_headers(admin_headers)
       end
     end
 

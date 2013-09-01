@@ -42,8 +42,8 @@ module VCAP::CloudController
 
     describe "GET /v2/apps/:id/summary" do
       before do
-        HealthManagerClient.should_receive(:healthy_instances).
-          and_return(@app.instances)
+        health_manager_client = CloudController::DependencyLocator.instance.health_manager_client
+        health_manager_client.should_receive(:healthy_instances).and_return(@app.instances)
         get "/v2/apps/#{@app.guid}/summary", {}, admin_headers
       end
 
@@ -119,96 +119,6 @@ module VCAP::CloudController
             }
           }
         }
-      end
-    end
-
-    describe "Permissions" do
-      include_context "permissions"
-
-      before do
-        @obj_a = Models::App.make(:space => @space_a)
-        @obj_b = Models::App.make(:space => @space_b)
-      end
-
-      describe "Org Level Permissions" do
-        describe "OrgManager" do
-          let(:member_a) { @org_a_manager }
-          let(:member_b) { @org_b_manager }
-
-          include_examples "read permission check", "OrgManager",
-            :model => Models::App,
-            :path => "/v2/apps",
-            :path_suffix => "/summary",
-            :allowed => true
-        end
-
-        describe "OrgUser" do
-          let(:member_a) { @org_a_member }
-          let(:member_b) { @org_b_member }
-
-          include_examples "read permission check", "OrgUser",
-            :model => Models::App,
-            :path => "/v2/apps",
-            :path_suffix => "/summary",
-            :allowed => false
-        end
-
-        describe "BillingManager" do
-          let(:member_a) { @org_a_billing_manager }
-          let(:member_b) { @org_b_billing_manager }
-
-          include_examples "read permission check", "BillingManager",
-            :model => Models::App,
-            :path => "/v2/apps",
-            :path_suffix => "/summary",
-            :allowed => false
-        end
-
-        describe "Auditor" do
-          let(:member_a) { @org_a_auditor }
-          let(:member_b) { @org_b_auditor }
-
-          include_examples "read permission check", "Auditor",
-            :model => Models::App,
-            :path => "/v2/apps",
-            :path_suffix => "/summary",
-            :allowed => false
-        end
-      end
-
-      describe "App Space Level Permissions" do
-        describe "SpaceManager" do
-          let(:member_a) { @space_a_manager }
-          let(:member_b) { @space_b_manager }
-
-          include_examples "read permission check", "SpaceManager",
-            :model => Models::App,
-            :path => "/v2/apps",
-            :path_suffix => "/summary",
-            :allowed => true
-        end
-
-        describe "Developer" do
-          let(:member_a) { @space_a_developer }
-          let(:member_b) { @space_b_developer }
-
-          include_examples "read permission check", "Developer",
-            :model => Models::App,
-            :path => "/v2/apps",
-            :path_suffix => "/summary",
-            :allowed => true
-        end
-
-        describe "SpaceAuditor" do
-          let(:member_a) { @space_a_auditor }
-          let(:member_b) { @space_b_auditor }
-
-          include_examples "read permission check", "SpaceAuditor",
-            :model => Models::App,
-            :path => "/v2/apps",
-            :path_suffix => "/summary",
-            :allowed => true
-        end
       end
     end
   end

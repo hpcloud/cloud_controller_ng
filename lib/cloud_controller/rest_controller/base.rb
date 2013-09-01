@@ -9,19 +9,11 @@ module VCAP::CloudController::RestController
     include VCAP::CloudController
     include VCAP::Errors
     include VCAP::RestAPI
-    include PermissionManager
     include Messages
     include Routes
     extend Forwardable
 
     def_delegators :@sinatra, :redirect
-
-    # Tell the PermissionManager the types of operations that can be performed.
-    define_permitted_operation :create
-    define_permitted_operation :read
-    define_permitted_operation :update
-    define_permitted_operation :delete
-    define_permitted_operation :enumerate
 
     # Create a new rest api endpoint.
     #
@@ -43,7 +35,7 @@ module VCAP::CloudController::RestController
     # agnostic in the base api and everthing build on it, but, the need to call
     # send_file changed that.
     #
-    def initialize(config, logger, env, params, body, sinatra = nil)
+    def initialize(config, logger, env, params, body, sinatra = nil, dependencies = {})
       @config  = config
       @logger  = logger
       @env     = env
@@ -51,6 +43,13 @@ module VCAP::CloudController::RestController
       @body    = body
       @opts    = parse_params(params)
       @sinatra = sinatra
+
+      inject_dependencies(dependencies)
+    end
+
+    # Override this to set dependencies
+    #
+    def inject_dependencies(dependencies = {})
     end
 
     # Parses and sanitizes query parameters from the sinatra request.
@@ -141,7 +140,7 @@ module VCAP::CloudController::RestController
       # legacy calls setting a user, but not providing a token.
       return if self.class.allow_unauthenticated_access?
       return if VCAP::CloudController::SecurityContext.current_user
-      return if VCAP::CloudController::SecurityContext.current_user_is_admin?
+      return if VCAP::CloudController::SecurityContext.admin?
 
       if VCAP::CloudController::SecurityContext.token
         raise NotAuthorized

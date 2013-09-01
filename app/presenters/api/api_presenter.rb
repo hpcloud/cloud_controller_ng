@@ -10,13 +10,17 @@ class ApiPresenter
     }
   end
 
+  def to_json
+    Yajl::Encoder.encode(to_hash)
+  end
+
   protected
 
   def metadata_hash
     {
       guid: @object.guid,
-      created_at: @object.created_at.to_s,
-      updated_at: @object.updated_at.to_s
+      created_at: @object.created_at.iso8601,
+      updated_at: @object.updated_at.try(:iso8601)
     }
   end
 

@@ -6,6 +6,7 @@ module VCAP::CloudController
     let(:email) { Sham.email }
     let(:guid) { Sham.guid }
 
+    after { VCAP::Request.current_id = nil }
     before do
       VCAP::CloudController::SecurityContext.stub(:current_user_email) { email }
     end
@@ -157,16 +158,41 @@ module VCAP::CloudController
     end
 
     describe "#service_gateway_client" do
-      let(:plan) do
-        double("plan").tap do |p|
-          p.stub(:service) {
-            double("service").tap do |s|
-              s.stub(:url => "https://fake.example.com/fake")
-              s.stub(:service_auth_token => token)
-              s.stub(:timeout => 999999)
-            end
-          }
-        end
+      let(:service) do
+        double(:service,
+               :url                => "https://fake.example.com/fake",
+               :service_auth_token => token,
+               :timeout            => 999999,
+        )
+      end
+      let(:plan) { double(:plan, :service => service) }
+
+      let(:token) { double("token", token: "le_token") }
+      let(:client) { double(:client) }
+      let(:instance) { VCAP::CloudController::Models::ManagedServiceInstance.new }
+
+      it "sets the service_gateway_client correctly" do
+        VCAP::Services::Api::ServiceGatewayClient.should_receive(:new).
+          with("https://fake.example.com/fake", "le_token", 999999, anything).
+          and_return(client)
+
+        instance.service_gateway_client(plan).should == client
+      end
+
+      it "passes the current request id to the client" do
+        request_id = double(:request_id)
+        VCAP::Request.stub(:current_id).and_return(request_id)
+
+        VCAP::Services::Api::ServiceGatewayClient.should_receive(:new).
+          with(anything, anything, anything, request_id)
+
+        instance.service_gateway_client(plan)
+      end
+
+      it "caches the client for future requests" do
+        VCAP::Services::Api::ServiceGatewayClient.should_receive(:new).once.and_return(client)
+        instance.service_gateway_client(plan).should == client
+        instance.service_gateway_client.should == client
       end
 
       context "with missing service_auth_token" do
@@ -176,23 +202,6 @@ module VCAP::CloudController
           expect {
             VCAP::CloudController::Models::ManagedServiceInstance.new.service_gateway_client(plan)
           }.to raise_error(VCAP::CloudController::Models::ManagedServiceInstance::InvalidServiceBinding, /no service_auth_token/i)
-        end
-      end
-
-      context "with service_auth_token" do
-        let(:token) do
-          double("token").tap do |t|
-            t.stub(:token) { "le_token" }
-          end
-        end
-
-        it "sets the service_gateway_client" do
-          instance = VCAP::CloudController::Models::ManagedServiceInstance.new
-          instance.service_gateway_client(plan)
-
-          expect(instance.service_gateway_client.instance_variable_get(:@url)).to eq("https://fake.example.com/fake")
-          expect(instance.service_gateway_client.instance_variable_get(:@token)).to eq("le_token")
-          expect(instance.service_gateway_client.instance_variable_get(:@timeout)).to eq(999999)
         end
       end
     end
@@ -244,7 +253,13 @@ module VCAP::CloudController
 
         it 'translates duplicate service errors' do
           VCAP::Services::Api::ServiceGatewayClientFake.any_instance.stub(:provision).and_raise(
-            VCAP::Services::Api::ServiceGatewayClient::UnexpectedResponse.new "Can't decode gateway response. status code:500, response body: Error Code: 33106,"
+            VCAP::Services::Api::ServiceGatewayClient::ErrorResponse.new(
+              500,
+              VCAP::Services::Api::ServiceErrorResponse.new(
+                code: 33106,
+                description: "AppDirect does not allow multiple instances of edition-based services in a space. AppDirect response: {}"
+              )
+            )
           )
           expect { service_instance }.to raise_error(Errors::ServiceInstanceDuplicateNotAllowed)
         end
@@ -297,9 +312,7 @@ module VCAP::CloudController
           end
 
           it "does not raise an error if a db instance has not already been allocated" do
-            expect do
-              allocate_trial_db
-            end.not_to raise_error
+            expect { allocate_trial_db }.not_to raise_error
           end
         end
 

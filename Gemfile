@@ -6,7 +6,7 @@ gem "bcrypt-ruby"
 gem "eventmachine", "~> 1.0.3"
 gem "fog"
 gem "rfc822"
-gem "sequel"
+gem "sequel", "~> 3.48"
 gem "sinatra", "~> 1.4"
 gem "sinatra-contrib"
 gem "yajl-ruby"
@@ -22,6 +22,8 @@ gem "cf-message-bus", :git => "https://github.com/cloudfoundry/cf-message-bus.gi
 gem "vcap_common", :git => "https://github.com/cloudfoundry/vcap-common.git", :tag => "v2.2.0"
 gem 'stackato-kato', '~> 2.11.0'
 gem 'redis', '~> 3.0.4'
+gem "allowy"
+gem "delayed_job_active_record", "~> 4.0"
 
 # These are outside the test group in order to run rake tasks
 gem "rspec"
@@ -34,7 +36,6 @@ group :db do
 end
 
 group :development do
-  gem "ruby-graphviz"
   gem "debugger"
   gem "pry"
 end
@@ -48,4 +49,5 @@ group :test do
   gem "timecop"
   gem "rack-test"
   gem "parallel_tests"
+  gem "fakefs", :require => "fakefs/safe"
 end

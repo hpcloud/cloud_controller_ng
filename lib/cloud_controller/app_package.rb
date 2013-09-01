@@ -8,53 +8,58 @@ require "posix/spawn"
 module VCAP::CloudController
   module AppPackage
     class << self
+      attr_reader :blob_store
+
       # Configure the AppPackage
       def configure(config = {})
-        opts = config[:packages]
+        options = config[:packages]
+        @blob_store = BlobStore.new(options[:fog_connection], options[:app_package_directory_key] || "cc-app-packages")
+
         @tmp_dir = config[:directories] ? config[:directories][:tmpdir] : nil
-        @app_package_directory_key = opts[:app_package_directory_key] || "cc-app-packages"
-        @connection_config = opts[:fog_connection]
-        @max_droplet_size = opts[:max_droplet_size] || 512 * 1024 * 1024
-        @directory = nil
+        @max_droplet_size = options[:max_droplet_size] || 512 * 1024 * 1024
       end
 
       # Collects the necessary files and returns the sha1 of the resulting
       # app package.
-      def to_zip(guid, resources, uploaded_file)
-        validate_package_size(uploaded_file, resources)
+      def to_zip(app_guid, fingerprints_already_in_blobstore, uploaded_zip_of_files_not_in_blobstore)
+        validate_package_size(uploaded_zip_of_files_not_in_blobstore, fingerprints_already_in_blobstore)
 
         tmpdir = Dir.mktmpdir("app", @tmp_dir)
-        unpacked_path = unpack_upload(uploaded_file)
-        synchronize_pool_with(unpacked_path, resources)
+        dir_of_files_not_in_blobstore = unpack_upload(uploaded_zip_of_files_not_in_blobstore)
+        synchronize_pool_with(dir_of_files_not_in_blobstore, fingerprints_already_in_blobstore)
 
-        repacked_path = AppPackage.repack_app_in(unpacked_path, tmpdir)
+        zip_path_with_all_files = AppPackage.repack_app_in(dir_of_files_not_in_blobstore, tmpdir)
 
         # Do the sha1 before the mv, because the mv might be to a slower store
-        sha1 = Digest::SHA1.file(repacked_path).hexdigest
+        sha1 = Digest::SHA1.file(zip_path_with_all_files).hexdigest
 
-        File.open(repacked_path) do |file|
-          package_dir.files.create(
-            :key => key_from_guid(guid),
-            :body => file,
-            :public => local?
-          )
-        end
+        upload_to_blobstore(app_guid, zip_path_with_all_files)
 
         sha1
       ensure
         FileUtils.rm_rf(tmpdir) if tmpdir
-        FileUtils.rm_rf(unpacked_path) if unpacked_path
-        FileUtils.rm_rf(File.dirname(repacked_path)) if repacked_path
+        FileUtils.rm_rf(dir_of_files_not_in_blobstore) if dir_of_files_not_in_blobstore
+        FileUtils.rm_rf(File.dirname(zip_path_with_all_files)) if zip_path_with_all_files
+      end
+
+      def upload_to_blobstore(app_guid, zip_path_with_all_files)
+        File.open(zip_path_with_all_files) do |file|
+          blob_store.files.create(
+            :key => key_from_guid(app_guid),
+            :body => file,
+            :public => blob_store.local?
+          )
+        end
       end
 
       def delete_package(guid)
         key = key_from_guid(guid)
-        package_dir.files.destroy(key)
+        blob_store.files.destroy(key)
       end
 
       def package_exists?(guid)
         key = key_from_guid(guid)
-        !package_dir.files.head(key).nil?
+        !blob_store.files.head(key).nil?
       end
 
       # Return app uri for path for a given app's guid.
@@ -63,7 +68,7 @@ module VCAP::CloudController
       # TODO: The expiration should be configurable.
       def package_uri(guid)
         key = key_from_guid(guid)
-        f = package_dir.files.head(key)
+        f = blob_store.files.head(key)
         return nil unless f
 
         # unfortunately fog doesn't have a unified interface for non-public
@@ -76,9 +81,9 @@ module VCAP::CloudController
       end
 
       def package_local_path(guid)
-        raise ArgumentError unless local?
+        raise ArgumentError unless blob_store.local?
         key = key_from_guid(guid)
-        f = package_dir.files.head(key)
+        f = blob_store.files.head(key)
         return nil unless f
         # Yes, this is bad.  But, we really need a handle to the actual path in
         # order to serve the file using send_file since send_file only takes a
@@ -100,24 +105,24 @@ module VCAP::CloudController
 
       # Verifies that the recreated droplet size is less than the
       # maximum allowed by the config.
-      def validate_package_size(uploaded_file, resources)
-        logger.debug "uploaded_file: #{uploaded_file}"
+      def validate_package_size(uploaded_zip_of_files_not_in_blobstore, fingerprints_already_in_blobstore)
+        logger.debug "uploaded_file: #{uploaded_zip_of_files_not_in_blobstore}"
 
         # When the entire set of files that make up the application is already
         # in the resource pool, the client may not send us any additional contents
         # i.e. the payload is empty.
-        return unless uploaded_file
+        return unless uploaded_zip_of_files_not_in_blobstore
 
-        total_size = unzipped_size(uploaded_file)
+        size_of_files_not_in_blobstore = unzipped_size(uploaded_zip_of_files_not_in_blobstore)
 
         # Avoid stat'ing files in the resource pool if possible
-        validate_size(total_size)
+        validate_size(size_of_files_not_in_blobstore)
 
         # Ugh, this stat's all the files that would need to be copied
         # from the resource pool. Consider caching sizes in resource pool?
-        sizes = ResourcePool.instance.resource_sizes(resources)
-        total_size += sizes.reduce(0) {|accum, cur| accum + cur["size"] }
-        validate_size(total_size)
+        sizes = ResourcePool.instance.resource_sizes(fingerprints_already_in_blobstore)
+        size_of_files_in_blobstore = sizes.reduce(0) {|accum, cur| accum + cur["size"] }
+        validate_size(size_of_files_in_blobstore + size_of_files_not_in_blobstore)
       end
 
       # Extract the file size of the unzipped app
@@ -153,7 +158,7 @@ module VCAP::CloudController
       def create_dir_skeleton(working_dir, resource_path)
         real_path = File.expand_path(resource_path, working_dir)
 
-        if !real_path.start_with?(working_dir)
+        unless real_path.start_with?(working_dir)
           msg = "'#{resource_path}' points outside app package"
           raise Errors::AppPackageInvalid.new(msg)
         end
@@ -176,15 +181,15 @@ module VCAP::CloudController
       end
 
       # Do resource pool sync
-      def synchronize_pool_with(working_dir, resource_descriptors)
-        ResourcePool.instance.add_directory(working_dir)
-        resource_descriptors.each do |descriptor|
-          create_dir_skeleton(working_dir, descriptor["fn"])
-          path = resolve_path(working_dir, descriptor["fn"])
-          ResourcePool.instance.copy(descriptor, path)
+      def synchronize_pool_with(dir_of_files_not_in_blobstore, fingerprints_already_in_blobstore)
+        ResourcePool.instance.add_directory(dir_of_files_not_in_blobstore)
+        fingerprints_already_in_blobstore.each do |fingerprint|
+          create_dir_skeleton(dir_of_files_not_in_blobstore, fingerprint["fn"])
+          path = resolve_path(dir_of_files_not_in_blobstore, fingerprint["fn"])
+          ResourcePool.instance.copy(fingerprint, path)
         end
       rescue => e
-        logger.error "failed synchronizing resource pool with '#{working_dir}' #{e.inspect} #{e.backtrace}"
+        logger.error "failed synchronizing resource pool with '#{dir_of_files_not_in_blobstore}' #{e.inspect} #{e.backtrace}"
         raise Errors::AppPackageInvalid.new("failed synchronizing resource pool #{e}")
       end
 
@@ -213,26 +218,9 @@ module VCAP::CloudController
         @logger ||= Steno.logger("cc.ap")
       end
 
-      def connection
-        opts = @connection_config
-        opts = opts.merge(:endpoint => "") if local?
-        Fog::Storage.new(opts)
-      end
-
-      def package_dir
-        @directory ||= connection.directories.create(
-          :key    => @app_package_directory_key,
-          :public => false,
-        )
-      end
-
       def key_from_guid(guid)
         guid = guid.to_s.downcase
         File.join(guid[0..1], guid[2..3], guid)
-      end
-
-      def local?
-        @connection_config[:provider].downcase == "local"
       end
 
       attr_accessor :max_droplet_size

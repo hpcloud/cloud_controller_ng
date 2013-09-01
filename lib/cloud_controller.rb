@@ -7,6 +7,8 @@ require "thin"
 require "yajl"
 # require "yaml"
 
+require "allowy"
+
 require "eventmachine/schedule_sync"
 
 require "vcap/common"
@@ -16,6 +18,7 @@ require "uaa/token_coder"
 require "sinatra/vcap"
 require "cloud_controller/security_context"
 require "active_support/core_ext/hash"
+require "active_support/json/encoding"
 
 module VCAP::CloudController
   autoload :Models, "cloud_controller/models"
@@ -55,7 +58,12 @@ module VCAP::CloudController
 
       VCAP::CloudController::SecurityContext.set(user, token_information)
 
-      validate_scheme(user, VCAP::CloudController::SecurityContext.current_user_is_admin?)
+      validate_scheme(user, VCAP::CloudController::SecurityContext.admin?)
+    end
+
+    after do
+      # Because we aren't using Rails, we need to manually ensure that AR connections are closed.
+      ActiveRecord::Base.connection.close
     end
 
     # TODO: remove from usage in cloud_controller_spec.rb
@@ -102,7 +110,6 @@ require "vcap/errors"
 
 require "cloud_controller/config"
 require "cloud_controller/db"
-require "cloud_controller/permissions"
 require "cloud_controller/runner"
 require "cloud_controller/app_package"
 require "cloud_controller/app_manager"
@@ -111,6 +118,9 @@ require "cloud_controller/stager_pool"
 require "cloud_controller/controllers"
 require "cloud_controller/roles"
 require "cloud_controller/encryptor"
+require "cloud_controller/blob_store/blob_store"
+require "cloud_controller/dependency_locator"
+require "cloud_controller/controller_factory"
 
 require "cloud_controller/legacy_api/legacy_api_base"
 require "cloud_controller/legacy_api/legacy_info"
@@ -126,3 +136,5 @@ require "cloud_controller/dea/dea_respondent"
 
 require "cloud_controller/health_manager_client"
 require "cloud_controller/health_manager_respondent"
+
+require "cloud_controller/task_client"

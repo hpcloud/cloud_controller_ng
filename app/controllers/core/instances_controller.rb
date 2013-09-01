@@ -4,15 +4,10 @@ module VCAP::CloudController
     path_base "apps"
     model_class_name :App
 
-    permissions_required do
-      read Permissions::CFAdmin
-      read Permissions::SpaceDeveloper
-    end
-
     def instances(guid)
       app = find_guid_and_validate_access(:read, guid)
 
-      if app.failed?
+      if app.staging_failed?
         raise VCAP::Errors::StagingError.new("cannot get instances since staging failed")
       elsif app.pending?
         raise VCAP::Errors::NotStaged

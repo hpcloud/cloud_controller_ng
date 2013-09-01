@@ -126,6 +126,12 @@ module VCAP::CloudController::Models
     app               { App.make(:space => service_instance.space) }
   end
 
+  ServiceBroker.blueprint do
+    name              { Sham.name }
+    broker_url        { Sham.url }
+    token             { Sham.token }
+  end
+
   ServicePlan.blueprint do
     name              { Sham.name }
     free              { false }
@@ -187,6 +193,10 @@ module VCAP::CloudController::Models
     exit_status       { Random.rand(256) }
     exit_description  { Sham.description }
     timestamp         { Time.now }
+  end
+
+  Task.blueprint do
+    app         { App.make }
   end
 
   ServiceCreateEvent.blueprint do

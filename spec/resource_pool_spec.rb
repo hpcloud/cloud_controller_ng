@@ -1,6 +1,4 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
-require File.expand_path("../spec_helper", __FILE__)
+require "spec_helper"
 
 module VCAP::CloudController
   describe VCAP::CloudController::ResourcePool do
@@ -73,7 +71,6 @@ module VCAP::CloudController
     describe "#copy" do
       let(:fake_io) { double :dest }
       let(:files) { double :files }
-      let(:resource_dir) { double :resource_dir, :files => files }
 
       let(:descriptor) do
         { "sha1" => "deadbeef" }
@@ -81,7 +78,7 @@ module VCAP::CloudController
 
       before do
         @resource_pool.stub(:resource_known?).and_return(true)
-        @resource_pool.stub(:resource_dir).and_return(resource_dir)
+        @resource_pool.blob_store.stub(:files).and_return(files)
         files.stub(:get)
         File.stub(:open).and_yield(fake_io)
       end

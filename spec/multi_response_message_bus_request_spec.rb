@@ -1,4 +1,4 @@
-require File.expand_path("../spec_helper", __FILE__)
+require "spec_helper"
 require "cloud_controller/multi_response_message_bus_request"
 
 describe MultiResponseMessageBusRequest do
@@ -10,7 +10,7 @@ describe MultiResponseMessageBusRequest do
   describe "#request" do
     it "makes a request" do
       requested_data = nil
-      expected_data = { :request => "request-value" }
+      expected_data = { "request" => "request-value" }
 
       message_bus.subscribe("subject") do |data|
         requested_data = data
@@ -37,7 +37,7 @@ describe MultiResponseMessageBusRequest do
 
       responses_count.should == 1
       last_error.should be_nil
-      last_response.should == { :response => "response-value" }
+      last_response.should == { "response" => "response-value" }
     end
 
     it "does not accept responses after the specified timeout and returns an error" do
@@ -115,16 +115,16 @@ describe MultiResponseMessageBusRequest do
       message_bus.respond_to_request("subject", "response2" => "response-value")
 
       response1_count.should == 1
-      last1_response.should == { :response1 => "response-value" }
+      last1_response.should == { "response1" => "response-value" }
       last1_error.should be_nil
 
       response2_count.should == 1
-      last2_response.should == { :response2 => "response-value" }
+      last2_response.should == { "response2" => "response-value" }
       last2_error.should be_nil
     end
 
     it "does nothing when callbacks were not provided" do
-      subject.on_response(0) { |*args| }
+      subject.on_response(0) { |*_| }
 
       subject.request(:request => "request-value")
       message_bus.respond_to_request("subject", :response => "response-value")

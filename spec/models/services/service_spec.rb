@@ -3,7 +3,7 @@ require "spec_helper"
 module VCAP::CloudController::Models
   describe Service, type: :model do
     it_behaves_like "a CloudController model", {
-      :required_attributes  => [:label, :provider, :url, :description, :version, :bindable],
+      :required_attributes  => [:label, :description, :bindable],
       :unique_attributes    => [ [:label, :provider] ],
       :stripped_string_attributes => [:label, :provider],
       :one_to_zero_or_more   => {
@@ -64,14 +64,13 @@ module VCAP::CloudController::Models
       before do
         ServicePlan.make :service => public_service, :public => true
         ServicePlan.make :service => public_service, :public => false
-        VCAP::CloudController::SecurityContext.set(admin_user)
+        VCAP::CloudController::SecurityContext.set(admin_user, {'scope' => [VCAP::CloudController::Roles::CLOUD_CONTROLLER_ADMIN_SCOPE]} )
         nonadmin_user.add_organization nonadmin_org
         VCAP::CloudController::SecurityContext.clear
       end
 
       def records(user)
-        VCAP::CloudController::SecurityContext.set(user)
-        Service.filter(Service.user_visibility_filter(user)).all
+        Service.user_visible(user, user.admin?).all
       end
 
       it "returns all services for admins" do
@@ -97,6 +96,16 @@ module VCAP::CloudController::Models
         it 'returns an empty array' do
           service = Service.make(tags: nil)
           expect(service.tags).to eq []
+        end
+      end
+    end
+
+    describe "#documentation_url" do
+      context 'with a URL in the database' do
+        it 'returns the appropriate URL' do
+          sham_url = Sham.url
+          service = Service.make(documentation_url: sham_url)
+          expect(service.documentation_url).to eq sham_url
         end
       end
     end

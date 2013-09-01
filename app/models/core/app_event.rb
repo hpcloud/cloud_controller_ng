@@ -12,5 +12,9 @@ module VCAP::CloudController::Models
       validates_presence :exit_status
       validates_presence :timestamp
     end
+
+    def self.user_visibility_filter(user)
+      {:app => App.user_visible(user)}
+    end
   end
 end

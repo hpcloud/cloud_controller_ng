@@ -1,7 +1,7 @@
 require "spec_helper"
 
 module VCAP::CloudController
-  describe VCAP::CloudController::ServicePlansController, :services, type: :controller do
+  describe ServicePlansController, :services, type: :controller do
     include_examples "uaa authenticated api", path: "/v2/service_plans"
     include_examples "enumerating objects", path: "/v2/service_plans", model: Models::ServicePlan
     include_examples "reading a valid object", path: "/v2/service_plans", model: Models::ServicePlan,
@@ -23,15 +23,11 @@ module VCAP::CloudController
       many_to_many_collection_ids: {}
 
     shared_examples "enumerate and read plan only" do |perm_name|
-      include_examples "permission checks", perm_name,
-        :model => Models::ServicePlan,
+      include_examples "permission enumeration", perm_name,
+        :name => 'service plan',
         :path => "/v2/service_plans",
         :permissions_overlap => true,
-        :enumerate => 7,
-        :create => :not_allowed,
-        :read => :allowed,
-        :modify => :not_allowed,
-        :delete => :not_allowed
+        :enumerate => 7
     end
 
     describe "Permissions" do
@@ -112,7 +108,6 @@ module VCAP::CloudController
       end
     end
 
-    let(:admin) { VCAP::CloudController::Models::User.make(:admin => true) }
     let(:developer) { make_developer_for_space(Models::Space.make) }
 
     describe "modifying service plans" do
@@ -121,7 +116,7 @@ module VCAP::CloudController
 
       context "a cf admin" do
         it "can modify service plans" do
-          put "/v2/service_plans/#{plan.guid}", body, json_headers(headers_for(admin))
+          put "/v2/service_plans/#{plan.guid}", body, json_headers(admin_headers)
           last_response.status.should == 201
           plan.reload.public.should be_false
         end
@@ -161,7 +156,7 @@ module VCAP::CloudController
       end
 
       it "is visible to cf admin" do
-        get '/v2/service_plans', {}, headers_for(admin)
+        get '/v2/service_plans', {}, admin_headers
         plan_guids.should include(private_plan.guid)
       end
     end
@@ -198,12 +193,17 @@ module VCAP::CloudController
   end
 
   describe "PUT", "/v2/service_plans/:guid" do
-    it "rejects updating unique_id" do
+    it "ignores the unique_id attribute" do
       service_plan = Models::ServicePlan.make
-      new_unique_id = service_plan.unique_id.reverse
+      old_unique_id = service_plan.unique_id
+      new_unique_id = old_unique_id.reverse
       payload = Yajl::Encoder.encode({"unique_id" => new_unique_id})
+
       put "/v2/service_plans/#{service_plan.guid}", payload, json_headers(admin_headers)
-      last_response.status.should eq 400
+
+      service_plan.reload
+      expect(last_response.status).to be == 201
+      expect(service_plan.unique_id).to be == old_unique_id
     end
   end
 end

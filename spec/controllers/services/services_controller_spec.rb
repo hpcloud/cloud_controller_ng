@@ -1,7 +1,7 @@
 require "spec_helper"
 
 module VCAP::CloudController
-  describe VCAP::CloudController::ServicesController, :services, type: :controller do
+  describe ServicesController, :services, type: :controller do
     include_examples "uaa authenticated api", path: "/v2/services"
     include_examples "enumerating objects", path: "/v2/services", model: Models::Service
     include_examples "reading a valid object", path: "/v2/services", model: Models::Service,
@@ -23,15 +23,11 @@ module VCAP::CloudController
       many_to_many_collection_ids: {}
 
     shared_examples "enumerate and read service only" do |perm_name|
-      include_examples "permission checks", perm_name,
-        :model => Models::Service,
+      include_examples "permission enumeration", perm_name,
+        :name => 'service',
         :path => "/v2/services",
         :permissions_overlap => true,
-        :enumerate => 7,
-        :create => :not_allowed,
-        :read => :allowed,
-        :modify => :not_allowed,
-        :delete => :not_allowed
+        :enumerate => 7
     end
 
     describe "Permissions" do
@@ -135,6 +131,10 @@ module VCAP::CloudController
         decoded_guids.should =~ (@active + @inactive).map(&:guid)
       end
 
+      it "has a documentation URL field" do
+        get "/v2/services", {}, headers
+        decoded_response["resources"].first["entity"].keys.should include "documentation_url"
+      end
 
       context "with an offering that has private plans" do
         before(:each) do
@@ -152,8 +152,7 @@ module VCAP::CloudController
         end
 
         it "should return the offering when I can see at least one of the plans" do
-          user.update(:admin => true)
-          get "/v2/services", {}, headers
+          get "/v2/services", {}, admin_headers
           last_response.should be_ok
           decoded_guids.should include(@svc_one_public.guid)
           decoded_guids.should include(@svc_all_private.guid)
@@ -178,18 +177,38 @@ module VCAP::CloudController
       end
     end
 
-    describe "POST", "/v2/services" do
-      it "accepts a request with unique_id" do
+    describe 'POST', '/v2/services' do
+      it 'creates a service' do
+        unique_id = Sham.unique_id
+        url = Sham.url
+        documentation_url = Sham.url
+
         payload = ServicesController::CreateMessage.new(
-          :label => 'foo',
-          :provider => 'phan',
-          :url => Sham.url,
-          :description => 'd',
-          :version => 'v',
-          :unique_id => Sham.unique_id,
+          :unique_id => unique_id,
+          :url => url,
+          :documentation_url => documentation_url,
+          :description => 'delightful service',
+          :provider => 'widgets-inc',
+          :label => 'foo-db',
+          :version => 'v1.2.3'
         ).encode
-        post "/v2/services", payload, json_headers(admin_headers)
+
+        expect {
+          post '/v2/services', payload, json_headers(admin_headers)
+        }.to change(Models::Service, :count).by(1)
+
         last_response.status.should eq(201)
+        guid = decoded_response.fetch('metadata').fetch('guid')
+
+        service = Models::Service.last
+        expect(service.guid).to eq(guid)
+        expect(service.unique_id).to eq(unique_id)
+        expect(service.url).to eq(url)
+        expect(service.documentation_url).to eq(documentation_url)
+        expect(service.description).to eq('delightful service')
+        expect(service.provider).to eq('widgets-inc')
+        expect(service.label).to eq('foo-db')
+        expect(service.version).to eq('v1.2.3')
       end
 
       it 'makes the service bindable by default' do
@@ -240,12 +259,17 @@ module VCAP::CloudController
     end
 
     describe "PUT", "/v2/services/:guid" do
-      it "rejects updating unique_id" do
+      it "ignores the unique_id attribute" do
         service = Models::Service.make
-        new_unique_id = service.unique_id.reverse
+        old_unique_id = service.unique_id
+        new_unique_id = old_unique_id.reverse
         payload = Yajl::Encoder.encode({"unique_id" => new_unique_id})
+
         put "/v2/services/#{service.guid}", payload, json_headers(admin_headers)
-        last_response.status.should eq 400
+
+        service.reload
+        expect(last_response.status).to be == 201
+        expect(service.unique_id).to be == old_unique_id
       end
     end
   end

@@ -5,6 +5,7 @@ module VCAP::CloudController::RestController
   # Wraps models and presents collection and per object rest end points
   class ModelController < Base
     include Routes
+    include ::Allowy::Context
 
     # Create operation
     def create
@@ -118,7 +119,7 @@ module VCAP::CloudController::RestController
       associated_path = "#{self.class.url_for_guid(guid)}/#{name}"
 
       filtered_dataset = Query.filtered_dataset_from_query_params(associated_model,
-        obj.user_visible_relationship_dataset(name),
+        obj.user_visible_relationship_dataset(name, VCAP::CloudController::SecurityContext.current_user, SecurityContext.admin?),
         associated_controller.query_parameters,
         @opts)
 
@@ -213,11 +214,11 @@ module VCAP::CloudController::RestController
     #
     # @param [Roles] The roles for the current user or client.
     def validate_access(op, obj, user, roles)
-      user_perms = Permissions.permissions_for(obj, user, roles)
-
-      unless self.class.op_allowed_by?(op, user_perms)
+      if cannot? op, obj
         raise NotAuthenticated if user.nil? && roles.none?
-        raise NotAuthorized
+
+        logger.info("allowy.access-denied", op: op, obj: obj, user: user, roles: roles)
+        raise Errors::NotAuthorized
       end
     end
 
@@ -236,7 +237,8 @@ module VCAP::CloudController::RestController
 
     def enumerate_dataset
       qp = self.class.query_parameters
-      get_filtered_dataset_for_enumeration(model, model.user_visible, qp, @opts)
+      visible_objects = model.user_visible(VCAP::CloudController::SecurityContext.current_user, SecurityContext.admin?)
+      get_filtered_dataset_for_enumeration(model, visible_objects, qp, @opts)
     end
 
     def raise_if_has_associations!(obj)

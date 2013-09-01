@@ -1,4 +1,4 @@
-require File.expand_path("../spec_helper", __FILE__)
+require "spec_helper"
 
 module VCAP::CloudController
   describe AppManager do
@@ -83,7 +83,7 @@ module VCAP::CloudController
 
         context "Non NotFound error" do
           before do
-            StagingsController.should_receive(:droplet_dir).and_raise(StandardError.new("This is an intended error."))
+            StagingsController.blob_store.stub(:files).and_raise(StandardError.new("This is an intended error."))
           end
 
           it "should not rescue non-NotFound errors" do
@@ -228,7 +228,8 @@ module VCAP::CloudController
 
       shared_examples_for(:sends_droplet_updated) do
         it "should send droplet updated message" do
-          HealthManagerClient.should_receive(:notify_app_updated).with("foo")
+          health_manager_client = CloudController::DependencyLocator.instance.health_manager_client
+          health_manager_client.should_receive(:notify_app_updated).with("foo")
           subject
         end
       end

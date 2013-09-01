@@ -66,7 +66,7 @@ module VCAP::CloudController::Models
     end
 
     def require_admin_for(field_name)
-      unless VCAP::CloudController::SecurityContext.current_user_is_admin?
+      unless VCAP::CloudController::SecurityContext.admin?
         errors.add(field_name, :not_authorized)
       end
     end
@@ -170,12 +170,16 @@ module VCAP::CloudController::Models
       quota_definition.memory_limit - memory_used
     end
 
+    def active?
+      status == 'active'
+    end
+
     def self.user_visibility_filter(user)
-      user_visibility_filter_with_admin_override(Sequel.or({
+      Sequel.or({
         :managers => [user],
         :users => [user],
         :billing_managers => [user],
-        :auditors => [user] }))
+        :auditors => [user] })
     end
   end
 end

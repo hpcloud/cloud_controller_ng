@@ -4,16 +4,19 @@ module VCAP::CloudController
     path_base "apps"
     model_class_name :App
 
-    permissions_required do
-      read Permissions::CFAdmin
-      read Permissions::SpaceDeveloper
-    end
-
     def crashes(guid)
       app = find_guid_and_validate_access(:read, guid)
-      Yajl::Encoder.encode(HealthManagerClient.find_crashes(app))
+      Yajl::Encoder.encode(health_manager_client.find_crashes(app))
     end
 
     get  "#{path_guid}/crashes", :crashes
+
+    protected
+
+    attr_reader :health_manager_client
+
+    def inject_dependencies(dependencies)
+      @health_manager_client = dependencies[:health_manager_client]
+    end
   end
 end

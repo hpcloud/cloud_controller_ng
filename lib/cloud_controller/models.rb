@@ -26,45 +26,35 @@ end
 
 module Sequel::Plugins::VcapUserVisibility
   module InstanceMethods
-    def user_visible_relationship_dataset(name)
+    def user_visible_relationship_dataset(name, user, admin_override = false)
       associated_model = self.class.association_reflection(name).associated_class
-      relationship_dataset(name).filter(associated_model.user_visibility)
+      relationship_dataset(name).filter(associated_model.user_visibility(user, admin_override))
     end
   end
 
   module ClassMethods
-    def user_visible
-      dataset.filter(user_visibility)
+    # controller calls this to get the list of objects
+    def user_visible(user, admin_override = false)
+      dataset.filter(user_visibility(user, admin_override))
     end
 
-    def user_visibility
-      if (user = VCAP::CloudController::SecurityContext.current_user)
+    def user_visibility(user, admin_override)
+      if admin_override
+        full_dataset_filter
+      elsif user
         user_visibility_filter(user)
       else
-        user_visibility_filter_with_admin_override(empty_dataset_filter)
+        {:id => nil}
       end
     end
 
-    # this is overridden by models
-    def user_visibility_filter(user)
-      # TODO: replace with empty_dataset_filter once all perms are in place
-      user_visibility_filter_with_admin_override(full_dataset_filter)
-    end
-
-    def user_visibility_filter_with_admin_override(filter)
-      if VCAP::CloudController::SecurityContext.current_user_is_admin?
-        full_dataset_filter
-      else
-        filter
-      end
+    # this is overridden by models to determine which objects a user can see
+    def user_visibility_filter(_)
+      {:id => nil}
     end
 
     def full_dataset_filter
       Sequel.~({:id => nil})
-    end
-
-    def empty_dataset_filter
-      {:id => nil}
     end
   end
 end
@@ -86,6 +76,7 @@ Sequel::Model.plugin :typecast_on_load,
                      :name, :label, :provider, :description, :host
 
 require "vcap/sequel_add_association_dependencies_monkeypatch"
+require "vcap/delayed_job_guid_monkeypatch"
 
 require "models/core/billing_event"
 require "models/core/organization_start_event"
@@ -98,6 +89,7 @@ require "models/core/event"
 require "models/core/organization"
 require "models/core/quota_definition"
 require "models/core/route"
+require "models/core/task"
 require "models/core/space"
 require "models/core/stack"
 require "models/core/user"
@@ -108,10 +100,17 @@ require "models/services/service_binding"
 require "models/services/service_instance"
 require "models/services/managed_service_instance"
 require "models/services/user_provided_service_instance"
+require "models/services/service_broker"
+require "models/services/service_broker_registration"
 require "models/services/service_plan"
 require "models/services/service_plan_visibility"
 require "models/services/service_base_event"
 require "models/services/service_create_event"
 require "models/services/service_delete_event"
 
+require "models/job"
 
+require File.expand_path("../../../app/access/base_access.rb", __FILE__)
+Dir[File.expand_path("../../../app/access/**/*.rb", __FILE__)].each do |file|
+  require file
+end

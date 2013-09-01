@@ -44,6 +44,11 @@ db:
   max_connections: 32
   pool_timeout: 10
 
+active_record_db:
+  database: "sqlite:///tmp/cloud_controller_ar.db"
+  max_connections: 32
+  pool_timeout: 10
+
 uaa:
   url: "http://localhost:8080/uaa"
   resource_id: "cloud_controller"
@@ -81,24 +86,29 @@ quota_definitions:
 default_quota_definition: free
 
 resource_pool:
-  resource_directory_key: cc-resources
+  resource_directory_key: "spec-cc-resources"
   fog_connection:
-    provider: Local
-    local_root: /tmp
+    provider: "AWS"
+    aws_access_key_id: "fake_aws_key_id"
+    aws_secret_access_key: "fake_secret_access_key"
 
 packages:
-  resource_directory_key: cc-packages
+  app_package_directory_key: "cc-packages"
   fog_connection:
-    provider: Local
-    local_root: /tmp
+    provider: "AWS"
+    aws_access_key_id: "fake_aws_key_id"
+    aws_secret_access_key: "fake_secret_access_key"
 
 droplets:
   droplet_directory_key: cc-droplets
   fog_connection:
-    provider: Local
-    local_root: /tmp
+    provider: "AWS"
+    aws_access_key_id: "fake_aws_key_id"
+    aws_secret_access_key: "fake_secret_access_key"
 
 db_encryption_key: "asdfasdfasdf"
 
 trial_db:
   guid: "78ad16cf-3c22-4427-a982-b9d35d746914"
+
+tasks_disabled: false

@@ -1,0 +1,459 @@
+require 'spec_helper'
+
+module VCAP::CloudController
+  describe ServiceBrokersController, :services, type: :controller do
+    let(:headers) { json_headers(admin_headers) }
+
+    let(:non_admin_headers) do
+      user = VCAP::CloudController::Models::User.make(admin: false)
+      json_headers(headers_for(user))
+    end
+
+    before do
+      reset_database
+
+      Steno.init(Steno::Config.new(
+        :default_log_level => "debug2",
+        :sinks => [Steno::Sink::IO.for_file("/tmp/cloud_controller_test.log")]
+      ))
+    end
+
+    describe 'POST /v2/service_brokers' do
+      let(:name) { Sham.name }
+      let(:broker_url) { 'http://cf-service-broker.example.com' }
+      let(:token) { 'abc123' }
+
+      let(:body_hash) do
+        {
+          name: name,
+          broker_url: broker_url,
+          token: token
+        }
+      end
+
+      def body
+        body_hash.to_json
+      end
+
+      let(:errors) { double(Sequel::Model::Errors, on: nil) }
+      let(:broker) do
+        double(Models::ServiceBroker, {
+          guid: '123',
+          name: 'My Custom Service',
+          broker_url: 'http://broker.example.com',
+          token: 'abc123'
+        })
+      end
+      let(:registration) do
+        reg = double(Models::ServiceBrokerRegistration, {
+          broker: broker,
+          errors: errors
+        })
+        reg.stub(:save).and_return(reg)
+        reg
+      end
+      let(:presenter) { double(ServiceBrokerPresenter, {
+        to_json: "{\"metadata\":{\"guid\":\"#{broker.guid}\"}}"
+      }) }
+
+      before do
+        Models::ServiceBroker.stub(:new).and_return(broker)
+        Models::ServiceBrokerRegistration.stub(:new).with(broker).and_return(registration)
+        ServiceBrokerPresenter.stub(:new).with(broker).and_return(presenter)
+      end
+
+      it 'returns a 201 status' do
+        post '/v2/service_brokers', body, headers
+
+        expect(last_response.status).to eq(201)
+      end
+
+      it 'creates a service broker registration' do
+        post '/v2/service_brokers', body, headers
+
+        expect(registration).to have_received(:save)
+      end
+
+      it 'returns the serialized broker' do
+        post '/v2/service_brokers', body, headers
+
+        expect(last_response.body).to eq(presenter.to_json)
+      end
+
+      it 'includes a location header for the resource' do
+        post '/v2/service_brokers', body, headers
+
+        headers = last_response.original_headers
+        headers.fetch('Location').should == '/v2/service_brokers/123'
+      end
+
+      it 'does not set fields that are unmodifiable' do
+        body_hash[:guid] = 'mycustomguid'
+        post '/v2/service_brokers', body, headers
+        expect(Models::ServiceBroker).to_not have_received(:new).with(hash_including('guid' => 'mycustomguid'))
+      end
+
+      context 'when there is an error in Broker Registration' do
+        before { registration.stub(:save).and_return(nil) }
+
+        context 'when there is an error in API authentication' do
+          before { errors.stub(:on).with(:broker_api).and_return([:authentication_failed]) }
+
+          it 'returns an error' do
+            post '/v2/service_brokers', body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270007
+            decoded_response.fetch('description').should =~ /The Service Broker API authentication failed/
+          end
+        end
+
+        context 'when the broker API is unreachable' do
+          before { errors.stub(:on).with(:broker_api).and_return([:unreachable]) }
+
+          it 'returns an error' do
+            post '/v2/service_brokers', body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270004
+            decoded_response.fetch('description').should =~ /The Service Broker API could not be reached/
+          end
+        end
+
+        context 'when the broker API times out' do
+          before { errors.stub(:on).with(:broker_api).and_return([:timeout]) }
+
+          it 'returns an error' do
+            post '/v2/service_brokers', body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270005
+            decoded_response.fetch('description').should =~ /The Service Broker API timed out/
+          end
+        end
+
+        context "when the broker's catalog is malformed" do
+          before { errors.stub(:on).with(:catalog).and_return([:malformed]) }
+
+          it 'returns an error' do
+            post '/v2/service_brokers', body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270006
+            decoded_response.fetch('description').should =~ /The Service Broker's catalog endpoint did not return valid json/
+          end
+        end
+
+        context 'when the broker url is taken' do
+          before { errors.stub(:on).with(:broker_url).and_return([:unique]) }
+
+          it 'returns an error' do
+            post '/v2/service_brokers', body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270003
+            decoded_response.fetch('description').should =~ /The service broker url is taken/
+          end
+        end
+
+        context 'when the broker name is taken' do
+          before { errors.stub(:on).with(:name).and_return([:unique]) }
+
+          it 'returns an error' do
+            post '/v2/service_brokers', body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270002
+            decoded_response.fetch('description').should =~ /The service broker name is taken/
+          end
+        end
+
+        context 'when there are other errors on the registration' do
+          before { errors.stub(:full_messages).and_return('A bunch of stuff was wrong') }
+
+          it 'returns an error' do
+            post '/v2/service_brokers', body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270001
+            decoded_response.fetch('description').should == 'Service Broker is invalid: A bunch of stuff was wrong'
+          end
+        end
+      end
+
+      describe 'authentication' do
+        it 'returns a forbidden status for non-admin users' do
+          post '/v2/service_brokers', body, non_admin_headers
+          expect(last_response).to be_forbidden
+        end
+
+        it 'returns 401 for logged-out users' do
+          post '/v2/service_brokers', body
+          expect(last_response.status).to eq(401)
+        end
+      end
+    end
+
+    describe 'GET /v2/service_brokers' do
+      let!(:broker) { Models::ServiceBroker.make(name: 'FreeWidgets', broker_url: 'http://example.com/', token: 'secret') }
+      let(:single_broker_response) do
+        {
+          'total_results' => 1,
+          'total_pages' => 1,
+          'prev_url' => nil,
+          'next_url' => nil,
+          'resources' => [
+            {
+              'metadata' => {
+                'guid' => broker.guid,
+                'url' => "/v2/service_brokers/#{broker.guid}",
+                'created_at' => broker.created_at.iso8601,
+                'updated_at' => nil
+              },
+              'entity' => {
+                'name' => broker.name,
+                'broker_url' => broker.broker_url,
+              }
+            }
+          ],
+        }
+      end
+
+      it "enumerates the things" do
+        get '/v2/service_brokers', {}, headers
+        expect(decoded_response).to eq(single_broker_response)
+      end
+
+      context "with a second service broker" do
+        let!(:broker2) { Models::ServiceBroker.make(name: 'FreeWidgets2', broker_url: 'http://example.com/2', token: 'secret2') }
+
+        it "filters the things" do
+          get "/v2/service_brokers?q=name%3A#{broker.name}", {}, headers
+          expect(decoded_response).to eq(single_broker_response)
+        end
+      end
+
+      describe 'authentication' do
+        it 'returns a forbidden status for non-admin users' do
+          get '/v2/service_brokers', {}, non_admin_headers
+          expect(last_response).to be_forbidden
+        end
+
+        it 'returns 401 for logged-out users' do
+          get '/v2/service_brokers'
+          expect(last_response.status).to eq(401)
+        end
+      end
+    end
+
+    describe 'DELETE /v2/service_brokers/:guid' do
+      let!(:broker) { Models::ServiceBroker.make(name: 'FreeWidgets', broker_url: 'http://example.com/', token: 'secret') }
+
+      it "deletes the service broker" do
+        delete "/v2/service_brokers/#{broker.guid}", {}, headers
+
+        expect(last_response.status).to eq(204)
+
+        get '/v2/service_brokers', {}, headers
+        expect(decoded_response).to include('total_results' => 0)
+      end
+
+      it "returns 404 when deleting a service broker that does not exist" do
+        delete "/v2/service_brokers/1234", {}, headers
+        expect(last_response.status).to eq(404)
+      end
+
+      describe 'authentication' do
+        it 'returns a forbidden status for non-admin users' do
+          delete "/v2/service_brokers/#{broker.guid}", {}, non_admin_headers
+          expect(last_response).to be_forbidden
+
+          # make sure it still exists
+          get '/v2/service_brokers', {}, headers
+          expect(decoded_response).to include('total_results' => 1)
+        end
+
+        it 'returns 401 for logged-out users' do
+          delete "/v2/service_brokers/#{broker.guid}"
+          expect(last_response.status).to eq(401)
+
+          # make sure it still exists
+          get '/v2/service_brokers', {}, headers
+          expect(decoded_response).to include('total_results' => 1)
+        end
+      end
+    end
+
+    describe 'PUT /v2/service_brokers/:guid' do
+      let(:body_hash) do
+        {
+          name: 'My Updated Service',
+          broker_url: 'http://new-broker.example.com',
+          token: 'new-token'
+        }
+      end
+
+      def body
+        body_hash.to_json
+      end
+
+      let(:errors) { double(Sequel::Model::Errors, on: nil) }
+      let(:broker) do
+        double(Models::ServiceBroker, {
+          guid: '123',
+          name: 'My Custom Service',
+          broker_url: 'http://broker.example.com',
+          token: 'abc123',
+          set: nil
+        })
+      end
+      let(:registration) do
+        reg = double(Models::ServiceBrokerRegistration, {
+          broker: broker,
+          errors: errors
+        })
+        reg.stub(:save).and_return(reg)
+        reg
+      end
+      let(:presenter) { double(ServiceBrokerPresenter, {
+        to_json: "{\"metadata\":{\"guid\":\"#{broker.guid}\"}}"
+      }) }
+
+      before do
+        Models::ServiceBroker.stub(:find)
+        Models::ServiceBroker.stub(:find).with(guid: broker.guid).and_return(broker)
+        Models::ServiceBrokerRegistration.stub(:new).with(broker).and_return(registration)
+        ServiceBrokerPresenter.stub(:new).with(broker).and_return(presenter)
+      end
+
+      it 'updates the broker' do
+        put "/v2/service_brokers/#{broker.guid}", body, headers
+
+        expect(broker).to have_received(:set).with(body_hash)
+        expect(registration).to have_received(:save)
+      end
+
+
+      it 'returns the serialized broker' do
+        put "/v2/service_brokers/#{broker.guid}", body, headers
+
+        expect(last_response.body).to eq(presenter.to_json)
+      end
+
+      it 'does not set fields that are unmodifiable' do
+        body_hash['guid'] = 'hacked'
+        put "/v2/service_brokers/#{broker.guid}", body, headers
+
+        expect(broker).to_not have_received(:set).with(hash_including('guid' => 'hacked'))
+      end
+
+      context 'when specifying an unknown broker' do
+        it 'returns 404' do
+          put '/v2/service_brokers/nonexistent', body, headers
+
+          expect(last_response.status).to eq(HTTP::NOT_FOUND)
+        end
+      end
+
+      context 'when there is an error in Broker Registration' do
+        before { registration.stub(:save).and_return(nil) }
+
+        context 'when there is an error in API authentication' do
+          before { errors.stub(:on).with(:broker_api).and_return([:authentication_failed]) }
+
+          it 'returns an error' do
+            put "/v2/service_brokers/#{broker.guid}", body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270007
+            decoded_response.fetch('description').should =~ /The Service Broker API authentication failed/
+          end
+        end
+
+        context 'when the broker API is unreachable' do
+          before { errors.stub(:on).with(:broker_api).and_return([:unreachable]) }
+
+          it 'returns an error' do
+            put "/v2/service_brokers/#{broker.guid}", body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270004
+            decoded_response.fetch('description').should =~ /The Service Broker API could not be reached/
+          end
+        end
+
+        context 'when the broker API times out' do
+          before { errors.stub(:on).with(:broker_api).and_return([:timeout]) }
+
+          it 'returns an error' do
+            put "/v2/service_brokers/#{broker.guid}", body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270005
+            decoded_response.fetch('description').should =~ /The Service Broker API timed out/
+          end
+        end
+
+        context "when the broker's catalog is malformed" do
+          before { errors.stub(:on).with(:catalog).and_return([:malformed]) }
+
+          it 'returns an error' do
+            put "/v2/service_brokers/#{broker.guid}", body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270006
+            decoded_response.fetch('description').should =~ /The Service Broker's catalog endpoint did not return valid json/
+          end
+        end
+
+        context 'when the broker url is taken' do
+          before { errors.stub(:on).with(:broker_url).and_return([:unique]) }
+
+          it 'returns an error' do
+            put "/v2/service_brokers/#{broker.guid}", body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270003
+            decoded_response.fetch('description').should =~ /The service broker url is taken/
+          end
+        end
+
+        context 'when the broker name is taken' do
+          before { errors.stub(:on).with(:name).and_return([:unique]) }
+
+          it 'returns an error' do
+            put "/v2/service_brokers/#{broker.guid}", body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270002
+            decoded_response.fetch('description').should =~ /The service broker name is taken/
+          end
+        end
+
+        context 'when there are other errors on the registration' do
+          before { errors.stub(:full_messages).and_return('A bunch of stuff was wrong') }
+
+          it 'returns an error' do
+            put "/v2/service_brokers/#{broker.guid}", body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270001
+            decoded_response.fetch('description').should == 'Service Broker is invalid: A bunch of stuff was wrong'
+          end
+        end
+      end
+
+      describe 'authentication' do
+        it 'returns a forbidden status for non-admin users' do
+          put "/v2/service_brokers/#{broker.guid}", {}, non_admin_headers
+          expect(last_response).to be_forbidden
+        end
+
+        it 'returns 401 for logged-out users' do
+          put "/v2/service_brokers/#{broker.guid}", {}
+          expect(last_response.status).to eq(401)
+        end
+      end
+    end
+  end
+end

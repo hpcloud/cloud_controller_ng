@@ -6,16 +6,10 @@ module VCAP::CloudController
     path_base "users"
     model_class_name :User
 
-    permissions_required do
-      read Permissions::CFAdmin
-      read Permissions::OrgManager
-      read Permissions::OrgUser
-      read Permissions::SpaceManager
-      read Permissions::SpaceDeveloper
-      read Permissions::SpaceAuditor
-    end
-
     def summary(guid)
+      # only admins should have unfettered access to all users
+      # UserAccess allows all to read so org and space user lists show all users in those lists
+      raise Errors::NotAuthorized unless roles.admin?
       user = find_guid_and_validate_access(:read, guid)
       Yajl::Encoder.encode UserSummaryPresenter.new(user).to_hash
     end

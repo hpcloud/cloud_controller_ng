@@ -6,16 +6,30 @@ module IntegrationSetup
   end
 
   def stop_nats
-    graceful_kill(:nats, @nats_pid)
+    if @nats_pid
+      graceful_kill(:nats, @nats_pid)
+      @nats_pid = nil
+    end
   end
 
   def kill_nats
-    Process.kill("KILL", @nats_pid)
+    if @nats_pid
+      Process.kill("KILL", @nats_pid)
+      @nats_pid = nil
+    end
   end
 
   def start_cc(opts={}, wait_cycles = 20)
     config_file = opts[:config] || "config/cloud_controller.yml"
     config = YAML.load_file(config_file)
+
+    FileUtils.rm(config['pid_filename']) if File.exists?(config['pid_filename'])
+
+    database_file = config["db"]["database"].gsub('sqlite://', '')
+    if !opts[:preserve_database] && File.file?(database_file)
+      run_cmd("rm -f #{database_file}", wait: true)
+    end
+
     run_cmd("bundle exec rake db:migrate", :wait => true)
     @cc_pids ||= []
     @cc_pids << run_cmd("bin/cloud_controller -m -c #{config_file}", opts)
@@ -31,8 +45,7 @@ module IntegrationSetup
   end
 
   def stop_cc
-    return unless @cc_pids
-    @cc_pids.each { |pid| graceful_kill(:cc, pid) }
+    @cc_pids.dup.each { |pid| graceful_kill(:cc, @cc_pids.delete(pid)) }
   end
 
   def wait_for_nats_to_start(port)
@@ -80,6 +93,7 @@ module IntegrationSetupHelpers
       Process.wait(pid)
     end
   rescue Timeout::Error
+    Process.detach(pid)
     Process.kill("KILL", pid)
   rescue Errno::ESRCH
     true

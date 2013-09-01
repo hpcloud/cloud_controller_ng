@@ -5,6 +5,7 @@ require "rubygems"
 require "bundler"
 require "bundler/setup"
 
+require "fakefs/safe"
 require "machinist/sequel"
 require "machinist/object"
 require "rack/test"
@@ -15,8 +16,10 @@ require "webmock/rspec"
 require "cf_message_bus/mock_message_bus"
 
 require "cloud_controller"
+require "allowy/rspec"
 
 require "pry"
+require "posix/spawn"
 
 module VCAP::CloudController
   class SpecEnvironment
@@ -34,6 +37,9 @@ module VCAP::CloudController
         :default_log_level => "debug",
         :sinks => [Steno::Sink::IO.for_file(log_filename)]
       ))
+
+      VCAP::CloudController::Config.run_initializers(config)
+
       reset_database
     end
 
@@ -64,19 +70,16 @@ module VCAP::CloudController
     end
 
     def db
-      db_connection = "sqlite:///"
-      db_index = ""
+      Thread.current[:db] ||= begin
+        db_connection = ENV["DB_CONNECTION"] || "sqlite:///tmp/cc_test#{ENV["TEST_ENV_NUMBER"]}.db"
+        ar_db_connection = ENV["AR_DB_CONNECTION"] || "sqlite:///tmp/cc_test_ar#{ENV["TEST_ENV_NUMBER"]}.db"
 
-      if ENV["DB_CONNECTION"]
-        db_connection = ENV["DB_CONNECTION"]
-        db_index = ENV["TEST_ENV_NUMBER"]
+        VCAP::CloudController::DB.connect(
+          db_logger,
+          { log_level: "debug2", database: "#{db_connection}" },
+          database: "#{ar_db_connection}"
+        )
       end
-
-      @db ||= VCAP::CloudController::DB.connect(
-        db_logger,
-        :database => "#{db_connection}#{db_index}",
-        :log_level => "debug2"
-      )
     end
 
     def db_logger
@@ -89,6 +92,47 @@ module VCAP::CloudController
       @db_logger
     end
 
+    def config(config_override={})
+      config_file = File.expand_path("../../config/cloud_controller.yml", __FILE__)
+      config_hash = VCAP::CloudController::Config.from_file(config_file)
+
+      config_hash.merge!(
+        :nginx => {:use_nginx => true},
+        :resource_pool => {
+          :resource_directory_key => "spec-cc-resources",
+          :fog_connection => {
+            :provider => "AWS",
+            :aws_access_key_id => "fake_aws_key_id",
+            :aws_secret_access_key => "fake_secret_access_key",
+          },
+        },
+        :packages => {
+          :app_package_directory_key => "cc-packages",
+          :fog_connection => {
+            :provider => "AWS",
+            :aws_access_key_id => "fake_aws_key_id",
+            :aws_secret_access_key => "fake_secret_access_key",
+          },
+        },
+        :droplets => {
+          :droplet_directory_key => "cc-droplets",
+          :fog_connection => {
+            :provider => "AWS",
+            :aws_access_key_id => "fake_aws_key_id",
+            :aws_secret_access_key => "fake_secret_access_key",
+          },
+        },
+      )
+
+      config_hash.merge!(config_override || {})
+
+      res_pool_connection_provider = config_hash[:resource_pool][:fog_connection][:provider].downcase
+      packages_connection_provider = config_hash[:packages][:fog_connection][:provider].downcase
+      Fog.mock! unless (res_pool_connection_provider == "local" || packages_connection_provider == "local")
+
+      config_hash
+    end
+
     private
 
     def prepare_database
@@ -99,21 +143,21 @@ module VCAP::CloudController
 
     def drop_table_unsafely(table)
       case db.database_type
-        when :sqlite
-          db.execute("PRAGMA foreign_keys = OFF")
-          db.drop_table(table)
-          db.execute("PRAGMA foreign_keys = ON")
+      when :sqlite
+        db.execute("PRAGMA foreign_keys = OFF")
+        db.drop_table(table)
+        db.execute("PRAGMA foreign_keys = ON")
 
-        when :mysql
-          db.execute("SET foreign_key_checks = 0")
-          db.drop_table(table)
-          db.execute("SET foreign_key_checks = 1")
+      when :mysql
+        db.execute("SET foreign_key_checks = 0")
+        db.drop_table(table)
+        db.execute("SET foreign_key_checks = 1")
 
         # Postgres uses CASCADE directive in DROP TABLE
         # to remove foreign key contstraints.
         # http://www.postgresql.org/docs/9.2/static/sql-droptable.html
-        else
-          db.drop_table(table, :cascade => true)
+      else
+        db.drop_table(table, :cascade => true)
       end
     end
   end
@@ -143,72 +187,29 @@ module VCAP::CloudController::SpecHelper
 
   def config
     @config ||= begin
-      config_file = File.expand_path("../../config/cloud_controller.yml", __FILE__)
-      config_hash = VCAP::CloudController::Config.from_file(config_file)
-
-      config_hash.merge!(
-        :nginx => {:use_nginx => true},
-        :resource_pool => {
-          :resource_directory_key => "spec-cc-resources",
-          :fog_connection => {
-            :provider => "AWS",
-            :aws_access_key_id => "fake_aws_key_id",
-            :aws_secret_access_key => "fake_secret_access_key",
-          }
-        },
-        :packages => {
-          :app_package_directory_key => "cc-packages",
-          :fog_connection => {
-            :provider => "AWS",
-            :aws_access_key_id => "fake_aws_key_id",
-            :aws_secret_access_key => "fake_secret_access_key",
-          }
-        },
-        :droplets => {
-          :droplet_directory_key => "cc-droplets",
-          :fog_connection => {
-            :provider => "AWS",
-            :aws_access_key_id => "fake_aws_key_id",
-            :aws_secret_access_key => "fake_secret_access_key",
-          }
-        }
-      )
-
-      config_hash.merge!(@config_override || {})
-
-      res_pool_connection_provider = config_hash[:resource_pool][:fog_connection][:provider].downcase
-      packages_connection_provider = config_hash[:packages][:fog_connection][:provider].downcase
-      Fog.mock! unless (res_pool_connection_provider == "local" || packages_connection_provider == "local")
-
-      configure_components(config_hash)
-      config_hash
+      config = $spec_env.config(@config_override)
+      configure_components(config)
+      config
     end
+  end
+
+  def configure
+    config
   end
 
   def configure_components(config)
     VCAP::CloudController::Config.db_encryption_key = "some-key"
-    mbus = CfMessageBus::MockMessageBus.new
+
+    # DO NOT override the message bus, use the same mock that's set the first time
+    message_bus = VCAP::CloudController::Config.message_bus || CfMessageBus::MockMessageBus.new
 
     # FIXME: this is better suited for a before-each stub so that we can unstub it in examples
     VCAP::CloudController::Models::ManagedServiceInstance.gateway_client_class = VCAP::Services::Api::ServiceGatewayClientFake
 
-    VCAP::CloudController::AccountCapacity.configure(config)
-    VCAP::CloudController::ResourcePool.instance =
-      VCAP::CloudController::ResourcePool.new(config)
-    VCAP::CloudController::AppPackage.configure(config)
-
-    stager_pool = VCAP::CloudController::StagerPool.new(config, mbus)
-    VCAP::CloudController::AppManager.configure(config, mbus, stager_pool)
-    VCAP::CloudController::StagingsController.configure(config)
-
-    dea_pool = VCAP::CloudController::DeaPool.new(mbus)
-    VCAP::CloudController::DeaClient.configure(config, mbus, dea_pool)
-
-    VCAP::CloudController::HealthManagerClient.configure(config, mbus)
-
-    VCAP::CloudController::LegacyBulk.configure(config, mbus)
-    VCAP::CloudController::Models::QuotaDefinition.configure(config)
-    VCAP::CloudController::Models::ServicePlan.configure(config[:trial_db])
+    VCAP::CloudController::Config.configure(config)
+    VCAP::CloudController::Config.configure_message_bus(message_bus)
+    # reset the dependency locator
+    CloudController::DependencyLocator.instance.send(:initialize)
 
     configure_stacks
   end
@@ -217,10 +218,6 @@ module VCAP::CloudController::SpecHelper
     stacks_file = File.join(fixture_path, "config/stacks.yml")
     VCAP::CloudController::Models::Stack.configure(stacks_file)
     VCAP::CloudController::Models::Stack.populate
-  end
-
-  def configure
-    config
   end
 
   class TmpdirCleaner
@@ -324,10 +321,10 @@ module VCAP::CloudController::SpecHelper
   end
 
   def act_as_cf_admin(&block)
-    VCAP::CloudController::SecurityContext.stub(:current_user_is_admin? => true)
+    VCAP::CloudController::SecurityContext.stub(:admin? => true)
     block.call
   ensure
-    VCAP::CloudController::SecurityContext.unstub(:current_user_is_admin?)
+    VCAP::CloudController::SecurityContext.unstub(:admin?)
   end
 
   def with_em_and_thread(opts = {}, &blk)

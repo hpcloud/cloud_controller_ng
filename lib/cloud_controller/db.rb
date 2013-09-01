@@ -1,6 +1,5 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 require "vcap/sequel_varz"
+require "delayed_job_active_record"
 
 module VCAP::CloudController
   class DB
@@ -19,7 +18,7 @@ module VCAP::CloudController
     # acquire a connection before raising a PoolTimeoutError (default 5)
     #
     # @return [Sequel::Database]
-    def self.connect(logger, opts)
+    def self.connect(logger, opts, active_record_db_opts)
       connection_options = { :sql_mode => [:strict_trans_tables, :strict_all_tables, :no_zero_in_date] }
       [:max_connections, :pool_timeout].each do |key|
         connection_options[key] = opts[key] if opts[key]
@@ -33,6 +32,8 @@ module VCAP::CloudController
       if using_sqlite
         require "vcap/sequel_sqlite_monkeypatch"
       end
+
+      active_record_connect(logger, active_record_db_opts[:database])
 
       db = Sequel.connect( connection_options.merge(opts[:database]) )
       db.logger = logger
@@ -48,14 +49,17 @@ module VCAP::CloudController
       db
     end
 
-    # Apply migrations to a database
-    #
-    # @param [Sequel::Database]  Database to apply migrations to
     def self.apply_migrations(db, opts = {})
       Sequel.extension :migration
       require "vcap/sequel_case_insensitive_string_monkeypatch"
-      migrations_dir ||= File.expand_path("../../../db/migrations", __FILE__)
-      Sequel::Migrator.run(db, migrations_dir, opts)
+      migrations_dir = File.expand_path("../../../db", __FILE__)
+      sequel_migrations = File.join(migrations_dir, "migrations")
+      Sequel::Migrator.run(db, sequel_migrations, opts)
+
+      active_record_migrations = File.join(migrations_dir, "ar_migrations")
+
+      ActiveRecord::Migration.verbose = false
+      ActiveRecord::Migrator.migrate(active_record_migrations, nil)
     end
 
     private
@@ -80,6 +84,31 @@ such as:
 EOF
         exit 1
       end
+    end
+
+    def self.active_record_connect(logger, database_uri)
+      return ActiveRecord::Base.connection if ActiveRecord::Base.connected?
+
+      if database_uri =~ /^sqlite/
+        options = {
+          adapter: "sqlite3",
+          database: database_uri.gsub(%r{^sqlite://}, '')
+        }
+      else
+        uri = URI.parse(database_uri)
+        options = {
+          username: uri.user,
+          password: uri.password,
+          host: uri.host,
+          port: uri.port,
+          adapter: (database_uri =~ /^postgres/) ? "postgresql" : uri.scheme,
+          database: uri.path[1..-1]
+        }
+      end
+
+      ActiveRecord::Base.establish_connection(options)
+      ActiveRecord::Base.logger = logger
+      ActiveRecord::Base.connection
     end
 
     def self.validate_version_string(min_version, version)
@@ -124,41 +153,45 @@ end
 # the migration methods.
 module VCAP
   module Migration
-    def self.timestamps(migration)
+    def self.timestamps(migration, table_key)
+      created_at_idx = "#{table_key}_created_at_index".to_sym if table_key
+      updated_at_idx = "#{table_key}_updated_at_index".to_sym if table_key
       migration.Timestamp :created_at, :null => false
       migration.Timestamp :updated_at
-
-      migration.index :created_at
-      migration.index :updated_at
+      migration.index :created_at, :name => created_at_idx
+      migration.index :updated_at, :name => updated_at_idx
     end
 
-    def self.guid(migration)
+    def self.guid(migration, table_key)
+      guid_idx = "#{table_key}_guid_index".to_sym if table_key
       migration.String :guid, :null => false
-      migration.index :guid, :unique => true
+      migration.index :guid, :unique => true, :name => guid_idx
     end
 
-    def self.common(migration)
+    def self.common(migration, table_key = nil)
       migration.primary_key :id
-      guid(migration)
-      timestamps(migration)
+      guid(migration, table_key)
+      timestamps(migration, table_key)
     end
 
-    def self.create_permission_table(migration, name, permission)
+    def self.create_permission_table(migration, name, name_short, permission)
       name = name.to_s
       join_table = "#{name.pluralize}_#{permission}".to_sym
+      join_table_short = "#{name_short}_#{permission}".to_sym
       id_attr = "#{name}_id".to_sym
-      fk_name = "#{join_table}_#{name}_fk".to_sym
-      fk_user = "#{join_table}_user_fk".to_sym
+      idx_name = "#{name_short}_#{permission}_idx".to_sym
+      fk_name = "#{join_table_short}_#{name_short}_fk".to_sym
+      fk_user = "#{join_table_short}_user_fk".to_sym
       table = name.pluralize.to_sym
-
+    
       migration.create_table(join_table) do
         Integer id_attr, :null => false
         foreign_key [id_attr], table, :name => fk_name
-
+    
         Integer :user_id, :null => false
         foreign_key [:user_id], :users, :name => fk_user
-
-        index [id_attr, :user_id], :unique => true
+    
+        index [id_attr, :user_id], :unique => true, :name => idx_name
       end
     end
   end

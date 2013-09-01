@@ -34,10 +34,10 @@ module VCAP::CloudController
 
     def process_start(payload)
       begin
-        app_id = payload.fetch(:droplet)
-        indices = payload.fetch(:indices)
-        version = payload.fetch(:version)
-        running = payload.fetch(:running)
+        app_id = payload.fetch("droplet")
+        indices = payload.fetch("indices")
+        version = payload.fetch("version")
+        running = payload.fetch("running")
       rescue KeyError => e
         logger.error "cloudcontroller.hm.malformed-request",
           :error => e.message,
@@ -49,8 +49,11 @@ module VCAP::CloudController
       return unless app
       return unless app.started?
       return unless version == app.version
+      # If staging has not failed, but bits were not uploaded
+      # ignore start command from HM
+      return if !app.droplet_hash && !app.staging_failed?
 
-      current_running = running[app.version.to_sym] || 0
+      current_running = running[app.version] || 0
       return unless current_running < app.instances
 
       dea_client.start_instances_with_message(app, indices)
@@ -58,9 +61,9 @@ module VCAP::CloudController
 
     def process_stop(payload)
       begin
-        app_id = payload.fetch(:droplet)
-        instances = payload.fetch(:instances)
-        running = payload.fetch(:running)
+        app_id = payload.fetch("droplet")
+        instances = payload.fetch("instances")
+        running = payload.fetch("running")
       rescue KeyError => e
         logger.error "cloudcontroller.hm.malformed-request",
           :error => e.message,
@@ -88,14 +91,14 @@ module VCAP::CloudController
     def stop_instances?(app, instances, running)
       instances.group_by { |_, v| v }.each do |version, versions|
         instances_remaining =
-          if running.key?(version.to_sym)
-            running[version.to_sym] - versions.size
+          if running.key?(version)
+            running[version] - versions.size
           else
             0
           end
 
         if version != app.version
-          unless (running[app.version.to_sym] || 0) > 0
+          unless (running[app.version] || 0) > 0
             return false
           end
         elsif instances_remaining < app.instances && app.started?

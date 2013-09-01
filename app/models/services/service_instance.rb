@@ -20,8 +20,10 @@ module VCAP::CloudController::Models
     add_association_dependencies :service_bindings => :destroy
 
     def self.user_visibility_filter(user)
-      user_visibility_filter_with_admin_override(
-        :space => user.spaces_dataset)
+      Sequel.or([
+        [:space, user.spaces_dataset],
+        [:space, user.audited_spaces_dataset]
+      ])
     end
 
     def type
@@ -54,6 +56,11 @@ module VCAP::CloudController::Models
 
     def create_binding(app_guid, binding_options)
       add_service_binding(app_guid: app_guid, binding_options: binding_options)
+    end
+
+    # Make sure all derived classes use the base access class
+    def self.source_class
+      ServiceInstance
     end
 
     private

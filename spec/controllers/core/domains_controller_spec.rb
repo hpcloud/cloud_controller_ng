@@ -84,14 +84,10 @@ module VCAP::CloudController
           let(:enumeration_expectation_a) { [@obj_a, @system_domain] }
           let(:enumeration_expectation_b) { [@obj_b, @system_domain] }
 
-          include_examples "permission checks", "OrgManager",
-            :model => Models::Domain,
+          include_examples "permission enumeration", "OrgManager",
+            :name => 'domain',
             :path => "/v2/domains",
-            :enumerate => 2,
-            :create => :allowed,
-            :read => :allowed,
-            :modify => :allowed,
-            :delete => :allowed
+            :enumerate => 2
         end
 
         describe "OrgUser" do
@@ -100,14 +96,10 @@ module VCAP::CloudController
           let(:enumeration_expectation_a) { [@system_domain] }
           let(:enumeration_expectation_b) { [@system_domain] }
 
-          include_examples "permission checks", "OrgUser",
-            :model => Models::Domain,
+          include_examples "permission enumeration", "OrgUser",
+            :name => 'domain',
             :path => "/v2/domains",
-            :enumerate => 1,
-            :create => :not_allowed,
-            :read => :not_allowed,
-            :modify => :not_allowed,
-            :delete => :not_allowed
+            :enumerate => 1
         end
 
         describe "BillingManager" do
@@ -116,14 +108,10 @@ module VCAP::CloudController
           let(:enumeration_expectation_a) { [@system_domain] }
           let(:enumeration_expectation_b) { [@system_domain] }
 
-          include_examples "permission checks", "BillingManager",
-            :model => Models::Domain,
+          include_examples "permission enumeration", "BillingManager",
+            :name => 'domain',
             :path => "/v2/domains",
-            :enumerate => 1,
-            :create => :not_allowed,
-            :read => :not_allowed,
-            :modify => :not_allowed,
-            :delete => :not_allowed
+            :enumerate => 1
         end
 
         describe "Auditor" do
@@ -132,14 +120,10 @@ module VCAP::CloudController
           let(:enumeration_expectation_a) { [@obj_a, @system_domain] }
           let(:enumeration_expectation_b) { [@obj_b, @system_domain] }
 
-          include_examples "permission checks", "Auditor",
-            :model => Models::Domain,
+          include_examples "permission enumeration", "Auditor",
+            :name => 'domain',
             :path => "/v2/domains",
-            :enumerate => 2,
-            :create => :not_allowed,
-            :read => :allowed,
-            :modify => :not_allowed,
-            :delete => :not_allowed
+            :enumerate => 2
         end
       end
 
@@ -196,14 +180,10 @@ module VCAP::CloudController
           let(:enumeration_expectation_a) { [@obj_a, @system_domain] }
           let(:enumeration_expectation_b) { [@obj_b, @system_domain] }
 
-          include_examples "permission checks", "SpaceManager",
-            :model => Models::Domain,
+          include_examples "permission enumeration", "SpaceManager",
+            :name => 'domain',
             :path => "/v2/domains",
-            :enumerate => 2,
-            :create => :not_allowed,
-            :read => :allowed,
-            :modify => :not_allowed,
-            :delete => :not_allowed
+            :enumerate => 2
         end
 
         describe "Developer" do
@@ -212,14 +192,10 @@ module VCAP::CloudController
           let(:enumeration_expectation_a) { [@obj_a, @system_domain] }
           let(:enumeration_expectation_b) { [@obj_b, @system_domain] }
 
-          include_examples "permission checks", "Developer",
-            :model => Models::Domain,
+          include_examples "permission enumeration", "Developer",
+            :name => 'domain',
             :path => "/v2/domains",
-            :enumerate => 2,
-            :create => :not_allowed,
-            :read => :allowed,
-            :modify => :not_allowed,
-            :delete => :not_allowed
+            :enumerate => 2
         end
 
         describe "SpaceAuditor" do
@@ -228,20 +204,16 @@ module VCAP::CloudController
           let(:enumeration_expectation_a) { [@obj_a, @system_domain] }
           let(:enumeration_expectation_b) { [@obj_b, @system_domain] }
 
-          include_examples "permission checks", "SpaceAuditor",
-            :model => Models::Domain,
+          include_examples "permission enumeration", "SpaceAuditor",
+            :name => 'domain',
             :path => "/v2/domains",
-            :enumerate => 2,
-            :create => :not_allowed,
-            :read => :allowed,
-            :modify => :not_allowed,
-            :delete => :not_allowed
+            :enumerate => 2
         end
       end
     end
 
     describe "GET /v2/domains/:id" do
-      let(:user) { Models::User.make :admin => true }
+      let(:user) { Models::User.make }
       let(:organization) { Models::Organization.make }
       let(:domain) { Models::Domain.make }
 
@@ -256,8 +228,7 @@ module VCAP::CloudController
         before { domain.update(:owning_organization => organization) }
 
         it "has its GUID and URL in the response body" do
-          get "/v2/domains/#{domain.guid}", {},
-            json_headers(headers_for(user))
+          get "/v2/domains/#{domain.guid}", {}, json_headers(headers_for(user))
 
           last_response.status.should == 200
 
@@ -274,8 +245,7 @@ module VCAP::CloudController
         before { domain.update(:owning_organization => nil) }
 
         it "has its GUID as null, and no url key in the response body" do
-          get "/v2/domains/#{domain.guid}", {},
-            json_headers(headers_for(user))
+          get "/v2/domains/#{domain.guid}", {}, json_headers(admin_headers)
 
           last_response.status.should == 200
 

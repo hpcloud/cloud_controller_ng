@@ -41,44 +41,36 @@ module VCAP::CloudController
         Yajl::Encoder.encode(:name => "#{@obj_a.name}_renamed")
       end
 
-      def self.user_does_not_have_access(user_role, member_a_ivar, member_b_ivar)
+      def self.user_sees_empty_enumerate(user_role, member_a_ivar, member_b_ivar)
         describe user_role do
           let(:member_a) { instance_variable_get(member_a_ivar) }
           let(:member_b) { instance_variable_get(member_b_ivar) }
 
-          include_examples "permission checks", user_role,
-                           :model => Models::ManagedServiceInstance,
+          include_examples "permission enumeration", user_role,
+                           :name => 'managed service instance',
                            :path => "/v2/service_instances",
-                           :enumerate => 0,
-                           :create => :not_allowed,
-                           :read => :not_allowed,
-                           :modify => :not_allowed,
-                           :delete => :not_allowed
+                           :enumerate => 0
         end
       end
 
       describe "Org Level Permissions" do
-        user_does_not_have_access("OrgManager",     :@org_a_manager,         :@org_b_manager)
-        user_does_not_have_access("OrgUser",        :@org_a_member,          :@org_b_member)
-        user_does_not_have_access("BillingManager", :@org_a_billing_manager, :@org_b_billing_manager)
-        user_does_not_have_access("Auditor",        :@org_a_auditor,         :@org_b_auditor)
+        user_sees_empty_enumerate("OrgManager",     :@org_a_manager,         :@org_b_manager)
+        user_sees_empty_enumerate("OrgUser",        :@org_a_member,          :@org_b_member)
+        user_sees_empty_enumerate("BillingManager", :@org_a_billing_manager, :@org_b_billing_manager)
+        user_sees_empty_enumerate("Auditor",        :@org_a_auditor,         :@org_b_auditor)
       end
 
       describe "App Space Level Permissions" do
-        user_does_not_have_access("SpaceManager", :@space_a_manager, :@space_b_manager)
+        user_sees_empty_enumerate("SpaceManager", :@space_a_manager, :@space_b_manager)
 
         describe "Developer" do
           let(:member_a) { @space_a_developer }
           let(:member_b) { @space_b_developer }
 
-          include_examples "permission checks", "Developer",
-                           :model => Models::ManagedServiceInstance,
+          include_examples "permission enumeration", "Developer",
+                           :name => 'managed service instance',
                            :path => "/v2/service_instances",
-                           :enumerate => 1,
-                           :create => :allowed,
-                           :read => :allowed,
-                           :modify => :allowed,
-                           :delete => :allowed
+                           :enumerate => 1
         end
 
         describe "private plans" do
@@ -148,14 +140,10 @@ module VCAP::CloudController
           let(:member_a) { @space_a_auditor }
           let(:member_b) { @space_b_auditor }
 
-          include_examples "permission checks", "SpaceAuditor",
-                           :model => Models::ManagedServiceInstance,
+          include_examples "permission enumeration", "SpaceAuditor",
+                           :name => 'managed service instance',
                            :path => "/v2/service_instances",
-                           :enumerate => 0,
-                           :create => :not_allowed,
-                           :read => :allowed,
-                           :modify => :not_allowed,
-                           :delete => :not_allowed
+                           :enumerate => 1
         end
       end
     end
@@ -290,7 +278,7 @@ module VCAP::CloudController
 
           post "/v2/service_instances", req, json_headers(headers_for(make_developer_for_space(space)))
           last_response.status.should == 400
-          decoded_response["description"].should =~ /file a support ticket to request additional resources/
+          decoded_response["description"].should =~ /exceeded your organization's services limit/
         end
       end
 
@@ -304,7 +292,7 @@ module VCAP::CloudController
 
           post "/v2/service_instances", req, json_headers(headers_for(make_developer_for_space(space)))
           last_response.status.should == 400
-          decoded_response["description"].should =~ /login to your account and upgrade/
+          decoded_response["description"].should =~ /exceeded your organization's services limit/
         end
 
         it "should enforce quota check on service plan type during creation" do

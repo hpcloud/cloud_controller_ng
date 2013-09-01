@@ -1,14 +1,5 @@
 module VCAP::CloudController
   rest_controller :Spaces do
-    permissions_required do
-      full Permissions::CFAdmin
-      full Permissions::OrgManager
-      read   Permissions::SpaceManager
-      update Permissions::SpaceManager
-      read Permissions::SpaceDeveloper
-      read Permissions::SpaceAuditor
-    end
-
     define_attributes do
       attribute  :name,            String
       to_one     :organization
@@ -47,9 +38,9 @@ module VCAP::CloudController
       end
 
       service_instances = Query.filtered_dataset_from_query_params(model_class,
-                                                                  space.user_visible_relationship_dataset(relation_name),
-                                                                  ServiceInstancesController.query_parameters,
-                                                                  @opts)
+        space.user_visible_relationship_dataset(relation_name, SecurityContext.current_user, SecurityContext.admin?),
+        ServiceInstancesController.query_parameters,
+        @opts)
       service_instances.filter(space: space)
 
       RestController::Paginator.render_json(

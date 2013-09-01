@@ -39,7 +39,7 @@ module VCAP::CloudController::Models
       end
 
       if new? || column_changed?(:owning_organization)
-        unless VCAP::CloudController::SecurityContext.current_user_is_admin?
+        unless VCAP::CloudController::SecurityContext.admin?
           validates_presence :owning_organization
         end
       end
@@ -59,11 +59,6 @@ module VCAP::CloudController::Models
       unless org && owning_organization.id == org.id
         raise InvalidOrganizationRelation.new(org.guid)
       end
-    end
-
-    # For permission checks
-    def organization
-      owning_organization
     end
 
     def overlaps_domain_in_other_org?
@@ -114,11 +109,11 @@ module VCAP::CloudController::Models
         :auditors => [user]
       }))
 
-      user_visibility_filter_with_admin_override(Sequel.or({
+      Sequel.or({
         :owning_organization => orgs,
         :owning_organization_id => nil,
         :spaces => spaces
-      }))
+      })
     end
 
     def self.default_serving_domain

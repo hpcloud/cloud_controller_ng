@@ -4,6 +4,7 @@ module VCAP::CloudController::Models
   class Service < Sequel::Model
     plugin :serialization
 
+    many_to_one :service_broker
     one_to_many :service_plans
     one_to_one  :service_auth_token, :key => [:label, :provider], :primary_key => [:label, :provider]
 
@@ -13,20 +14,17 @@ module VCAP::CloudController::Models
 
     export_attributes :label, :provider, :url, :description,
                       :version, :info_url, :active, :bindable,
-                      :unique_id, :extra, :tags
+                      :unique_id, :extra, :tags, :documentation_url
 
     import_attributes :label, :provider, :url, :description,
                       :version, :info_url, :active, :bindable,
-                      :unique_id, :extra, :tags
+                      :unique_id, :extra, :tags, :documentation_url
 
     strip_attributes  :label, :provider
 
     def validate
       validates_presence :label
-      validates_presence :provider
-      validates_presence :url
       validates_presence :description
-      validates_presence :version
       validates_presence :bindable
       validates_url      :url
       validates_url      :info_url
@@ -38,9 +36,8 @@ module VCAP::CloudController::Models
     alias_method :bindable?, :bindable
 
     def self.user_visibility_filter(current_user)
-      plans_I_can_see = ServicePlan.filter(ServicePlan.user_visibility_filter(current_user))
-      opts = {id: plans_I_can_see.map(&:service_id).uniq}
-      user_visibility_filter_with_admin_override(opts)
+      plans_I_can_see = ServicePlan.user_visible(current_user)
+      {id: plans_I_can_see.map(&:service_id).uniq}
     end
 
     def tags

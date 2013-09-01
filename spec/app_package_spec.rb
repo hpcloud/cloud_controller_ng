@@ -1,6 +1,4 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
-require File.expand_path("../spec_helper", __FILE__)
+require "spec_helper"
 
 module VCAP::CloudController
   describe VCAP::CloudController::AppPackage do
@@ -166,7 +164,7 @@ module VCAP::CloudController
       def self.it_packages(expected_file_paths)
         def packaged_app_file
           file_key = AppPackage.key_from_guid(guid)
-          file = AppPackage.package_dir.files.get(file_key)
+          file = AppPackage.blob_store.files.get(file_key)
           Tempfile.new("package").tap do |f|
             f.write(file.body)
             f.close
