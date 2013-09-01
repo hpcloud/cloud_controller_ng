@@ -120,8 +120,6 @@ module VCAP::CloudController
       setup_logging
       setup_db
 
-      @config[:bind_address] = VCAP.local_ip(@config[:local_route])
-
       VCAP::CloudController::Config.configure(@config, message_bus)
     end
 
