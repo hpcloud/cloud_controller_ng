@@ -62,8 +62,12 @@ module VCAP::CloudController
     end
 
     after do
-      # Because we aren't using Rails, we need to manually ensure that AR connections are closed.
-      ActiveRecord::Base.connection.close
+      begin
+        # Because we aren't using Rails, we need to manually ensure that AR connections are closed.
+        ActiveRecord::Base.connection.close
+      rescue
+        nil # you can't close a sqlite connection, so this will probably throw an exception
+      end
     end
 
     # TODO: remove from usage in cloud_controller_spec.rb
