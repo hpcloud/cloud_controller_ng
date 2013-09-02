@@ -213,6 +213,7 @@ GEM
     rack (1.5.2)
     rack-accept (0.4.5)
       rack (>= 0.4)
+    rack-fiber_pool (0.9.3)
     rack-mount (0.8.3)
       rack (>= 1.0.0)
     rack-protection (1.5.0)
@@ -327,6 +328,7 @@ DEPENDENCIES
   parallel_tests
   pg
   pry
+  rack-fiber_pool
   rack-test
   rake
   redis (~> 3.0.4)
