@@ -51,7 +51,15 @@ class VCAP::CloudController::Config < VCAP::Config
       optional(:stacks_file) => String,
 
       :db => {
-        :database                   => String,     # db connection string for sequel
+        optional(:database_uri) => String,
+        optional(:database) => {
+          :host => String,
+          :port => Integer,
+          :user => String,
+          :password => String,
+          :adapter => String,
+          :database => String
+        },
         optional(:log_level)        => String,     # debug, info, etc.
         optional(:max_connections)  => Integer,    # max connections in the connection pool
         optional(:pool_timeout)     => Integer     # timeout before raising an error when connection can't be established to the db

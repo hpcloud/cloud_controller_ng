@@ -24,18 +24,29 @@ module VCAP::CloudController
         connection_options[key] = opts[key] if opts[key]
       end
 
-      if opts[:database][:adapter] == "mysql"
-        connection_options[:charset] = "utf8"
+      if opts[:database_uri]
+        using_sqlite = opts[:database_uri].index("sqlite://") == 0
+        if opts[:database_uri].index("mysql") == 0
+          connection_options[:charset] = "utf8"
+        end
+      else
+        using_sqlite = opts[:database][:adapter] == "sqlite"
+        if opts[:database][:adapter] == "mysql"
+          connection_options[:charset] = "utf8"
+        end
       end
 
-      using_sqlite = opts[:database][:adapter] == "sqlite"
       if using_sqlite
         require "vcap/sequel_sqlite_monkeypatch"
       end
 
       active_record_connect(logger, active_record_db_opts[:database])
 
-      db = Sequel.connect( connection_options.merge(opts[:database]) )
+      if opts[:database_uri]
+        db = Sequel.connect(opts[:database_uri], connection_options)
+      else
+        db = Sequel.connect( connection_options.merge(opts[:database]) )
+      end
       db.logger = logger
       db.sql_log_level = opts[:log_level] || :debug2
 

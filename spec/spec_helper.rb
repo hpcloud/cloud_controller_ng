@@ -76,7 +76,7 @@ module VCAP::CloudController
 
         VCAP::CloudController::DB.connect(
           db_logger,
-          { log_level: "debug2", database: "#{db_connection}" },
+          { log_level: "debug2", database_uri: "#{db_connection}" },
           database: "#{ar_db_connection}"
         )
       end
