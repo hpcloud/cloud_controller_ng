@@ -65,8 +65,8 @@ staging:
   # Max duration for staging process
   max_staging_runtime: 480 # secs
   auth:
-    user: zxsfhgjg
-    password: ZNVfdase9
+    user: placeholder
+    password: placeholder
 
 quota_definitions:
   free:
@@ -103,7 +103,7 @@ droplets:
     provider: Local
     local_root: /tmp
 
-db_encryption_key: "asdfasdfasdf"
+db_encryption_key: "placeholder"
 
 trial_db:
   guid: "78ad16cf-3c22-4427-a982-b9d35d746914"
