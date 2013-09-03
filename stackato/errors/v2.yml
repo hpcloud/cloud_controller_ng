@@ -2,6 +2,31 @@
 # TODO:Stackato: Choose more appropriate error code
 
 100:
-  name: ConsoleNotLicensed
+  name: StackatoNotLicensed
   http_code: 403
-  message: "Micro cloud is not setup with a license"
+  message: "Stackato micro-cloud is not setup with a license."
+
+101:
+  name: StackatoLicenseAlreadySetup
+  http_code: 500
+  message: "Stackato is already setup with a license."
+
+102:
+  name: StackatoConsoleSetupRequiresAokBuiltinUserDB
+  http_code: 500
+  message: "Registration via the web console is only supported when using the AOK built-in user database."
+
+103:
+  name: StackatoSetupEmailRequired
+  http_code: 500
+  message: "Email is required to setup Stackato."
+
+104:
+  name: StackatoSetupEmailMinLength
+  http_code: 500
+  message: "Email address must of size at least %d."
+
+105:
+  name: StackatoSetupPasswordMinLength
+  http_code: 500
+  message: "Password must have at least %d characters"

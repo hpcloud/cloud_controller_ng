@@ -2,19 +2,19 @@
 require "kato/config"
 
 module VCAP::CloudController
-  class LicenseController < RestController::Base
+  class StackatoLicenseController < RestController::Base
     allow_unauthenticated_access
 
-    def license
+    def get_license
       license_value = Kato::Config.get("cluster", "license")
       if license_value
         Yajl::Encoder.encode(license_value)
       else
-        Errors::ConsoleNotLicensed.new
+        Errors::StackatoNotLicensed.new
       end
     end
 
-    get "/stackato/license", :license
+    get "/stackato/license", :get_license
 
   end
 end
