@@ -1,0 +1,7 @@
+
+# TODO:Stackato: Choose more appropriate error code
+
+100:
+  name: ConsoleNotLicensed
+  http_code: 403
+  message: "Micro cloud is not setup with a license"

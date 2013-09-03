@@ -5,9 +5,11 @@ require "yaml"
 module VCAP::Errors
   include VCAP::RestAPI::Errors
 
-  ERRORS_DIR = File.expand_path("../../../vendor/errors", __FILE__)
-
-  YAML.load_file("#{ERRORS_DIR}/v2.yml").each do |code, meta|
-    define_error meta["name"], meta["http_code"], code, meta["message"]
+  ["vendor", "stackato"].each do |source|
+    errors_dir = File.expand_path("../../../#{source}/errors", __FILE__)
+    YAML.load_file("#{errors_dir}/v2.yml").each do |code, meta|
+      define_error meta["name"], meta["http_code"], code, meta["message"]
+    end
   end
+
 end
