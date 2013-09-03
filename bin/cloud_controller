@@ -8,5 +8,18 @@ ENV["BUNDLE_GEMFILE"] ||= File.expand_path("../../Gemfile", __FILE__)
 require "rubygems"
 require "bundler/setup"
 
+#
+# TODO:Stackato: Improve this
+#
+# Disable EM-based usage of Kato::Config and Kato::Supervisord
+begin
+  require "kato/config/redis"
+  Kato::ConfigRedis.disable_em = true
+  require "kato/supervisord"
+  Kato::Supervisord.disable_em = true
+rescue Exception => e
+  $stderr.puts "Please update your version of stackato-kato gem."
+end
+
 require "cloud_controller"
 VCAP::CloudController::Runner.new(ARGV).run!

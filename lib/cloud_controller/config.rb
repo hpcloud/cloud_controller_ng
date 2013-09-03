@@ -199,7 +199,8 @@ class VCAP::CloudController::Config < VCAP::Config
     @config.update(config_overrides)
 
     EM.next_tick do
-      self.config_watch
+      # TODO:Stackato: Re-enable config watcher
+      #self.config_watch
     end
 
     merge_defaults(@config)
