@@ -6,7 +6,6 @@ require "optparse"
 require "vcap/uaa_util"
 require "cf_message_bus/message_bus"
 require "cf/registrar"
-require 'rack/fiber_pool'
 
 require_relative "seeds"
 require_relative "message_bus_configurer"
@@ -133,7 +132,6 @@ module VCAP::CloudController
 
       Rack::Builder.new do
         use Rack::CommonLogger
-        use Rack::FiberPool
 
         VCAP::CloudController::DeaClient.run
         VCAP::CloudController::AppManager.run
@@ -172,7 +170,7 @@ module VCAP::CloudController
       # The routers proxying to us handle killing inactive connections.
       # Set an upper limit just to be safe.
       @thin_server.timeout = 15 * 60 # 15 min
-      @thin_server.threaded = false
+      @thin_server.threaded = true
       @thin_server.start!
     end
 

@@ -51,5 +51,3 @@ group :test do
   gem "parallel_tests"
   gem "fakefs", :require => "fakefs/safe"
 end
-
-gem "rack-fiber_pool"
