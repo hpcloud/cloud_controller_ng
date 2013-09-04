@@ -6,7 +6,7 @@
 # variables used to configure and generate the package.
 
 PKG_NAME="stackato-cloud-controller-ng"
-PKG_VERSION="0.1"
+PKG_VERSION="auto"
 #PKG_VERSION_COUNTER="auto"
 PKG_ARCH="all"
 PKG_DESCR_SHORT="stackato-cloud-controller-ng"
