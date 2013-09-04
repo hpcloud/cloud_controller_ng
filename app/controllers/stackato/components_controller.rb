@@ -37,11 +37,53 @@ module VCAP::CloudController
       Yajl::Encoder.encode(nodes)
     end
 
+    def put_component(node_id, component_name)
+      action = params["action"]
+
+      if not ["start", "stop", "restart"].include? action
+        raise Errors::StackatoComponentUpdateInvalid.new("action", action)
+      elsif not node_id or not (Kato::Config.get("node") || {}).has_key? node_id
+        raise Errors::StackatoComponentUpdateInvalid.new("node", node_id)
+      elsif not component_name =~ /^\w+$/
+        raise Errors::StackatoComponentUpdateInvalid.new("component", component_name)
+      end
+
+      logger.info("#{action} #{component_name} (#{node_id})")
+
+      if component_name == "cloud_controller"
+        # Supervisord does not have a "restart" command.
+        # Therefore, there is no way to fire off a "restart me"
+        # command and rely on an external process to restart us.
+        # Instead we can simply kill this CC and supervisord will
+        # auto-restart us.
+        exit!
+      else
+        supervisord = Kato::Supervisord.new(node_id)
+        begin
+          if action == "start"
+            supervisord.start_process(component_name)
+          elsif action == "stop"
+            supervisord.stop_process(component_name)
+          elsif action == "restart"
+            supervisord.restart_process(component_name)
+          end
+        rescue Exception => e
+          if e.message == "BAD_NAME: " + component_name
+            raise Errors::StackatoComponentUpdateInvalid.new("component", component_name)
+          else
+            raise
+          end
+        end
+      end
+      [204, {}, nil]
+    end
+
     def underscore_process_name(process_name)
       process_name.gsub(/\-/, '_')
     end
 
     get "/stackato/components", :get_components
+    put "/stackato/components/:node_id/:component_name", :put_component
 
   end
 end

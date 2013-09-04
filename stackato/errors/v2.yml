@@ -56,3 +56,8 @@
   http_code: 500
   message: "Could determine proceses status on %s. %s"
 
+111:
+  name: StackatoComponentUpdateInvalid
+  http_code: 400
+  message: "Failed to update component. Invalid %s '%s'"
+
