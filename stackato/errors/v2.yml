@@ -51,3 +51,8 @@
   http_code: 400
   message: "Updates unsupported for keys : %s"
 
+110:
+  name: StackatoSupervisordNotRunning
+  http_code: 500
+  message: "Could determine proceses status on %s. %s"
+
