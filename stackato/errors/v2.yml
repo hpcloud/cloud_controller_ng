@@ -30,3 +30,24 @@
   name: StackatoSetupPasswordMinLength
   http_code: 500
   message: "Password must have at least %d characters"
+
+106:
+  name: StackatoNoComponentNameGiven
+  http_code: 400
+  message: "Component name expected"
+
+107:
+  name: StackatoNoConfigForComponent
+  http_code: 400
+  message: "Configuration not available for %s"
+
+108:
+  name: StackatoConfigUnsupportedUpdate
+  http_code: 400
+  message: "Updates unsupported for %s. %s"
+
+109:
+  name: StackatoConfigUnsupportedKeys
+  http_code: 400
+  message: "Updates unsupported for keys : %s"
+

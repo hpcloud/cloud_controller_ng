@@ -1,0 +1,121 @@
+---
+processes:
+
+  cloud_controller_ng:
+    logging: RW
+    external_uri: R
+    description: R
+    support_address: RW
+    admins: RW
+    app_uris: RW
+    drains: RW
+    allowed_repos: RW
+    default_account_capacity: RW
+    admin_account_capacity: RW
+    app_store: RW
+    allow_registration: RW
+    maintenance_mode: RW
+    max_user_drains: R
+    keys:
+      token: RW
+      token_expiration: RW
+
+  avahi_announcer:
+    logging: RW
+
+  nats_server:
+    logging: RW
+
+  health_manager:
+    logging: RW
+
+  router:
+    logging: RW
+
+  prealloc:
+    logging: RW
+
+  stager:
+    logging: RW
+    max_staging_duration: RW
+
+  dea_ng:
+    logging: RW
+    max_memory_percentage: RW
+    timeouts: RW
+
+  harbor_node:
+    logging: RW
+    host_external: RW
+    hostname_external: RW
+    port_range: RW
+
+  mysql_gateway:
+    logging: RW
+    allow_over_provisioning: RW
+
+  mysql_node:
+    logging: RW
+    capacity: RW
+    max_db_size: RW
+
+  postgresql_gateway:
+    logging: RW
+    allow_over_provisioning: RW
+
+  postgresql_node:
+    logging: RW
+    capacity: RW
+    max_db_size: RW
+
+  rabbit_gateway:
+    logging: RW
+    allow_over_provisioning: RW
+
+  rabbit_node:
+    logging: RW
+    capacity: RW
+    max_memory: RW
+
+  redis_gateway:
+    logging: RW
+    allow_over_provisioning: RW
+
+  redis_node:
+    logging: RW
+    capacity: RW
+    max_memory: RW
+
+  mongodb_gateway:
+    logging: RW
+    allow_over_provisioning: RW
+
+  mongodb_node:
+    logging: RW
+    capacity: RW
+
+  filesystem_gateway:
+    logging: RW
+    allow_over_provisioning: RW
+
+  filesystem_node:
+    logging: RW
+    capacity: RW
+    max_fs_size: RW
+
+  memcached_node:
+    logging: RW
+    capacity: RW
+    memcached_memory: RW
+
+  memcached_gateway:
+    logging: RW
+    allow_over_provisioning: RW
+
+  logyard:
+    logging: RW
+    retrylimits: R
+    apptail: RW
+    drains: R
+    systail: RW
+
