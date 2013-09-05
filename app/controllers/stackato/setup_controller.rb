@@ -15,20 +15,20 @@ module VCAP::CloudController
     def setup
       user = nil
       if Kato::Config.get("cluster", "license")
-        Errors::StackatoLicenseAlreadySetup.new
+        raise Errors::StackatoLicenseAlreadySetup.new
       elsif Kato::Config.get("aok", "enabled") && !aok_users_enabled?
-        Errors::StackatoConsoleSetupRequiresAokBuiltinUserDB.new
+        raise Errors::StackatoConsoleSetupRequiresAokBuiltinUserDB.new
 
       # Validation
       # TODO: Move validation to the user model & determine 
       # what we can really enforce in light of AOK
       elsif not (params[:email])
-        Errors::StackatoSetupEmailRequired.new
+        raise Errors::StackatoSetupEmailRequired.new
       elsif params[:email].length < USERNAME_MIN_SIZE
-        Errors::StackatoSetupEmailMinLength.new(USERNAME_MIN_SIZE)
+        raise Errors::StackatoSetupEmailMinLength.new(USERNAME_MIN_SIZE)
       elsif params[:password] && params[:password].length <= 4 or
           (params[:unix_password] and params[:unix_password].length <= 4)
-        Errors::StackatoSetupPasswordMinLength.new(4)
+        raise Errors::StackatoSetupPasswordMinLength.new(4)
       else
 
         run_cmd('sudo -k', "failed to reset sudo password cache")

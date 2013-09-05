@@ -10,7 +10,7 @@ module VCAP::CloudController
       if license_value
         Yajl::Encoder.encode(license_value)
       else
-        Errors::StackatoNotLicensed.new
+        raise Errors::StackatoNotLicensed.new
       end
     end
 
