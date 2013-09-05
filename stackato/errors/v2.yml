@@ -61,3 +61,13 @@
   http_code: 400
   message: "Failed to update component. Invalid %s '%s'"
 
+112:
+  name: StackatoAppLogsRedisNotConfigured
+  http_code: 500
+  message: "The app logs server is not configured within the Cloud Controller config."
+
+113:
+  name: StackatoAppLogServerNotReachable
+  http_code: 500
+  message: "We were unable to connect to the app logs server."
+

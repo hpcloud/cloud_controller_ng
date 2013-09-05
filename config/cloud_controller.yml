@@ -109,3 +109,8 @@ trial_db:
   guid: "78ad16cf-3c22-4427-a982-b9d35d746914"
 
 tasks_disabled: false
+
+app_logs_redis:
+  host: 127.0.0.1
+  port: 6464
+
