@@ -1,4 +1,4 @@
-source 'https://rubygems.org'
+source (ENV['RUBYGEMS_MIRROR'] or "https://rubygems.org")
 
 gem "activesupport", "~> 3.0"
 gem "rake"
