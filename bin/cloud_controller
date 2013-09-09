@@ -17,6 +17,8 @@ begin
   Kato::ConfigRedis.disable_em = true
   require "kato/supervisord"
   Kato::Supervisord.disable_em = true
+  require "kato/logyard"
+  Kato::Logyard.disable_em = true
 rescue Exception => e
   $stderr.puts "Please update your version of stackato-kato gem."
 end

@@ -71,3 +71,57 @@
   http_code: 500
   message: "We were unable to connect to the app logs server."
 
+114:
+  name: StackatoAppDrainInvalidName
+  http_code: 400
+  message: "Invalid drain name given."
+
+115:
+  name: StackatoAppDrainNameMinLength
+  http_code: 400
+  message: "Drain name must of size at least %d."
+
+116:
+  name: StackatoAppDrainNameMaxLength
+  http_code: 400
+  message: "Drain name must not longer than %d characters."
+
+117:
+  name: StackatoAppDrainInvalidUri
+  http_code: 400
+  message: "Invalid drain URI given."
+
+118:
+  name: StackatoAppDrainPortMax
+  http_code: 400
+  message: "Drain port can not be less than %d."
+
+119:
+  name: StackatoAppDrainMissingScheme
+  http_code: 400
+  message: "Drain URI is missing scheme."
+
+120:
+  name: StackatoAppDrainInvalidScheme
+  http_code: 400
+  message: "Drain URI has an invalid scheme."
+
+121:
+  name: StackatoAppDrainMissingHost
+  http_code: 400
+  message: "Drain URI is missing host."
+
+122:
+  name: StackatoAppDrainExists
+  http_code: 400
+  message: "Drain by that name already exists."
+
+123:
+  name: StackatoAppDrainLimitReached
+  http_code: 400
+  message: "User already has maximum allowed number of drains, which is %d."
+
+124:
+  name: StackatoAppDrainNotExists
+  http_code: 404
+  message: "Drain by that name does not exist."
