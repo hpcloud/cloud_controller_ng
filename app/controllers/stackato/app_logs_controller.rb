@@ -1,6 +1,4 @@
 
-require "kato/config"
-
 module VCAP::CloudController
   rest_controller :StackatoAppLogs do
     disable_default_routes

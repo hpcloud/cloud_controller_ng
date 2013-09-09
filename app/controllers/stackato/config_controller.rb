@@ -1,5 +1,4 @@
 
-require "kato/config"
 require "cloud_controller/stackato/config"
 
 module VCAP::CloudController
