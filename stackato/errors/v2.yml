@@ -125,3 +125,13 @@
   name: StackatoAppDrainNotExists
   http_code: 404
   message: "Drain by that name does not exist."
+
+125:
+  name: StackatoNodeDoesNotExists
+  http_code: 404
+  message: "The node %s does not exist."
+
+126:
+  name: StackatoClusterRolesNodeUpdateError
+  http_code: 500
+  message: "Error updating assigned roles: %s"
