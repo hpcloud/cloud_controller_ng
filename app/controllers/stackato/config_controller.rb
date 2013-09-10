@@ -3,12 +3,11 @@ require "cloud_controller/stackato/config"
 
 module VCAP::CloudController
   class StackatoConfigController < RestController::Base
-    allow_unauthenticated_access
 
     # Return whitelisted fields in any vcap configuration
     # Only cloud_controller.yml supported for now.
     def get_config
-
+      raise Errors::NotAuthorized unless roles.admin?
       component_name = params["name"]
       unless component_name
         raise Errors::StackatoNoComponentNameGiven.new
@@ -27,6 +26,7 @@ module VCAP::CloudController
     end
 
     def put_config
+      raise Errors::NotAuthorized unless roles.admin?
       component_name = params["name"]
       new_config = Yajl::Parser.parse(body)
       logger.info("Newconfig: #{new_config}")

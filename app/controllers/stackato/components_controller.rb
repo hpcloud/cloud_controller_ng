@@ -5,10 +5,11 @@ require "kato/exceptions"
 
 module VCAP::CloudController
   class StackatoComponentsController < RestController::Base
-    allow_unauthenticated_access
 
+    # Return `kato process list` as JSON
     def get_components
-      # Return `kato process list` as JSON
+      raise Errors::NotAuthorized unless roles.admin?
+
       node_ids = Kato::Cluster::Manager.node_ids
       nodes = {}
       node_ids.each do |node_id|
@@ -38,6 +39,8 @@ module VCAP::CloudController
     end
 
     def put_component(node_id, component_name)
+      raise Errors::NotAuthorized unless roles.admin?
+
       action = params["action"]
 
       if not ["start", "stop", "restart"].include? action
