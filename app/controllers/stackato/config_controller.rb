@@ -34,8 +34,8 @@ module VCAP::CloudController
       [204, {}, nil]
     end
 
-    get "/stackato/config", :get_config
-    put "/stackato/config", :put_config
+    get "/v2/stackato/config", :get_config
+    put "/v2/stackato/config", :put_config
 
   end
 end

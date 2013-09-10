@@ -14,7 +14,7 @@ module VCAP::CloudController
       end
     end
 
-    get "/stackato/license", :get_license
+    get "/v2/stackato/license", :get_license
 
   end
 end

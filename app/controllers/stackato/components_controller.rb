@@ -85,8 +85,8 @@ module VCAP::CloudController
       process_name.gsub(/\-/, '_')
     end
 
-    get "/stackato/components", :get_components
-    put "/stackato/components/:node_id/:component_name", :put_component
+    get "/v2/stackato/components", :get_components
+    put "/v2/stackato/components/:node_id/:component_name", :put_component
 
   end
 end

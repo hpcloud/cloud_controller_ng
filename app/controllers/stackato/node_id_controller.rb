@@ -12,7 +12,7 @@ module VCAP::CloudController
       })
     end
 
-    get "/stackato/node_id", :get_node_id
+    get "/v2/stackato/node_id", :get_node_id
 
   end
 end

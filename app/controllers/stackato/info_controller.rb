@@ -60,7 +60,7 @@ module VCAP::CloudController
       })
     end
 
-    get "/stackato/info", :get_info
+    get "/v2/stackato/info", :get_info
 
   end
 end

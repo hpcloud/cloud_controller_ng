@@ -85,7 +85,7 @@ module VCAP::CloudController
       end
     end
 
-    post "/stackato/license", :setup
+    post "/v2/stackato/license", :setup
 
   end
 end
