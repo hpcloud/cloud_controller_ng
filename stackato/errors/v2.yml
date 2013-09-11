@@ -135,3 +135,13 @@
   name: StackatoClusterRolesNodeUpdateError
   http_code: 500
   message: "Error updating assigned roles: %s"
+
+127:
+  name: StackatoDrainAddNameRequired
+  http_code: 400
+  message: "'name' not given"
+
+128:
+  name: StackatoDrainAddUriRequired
+  http_code: 400
+  message: "'uri' not given"

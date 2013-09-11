@@ -31,10 +31,16 @@ module VCAP::CloudController
 
     def add
       raise Errors::NotAuthorized unless roles.admin?
-      new_logyard = Yajl::Parser.parse(body)
-      logger.info("Adding drain with args: #{new_logyard}")
-      response = Kato::Logyard.run_logyard_remote "add", new_logyard
-      Yajl::Encoder.encode(response)
+      drain = Yajl::Parser.parse(body)
+      unless drain["name"]
+        raise Errors::StackatoDrainAddNameRequired.new
+      end
+      unless drain["uri"]
+        raise Errors::StackatoDrainAddUriRequired.new
+      end
+      logger.info("Adding drain with args: #{drain}")
+      Kato::Logyard.add_drain drain["name"], drain["uri"]
+      [204, {}, nil]
     end
 
     def delete(name)
