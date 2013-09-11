@@ -4,10 +4,12 @@ require "kato/logyard"
 module VCAP::CloudController
   class StackatoDrainsController < RestController::Base
 
+    DRAINS_BASE_URL = "/v2/drains"
+
     def list
       raise Errors::NotAuthorized unless roles.admin?
-      drain_uris = Kato::Logyard.run_logyard_remote "list", []
-      drain_statuses = Kato::Logyard.run_logyard_remote "status", []
+      drain_uris = Kato::Logyard.list_drains
+      drain_statuses = Kato::Logyard.status
       drain_hash = {}
       if drain_uris
         drain_uris.each do |drain_name, uri|
@@ -21,12 +23,45 @@ module VCAP::CloudController
           drain_hash[drain_name][:status] = status
         end
       end
-      drain_list = []
+      resources = []
       drain_hash.each do |drain_name, drain|
         drain[:name] = drain_name
-        drain_list << drain
+        resources << {
+          :metadata => {
+            :guid => drain_name,
+            :url => "#{DRAINS_BASE_URL}/#{drain_name}"
+          },
+          :entity => drain
+        }
       end
-      Yajl::Encoder.encode(drain_list)
+      Yajl::Encoder.encode({
+        :total_results => resources.size,
+        :total_pages   => 1,
+        :prev_url => nil,
+        :next_url => nil,
+        :resources => resources
+      })
+    end
+
+    def get(drain_name)
+      raise Errors::NotAuthorized unless roles.admin?
+      drain_statuses = Kato::Logyard.status({ :drains => [drain_name] })
+      unless drain_statuses.size == 1
+        raise Errors::StackatoDrainNotExists.new(drain_name)
+      end
+      drain_uri = Kato::Logyard.drain_uri(drain_name)
+      drain_status = drain_statuses.values.first
+      Yajl::Encoder.encode({
+        :metadata => {
+          :guid => drain_name,
+          :url => "#{DRAINS_BASE_URL}/#{drain_name}"
+        },
+        :entity => {
+          :name => drain_name,
+          :uri => drain_uri,
+          :status => drain_status
+        }
+      })
     end
 
     def add
@@ -54,9 +89,10 @@ module VCAP::CloudController
     #                "Anything that logyard-cli accepts" is too broad.
 
     # Exposing logyard-cli/logyard-remote via CC API
-    get    "/v2/stackato/drains",       :list
-    post   "/v2/stackato/drains",       :add
-    delete "/v2/stackato/drains/:name", :delete
+    get    DRAINS_BASE_URL,            :list
+    post   DRAINS_BASE_URL,            :add
+    get    "#{DRAINS_BASE_URL}/:name", :get
+    delete "#{DRAINS_BASE_URL}/:name", :delete
 
   end
 end

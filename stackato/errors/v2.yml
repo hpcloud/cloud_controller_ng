@@ -145,3 +145,8 @@
   name: StackatoDrainAddUriRequired
   http_code: 400
   message: "'uri' not given"
+
+129:
+  name: StackatoDrainNotExists
+  http_code: 404
+  message: "Drain does not exist with the name '%s'."
