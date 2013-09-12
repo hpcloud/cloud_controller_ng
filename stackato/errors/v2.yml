@@ -150,3 +150,13 @@
   name: StackatoDrainNotExists
   http_code: 404
   message: "Drain does not exist with the name '%s'."
+
+130:
+  name: StackatoAppStoreAPIError
+  http_code: 500
+  message: "AppStore API %s failed with code %d. %s"
+
+131:
+  name: StackatoAppStoreAPIConnectionFailed
+  http_code: 500
+  message: "Could not connect to the AppStore API."
