@@ -62,9 +62,9 @@
   message: "Failed to update component. Invalid %s '%s'"
 
 112:
-  name: StackatoAppLogsRedisNotConfigured
+  name: StackatoRedisClientNotConfigured
   http_code: 500
-  message: "The app logs server is not configured within the Cloud Controller config."
+  message: "The redis client is not configured within the Cloud Controller config."
 
 113:
   name: StackatoAppLogServerNotReachable
@@ -160,3 +160,18 @@
   name: StackatoAppStoreAPIConnectionFailed
   http_code: 500
   message: "Could not connect to the AppStore API."
+
+132:
+  name: StackatoDropletAccountabilityHouseKeepingAlreadyRunning
+  http_code: 500
+  message: "House-keeping thread is already running for droplet accountability."
+
+133:
+  name: StackatoDropletAccountabilityStatsUpdaterAlreadyRunning
+  http_code: 500
+  message: "Stats updater thread is already running for droplet accountability."
+
+134:
+  name: StackatoDropletAccountabilityMessageBusNotConfigured
+  http_code: 500
+  message: "Message bus is not configured for droplet accountability."

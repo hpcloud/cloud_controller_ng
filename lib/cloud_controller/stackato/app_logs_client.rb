@@ -1,4 +1,6 @@
 
+require "cloud_controller/stackato/redis_client"
+
 module VCAP::CloudController
   class StackatoAppLogsClient
 
@@ -12,21 +14,8 @@ module VCAP::CloudController
       @@logger ||= Steno.logger("cc.stackato.app_logs_client")
     end
 
-    def self.redis_client
-      @@redis ||= nil
-      unless @@redis and @@redis.client.connected?
-        redis_config = @@cc_config[CC_CONFIG_KEY]
-        unless redis_config.is_a? Hash and redis_config[:host] and redis_config[:port]
-          raise Errors::StackatoAppLogsRedisNotConfigured.new
-        end
-        logger.info("Connecting to app_logs redis at #{redis_config[:host]}:#{redis_config[:port]}")
-        @@redis = Redis.new(
-          :host => redis_config[:host],
-          :port => redis_config[:port],
-          :password => redis_config[:password]
-        )
-      end
-      @@redis
+    def self.redis &block
+      StackatoRedisClient.redis &block
     end
 
     def self.fetch_app_loglines(app, num=25, raw=false)
@@ -35,15 +24,7 @@ module VCAP::CloudController
 
       loglines = nil
       redis_exception = nil
-      redis_client_mutex.synchronize do
-        begin
-          loglines = redis_client.lrange(key, 0, num-1)
-        rescue Redis::BaseError => e
-          @@redis = nil
-          redis_exception = e
-        end
-      end
-      raise redis_exception if redis_exception
+      loglines = redis { |r| r.lrange(key, 0, num-1) }
 
       loglines.reverse.map do |record|
         record = Yajl::Parser.parse(record)
@@ -77,10 +58,6 @@ module VCAP::CloudController
     end
 
     private
-
-    def self.redis_client_mutex
-      @@redis_mutex ||= Mutex.new
-    end
 
   end
 end

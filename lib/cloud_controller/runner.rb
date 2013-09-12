@@ -9,7 +9,9 @@ require "cf/registrar"
 
 require_relative "seeds"
 require_relative "message_bus_configurer"
+require_relative "stackato/redis_client"
 require_relative "stackato/app_logs_client"
+require_relative "stackato/droplet_accountability"
 
 module VCAP::CloudController
   class Runner
@@ -123,7 +125,10 @@ module VCAP::CloudController
 
       VCAP::CloudController::Config.configure(@config)
       VCAP::CloudController::Config.configure_message_bus(message_bus)
+      VCAP::CloudController::StackatoRedisClient::configure(@config)
       VCAP::CloudController::StackatoAppLogsClient::configure(@config)
+      VCAP::CloudController::StackatoDropletAccountability::configure(@config, message_bus)
+      VCAP::CloudController::StackatoDropletAccountability::start
     end
 
     def create_app(config, message_bus)
