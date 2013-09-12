@@ -11,7 +11,7 @@ PKG_VERSION="auto"
 PKG_ARCH="all"
 PKG_DESCR_SHORT="stackato-cloud-controller-ng"
 PKG_DESCR_LONG="Packaged distribution of cloud_controller_ng."
-PKG_GITDESCRIBE=".gitdescribe"
+PKG_GITDESCRIBE=".pkg-gitdescribe"
 
 # reqs for nokogiri gem
 gem_nokogiri_deps="libxml2-dev, libxslt-dev"
