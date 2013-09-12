@@ -48,6 +48,12 @@ module Sinatra
 
       app.helpers VCAP::Helpers
 
+      # Allow browser based clients to talk to the CC Api across domains
+      # This is not a full cross domain solution but it prevents Sinatra throwing a 500 error
+      # when referer and host headers do not match which is enough for now.
+      # See https://github.com/sinatra/sinatra/issues/747
+      app.set :protection, :except => [:remote_referrer, :json_csrf]
+
       app.not_found do
         # sinatra wants to drive us through the not_found block for *every*
         # 404, with no way of disabling it. We want the logic in this block
