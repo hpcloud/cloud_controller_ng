@@ -263,17 +263,25 @@ module VCAP::CloudController
         end
       end
 
+      def total_requested_memory
+        num_instances = instances ? instances : default_instances
+        requested_memory * num_instances
+      end
+
+      def total_existing_memory
+        app_from_db = self.class.find(:guid => guid)
+        app_from_db[:memory] * app_from_db[:instances]
+      end
+
       def additional_memory_requested
         default_instances = db_schema[:instances][:default].to_i
 
-        num_instances = instances ? instances : default_instances
-        total_requested_memory = requested_memory * num_instances
+        requested = total_requested_memory
+        existing = total_existing_memory
 
-        return total_requested_memory if new?
+        return requested if new?
 
-        app_from_db = self.class.find(:guid => guid)
-        total_existing_memory = app_from_db[:memory] * app_from_db[:instances]
-        additional_memory = total_requested_memory - total_existing_memory
+        additional_memory = requested - existing
         return additional_memory if additional_memory > 0
         0
       end
