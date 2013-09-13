@@ -5,7 +5,7 @@ require "yaml"
 module VCAP::Errors
   include VCAP::RestAPI::Errors
 
-  ["stackato"].each do |source|
+  ["vendor", "stackato"].each do |source|
     errors_dir = File.expand_path("../../../#{source}/errors", __FILE__)
     YAML.load_file("#{errors_dir}/v2.yml").each do |code, meta|
       define_error meta["name"], meta["http_code"], code, meta["message"]
