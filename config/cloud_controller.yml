@@ -92,25 +92,25 @@ resource_pool:
   resource_directory_key: "spec-cc-resources"
   fog_connection:
     provider: Local
-    local_root: /tmp
+    local_root: /home/stackato/stackato/data/
 
 packages:
   app_package_directory_key: "cc-packages"
   fog_connection:
     provider: Local
-    local_root: /tmp
+    local_root: /home/stackato/stackato/data/
 
 droplets:
   droplet_directory_key: cc-droplets
   fog_connection:
     provider: Local
-    local_root: /tmp
+    local_root: /home/stackato/stackato/data/
 
 buildpacks:
   buildpack_directory_key: cc-buildpacks
   fog_connection:
     provider: Local
-    local_root: /tmp
+    local_root: /home/stackato/stackato/data/
 
 db_encryption_key: "placeholder"
 
