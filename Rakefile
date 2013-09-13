@@ -39,7 +39,6 @@ RSpec::Core::RakeTask.new do |t|
     --backtrace
     --format progress
     --colour
-    --profile
   )
 end
 

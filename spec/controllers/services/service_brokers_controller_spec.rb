@@ -5,7 +5,7 @@ module VCAP::CloudController
     let(:headers) { json_headers(admin_headers) }
 
     let(:non_admin_headers) do
-      user = VCAP::CloudController::User.make(admin: false)
+      user = VCAP::CloudController::Models::User.make(admin: false)
       json_headers(headers_for(user))
     end
 
@@ -37,7 +37,7 @@ module VCAP::CloudController
 
       let(:errors) { double(Sequel::Model::Errors, on: nil) }
       let(:broker) do
-        double(ServiceBroker, {
+        double(Models::ServiceBroker, {
           guid: '123',
           name: 'My Custom Service',
           broker_url: 'http://broker.example.com',
@@ -45,7 +45,7 @@ module VCAP::CloudController
         })
       end
       let(:registration) do
-        reg = double(ServiceBrokerRegistration, {
+        reg = double(Models::ServiceBrokerRegistration, {
           broker: broker,
           errors: errors
         })
@@ -57,8 +57,8 @@ module VCAP::CloudController
       }) }
 
       before do
-        ServiceBroker.stub(:new).and_return(broker)
-        ServiceBrokerRegistration.stub(:new).with(broker).and_return(registration)
+        Models::ServiceBroker.stub(:new).and_return(broker)
+        Models::ServiceBrokerRegistration.stub(:new).with(broker).and_return(registration)
         ServiceBrokerPresenter.stub(:new).with(broker).and_return(presenter)
       end
 
@@ -90,7 +90,7 @@ module VCAP::CloudController
       it 'does not set fields that are unmodifiable' do
         body_hash[:guid] = 'mycustomguid'
         post '/v2/service_brokers', body, headers
-        expect(ServiceBroker).to_not have_received(:new).with(hash_including('guid' => 'mycustomguid'))
+        expect(Models::ServiceBroker).to_not have_received(:new).with(hash_including('guid' => 'mycustomguid'))
       end
 
       context 'when there is an error in Broker Registration' do
@@ -102,9 +102,9 @@ module VCAP::CloudController
           it 'returns an error' do
             post '/v2/service_brokers', body, headers
 
-            last_response.status.should == 500
+            last_response.status.should == 400
             decoded_response.fetch('code').should == 270007
-            decoded_response.fetch('description').should =~ /Authentication failed for the service broker API. Double-check that the token is correct:/
+            decoded_response.fetch('description').should =~ /The Service Broker API authentication failed/
           end
         end
 
@@ -114,9 +114,9 @@ module VCAP::CloudController
           it 'returns an error' do
             post '/v2/service_brokers', body, headers
 
-            last_response.status.should == 500
+            last_response.status.should == 400
             decoded_response.fetch('code').should == 270004
-            decoded_response.fetch('description').should =~ /The service broker API could not be reached/
+            decoded_response.fetch('description').should =~ /The Service Broker API could not be reached/
           end
         end
 
@@ -126,9 +126,9 @@ module VCAP::CloudController
           it 'returns an error' do
             post '/v2/service_brokers', body, headers
 
-            last_response.status.should == 500
+            last_response.status.should == 400
             decoded_response.fetch('code').should == 270005
-            decoded_response.fetch('description').should =~ /The service broker API timed out/
+            decoded_response.fetch('description').should =~ /The Service Broker API timed out/
           end
         end
 
@@ -138,9 +138,9 @@ module VCAP::CloudController
           it 'returns an error' do
             post '/v2/service_brokers', body, headers
 
-            last_response.status.should == 500
+            last_response.status.should == 400
             decoded_response.fetch('code').should == 270006
-            decoded_response.fetch('description').should =~ /The service broker response was not understood/
+            decoded_response.fetch('description').should =~ /The Service Broker's catalog endpoint did not return valid json/
           end
         end
 
@@ -176,7 +176,7 @@ module VCAP::CloudController
 
             last_response.status.should == 400
             decoded_response.fetch('code').should == 270001
-            decoded_response.fetch('description').should == 'Service broker is invalid: A bunch of stuff was wrong'
+            decoded_response.fetch('description').should == 'Service Broker is invalid: A bunch of stuff was wrong'
           end
         end
       end
@@ -195,7 +195,7 @@ module VCAP::CloudController
     end
 
     describe 'GET /v2/service_brokers' do
-      let!(:broker) { ServiceBroker.make(name: 'FreeWidgets', broker_url: 'http://example.com/', token: 'secret') }
+      let!(:broker) { Models::ServiceBroker.make(name: 'FreeWidgets', broker_url: 'http://example.com/', token: 'secret') }
       let(:single_broker_response) do
         {
           'total_results' => 1,
@@ -225,7 +225,7 @@ module VCAP::CloudController
       end
 
       context "with a second service broker" do
-        let!(:broker2) { ServiceBroker.make(name: 'FreeWidgets2', broker_url: 'http://example.com/2', token: 'secret2') }
+        let!(:broker2) { Models::ServiceBroker.make(name: 'FreeWidgets2', broker_url: 'http://example.com/2', token: 'secret2') }
 
         it "filters the things" do
           get "/v2/service_brokers?q=name%3A#{broker.name}", {}, headers
@@ -247,7 +247,7 @@ module VCAP::CloudController
     end
 
     describe 'DELETE /v2/service_brokers/:guid' do
-      let!(:broker) { ServiceBroker.make(name: 'FreeWidgets', broker_url: 'http://example.com/', token: 'secret') }
+      let!(:broker) { Models::ServiceBroker.make(name: 'FreeWidgets', broker_url: 'http://example.com/', token: 'secret') }
 
       it "deletes the service broker" do
         delete "/v2/service_brokers/#{broker.guid}", {}, headers
@@ -261,24 +261,6 @@ module VCAP::CloudController
       it "returns 404 when deleting a service broker that does not exist" do
         delete "/v2/service_brokers/1234", {}, headers
         expect(last_response.status).to eq(404)
-      end
-
-      context "when a service instance exists" do
-
-        it "returns a 400 and an appropriate error message" do
-          service = Service.make(:service_broker => broker)
-          service_plan = ServicePlan.make(:service => service)
-          ManagedServiceInstance.make(:service_plan => service_plan)
-
-          delete "/v2/service_brokers/#{broker.guid}", {}, headers
-
-          expect(last_response.status).to eq(400)
-          decoded_response.fetch('code').should == 270010
-          decoded_response.fetch('description').should =~ /Can not remove brokers that have associated service instances/
-
-          get '/v2/service_brokers', {}, headers
-          expect(decoded_response).to include('total_results' => 1)
-        end
       end
 
       describe 'authentication' do
@@ -317,7 +299,7 @@ module VCAP::CloudController
 
       let(:errors) { double(Sequel::Model::Errors, on: nil) }
       let(:broker) do
-        double(ServiceBroker, {
+        double(Models::ServiceBroker, {
           guid: '123',
           name: 'My Custom Service',
           broker_url: 'http://broker.example.com',
@@ -326,7 +308,7 @@ module VCAP::CloudController
         })
       end
       let(:registration) do
-        reg = double(ServiceBrokerRegistration, {
+        reg = double(Models::ServiceBrokerRegistration, {
           broker: broker,
           errors: errors
         })
@@ -338,9 +320,9 @@ module VCAP::CloudController
       }) }
 
       before do
-        ServiceBroker.stub(:find)
-        ServiceBroker.stub(:find).with(guid: broker.guid).and_return(broker)
-        ServiceBrokerRegistration.stub(:new).with(broker).and_return(registration)
+        Models::ServiceBroker.stub(:find)
+        Models::ServiceBroker.stub(:find).with(guid: broker.guid).and_return(broker)
+        Models::ServiceBrokerRegistration.stub(:new).with(broker).and_return(registration)
         ServiceBrokerPresenter.stub(:new).with(broker).and_return(presenter)
       end
 
@@ -382,9 +364,9 @@ module VCAP::CloudController
           it 'returns an error' do
             put "/v2/service_brokers/#{broker.guid}", body, headers
 
-            last_response.status.should == 500
+            last_response.status.should == 400
             decoded_response.fetch('code').should == 270007
-            decoded_response.fetch('description').should =~ /Authentication failed for the service broker API. Double-check that the token is correct:/
+            decoded_response.fetch('description').should =~ /The Service Broker API authentication failed/
           end
         end
 
@@ -394,9 +376,9 @@ module VCAP::CloudController
           it 'returns an error' do
             put "/v2/service_brokers/#{broker.guid}", body, headers
 
-            last_response.status.should == 500
+            last_response.status.should == 400
             decoded_response.fetch('code').should == 270004
-            decoded_response.fetch('description').should =~ /The service broker API could not be reached/
+            decoded_response.fetch('description').should =~ /The Service Broker API could not be reached/
           end
         end
 
@@ -406,9 +388,9 @@ module VCAP::CloudController
           it 'returns an error' do
             put "/v2/service_brokers/#{broker.guid}", body, headers
 
-            last_response.status.should == 500
+            last_response.status.should == 400
             decoded_response.fetch('code').should == 270005
-            decoded_response.fetch('description').should =~ /The service broker API timed out/
+            decoded_response.fetch('description').should =~ /The Service Broker API timed out/
           end
         end
 
@@ -418,9 +400,9 @@ module VCAP::CloudController
           it 'returns an error' do
             put "/v2/service_brokers/#{broker.guid}", body, headers
 
-            last_response.status.should == 500
+            last_response.status.should == 400
             decoded_response.fetch('code').should == 270006
-            decoded_response.fetch('description').should =~ /The service broker response was not understood/
+            decoded_response.fetch('description').should =~ /The Service Broker's catalog endpoint did not return valid json/
           end
         end
 
@@ -456,7 +438,7 @@ module VCAP::CloudController
 
             last_response.status.should == 400
             decoded_response.fetch('code').should == 270001
-            decoded_response.fetch('description').should == 'Service broker is invalid: A bunch of stuff was wrong'
+            decoded_response.fetch('description').should == 'Service Broker is invalid: A bunch of stuff was wrong'
           end
         end
       end

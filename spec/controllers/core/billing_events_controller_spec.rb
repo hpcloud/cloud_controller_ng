@@ -5,40 +5,40 @@ module VCAP::CloudController
     describe "permissions" do
       context "with 5 event records" do
         let(:org) do
-          Organization.make
+          Models::Organization.make
         end
 
         let(:org_admin_headers) do
-          user = User.make
+          user = Models::User.make
           org.add_user(user)
           org.add_manager(user)
           headers_for(user)
         end
 
         before(:all) do
-          BillingEvent.plugin :scissors
-          BillingEvent.delete
+          Models::BillingEvent.plugin :scissors
+          Models::BillingEvent.delete
 
           timestamp = Time.new(2012, 01, 01, 00, 00, 01)
           @start_time = timestamp
 
-          @org_event = OrganizationStartEvent.make(
+          @org_event = Models::OrganizationStartEvent.make(
             :timestamp => timestamp
           )
 
-          @app_start_event = AppStartEvent.make(
+          @app_start_event = Models::AppStartEvent.make(
             :timestamp => timestamp += 1
           )
 
-          @app_stop_event = AppStopEvent.make(
+          @app_stop_event = Models::AppStopEvent.make(
             :timestamp => timestamp += 1
           )
 
-          @service_create_event = ServiceCreateEvent.make(
+          @service_create_event = Models::ServiceCreateEvent.make(
             :timestamp => timestamp += 1
           )
 
-          @service_delete_event = ServiceDeleteEvent.make(
+          @service_delete_event = Models::ServiceDeleteEvent.make(
             :timestamp => timestamp += 1
           )
 

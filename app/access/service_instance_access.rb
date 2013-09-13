@@ -1,4 +1,4 @@
-module VCAP::CloudController
+module VCAP::CloudController::Models
   class ServiceInstanceAccess < BaseAccess
     def create?(service_instance)
       super || service_instance.space.developers.include?(context.user)

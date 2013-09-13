@@ -1,4 +1,4 @@
-module VCAP::CloudController
+module VCAP::CloudController::Models
   class RouteAccess < BaseAccess
     def create?(route)
       super ||

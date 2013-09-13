@@ -5,6 +5,7 @@ require "rubygems"
 require "bundler"
 require "bundler/setup"
 
+require "fakefs/safe"
 require "machinist/sequel"
 require "machinist/object"
 require "rack/test"
@@ -203,7 +204,7 @@ module VCAP::CloudController::SpecHelper
     message_bus = VCAP::CloudController::Config.message_bus || CfMessageBus::MockMessageBus.new
 
     # FIXME: this is better suited for a before-each stub so that we can unstub it in examples
-    VCAP::CloudController::ManagedServiceInstance.gateway_client_class = VCAP::Services::Api::ServiceGatewayClientFake
+    VCAP::CloudController::Models::ManagedServiceInstance.gateway_client_class = VCAP::Services::Api::ServiceGatewayClientFake
 
     VCAP::CloudController::Config.configure(config)
     VCAP::CloudController::Config.configure_message_bus(message_bus)
@@ -215,8 +216,8 @@ module VCAP::CloudController::SpecHelper
 
   def configure_stacks
     stacks_file = File.join(fixture_path, "config/stacks.yml")
-    VCAP::CloudController::Stack.configure(stacks_file)
-    VCAP::CloudController::Stack.populate
+    VCAP::CloudController::Models::Stack.configure(stacks_file)
+    VCAP::CloudController::Models::Stack.populate
   end
 
   class TmpdirCleaner
@@ -563,6 +564,6 @@ end
 # explicitly. In sqlite, the default ordering, although not guaranteed,
 # is de facto by id. In postgres the order is random unless specified.
 
-class VCAP::CloudController::App
+class VCAP::CloudController::Models::App
   set_dataset dataset.order(:guid)
 end

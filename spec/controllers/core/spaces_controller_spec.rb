@@ -3,20 +3,20 @@ require "spec_helper"
 module VCAP::CloudController
   describe VCAP::CloudController::SpacesController, type: :controller do
     include_examples "uaa authenticated api", path: "/v2/spaces"
-    include_examples "querying objects", path: "/v2/spaces", model: Space, queryable_attributes: %w(name)
-    include_examples "enumerating objects", path: "/v2/spaces", model: Space
-    include_examples "reading a valid object", path: "/v2/spaces", model: Space, basic_attributes: %w(name organization_guid)
+    include_examples "querying objects", path: "/v2/spaces", model: Models::Space, queryable_attributes: %w(name)
+    include_examples "enumerating objects", path: "/v2/spaces", model: Models::Space
+    include_examples "reading a valid object", path: "/v2/spaces", model: Models::Space, basic_attributes: %w(name organization_guid)
     include_examples "operations on an invalid object", path: "/v2/spaces"
-    include_examples "creating and updating", path: "/v2/spaces", model: Space, required_attributes: %w(name organization_guid), unique_attributes: %w(name organization_guid)
-    include_examples "deleting a valid object", path: "/v2/spaces", model: Space,
+    include_examples "creating and updating", path: "/v2/spaces", model: Models::Space, required_attributes: %w(name organization_guid), unique_attributes: %w(name organization_guid)
+    include_examples "deleting a valid object", path: "/v2/spaces", model: Models::Space,
       one_to_many_collection_ids: {
-        :apps => lambda { |space| App.make(:space => space) },
-        :service_instances => lambda { |space| ManagedServiceInstance.make(:space => space) }
+        :apps => lambda { |space| Models::App.make(:space => space) },
+        :service_instances => lambda { |space| Models::ManagedServiceInstance.make(:space => space) }
       },
       one_to_many_collection_ids_without_url: {
-        :routes => lambda { |space| Route.make(:space => space) },
+        :routes => lambda { |space| Models::Route.make(:space => space) },
         :default_users => lambda { |space|
-          user = VCAP::CloudController::User.make
+          user = VCAP::CloudController::Models::User.make
           space.organization.add_user(user)
           space.add_developer(user)
           space.save
@@ -25,15 +25,15 @@ module VCAP::CloudController
           user
         }
       }
-    include_examples "collection operations", path: "/v2/spaces", model: Space,
+    include_examples "collection operations", path: "/v2/spaces", model: Models::Space,
       one_to_many_collection_ids: {
-        apps: lambda { |space| App.make(space: space) },
-        service_instances: lambda { |space| ManagedServiceInstance.make(space: space) }
+        apps: lambda { |space| Models::App.make(space: space) },
+        service_instances: lambda { |space| Models::ManagedServiceInstance.make(space: space) }
       },
       one_to_many_collection_ids_without_url: {
-        routes: lambda { |space| Route.make(space: space) },
+        routes: lambda { |space| Models::Route.make(space: space) },
         default_users: lambda { |space|
-          user = VCAP::CloudController::User.make
+          user = VCAP::CloudController::Models::User.make
           space.organization.add_user(user)
           space.add_developer(user)
           space.save
@@ -52,7 +52,7 @@ module VCAP::CloudController
 
 
     describe "data integrity" do
-      let(:space) { Space.make }
+      let(:space) { Models::Space.make }
 
       it "should not make strings into integers" do
         space.name = "1234"
@@ -154,15 +154,15 @@ module VCAP::CloudController
     end
 
     describe 'GET /v2/spaces/:guid/service_instances' do
-      let(:space) { Space.make }
+      let(:space) { Models::Space.make }
       let(:developer) { make_developer_for_space(space) }
 
       context 'when filtering results' do
         it 'returns only matching results' do
-          user_provided_service_instance_1 = UserProvidedServiceInstance.make(space: space, name: 'provided service 1')
-          user_provided_service_instance_2 = UserProvidedServiceInstance.make(space: space, name: 'provided service 2')
-          managed_service_instance_1 = ManagedServiceInstance.make(space: space, name: 'managed service 1')
-          managed_service_instance_2 = ManagedServiceInstance.make(space: space, name: 'managed service 2')
+          user_provided_service_instance_1 = Models::UserProvidedServiceInstance.make(space: space, name: 'provided service 1')
+          user_provided_service_instance_2 = Models::UserProvidedServiceInstance.make(space: space, name: 'provided service 2')
+          managed_service_instance_1 = Models::ManagedServiceInstance.make(space: space, name: 'managed service 1')
+          managed_service_instance_2 = Models::ManagedServiceInstance.make(space: space, name: 'managed service 2')
 
           get "v2/spaces/#{space.guid}/service_instances", {'q' => 'name:provided service 1;', 'return_user_provided_service_instances' => true}, headers_for(developer)
           guids = decoded_response.fetch('resources').map { |service| service.fetch('metadata').fetch('guid') }
@@ -175,8 +175,8 @@ module VCAP::CloudController
       end
 
       context 'when there are provided service instances' do
-        let!(:user_provided_service_instance) { UserProvidedServiceInstance.make(space: space) }
-        let!(:managed_service_instance) { ManagedServiceInstance.make(space: space) }
+        let!(:user_provided_service_instance) { Models::UserProvidedServiceInstance.make(space: space) }
+        let!(:managed_service_instance) { Models::ManagedServiceInstance.make(space: space) }
 
         describe 'when return_user_provided_service_instances is true' do
           it 'returns ManagedServiceInstances and UserProvidedServiceInstances' do
@@ -234,7 +234,7 @@ module VCAP::CloudController
           expected = opts.fetch(:expected)
           let(:path) { "/v2/spaces/#{@space_a.guid}/service_instances" }
           let!(:managed_service_instance) do
-            ManagedServiceInstance.make(
+            Models::ManagedServiceInstance.make(
               space: @space_a,
             )
           end
@@ -254,43 +254,11 @@ module VCAP::CloudController
           end
         end
 
-        shared_examples "disallow enumerating services" do |perm_name|
-          describe "disallowing enumerating services" do
-            it "disallows a user that only has #{perm_name} permission on the space" do
-              get "/v2/spaces/#{@space_a.guid}/services", {}, headers_for(member_a)
-
-              last_response.should be_forbidden
-            end
-          end
-        end
-
-        shared_examples "enumerating services" do |perm_name, opts|
-          let(:path) { "/v2/spaces/#{@space_a.guid}/services" }
-
-          it "should return services to a user that has #{perm_name} permissions" do
-            get path, {}, headers_for(member_a)
-
-            last_response.should be_ok
-          end
-
-          it "should not return services to a user with the #{perm_name} permission on a different space" do
-            get path, {}, headers_for(member_b)
-            last_response.should be_forbidden
-          end
-        end
-
         describe "Org Level" do
           describe "OrgManager" do
-            it_behaves_like(
+            include_examples(
               "enumerating service instances", "OrgManager",
               expected: 0,
-            ) do
-              let(:member_a) { @org_a_manager }
-              let(:member_b) { @org_b_manager }
-            end
-
-            it_behaves_like(
-              "enumerating services", "OrgManager",
             ) do
               let(:member_a) { @org_a_manager }
               let(:member_b) { @org_b_manager }
@@ -298,42 +266,24 @@ module VCAP::CloudController
           end
 
           describe "OrgUser" do
-            it_behaves_like(
+            include_examples(
               "disallow enumerating service instances", "OrgUser",
-            ) do
-              let(:member_a) { @org_a_member }
-            end
-
-            it_behaves_like(
-              "disallow enumerating services", "OrgUser",
             ) do
               let(:member_a) { @org_a_member }
             end
           end
 
           describe "BillingManager" do
-            it_behaves_like(
+            include_examples(
               "disallow enumerating service instances", "BillingManager",
-            ) do
-              let(:member_a) { @org_a_billing_manager }
-            end
-
-            it_behaves_like(
-              "disallow enumerating services", "BillingManager",
             ) do
               let(:member_a) { @org_a_billing_manager }
             end
           end
 
           describe "Auditor" do
-            it_behaves_like(
+            include_examples(
               "disallow enumerating service instances", "Auditor",
-            ) do
-              let(:member_a) { @org_a_auditor }
-            end
-
-            it_behaves_like(
-              "disallow enumerating services", "Auditor",
             ) do
               let(:member_a) { @org_a_auditor }
             end
@@ -342,16 +292,9 @@ module VCAP::CloudController
 
         describe "App Space Level Permissions" do
           describe "SpaceManager" do
-            it_behaves_like(
+            include_examples(
               "enumerating service instances", "SpaceManager",
               expected: 0,
-            ) do
-              let(:member_a) { @space_a_manager }
-              let(:member_b) { @space_b_manager }
-            end
-
-            it_behaves_like(
-              "enumerating services", "SpaceManager",
             ) do
               let(:member_a) { @space_a_manager }
               let(:member_b) { @space_b_manager }
@@ -359,16 +302,9 @@ module VCAP::CloudController
           end
 
           describe "Developer" do
-            it_behaves_like(
+            include_examples(
               "enumerating service instances", "Developer",
               expected: 1,
-            ) do
-              let(:member_a) { @space_a_developer }
-              let(:member_b) { @space_b_developer }
-            end
-
-            it_behaves_like(
-              "enumerating services", "Developer",
             ) do
               let(:member_a) { @space_a_developer }
               let(:member_b) { @space_b_developer }
@@ -376,84 +312,14 @@ module VCAP::CloudController
           end
 
           describe "SpaceAuditor" do
-            it_behaves_like(
+            include_examples(
               "enumerating service instances", "SpaceAuditor",
               expected: 1,
             ) do
               let(:member_a) { @space_a_auditor }
               let(:member_b) { @space_b_auditor }
             end
-
-            it_behaves_like(
-              "enumerating services", "SpaceAuditor",
-            ) do
-              let(:member_a) { @space_a_auditor }
-              let(:member_b) { @space_b_auditor }
-            end
           end
-        end
-      end
-    end
-
-    describe 'GET', '/v2/spaces/:guid/services' do
-      let(:organization_one) { Organization.make }
-      let(:organization_two) { Organization.make }
-      let(:space_one) { Space.make(organization: organization_one) }
-      let(:space_two) { Space.make(organization: organization_two)}
-      let(:user) { make_developer_for_space(space_one) }
-      let (:headers) do
-        headers_for(user)
-      end
-
-      before(:each) do
-        reset_database
-
-        user.add_organization(organization_two)
-        space_two.add_developer(user)
-      end
-
-      def decoded_guids
-        decoded_response['resources'].map { |r| r['metadata']['guid'] }
-      end
-
-      context 'with an offering that has private plans' do
-        before(:each) do
-          @service = Service.make(:active => true).tap { |svc| ServicePlan.make(:service => svc, public: false) }
-          ServicePlanVisibility.make(service_plan: @service.service_plans.first, organization: organization_one)
-        end
-
-        it 'should remove the offering when the org does not have access to the plan' do
-          get "/v2/spaces/#{space_two.guid}/services", {}, headers
-          last_response.should be_ok
-          decoded_guids.should_not include(@service.guid)
-        end
-
-        it 'should return the offering when the org has access to the plan' do
-          get "/v2/spaces/#{space_one.guid}/services", {}, headers
-          last_response.should be_ok
-          decoded_guids.should include(@service.guid)
-        end
-      end
-
-      describe 'get /v2/spaces/:guid/services?q=active:<t|f>' do
-        before(:each) do
-          @active = 3.times.map { Service.make(:active => true).tap{|svc| ServicePlan.make(:service => svc) } }
-          @inactive = 2.times.map { Service.make(:active => false).tap{|svc| ServicePlan.make(:service => svc) } }
-        end
-
-        it 'can remove inactive services' do
-          # Sequel stores 'true' and 'false' as 't' and 'f' in sqlite, so with
-          # sqlite, instead of 'true' or 'false', the parameter must be specified
-          # as 't' or 'f'. But in postgresql, either way is ok.
-          get "/v2/spaces/#{space_one.guid}/services?q=active:t", {}, headers
-          last_response.should be_ok
-          decoded_guids.should =~ @active.map(&:guid)
-        end
-
-        it 'can only get inactive services' do
-          get "/v2/spaces/#{space_one.guid}/services?q=active:f", {}, headers
-          last_response.should be_ok
-          decoded_guids.should =~ @inactive.map(&:guid)
         end
       end
     end

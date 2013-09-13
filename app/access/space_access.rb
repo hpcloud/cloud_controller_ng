@@ -1,4 +1,4 @@
-module VCAP::CloudController
+module VCAP::CloudController::Models
   class SpaceAccess < BaseAccess
     def create?(space)
       super || space.organization.managers.include?(context.user)

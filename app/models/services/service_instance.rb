@@ -1,17 +1,17 @@
-module VCAP::CloudController
+module VCAP::CloudController::Models
   class ServiceInstance < Sequel::Model
     class InvalidServiceBinding < StandardError; end
 
     plugin :single_table_inheritance, :is_gateway_service,
            model_map: lambda { |is_gateway_service|
              if is_gateway_service
-               VCAP::CloudController::ManagedServiceInstance
+               VCAP::CloudController::Models::ManagedServiceInstance
              else
-               VCAP::CloudController::UserProvidedServiceInstance
+               VCAP::CloudController::Models::UserProvidedServiceInstance
              end
            },
            key_map: lambda { |klazz|
-             klazz == VCAP::CloudController::ManagedServiceInstance
+             klazz == VCAP::CloudController::Models::ManagedServiceInstance
            }
 
     one_to_many :service_bindings, :before_add => :validate_service_binding
@@ -52,6 +52,10 @@ module VCAP::CloudController
 
     def generate_salt
       self.salt ||= VCAP::CloudController::Encryptor.generate_salt
+    end
+
+    def create_binding(app_guid, binding_options)
+      add_service_binding(app_guid: app_guid, binding_options: binding_options)
     end
 
     # Make sure all derived classes use the base access class

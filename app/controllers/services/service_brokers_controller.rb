@@ -29,7 +29,7 @@ module VCAP::CloudController
 
     def enumerate
       headers = {}
-      brokers = ServiceBroker.filter(build_filter)
+      brokers = Models::ServiceBroker.filter(build_filter)
 
       body = paginate( brokers.map { |broker| ServiceBrokerPresenter.new(broker).to_hash } )
       [HTTP::OK, headers, body.to_json]
@@ -37,9 +37,9 @@ module VCAP::CloudController
 
     def create
       params = ServiceBrokerMessage.extract(body)
-      broker = ServiceBroker.new(params)
+      broker = Models::ServiceBroker.new(params)
 
-      registration = ServiceBrokerRegistration.new(broker)
+      registration = Models::ServiceBrokerRegistration.new(broker)
 
       unless registration.save(raise_on_failure: false)
         raise get_exception_from_errors(registration)
@@ -52,10 +52,10 @@ module VCAP::CloudController
 
     def update(guid)
       params = ServiceBrokerMessage.extract(body)
-      broker = ServiceBroker.find(guid: guid)
+      broker = Models::ServiceBroker.find(guid: guid)
       return HTTP::NOT_FOUND unless broker
 
-      registration = ServiceBrokerRegistration.new(broker)
+      registration = Models::ServiceBrokerRegistration.new(broker)
 
       broker.set(params)
 
@@ -68,12 +68,10 @@ module VCAP::CloudController
     end
 
     def delete(guid)
-      broker = ServiceBroker.find(:guid => guid)
+      broker = Models::ServiceBroker.find(:guid => guid)
       return HTTP::NOT_FOUND unless broker
       broker.destroy
       HTTP::NO_CONTENT
-    rescue Sequel::ForeignKeyConstraintViolation
-      raise VCAP::Errors::ServiceBrokerNotRemovable.new
     end
 
     def self.translate_validation_exception(e, _)
@@ -133,7 +131,7 @@ module VCAP::CloudController
       elsif errors.on(:name) && errors.on(:name).include?(:unique)
         Errors::ServiceBrokerNameTaken.new(broker.name)
       elsif errors.on(:catalog) && errors.on(:catalog).include?(:malformed)
-        Errors::ServiceBrokerResponseMalformed.new
+        Errors::ServiceBrokerCatalogMalformed.new
       else
         Errors::ServiceBrokerInvalid.new(errors.full_messages)
       end

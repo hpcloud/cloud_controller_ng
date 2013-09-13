@@ -1,4 +1,4 @@
-module VCAP::CloudController
+module VCAP::CloudController::Models
   class AppAccess < BaseAccess
     def create?(app)
       super || app.space.developers.include?(context.user)

@@ -4,16 +4,16 @@ module VCAP::CloudController
   describe VCAP::CloudController::Seeds do
     describe ".create_seed_stacks" do
       it "populates stacks" do
-        Stack.should_receive(:populate)
+        Models::Stack.should_receive(:populate)
         Seeds.create_seed_stacks(config)
       end
     end
 
     describe ".create_seed_quota_definitions" do
       it "creates quota definitions" do
-        QuotaDefinition.should_receive(:update_or_create).with(:name => "free")
-        QuotaDefinition.should_receive(:update_or_create).with(:name => "paid")
-        QuotaDefinition.should_receive(:update_or_create).with(:name => "trial")
+        Models::QuotaDefinition.should_receive(:update_or_create).with(:name => "free")
+        Models::QuotaDefinition.should_receive(:update_or_create).with(:name => "paid")
+        Models::QuotaDefinition.should_receive(:update_or_create).with(:name => "trial")
 
         Seeds.create_seed_quota_definitions(config)
       end
@@ -22,7 +22,7 @@ module VCAP::CloudController
     describe ".create_seed_organizations" do
       context "when 'paid' quota definition is missing" do
         it "raises error" do
-          QuotaDefinition.should_receive(:find).with(:name => "paid")
+          Models::QuotaDefinition.should_receive(:find).with(:name => "paid")
 
           expect do
             Seeds.create_seed_organizations(config)
@@ -33,8 +33,8 @@ module VCAP::CloudController
 
       context "when 'paid' quota definition exists" do
         before do
-          unless QuotaDefinition.find(:name => "paid")
-            QuotaDefinition.make(:name => "paid")
+          unless Models::QuotaDefinition.find(:name => "paid")
+            Models::QuotaDefinition.make(:name => "paid")
           end
         end
 
@@ -59,14 +59,14 @@ module VCAP::CloudController
 
     describe ".create_seed_domains" do
       before do
-        unless QuotaDefinition.find(:name => "paid")
-          QuotaDefinition.make(:name => "paid")
+        unless Models::QuotaDefinition.find(:name => "paid")
+          Models::QuotaDefinition.make(:name => "paid")
         end
         @system_org = Seeds.create_seed_organizations(config)
       end
 
       it "creates seed domains" do
-        Domain.should_receive(:populate_from_config).with(config, @system_org)
+        Models::Domain.should_receive(:populate_from_config).with(config, @system_org)
 
         Seeds.create_seed_domains(config, @system_org)
       end

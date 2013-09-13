@@ -67,7 +67,7 @@ module VCAP::CloudController
 
       app.db.transaction do
         app.soft_delete
-        Event.record_app_delete(app, SecurityContext.current_user)
+        Models::Event.record_app_delete(app, SecurityContext.current_user)
       end
 
 
@@ -80,7 +80,6 @@ module VCAP::CloudController
       json_msg = self.class::UpdateMessage.decode(body)
       @request_attrs = json_msg.extract(:stringify_keys => true)
 
-      Loggregator.emit(guid, "Updated app with guid #{guid}")
       logger.debug "cc.update", :guid => guid,
         :attributes => request_attrs
 
@@ -89,7 +88,7 @@ module VCAP::CloudController
       model.db.transaction do
         obj.lock!
         obj.update_from_hash(request_attrs)
-        Event.record_app_update(obj, SecurityContext.current_user) if obj.previous_changes
+        Models::Event.record_app_update(obj, SecurityContext.current_user) if obj.previous_changes
       end
 
       after_update(obj)
@@ -111,11 +110,10 @@ module VCAP::CloudController
       model.db.transaction do
         obj = model.create_from_hash(request_attrs)
         validate_access(:create, obj, user, roles)
-        Event.record_app_create(obj, SecurityContext.current_user)
+        Models::Event.record_app_create(obj, SecurityContext.current_user)
       end
 
       after_create(obj)
-      Loggregator.emit(obj.guid, "Created app with guid #{obj.guid}")
 
       [ HTTP::CREATED,
         { "Location" => "#{self.class.path}/#{obj.guid}" },

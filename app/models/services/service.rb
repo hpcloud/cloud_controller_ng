@@ -1,6 +1,6 @@
 # Copyright (c) 2009-2012 VMware, Inc.
 
-module VCAP::CloudController
+module VCAP::CloudController::Models
   class Service < Sequel::Model
     plugin :serialization
 
@@ -12,11 +12,11 @@ module VCAP::CloudController
 
     default_order_by  :label
 
-    export_attributes :label, :provider, :url, :description, :long_description,
+    export_attributes :label, :provider, :url, :description,
                       :version, :info_url, :active, :bindable,
                       :unique_id, :extra, :tags, :documentation_url
 
-    import_attributes :label, :provider, :url, :description, :long_description,
+    import_attributes :label, :provider, :url, :description,
                       :version, :info_url, :active, :bindable,
                       :unique_id, :extra, :tags, :documentation_url
 
@@ -35,13 +35,6 @@ module VCAP::CloudController
 
     alias_method :bindable?, :bindable
 
-    def self.organization_visible(organization)
-      service_ids = ServicePlan.
-          organization_visible(organization).
-          inject([]) { |service_ids,service_plan| service_ids << service_plan.service_id }
-      dataset.filter(id: service_ids)
-    end
-
     def self.user_visibility_filter(current_user)
       plans_I_can_see = ServicePlan.user_visible(current_user)
       {id: plans_I_can_see.map(&:service_id).uniq}
@@ -49,15 +42,6 @@ module VCAP::CloudController
 
     def tags
       super || []
-    end
-
-    def v2?
-      !service_broker.nil?
-    end
-
-    # The "unique_id" should really be called broker_provided_id because it's the id assigned by the broker
-    def broker_provided_id
-      unique_id
     end
   end
 end

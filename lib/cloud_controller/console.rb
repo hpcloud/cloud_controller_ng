@@ -13,9 +13,7 @@ require "pry"
 @config = VCAP::CloudController::Config.new()
 logger = Logger.new(STDOUT)
 
-db_config = @config.fetch(:db).merge(log_level: :debug)
-
-VCAP::CloudController::DB.connect(logger, db_config, db_config)
+VCAP::CloudController::DB.connect(logger, @config[:db].merge(log_level: :debug))
 
 module VCAP::CloudController
   binding.pry :quiet => true

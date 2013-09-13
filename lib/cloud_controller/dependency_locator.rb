@@ -40,16 +40,6 @@ module CloudController
       )
     end
 
-    def buildpack_blobstore
-      @buildpack_blobstore ||=
-          BlobStore.new(config[:buildpacks][:fog_connection],
-                                               config[:buildpacks][:buildpack_directory_key] || "cc-buildpacks")
-    end
-
-    def upload_handler
-      @upload_handler ||= UploadHandler.new(config)
-    end
-
     private
 
     attr_reader :config, :message_bus

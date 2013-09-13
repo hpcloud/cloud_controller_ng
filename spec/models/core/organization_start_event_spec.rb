@@ -1,7 +1,7 @@
 require "spec_helper"
 
 module VCAP::CloudController
-  describe VCAP::CloudController::OrganizationStartEvent, type: :model do
+  describe VCAP::CloudController::Models::OrganizationStartEvent, type: :model do
     it_behaves_like "a CloudController model", {
       :required_attributes => [
         :timestamp,
@@ -14,13 +14,13 @@ module VCAP::CloudController
     describe "create_from_org" do
       context "on an org without billing enabled" do
         it "should raise an error" do
-          OrganizationStartEvent.should_not_receive(:create)
-          org = Organization.make
+          Models::OrganizationStartEvent.should_not_receive(:create)
+          org = Models::Organization.make
           org.billing_enabled = false
           org.save(:validate => false)
           expect {
-            OrganizationStartEvent.create_from_org(org)
-          }.to raise_error(OrganizationStartEvent::BillingNotEnabled)
+            Models::OrganizationStartEvent.create_from_org(org)
+          }.to raise_error(Models::OrganizationStartEvent::BillingNotEnabled)
         end
       end
 

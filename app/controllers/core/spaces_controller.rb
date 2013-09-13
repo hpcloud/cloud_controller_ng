@@ -24,36 +24,16 @@ module VCAP::CloudController
       end
     end
 
-    get "/v2/spaces/:guid/services", :enumerate_services
-
-    def enumerate_services(guid)
-      space = find_guid_and_validate_access(:read, guid)
-
-      services = Query.filtered_dataset_from_query_params(
-        Service,
-        Service.organization_visible(space.organization),
-        ServicesController.query_parameters,
-        @opts
-      )
-
-      RestController::Paginator.render_json(
-          ServicesController,
-          services,
-          "/v2/spaces/#{guid}/services",
-          @opts
-      )
-    end
-
     get "/v2/spaces/:guid/service_instances", :enumerate_service_instances
 
     def enumerate_service_instances(guid)
       space = find_guid_and_validate_access(:read, guid)
 
       if params['return_user_provided_service_instances'] == 'true'
-        model_class = ServiceInstance
+        model_class = Models::ServiceInstance
         relation_name = :service_instances
       else
-        model_class = ManagedServiceInstance
+        model_class = Models::ManagedServiceInstance
         relation_name = :managed_service_instances
       end
 

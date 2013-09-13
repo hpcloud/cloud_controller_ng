@@ -1,6 +1,6 @@
 require "spec_helper"
 
-module VCAP::CloudController
+module VCAP::CloudController::Models
   describe Stack, type: :model do
     it_behaves_like "a CloudController model", {
       :required_attributes        => [:name, :description],

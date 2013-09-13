@@ -107,7 +107,6 @@ module VCAP::CloudController
       ensure_staging_is_current!
       promise.deliver(Response.new(response))
     rescue => e
-      Loggregator.emit_error(@app.guid, "exception handling first response #{e.message}")
       logger.error("exception handling first response #{e.inspect}, backtrace: #{e.backtrace.join("\n")}")
       destroy_upload_handle if staging_is_current?
       promise.fail(e)
@@ -121,7 +120,6 @@ module VCAP::CloudController
       process_response(response)
     rescue => e
       destroy_upload_handle if staging_is_current?
-      Loggregator.emit_error(@app.guid, "Encountered error: #{e.message}")
       logger.error "Encountered error: #{e}\n#{e.backtrace.join("\n")}"
     end
 
@@ -132,7 +130,6 @@ module VCAP::CloudController
         begin
           staging_completion(Response.new(response))
         rescue => e
-          Loggregator.emit_error(@app.guid, "Encountered error: #{e.message}")
           logger.error "Encountered error: #{e}\n#{e.backtrace.join("\n")}"
         end
       end
@@ -166,7 +163,6 @@ module VCAP::CloudController
 
       @app.staging_task_id == task_id
     rescue Exception => e
-      Loggregator.emit_error(@app.guid, "Exception checking staging status: #{e.message}")
       logger.error("Exception checking staging status: #{e.inspect}\n  #{e.backtrace.join("\n  ")}")
       false
     end

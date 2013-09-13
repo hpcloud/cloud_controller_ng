@@ -39,14 +39,13 @@ module VCAP::CloudController
         version = payload.fetch("version")
         running = payload.fetch("running")
       rescue KeyError => e
-        Loggregator.emit_error(app_id, "Bad request from health manager: #{e.message}, payload: #{payload}")
         logger.error "cloudcontroller.hm.malformed-request",
           :error => e.message,
           :payload => payload
         return
       end
 
-      app = App[:guid => app_id]
+      app = Models::App[:guid => app_id]
       return unless app
       return unless app.started?
       return unless version == app.version
@@ -66,14 +65,13 @@ module VCAP::CloudController
         instances = payload.fetch("instances")
         running = payload.fetch("running")
       rescue KeyError => e
-        Loggregator.emit_error(app_id, "Bad request from health manager: #{e.message}, payload: #{payload}")
         logger.error "cloudcontroller.hm.malformed-request",
           :error => e.message,
           :payload => payload
         return
       end
 
-      app = App[:guid => app_id]
+      app = Models::App[:guid => app_id]
 
       if !app
         stop_runaway_app(app_id)
@@ -87,7 +85,7 @@ module VCAP::CloudController
     end
 
     def stop_runaway_app(app_id)
-      dea_client.stop(App.new(:guid => app_id))
+      dea_client.stop(Models::App.new(:guid => app_id))
     end
 
     def stop_instances?(app, instances, running)
@@ -104,7 +102,6 @@ module VCAP::CloudController
             return false
           end
         elsif instances_remaining < app.instances && app.started?
-          Loggregator.emit_error(app.guid, "Bad request from health manager")
           logger.error "cloudcontroller.hm.invalid-request",
                        :instances => instances, :app => app.guid,
                        :desired_instances => app.instances,

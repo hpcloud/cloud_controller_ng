@@ -3,7 +3,7 @@ require 'presenters/api/service_broker_presenter'
 
 module VCAP::CloudController
   describe ServiceBrokerPresenter do
-    let(:broker) { ServiceBroker.make }
+    let(:broker) { Models::ServiceBroker.make }
 
     subject(:presenter) { ServiceBrokerPresenter.new(broker) }
 

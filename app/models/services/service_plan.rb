@@ -1,12 +1,13 @@
 # Copyright (c) 2009-2012 VMware, Inc.
 
-module VCAP::CloudController
+module VCAP::CloudController::Models
   class ServicePlan < Sequel::Model
     many_to_one       :service
     one_to_many       :service_instances
     one_to_many       :service_plan_visibilities
 
-    add_association_dependencies :service_plan_visibilities => :destroy
+    add_association_dependencies :service_instances => :destroy,
+                                 :service_plan_visibilities => :destroy
 
     default_order_by  :name
 
@@ -53,11 +54,6 @@ module VCAP::CloudController
 
     def bindable?
       service.bindable?
-    end
-
-    # The "unique_id" should really be called broker_provided_id because it's the id assigned by the broker
-    def broker_provided_id
-      unique_id
     end
 
     private

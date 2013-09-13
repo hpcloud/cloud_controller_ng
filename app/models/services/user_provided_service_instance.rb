@@ -1,4 +1,4 @@
-module VCAP::CloudController
+module VCAP::CloudController::Models
   class UserProvidedServiceInstance < ServiceInstance
     export_attributes :name, :credentials, :space_guid, :type
     import_attributes :name, :credentials, :space_guid

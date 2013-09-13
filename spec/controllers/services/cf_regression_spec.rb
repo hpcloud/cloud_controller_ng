@@ -2,11 +2,11 @@ require "spec_helper"
 
 module VCAP::CloudController
   describe 'regression that broke CF', :services, type: :controller do
-    let(:space) { Space.make }
-    let(:app_obj) { App.make(space: space) }
-    let(:service_instance) { ManagedServiceInstance.make(space: space) }
+    let(:space) { Models::Space.make }
+    let(:app_obj) { Models::App.make(space: space) }
+    let(:service_instance) { Models::ManagedServiceInstance.make(space: space) }
     let!(:service_binding) do
-      ServiceBinding.make(
+      Models::ServiceBinding.make(
         service_instance: service_instance,
         app: app_obj,
       )

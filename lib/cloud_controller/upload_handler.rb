@@ -5,10 +5,6 @@ class UploadHandler
     @config = config
   end
 
-  def uploaded_filename(params, resource_name)
-    params["#{resource_name}_name"]
-  end
-
   def uploaded_file(params, resource_name)
     if using_nginx?
       nginx_uploaded_file(params, resource_name)

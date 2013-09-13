@@ -11,18 +11,18 @@ module VCAP::CloudController
     num_apps = num_prod_apps + num_free_apps
 
     before :all do
-      @org = Organization.make
+      @org = Models::Organization.make
       @spaces = []
       num_spaces.times do
-        @spaces << Space.make(:organization => @org)
+        @spaces << Models::Space.make(:organization => @org)
       end
 
       num_services.times do
-        ManagedServiceInstance.make(:space => @spaces.first)
+        Models::ManagedServiceInstance.make(:space => @spaces.first)
       end
 
       num_free_apps.times do
-        App.make(
+        Models::App.make(
           :space => @spaces.first,
           :production => false,
           :instances => 1,
@@ -34,7 +34,7 @@ module VCAP::CloudController
       end
 
       num_prod_apps.times do
-        App.make(
+        Models::App.make(
           :space => @spaces.first,
           :production => true,
           :instances => 1,

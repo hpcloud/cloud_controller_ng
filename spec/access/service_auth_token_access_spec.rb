@@ -1,12 +1,12 @@
 require 'spec_helper'
 
-module VCAP::CloudController
+module VCAP::CloudController::Models
   describe ServiceAuthTokenAccess, type: :access do
     subject(:access) { ServiceAuthTokenAccess.new(double(:context, user: user, roles: roles)) }
-    let(:user) { VCAP::CloudController::User.make }
+    let(:user) { VCAP::CloudController::Models::User.make }
     let(:roles) { double(:roles, :admin? => false, :none? => false, :present? => true) }
-    let(:service) { VCAP::CloudController::Service.make }
-    let(:object) { VCAP::CloudController::ServiceAuthToken.make(:service) }
+    let(:service) { VCAP::CloudController::Models::Service.make }
+    let(:object) { VCAP::CloudController::Models::ServiceAuthToken.make(:service) }
 
     it_should_behave_like :admin_full_access
 

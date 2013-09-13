@@ -33,7 +33,7 @@ module VCAP::CloudController
       # raise NotAuthenticated unless user
 
       legacy_resp = {}
-      Service.filter(:provider => "core").each do |svc|
+      Models::Service.filter(:provider => "core").each do |svc|
         next unless svc.service_plans.any? { |plan| plan.name == "100" }
 
         svc_type = LegacyService.synthesize_service_type(svc)

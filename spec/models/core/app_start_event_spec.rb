@@ -1,7 +1,7 @@
 require "spec_helper"
 
 module VCAP::CloudController
-  describe VCAP::CloudController::AppStartEvent, type: :model do
+  describe VCAP::CloudController::Models::AppStartEvent, type: :model do
     it_behaves_like "a CloudController model", {
       :required_attributes => [
         :timestamp,
@@ -31,21 +31,21 @@ module VCAP::CloudController
     describe "create_from_app" do
       context "on an org without billing enabled" do
         it "should do nothing" do
-          AppStartEvent.should_not_receive(:create)
-          app = App.make
+          Models::AppStartEvent.should_not_receive(:create)
+          app = Models::App.make
           app.space.organization.billing_enabled = false
           app.space.organization.save(:validate => false)
-          AppStartEvent.create_from_app(app)
+          Models::AppStartEvent.create_from_app(app)
         end
       end
 
       context "on an org with billing enabled" do
         it "should create an app start event" do
-          AppStartEvent.should_receive(:create)
-          app = App.make
+          Models::AppStartEvent.should_receive(:create)
+          app = Models::App.make
           app.space.organization.billing_enabled = true
           app.space.organization.save(:validate => false)
-          AppStartEvent.create_from_app(app)
+          Models::AppStartEvent.create_from_app(app)
         end
       end
     end

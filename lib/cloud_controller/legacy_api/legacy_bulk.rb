@@ -76,7 +76,7 @@ module VCAP::CloudController
       id_for_next_token = nil
 
       apps = {}
-      App.where(
+      Models::App.where(
           ["id > ?", last_id],
           "deleted_at IS NULL"
       ).order(:id).limit(batch_size).each do |app|
@@ -109,7 +109,7 @@ module VCAP::CloudController
       raise BadQueryParameter, "model" unless model == "user"
       UserCountsResponse.new(
         :counts => {
-          "user" => User.count,
+          "user" => Models::User.count,
         },
       ).encode
     end

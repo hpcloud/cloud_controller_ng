@@ -24,8 +24,6 @@ gem 'stackato-kato', '~> 2.11.0'
 gem 'redis', '~> 3.0.4'
 gem "allowy", "0.4.0"
 gem "delayed_job_active_record", "~> 4.0", :git => "https://github.com/ActiveState/delayed_job_active_record"
-gem "loggregator_emitter", "~> 0.0.9.pre"
-gem "loggregator_messages", "~> 0.0.1.pre"
 
 # These are outside the test group in order to run rake tasks
 gem "rspec"
@@ -51,4 +49,5 @@ group :test do
   gem "timecop"
   gem "rack-test"
   gem "parallel_tests"
+  gem "fakefs", :require => "fakefs/safe"
 end

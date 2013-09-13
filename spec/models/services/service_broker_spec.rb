@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-module VCAP::CloudController
+module VCAP::CloudController::Models
   describe ServiceBroker, :services, type: :model do
     let(:name) { Sham.name }
     let(:broker_url) { 'http://cf-service-broker.example.com' }
@@ -71,7 +71,6 @@ module VCAP::CloudController
               'id' => service_id,
               'name' => service_name,
               'description' => service_description,
-              'bindable' => true,
               'plans' => [
                 {
                   'id' => plan_id,
@@ -104,7 +103,9 @@ module VCAP::CloudController
         expect(service.service_broker).to eq(broker)
         expect(service.label).to eq(service_name)
         expect(service.description).to eq(service_description)
-        expect(service.bindable).to be_true
+
+        # This is a temporary default until the binding of V2 services is needed.
+        expect(service.bindable).to be_false
       end
 
       it 'creates plans from the catalog' do
@@ -180,13 +181,122 @@ module VCAP::CloudController
           end
         end
       end
-    end
 
-    describe '#client' do
-      it 'returns a client created with the correct arguments' do
-        client = double('client')
-        ServiceBrokerClient.should_receive(:new).with(broker_url, token).and_return(client)
-        expect(broker.client).to be(client)
+      context 'when the API is not reachable' do
+        context 'because the host could not be resolved' do
+          before do
+            stub_request(:get, broker_catalog_url).to_raise(SocketError)
+          end
+
+          it 'should raise an unreachable error' do
+            expect {
+              broker.load_catalog
+            }.to raise_error(VCAP::CloudController::Errors::ServiceBrokerApiUnreachable)
+          end
+        end
+
+        context 'because the server connection attempt timed out' do
+          before do
+            stub_request(:get, broker_catalog_url).to_raise(HTTPClient::ConnectTimeoutError)
+          end
+
+          it 'should raise an unreachable error' do
+            expect {
+              broker.load_catalog
+            }.to raise_error(VCAP::CloudController::Errors::ServiceBrokerApiUnreachable)
+          end
+        end
+
+        context 'because the server refused our connection' do
+          before do
+            stub_request(:get, broker_catalog_url).to_raise(Errno::ECONNREFUSED)
+          end
+
+          it 'should raise an unreachable error' do
+            expect {
+              broker.load_catalog
+            }.to raise_error(VCAP::CloudController::Errors::ServiceBrokerApiUnreachable)
+          end
+        end
+      end
+
+      context 'when the API times out' do
+        context 'because the server gave up' do
+          before do
+            # We have to instantiate the error object to keep WebMock from initializing
+            # it with a String message. KeepAliveDisconnected actually takes an optional
+            # Session object, which later HTTPClient code attempts to use.
+            stub_request(:get, broker_catalog_url).to_raise(HTTPClient::KeepAliveDisconnected.new)
+          end
+
+          it 'should raise a timeout error' do
+            expect {
+              broker.load_catalog
+            }.to raise_error(VCAP::CloudController::Errors::ServiceBrokerApiTimeout)
+          end
+        end
+
+        context 'because the client gave up' do
+          before do
+            stub_request(:get, broker_catalog_url).to_raise(HTTPClient::ReceiveTimeoutError)
+          end
+
+          it 'should raise a timeout error' do
+            expect {
+              broker.load_catalog
+            }.to raise_error(VCAP::CloudController::Errors::ServiceBrokerApiTimeout)
+          end
+        end
+      end
+
+      context 'when the API returns an invalid response' do
+        context 'because of an unexpected status code' do
+          before do
+            stub_request(:get, broker_catalog_url).to_return(status: 201, body: body)
+          end
+
+          it 'should raise an invalid response error' do
+            expect {
+              broker.load_catalog
+            }.to raise_error(VCAP::CloudController::Errors::ServiceBrokerCatalogMalformed)
+          end
+        end
+
+        context 'because of an unexpected body' do
+          before do
+            stub_request(:get, broker_catalog_url).to_return(status: 200, body: '[]')
+          end
+
+          it 'should raise an invalid response error' do
+            expect {
+              broker.load_catalog
+            }.to raise_error(VCAP::CloudController::Errors::ServiceBrokerCatalogMalformed)
+          end
+        end
+
+        context 'because of an invalid JSON body' do
+          before do
+            stub_request(:get, broker_catalog_url).to_return(status: 200, body: 'invalid')
+          end
+
+          it 'should raise an invalid response error' do
+            expect {
+              broker.load_catalog
+            }.to raise_error(VCAP::CloudController::Errors::ServiceBrokerCatalogMalformed)
+          end
+        end
+      end
+
+      context 'when the API cannot authenticate the client' do
+        before do
+          stub_request(:get, broker_catalog_url).to_return(status: 401)
+        end
+
+        it 'should raise an authentication error' do
+          expect {
+            broker.load_catalog
+          }.to raise_error(VCAP::CloudController::Errors::ServiceBrokerApiAuthenticationFailed)
+        end
       end
     end
 
@@ -203,22 +313,6 @@ module VCAP::CloudController
         }.to change {
           Service.where(:id => service.id).any?
         }.to(false)
-      end
-
-      context 'when a service instance exists' do
-        it 'does not allow the broker to be destroyed' do
-          service = Service.make(:service_broker => service_broker)
-          service_plan = ServicePlan.make(:service => service)
-          ManagedServiceInstance.make(:service_plan => service_plan)
-          expect {
-            begin
-              service_broker.destroy
-            rescue Sequel::ForeignKeyConstraintViolation
-            end
-          }.to_not change {
-            Service.where(:id => service.id).count
-          }.by(-1)
-        end
       end
     end
   end
