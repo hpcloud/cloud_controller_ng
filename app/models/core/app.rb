@@ -264,6 +264,7 @@ module VCAP::CloudController
       end
 
       def total_requested_memory
+        default_instances = db_schema[:instances][:default].to_i
         num_instances = instances ? instances : default_instances
         requested_memory * num_instances
       end
@@ -274,12 +275,12 @@ module VCAP::CloudController
       end
 
       def additional_memory_requested
-        default_instances = db_schema[:instances][:default].to_i
 
         requested = total_requested_memory
-        existing = total_existing_memory
 
         return requested if new?
+
+        existing = total_existing_memory
 
         additional_memory = requested - existing
         return additional_memory if additional_memory > 0
