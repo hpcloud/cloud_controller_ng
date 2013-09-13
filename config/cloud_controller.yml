@@ -48,7 +48,7 @@ db:
   pool_timeout: 10
 
 active_record_db:
-  database: "sqlite:///tmp/cloud_controller_ar.db"
+  database: "sqlite:///home/stackato/stackato/db/cloud_controller_ar.db"
   max_connections: 32
   pool_timeout: 10
 
