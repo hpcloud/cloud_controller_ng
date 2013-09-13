@@ -33,6 +33,9 @@ logging:
   file: /home/stackato/stackato/logs/cloud_controller.log
   level: debug2
 
+loggregator:
+  router: "127.0.0.1:3456"
+
 db:
   database:
     host: localhost
@@ -99,6 +102,12 @@ packages:
 
 droplets:
   droplet_directory_key: cc-droplets
+  fog_connection:
+    provider: Local
+    local_root: /tmp
+
+buildpacks:
+  buildpack_directory_key: cc-buildpacks
   fog_connection:
     provider: Local
     local_root: /tmp
