@@ -6,6 +6,9 @@ require "optparse"
 require "vcap/uaa_util"
 require "cf_message_bus/message_bus"
 require "cf/registrar"
+require "loggregator_emitter"
+require "loggregator_messages"
+require "loggregator"
 
 require_relative "seeds"
 require_relative "message_bus_configurer"
@@ -76,6 +79,12 @@ module VCAP::CloudController
       DB.connect(db_logger, @config[:db], @config[:active_record_db])
     end
 
+    def setup_loggregator_emitter
+      if @config[:loggregator] && @config[:loggregator][:router]
+        Loggregator.emitter = LoggregatorEmitter::Emitter.new(@config[:loggregator][:router], LogMessage::SourceType::CLOUD_CONTROLLER)
+      end
+    end
+
     def development?
       @development ||= false
     end
@@ -122,6 +131,7 @@ module VCAP::CloudController
     def start_cloud_controller(message_bus)
       setup_logging
       setup_db
+      setup_loggregator_emitter
 
       VCAP::CloudController::Config.configure(@config)
       VCAP::CloudController::Config.configure_message_bus(message_bus)
@@ -164,8 +174,8 @@ module VCAP::CloudController
     def start_thin_server(app, config)
       if @config[:nginx][:use_nginx]
         @thin_server = Thin::Server.new(
-          config[:nginx][:instance_socket],
-          :signals => false
+            config[:nginx][:instance_socket],
+            :signals => false
         )
       else
         @thin_server = Thin::Server.new(@config[:bind_address], @config[:port])
@@ -187,12 +197,12 @@ module VCAP::CloudController
 
     def registrar
       @registrar ||= Cf::Registrar.new(
-        :mbus => @config[:message_bus_uri],
-        :host => @config[:bind_address],
-        :port => @config[:port],
-        :uri => @config[:external_domain],
-        :tags => { :component => "CloudController" },
-        :index => @config[:index]
+          :mbus => @config[:message_bus_uri],
+          :host => @config[:bind_address],
+          :port => @config[:port],
+          :uri => @config[:external_domain],
+          :tags => {:component => "CloudController"},
+          :index => @config[:index]
       )
     end
 

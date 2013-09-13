@@ -4,24 +4,39 @@ module VCAP::CloudController
   describe EventsController, type: :controller do
     before { reset_database }
 
-    let(:admin_user) { Models::User.make :admin => true }
+    let(:admin_user) { User.make :admin => true }
 
     describe "GET /v2/events" do
       before do
-        @user_a = Models::User.make
-        @user_b = Models::User.make
+        @user_a = User.make
+        @user_b = User.make
 
-        @org_a = Models::Organization.make
-        @org_b = Models::Organization.make
+        @org_a = Organization.make
+        @org_b = Organization.make
 
-        @space_a = Models::Space.make :organization => @org_a
-        @space_b = Models::Space.make :organization => @org_b
+        @space_a = Space.make :organization => @org_a
+        @space_b = Space.make :organization => @org_b
 
         @org_a.add_user(@user_a)
         @org_b.add_user(@user_b)
 
-        @event_a = Models::Event.make :space => @space_a
-        @event_b = Models::Event.make :space => @space_b
+        @event_a = Event.make :space => @space_a
+        @event_b = Event.make :space => @space_b
+      end
+
+
+      describe "default order" do
+        it "sorts by timestamp" do
+          type = SecureRandom.uuid
+          Event.make(:timestamp => Time.new(1990, 1, 1), :type => type, :actor => "earlier")
+          Event.make(:timestamp => Time.new(2000, 1, 1), :type => type, :actor => "later")
+          Event.make(:timestamp => Time.new(1995, 1, 1), :type => type, :actor => "middle")
+
+          get "/v2/events", {}, admin_headers
+          parsed_body = Yajl::Parser.parse(last_response.body)
+          events = parsed_body["resources"].select {|r| r["entity"]["type"] == type }.map { |r| r["entity"]["actor"] }
+          expect(events).to eq(%w(earlier middle later))
+        end
       end
 
       context "as an admin" do
@@ -142,7 +157,7 @@ module VCAP::CloudController
     describe "pagination" do
       before do
         100.times do |_|
-          Models::Event.make
+          Event.make
         end
       end
 
@@ -159,7 +174,7 @@ module VCAP::CloudController
 
       before do
         150.times do |i|
-          Models::Event.make(timestamp:base_timestamp + i)
+          Event.make(timestamp:base_timestamp + i)
         end
       end
 
@@ -172,8 +187,8 @@ module VCAP::CloudController
     end
 
     describe "GET /v2/events/ filtering by event type" do
-      let!(:update_event) { Models::Event.make type: "audit.app.update" }
-      let!(:crash_event) { Models::Event.make type: "app.crash" }
+      let!(:update_event) { Event.make type: "audit.app.update" }
+      let!(:crash_event) { Event.make type: "app.crash" }
 
       it "returns a 200 status code" do
         get "/v2/events?q=type:audit.app.update", {}, admin_headers
@@ -219,9 +234,9 @@ module VCAP::CloudController
       let(:gt) { "%3E" } #>
       let(:semi) { "%3B" } #;
 
-      let!(:event1) { Models::Event.make :timestamp => timestamp_one, type: "audit.app.update" }
-      let!(:event2) { Models::Event.make :timestamp => timestamp_two , type: "app.crash"}
-      let!(:event3) { Models::Event.make :timestamp => timestamp_three, type: "audit.app.create" }
+      let!(:event1) { Event.make :timestamp => timestamp_one, type: "audit.app.update" }
+      let!(:event2) { Event.make :timestamp => timestamp_two , type: "app.crash"}
+      let!(:event3) { Event.make :timestamp => timestamp_three, type: "audit.app.create" }
 
       it "returns events within a timerange and type set" do
         get "/v2/events?q=timestamp#{gte}#{(timestamp_two).utc.iso8601}#{semi}timestamp#{lt}#{(timestamp_three+1).utc.iso8601}#{semi}type%20IN%20audit.app.update,app.crash",
@@ -244,9 +259,9 @@ module VCAP::CloudController
       let(:gt) { "%3E" } #>
       let(:semi) { "%3B" } #;
 
-      let!(:event1) { Models::Event.make :timestamp => timestamp_one }
-      let!(:event2) { Models::Event.make :timestamp => timestamp_two }
-      let!(:event3) { Models::Event.make :timestamp => timestamp_three }
+      let!(:event1) { Event.make :timestamp => timestamp_one }
+      let!(:event2) { Event.make :timestamp => timestamp_two }
+      let!(:event3) { Event.make :timestamp => timestamp_three }
 
       it "returns a 200 status code" do
         get "/v2/events?q=timestamp#{gte}#{base_timestamp.utc.iso8601}", {}, admin_headers

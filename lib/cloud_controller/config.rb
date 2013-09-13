@@ -89,6 +89,7 @@ class VCAP::CloudController::Config < VCAP::Config
       },
 
       optional(:index)       => Integer,    # Component index (cc-0, cc-1, etc)
+      optional(:name)        => String,     # Component name (api_z1, api_z2)
       optional(:local_route) => String,     # If set, use this to determine the IP address that is returned in discovery messages
 
       :nginx => {
@@ -231,9 +232,9 @@ class VCAP::CloudController::Config < VCAP::Config
 
       VCAP::CloudController::StagingsController.configure(config)
 
-      VCAP::CloudController::Models::QuotaDefinition.configure(config)
-      VCAP::CloudController::Models::Stack.configure(config[:stacks_file])
-      VCAP::CloudController::Models::ServicePlan.configure(config[:trial_db])
+      VCAP::CloudController::QuotaDefinition.configure(config)
+      VCAP::CloudController::Stack.configure(config[:stacks_file])
+      VCAP::CloudController::ServicePlan.configure(config[:trial_db])
 
       run_initializers(config)
     end

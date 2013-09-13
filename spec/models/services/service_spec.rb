@@ -1,6 +1,6 @@
 require "spec_helper"
 
-module VCAP::CloudController::Models
+module VCAP::CloudController
   describe Service, type: :model do
     it_behaves_like "a CloudController model", {
       :required_attributes  => [:label, :description, :bindable],
@@ -107,6 +107,47 @@ module VCAP::CloudController::Models
           service = Service.make(documentation_url: sham_url)
           expect(service.documentation_url).to eq sham_url
         end
+      end
+    end
+
+    describe "#long_description" do
+      context 'with a long description in the database' do
+        it 'return the appropriate long description' do
+          sham_long_description = Sham.long_description
+          service = Service.make(long_description: sham_long_description)
+          expect(service.long_description).to eq sham_long_description
+        end
+      end
+    end
+
+    describe "#v2?" do
+      it "returns true when the service is associated with a broker" do
+        service = Service.make(service_broker: ServiceBroker.make)
+        service.should be_v2
+      end
+
+      it "returns false when the service is not associated with a broker" do
+        service = Service.make(service_broker: nil)
+        service.should_not be_v2
+      end
+    end
+
+    describe '.organization_visible' do
+      it 'returns plans that are visible to the organization' do
+        hidden_private_plan = ServicePlan.make(public: false)
+        hidden_private_service = hidden_private_plan.service
+        visible_public_plan = ServicePlan.make(public: true)
+        visible_public_service = visible_public_plan.service
+        visible_private_plan = ServicePlan.make(public: false)
+        visible_private_service = visible_private_plan.service
+
+        organization = Organization.make
+        ServicePlanVisibility.make(organization: organization, service_plan: visible_private_plan)
+
+        visible = Service.organization_visible(organization).all
+        visible.should include(visible_public_service)
+        visible.should include(visible_private_service)
+        visible.should_not include(hidden_private_service)
       end
     end
   end

@@ -17,7 +17,7 @@ module VCAP::CloudController
       app_bits_packer_job = AppBitsPackerJob.new(guid, uploaded_zip_of_files_not_in_blobstore.try(:path), json_param("resources"))
 
       if params["async"] == "true"
-        job = Delayed::Job.enqueue(app_bits_packer_job, queue: "cc#{config[:index]}")
+        job = Delayed::Job.enqueue(app_bits_packer_job, queue: "cc-#{config[:name]}-#{config[:index]}")
         [HTTP::CREATED, JobPresenter.new(job).to_json]
       else
         app_bits_packer_job.perform
@@ -32,9 +32,11 @@ module VCAP::CloudController
       find_guid_and_validate_access(:read, guid)
 
       package_uri = AppPackage.package_uri(guid)
+
       logger.debug "guid: #{guid} package_uri: #{package_uri}"
 
       if package_uri.nil?
+        Loggregator.emit_error(guid, "Could not find package for #{guid}")
         logger.error "could not find package for #{guid}"
         raise Errors::AppPackageNotFound.new(guid)
       end

@@ -12,6 +12,7 @@ Sham.define do
   url                 { |index| "https://foo.com/url-#{index}" }
   type                { |index| "type-#{index}" }
   description         { |index| "desc-#{index}" }
+  long_description    { |index| "long description-#{index} over 255 characters #{"-"*255}"}
   version             { |index| "version-#{index}" }
   service_credentials { |index|
     { "creds-key-#{index}" => "creds-val-#{index}" }
@@ -29,7 +30,7 @@ Sham.define do
   status              { |_| ["active", "suspended", "cancelled"].sample(1).first }
 end
 
-module VCAP::CloudController::Models
+module VCAP::CloudController
   User.blueprint do
     guid              { Sham.uaa_id }
   end
@@ -86,7 +87,9 @@ module VCAP::CloudController::Models
     unique_id         { "#{provider}_#{label}" }
     description do
       # Hack since Sequel does not allow two foreign keys natively
-      # and putting this side effect outside memoizes the label and provider
+      # and putting this side effect outside memoizes the label and provider.
+      # This also creates a ServiceAuthToken for v2 services despite the fact
+      # that they do not use it.
       ServiceAuthToken.make(:label => label, :provider => provider, :token => Sham.token)
       Sham.description
     end
@@ -227,5 +230,11 @@ module VCAP::CloudController::Models
     total_services { 60 }
     memory_limit { 20480 } # 20 GB
     trial_db_allowed { false }
+  end
+
+  Buildpack.blueprint do
+    name { Sham.name }
+    key { 'key' }
+    priority { 0 }
   end
 end
