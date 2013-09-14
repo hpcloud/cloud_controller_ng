@@ -5,6 +5,7 @@ require "rubygems"
 require "bundler"
 require "bundler/setup"
 
+require "fakefs/safe"
 require "machinist/sequel"
 require "machinist/object"
 require "rack/test"
@@ -40,6 +41,8 @@ module VCAP::CloudController
       VCAP::CloudController::Config.run_initializers(config)
 
       reset_database
+
+      VCAP::CloudController::DB.load_models
     end
 
     def spec_dir

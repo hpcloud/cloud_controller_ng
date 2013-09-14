@@ -53,6 +53,8 @@ module VCAP::CloudController
       StagingsController.stub(:store_droplet)
       StagingsController.stub(:store_buildpack_cache)
       StagingsController.stub(:destroy_handle)
+      # Some other tests inter
+      Buildpack.stub(:list_admin_buildpacks).and_return([])
     end
 
     context 'when no stager can be found' do
@@ -297,7 +299,7 @@ module VCAP::CloudController
               end
 
               it "marks app started in dea pool" do
-                DeaClient.dea_pool.should_receive(:mark_app_started).with( {:dea_id => stager_id, :app_id => app.guid } )
+                DeaClient.dea_pool.should_receive(:mark_app_started).with({ :dea_id => stager_id, :app_id => app.guid })
                 stage
               end
 
@@ -358,7 +360,7 @@ module VCAP::CloudController
               end
 
               it "does not mark the app as staged" do
-                DeaClient.dea_pool.should_not_receive(:mark_app_started).with( {:dea_id => stager_id, :app_id => app.guid } )
+                DeaClient.dea_pool.should_not_receive(:mark_app_started).with({ :dea_id => stager_id, :app_id => app.guid })
                 stage
               end
 
@@ -387,8 +389,8 @@ module VCAP::CloudController
               expect {
                 stage
               }.to raise_error(
-                       Errors::StagingError,
-                       /another staging request was initiated/
+                     Errors::StagingError,
+                     /another staging request was initiated/
                    )
             end
 
@@ -525,7 +527,7 @@ module VCAP::CloudController
     describe ".staging_request" do
       let(:staging_task) { AppStagerTask.new(nil, message_bus, app, stager_pool) }
       let(:app) { App.make :droplet_hash => nil, :package_state => "PENDING" }
-      let(:dea_start_message) { {:dea_client_message => "start app message"} }
+      let(:dea_start_message) { { :dea_client_message => "start app message" } }
 
       before do
         3.times do
@@ -590,17 +592,27 @@ module VCAP::CloudController
 
       it "includes app index 0" do
         request = staging_task.staging_request
-        request[:start_message].should include ({:index => 0})
+        request[:start_message].should include ({ :index => 0 })
       end
 
       it "overwrites droplet sha" do
         request = staging_task.staging_request
-        request[:start_message].should include ({:sha1 => nil})
+        request[:start_message].should include ({ :sha1 => nil })
       end
 
       it "overwrites droplet download uri" do
         request = staging_task.staging_request
-        request[:start_message].should include ({:executableUri => nil})
+        request[:start_message].should include ({ :executableUri => nil })
+      end
+
+      it "includes a list of admin buildpacks" do
+        expected_buildpack_url = "http://example.com/buildpacks/1"
+        VCAP::CloudController::Buildpack.stub(:list_admin_buildpacks).
+          and_return([{
+                        url: expected_buildpack_url,
+                      }])
+        request = staging_task.staging_request
+        expect(request[:admin_buildpacks]).to include({ :url => expected_buildpack_url })
       end
     end
   end

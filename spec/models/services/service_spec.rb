@@ -100,6 +100,15 @@ module VCAP::CloudController
       end
     end
 
+    describe "#requires" do
+      context 'null requires in the database' do
+        it 'returns an empty array' do
+          service = Service.make(requires: nil)
+          expect(service.requires).to eq []
+        end
+      end
+    end
+
     describe "#documentation_url" do
       context 'with a URL in the database' do
         it 'returns the appropriate URL' do
@@ -148,6 +157,40 @@ module VCAP::CloudController
         visible.should include(visible_public_service)
         visible.should include(visible_private_service)
         visible.should_not include(hidden_private_service)
+      end
+    end
+
+    describe '#client' do
+      context 'for a v1 service' do
+        let(:service) { Service.make(service_broker: nil) }
+
+        it 'returns a v1 broker client' do
+          v1_client = double(ServiceBroker::V1::Client)
+          ServiceBroker::V1::Client.stub(:new).and_return(v1_client)
+
+          client = service.client
+          client.should == v1_client
+
+          expect(ServiceBroker::V1::Client).to have_received(:new).with(
+            hash_including(
+              url: service.url,
+              auth_token: service.service_auth_token.token,
+              timeout: service.timeout
+            )
+          )
+        end
+      end
+
+      context 'for a v2 service' do
+        let(:service) { Service.make(service_broker: ServiceBroker.make) }
+
+        it 'returns a v2 broker client' do
+          v2_client = double(ServiceBroker::V2::Client)
+          service.service_broker.stub(:client).and_return(v2_client)
+
+          client = service.client
+          client.should == v2_client
+        end
       end
     end
   end

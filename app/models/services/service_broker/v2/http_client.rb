@@ -1,37 +1,35 @@
-require 'net/http'
-require 'uri'
-
 module VCAP::CloudController
-  class ServiceBrokerClient
-
-    def initialize(endpoint_base, token)
-      @endpoint_base = endpoint_base
-      @token = token
-    end
-
-
-    # The broker is expected to guarantee uniqueness of the reference_id.
-    # raises ServiceBrokerConflict if the reference id is already in use
-    #
-    def provision(service_id, plan_id, reference_id)
-      execute(:post, '/v2/service_instances', {
-        service_id: service_id,
-        plan_id: plan_id,
-        reference_id: reference_id
-      })
+  class ServiceBroker::V2::HttpClient
+    def initialize(attrs)
+      @url = attrs.fetch(:url)
+      @auth_token = attrs.fetch(:auth_token)
     end
 
     def catalog
       execute(:get, '/v2/catalog')
     end
 
+    # The broker is expected to guarantee uniqueness of the service_instance_id.
+    # raises ServiceBrokerConflict if the id is already in use
+    def provision(service_instance_id, plan_id)
+      execute(:put, "/v2/service_instances/#{service_instance_id}", {
+        plan_id: plan_id
+      })
+    end
+
+    def bind(binding_id, service_instance_id)
+      execute(:put, "/v2/service_bindings/#{binding_id}", {
+        service_instance_id: service_instance_id
+      })
+    end
+
     private
 
-    attr_reader :endpoint_base, :token
+    attr_reader :url, :auth_token
 
     # hits the endpoint, json decodes the response
     def execute(method, path, message=nil)
-      endpoint = endpoint_base + path
+      endpoint = url + path
 
       headers  = {
         'Content-Type' => 'application/json',
@@ -41,7 +39,7 @@ module VCAP::CloudController
       body = message ? message.to_json : nil
 
       http = HTTPClient.new
-      http.set_auth(endpoint, 'cc', token)
+      http.set_auth(endpoint, 'cc', auth_token)
 
       begin
         response = http.send(method, endpoint, header: headers, body: body)

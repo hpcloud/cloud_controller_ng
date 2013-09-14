@@ -77,6 +77,7 @@ module VCAP::CloudController
       logger.info "db config #{@config[:db]}"
       db_logger = Steno.logger("cc.db")
       DB.connect(db_logger, @config[:db], @config[:active_record_db])
+      VCAP::CloudController::DB.load_models
     end
 
     def setup_loggregator_emitter
@@ -97,6 +98,7 @@ module VCAP::CloudController
         Seeds.write_seed_data(config) if @insert_seed_data
         app = create_app(config, message_bus)
         start_thin_server(app, config)
+        registrar.register_with_router
       end
     end
 
@@ -145,7 +147,6 @@ module VCAP::CloudController
       token_decoder = VCAP::UaaTokenDecoder.new(config[:uaa])
 
       register_component(message_bus)
-      registrar.register_with_router
 
       Rack::Builder.new do
         use Rack::CommonLogger

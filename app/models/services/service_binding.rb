@@ -13,6 +13,12 @@ module VCAP::CloudController
     import_attributes :app_guid, :service_instance_guid, :credentials,
                       :binding_options, :gateway_data
 
+    alias_attribute :broker_provided_id, :gateway_name
+
+    delegate :client, to: :service_instance
+
+    plugin :after_initialize
+
     def validate
       validates_presence :app
       validates_presence :service_instance
@@ -38,7 +44,6 @@ module VCAP::CloudController
     def before_create
       super
       raise VCAP::Errors::UnbindableService unless service_instance.bindable?
-      service_instance.bind_on_gateway(self) if service_instance
     end
 
     def after_create
@@ -49,14 +54,20 @@ module VCAP::CloudController
       mark_app_for_restaging
     end
 
-    def before_destroy
-      service_instance.unbind_on_gateway(self)
-      mark_app_for_restaging
+    def after_initialize
+      super
+      self.guid ||= SecureRandom.uuid
     end
 
-    def after_rollback
-      service_instance.unbind_on_gateway(self) if service_instance
-      super
+    def before_destroy
+      # TODO: transactionally move this into a queue, remove rescue
+      begin
+        client.unbind(self)
+      rescue => e
+        logger.error "unbind failed #{e}"
+      end
+
+      mark_app_for_restaging
     end
 
     def mark_app_for_restaging

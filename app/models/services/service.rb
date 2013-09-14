@@ -14,11 +14,11 @@ module VCAP::CloudController
 
     export_attributes :label, :provider, :url, :description, :long_description,
                       :version, :info_url, :active, :bindable,
-                      :unique_id, :extra, :tags, :documentation_url
+                      :unique_id, :extra, :tags, :requires, :documentation_url
 
     import_attributes :label, :provider, :url, :description, :long_description,
                       :version, :info_url, :active, :bindable,
-                      :unique_id, :extra, :tags, :documentation_url
+                      :unique_id, :extra, :tags, :requires, :documentation_url
 
     strip_attributes  :label, :provider
 
@@ -31,7 +31,7 @@ module VCAP::CloudController
       validates_unique   [:label, :provider]
     end
 
-    serialize_attributes :json, :tags
+    serialize_attributes :json, :tags, :requires
 
     alias_method :bindable?, :bindable
 
@@ -51,8 +51,24 @@ module VCAP::CloudController
       super || []
     end
 
+    def requires
+      super || []
+    end
+
     def v2?
       !service_broker.nil?
+    end
+
+    def client
+      if v2?
+        service_broker.client
+      else
+        @v1_client ||= ServiceBroker::V1::Client.new(
+          url: url,
+          auth_token: service_auth_token.token,
+          timeout: timeout
+        )
+      end
     end
 
     # The "unique_id" should really be called broker_provided_id because it's the id assigned by the broker

@@ -1,46 +1,49 @@
-require "spec_helper"
+require 'spec_helper'
 
 module VCAP::CloudController
-  describe ServiceBrokerClient do
-    let(:endpoint_base) { 'http://example.com' }
-    let(:request_id) { 'req-id' }
-    let(:token) { 'sometoken' }
-    let(:client) { ServiceBrokerClient.new(endpoint_base, token) }
+  describe ServiceBroker::V2::HttpClient do
+    let(:auth_token) { 'abc123' }
+    let(:request_id) { Sham.guid }
 
-    # we use the catalog_response in both the #catalog spec and the error conditions specs
-    let(:service_id) { Sham.guid }
-    let(:service_name) { Sham.name }
-    let(:service_description) { Sham.description }
-    let(:plan_id) { Sham.guid }
-    let(:plan_name) { Sham.name }
-    let(:plan_description) { Sham.description }
-    let(:catalog_response) do
-      {
-        'services' => [
-          {
-            'id' => service_id,
-            'name' => service_name,
-            'description' => service_description,
-            'plans' => [
-              {
-                'id' => plan_id,
-                'name' => plan_name,
-                'description' => plan_description
-              }
-            ]
-          }
-        ]
-      }
+    subject(:client) do
+      ServiceBroker::V2::HttpClient.new(
+        url: 'http://broker.example.com',
+        auth_token: auth_token
+      )
     end
 
     before do
-      stub_request(:any, endpoint_base)
       VCAP::Request.stub(:current_id).and_return(request_id)
     end
 
-    describe "#catalog" do
+    describe '#catalog' do
+      let(:service_id) { Sham.guid }
+      let(:service_name) { Sham.name }
+      let(:service_description) { Sham.description }
+      let(:plan_id) { Sham.guid }
+      let(:plan_name) { Sham.name }
+      let(:plan_description) { Sham.description }
+      let(:catalog_response) do
+        {
+          'services' => [
+            {
+              'id' => service_id,
+              'name' => service_name,
+              'description' => service_description,
+              'plans' => [
+                {
+                  'id' => plan_id,
+                  'name' => plan_name,
+                  'description' => plan_description
+                }
+              ]
+            }
+          ]
+        }
+      end
+
       it 'fetches the broker catalog' do
-        stub_request(:get, "http://cc:sometoken@example.com/v2/catalog").
+        stub_request(:get, "http://cc:#{auth_token}@broker.example.com/v2/catalog").
           with(headers: { 'X-VCAP-Request-ID' => request_id }).
           to_return(body: catalog_response.to_json)
 
@@ -50,45 +53,90 @@ module VCAP::CloudController
       end
     end
 
-    describe "#provision" do
-      let(:reference_id) { 'ref_id' }
-      let(:broker_service_instance_id) { 'broker_created_id' }
+    describe '#provision' do
+      let(:instance_id) { Sham.guid }
+      let(:plan_id) { Sham.guid }
 
       let(:expected_request_body) do
         {
-          service_id: service_id,
           plan_id: plan_id,
-          reference_id: reference_id,
         }.to_json
       end
+
       let(:expected_response_body) do
         {
-          id: broker_service_instance_id
+          dashboard_url: 'dashboard url'
         }.to_json
       end
 
       it 'calls the provision endpoint' do
-        stub_request(:post, "http://cc:sometoken@example.com/v2/service_instances").
+        stub_request(:put, "http://cc:#{auth_token}@broker.example.com/v2/service_instances/#{instance_id}").
           with(body: expected_request_body, headers: { 'X-VCAP-Request-ID' => request_id }).
-          to_return(body: expected_response_body)
+          to_return(status: 201, body: expected_response_body)
 
-        result = client.provision(service_id, plan_id, reference_id)
+        response = client.provision(instance_id, plan_id)
 
-        expect(result['id']).to eq(broker_service_instance_id)
+        expect(response.fetch('dashboard_url')).to eq('dashboard url')
       end
 
       context 'the reference_id is already in use' do
         it 'raises ServiceBrokerConflict' do
-          stub_request(:post, "http://cc:sometoken@example.com/v2/service_instances").
+          stub_request(:put, "http://cc:#{auth_token}@broker.example.com/v2/service_instances/#{instance_id}").
             to_return(status: 409)  # 409 is CONFLICT
 
-          expect { client.provision(service_id, plan_id, reference_id) }.to raise_error(VCAP::Errors::ServiceBrokerConflict)
+          expect { client.provision(instance_id, plan_id) }.to raise_error(VCAP::Errors::ServiceBrokerConflict)
         end
       end
     end
 
-    describe "error conditions" do
-      let(:broker_catalog_url) { "http://cc:sometoken@example.com/v2/catalog" }
+    describe '#bind' do
+      let(:service_binding) { ServiceBinding.make }
+      let(:service_instance) { service_binding.service_instance }
+
+      let(:bind_url) { "http://cc:#{auth_token}@broker.example.com/v2/service_bindings/#{service_binding.guid}" }
+
+      before do
+        @request = stub_request(:put, bind_url).to_return(
+          body: {
+            credentials: {user: 'admin', pass: 'secret'}
+          }.to_json
+        )
+      end
+
+      it 'sends a PUT request to the correct endpoint with the auth token' do
+        client.bind(service_binding.guid, service_instance.guid)
+
+        expect(@request.with { |request|
+          request_body = Yajl::Parser.parse(request.body)
+          expect(request_body.fetch('service_instance_id')).to eq(service_binding.service_instance.guid)
+        }).to have_been_made
+      end
+
+      it 'includes the request_id in the request header' do
+        client.bind(service_binding.guid, service_instance.guid)
+
+        expect(@request.with { |request|
+          expect(request.headers.fetch('X-Vcap-Request-Id')).to eq(request_id)
+        }).to have_been_made
+      end
+
+      it 'sets the content type to JSON' do
+        client.bind(service_binding.guid, service_instance.guid)
+
+        expect(@request.with { |request|
+          expect(request.headers.fetch('Content-Type')).to eq('application/json')
+        }).to have_been_made
+      end
+
+      it 'responds with the correct fields' do
+        response = client.bind(service_binding.guid, service_instance.guid)
+
+        expect(response.fetch('credentials')).to eq({'user' => 'admin', 'pass' => 'secret'})
+      end
+    end
+
+    describe 'error conditions' do
+      let(:broker_catalog_url) { "http://cc:#{auth_token}@broker.example.com/v2/catalog" }
 
       context 'when the API is not reachable' do
         context 'because the host could not be resolved' do
@@ -159,6 +207,8 @@ module VCAP::CloudController
 
       context 'when the API returns an invalid response' do
         context 'because of an unexpected status code' do
+          let(:catalog_response) { {'services' => []} }
+
           before do
             stub_request(:get, broker_catalog_url).to_return(
               status: [404, 'Not Found'], body: catalog_response.to_json
@@ -170,7 +220,7 @@ module VCAP::CloudController
               client.catalog
             }.to raise_error(
               VCAP::CloudController::Errors::ServiceBrokerBadResponse,
-              'The service broker API returned an error from http://example.com/v2/catalog: 404 Not Found'
+              'The service broker API returned an error from http://broker.example.com/v2/catalog: 404 Not Found'
             )
           end
         end

@@ -29,20 +29,30 @@ get '/v2/catalog' do
   [200, {}, body]
 end
 
-post '/v2/service_instances' do
+put '/v2/service_instances/:service_instance_id' do
   json = JSON.parse(request.body.read)
-  raise "unexpected service_id" unless json['service_id'] == 'custom-service-1'
-  raise "unexpected plan_id" unless json['plan_id'] == 'custom-plan-1'
+  raise 'unexpected plan_id' unless json['plan_id'] == 'custom-plan-1'
 
-  if json['reference_id'] == 'already-exists'
-    #TODO
-  else
-    body = {
-      'id' => 'actual-id-1'
-    }.to_json
-
-    [200, {}, body]
-  end
+  body = {
+    'dashboard_url' => 'http://dashboard'
+  }.to_json
+  [201, {}, body]
 end
 
-#DELETE /v2/service_instances/:id
+put '/v2/service_bindings/:service_binding_id' do
+  json = JSON.parse(request.body.read)
+  raise 'missing service_instance_id' unless json['service_instance_id']
+
+  body = {
+    'credentials' => {
+      'username' => 'admin',
+      'password' => 'secret'
+    }
+  }.to_json
+
+  [200, {}, body]
+end
+
+delete '/v2/service_bindings/:service_binding_id' do
+  [204, {}, '']
+end
