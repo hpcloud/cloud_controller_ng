@@ -20,7 +20,11 @@ gem "cf-uaa-lib", "~> 1.3.7", :git => "https://github.com/cloudfoundry/cf-uaa-li
 gem "stager-client", "~> 0.0.02", :git => "https://github.com/cloudfoundry/stager-client.git", :ref => "04c2aee9"
 gem "cf-message-bus", :git => "https://github.com/cloudfoundry/cf-message-bus.git"
 gem "vcap_common", :git => "https://github.com/cloudfoundry/vcap-common.git"
-gem 'stackato-kato', '~> 2.11.0'
+if ENV["KATO_DEV"] and File.directory? '../kato'
+  gem 'stackato-kato', :path => '../kato'
+else
+  gem 'stackato-kato', '~> 2.11.0'
+end
 gem 'redis', '~> 3.0.4'
 gem "allowy", "0.4.0"
 gem "delayed_job_active_record", "~> 4.0", :git => "https://github.com/ActiveState/delayed_job_active_record"
