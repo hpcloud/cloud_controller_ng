@@ -26,7 +26,7 @@ message_bus_uri: nats://127.0.0.1:4222
 pid_filename: /tmp/cloud_controller.pid
 
 db:
-  database: "sqlite:///tmp/cloud_controller.db"
+  database_uri: "sqlite:///tmp/cloud_controller.db"
 
 active_record_db:
   database: "sqlite:///tmp/cloud_controller_ar.db"
