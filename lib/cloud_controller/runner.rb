@@ -137,6 +137,8 @@ module VCAP::CloudController
 
       VCAP::CloudController::Config.configure(@config)
       VCAP::CloudController::Config.configure_message_bus(message_bus)
+
+      # TODO:Stackato: Move to CloudController::DependencyLocator ?
       VCAP::CloudController::StackatoRedisClient::configure(@config)
       VCAP::CloudController::StackatoAppLogsClient::configure(@config)
       VCAP::CloudController::StackatoDropletAccountability::configure(@config, message_bus)
