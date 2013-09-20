@@ -2,6 +2,7 @@
 require "kato/cluster/manager"
 require "kato/cluster/node"
 require "kato/exceptions"
+require "kato/node_process_controller"
 
 module VCAP::CloudController
   class StackatoComponentsController < RestController::Base
@@ -57,18 +58,18 @@ module VCAP::CloudController
         # Supervisord does not have a "restart" command.
         # Therefore, there is no way to fire off a "restart me"
         # command and rely on an external process to restart us.
-        # Instead we can simply kill this CC and supervisord will
+        # Instead we can simply kill this CC and node_process_controller will
         # auto-restart us.
         exit!
       else
-        supervisord = Kato::Supervisord.new(node_id)
+        node_process_controller = Kato::NodeProcessController.new(node_id)
         begin
           if action == "start"
-            supervisord.start_process(component_name)
+            node_process_controller.start_process(component_name)
           elsif action == "stop"
-            supervisord.stop_process(component_name)
+            node_process_controller.stop_process(component_name)
           elsif action == "restart"
-            supervisord.restart_process(component_name)
+            node_process_controller.restart_process(component_name)
           end
         rescue Exception => e
           if e.message == "BAD_NAME: " + component_name
