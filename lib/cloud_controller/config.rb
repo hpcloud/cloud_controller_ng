@@ -208,7 +208,7 @@ module VCAP::CloudController
         @config = config
 
         # TODO:Stackato: Re-enable config watcher
-        config_watch
+        #config_watch
 
         Config.db_encryption_key = config[:db_encryption_key]
         AccountCapacity.configure(config)
