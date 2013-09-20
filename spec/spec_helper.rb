@@ -559,6 +559,8 @@ RSpec.configure do |rspec_config|
     #VCAP::CloudController::AppObserver.stub(:delete_droplet)
     VCAP::CloudController::AppPackage.stub(:delete_package)
   end
+
+  rspec_config.fail_fast = ENV["RSPEC_FAIL_FAST"] ? true : false
 end
 
 # Ensures that entries are not returned ordered by the id field by
