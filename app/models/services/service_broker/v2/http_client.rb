@@ -11,9 +11,11 @@ module VCAP::CloudController
 
     # The broker is expected to guarantee uniqueness of the service_instance_id.
     # raises ServiceBrokerConflict if the id is already in use
-    def provision(service_instance_id, plan_id)
+    def provision(service_instance_id, plan_id, org_guid, space_guid)
       execute(:put, "/v2/service_instances/#{service_instance_id}", {
-        plan_id: plan_id
+        plan_id: plan_id,
+        organization_guid: org_guid,
+        space_guid: space_guid
       })
     end
 
@@ -21,6 +23,14 @@ module VCAP::CloudController
       execute(:put, "/v2/service_bindings/#{binding_id}", {
         service_instance_id: service_instance_id
       })
+    end
+
+    def unbind(binding_id)
+      execute(:delete, "/v2/service_bindings/#{binding_id}")
+    end
+
+    def deprovision(instance_id)
+      execute(:delete, "/v2/service_instances/#{instance_id}")
     end
 
     private
@@ -51,6 +61,8 @@ module VCAP::CloudController
 
       code = response.code.to_i
       case code
+      when 204
+        nil # no body
       when 200..299
         begin
           response_hash = Yajl::Parser.parse(response.body)

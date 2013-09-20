@@ -1,4 +1,4 @@
-require "cloud_controller/app_manager"
+require "cloud_controller/app_observer"
 
 module VCAP::CloudController
   class App < Sequel::Model
@@ -179,9 +179,8 @@ module VCAP::CloudController
     end
 
     def after_destroy_commit
-      AppManager.stop_droplet(self)
-      AppManager.delete_droplet(self)
-      AppPackage.delete_package(self.guid)
+      super
+      AppObserver.deleted(self)
     end
 
     def command=(cmd)
@@ -412,11 +411,11 @@ module VCAP::CloudController
         after_destroy
       end
 
-      AppManager.stop_droplet(self)
+      AppObserver.deleted(self)
     end
 
     def uris
-      routes.map { |r| r.fqdn }
+      routes.map(&:fqdn)
     end
 
     def after_remove_binding(binding)
@@ -464,7 +463,7 @@ module VCAP::CloudController
 
     def after_commit
       super
-      AppManager.app_changed(self, previous_changes || {})
+      AppObserver.updated(self)
     end
 
     private

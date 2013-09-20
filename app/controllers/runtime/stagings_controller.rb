@@ -11,7 +11,7 @@
 # the storage layer than FileUtils.mv, this should get refactored.
 
 require "cloudfront-signer"
-require "cloud_controller/blob_store/blob_store"
+require "cloud_controller/blobstore/blobstore"
 
 module VCAP::CloudController
   class StagingsController < RestController::Base
@@ -20,9 +20,12 @@ module VCAP::CloudController
     # Endpoint does its own (non-standard) auth
     allow_unauthenticated_access
 
-    APP_PATH = "/staging/apps"
-    DROPLET_PATH = "/staging/droplets"
-    BUILDPACK_CACHE_PATH = "/staging/buildpack_cache"
+
+    STAGING_PATH = "/staging"
+
+    APP_PATH = "#{STAGING_PATH}/apps"
+    DROPLET_PATH = "#{STAGING_PATH}/droplets"
+    BUILDPACK_CACHE_PATH = "#{STAGING_PATH}/buildpack_cache"
 
     class DropletUploadHandle
       attr_accessor :guid, :upload_path, :buildpack_cache_upload_path
@@ -36,18 +39,29 @@ module VCAP::CloudController
     attr_reader :config
 
     class << self
-      attr_reader :blob_store
+      attr_reader :blobstore, :buildpack_cache_blobstore
 
       def configure(config)
         @config = config
 
         options = config[:droplets]
-        @blob_store = BlobStore.new(options[:fog_connection], options[:droplet_directory_key] || "cc-droplets")
-        @cdn = options[:cdn]
+        cdn = options[:cdn] ? Cdn.make(options[:cdn][:uri]) : nil
+
+        @blobstore = Blobstore.new(
+          options[:fog_connection],
+          options[:droplet_directory_key] || "cc-droplets",
+          cdn)
+
+        @buildpack_cache_blobstore = Blobstore.new(
+          options[:fog_connection],
+          options[:droplet_directory_key] || "cc-droplets",
+          cdn,
+          "buildpack_cache"
+        )
       end
 
       def app_uri(app)
-        if AppPackage.blob_store.local?
+        if AppPackage.blobstore.local?
           staging_uri("#{APP_PATH}/#{app.guid}")
         else
           AppPackage.package_uri(app.guid)
@@ -59,7 +73,7 @@ module VCAP::CloudController
       end
 
       def droplet_download_uri(app)
-        if blob_store.local?
+        if blobstore.local?
           staging_uri("#{DROPLET_PATH}/#{app.guid}/download")
         else
           droplet_uri(app)
@@ -90,29 +104,19 @@ module VCAP::CloudController
       end
 
       def store_droplet(app, path)
-        store_package(app, path, :droplet)
+        blobstore.cp_from_local(
+          path,
+          File.join(app.guid, app.droplet_hash),
+          blobstore.local?
+        )
       end
 
       def store_buildpack_cache(app, path)
-        store_package(app, path, :buildpack_cache)
-      end
-
-      def delete_droplet(app)
-        file = app_droplet(app)
-        file.destroy if file
-      rescue Errno::ENOTEMPTY => e
-        logger.warn("Failed to delete droplet: #{e}\n#{e.backtrace}")
-        true
-      rescue StandardError => e
-        # NotFound errors do not share a common superclass so we have to determine it by name
-        # A github issue for fog will be created.
-        if e.class.name.split('::').last.eql?("NotFound")
-          logger.warn("Failed to delete droplet: #{e}\n#{e.backtrace}")
-          true
-        else
-          # None-NotFound errors will be raised again
-          raise e
-        end
+        buildpack_cache_blobstore.cp_from_local(
+          path,
+          app.guid,
+          buildpack_cache_blobstore.local?
+        )
       end
 
       def droplet_exists?(app)
@@ -124,10 +128,10 @@ module VCAP::CloudController
       end
 
       def buildpack_cache_download_uri(app)
-        if AppPackage.blob_store.local?
+        if AppPackage.blobstore.local?
           staging_uri("#{BUILDPACK_CACHE_PATH}/#{app.guid}/download")
         else
-          package_uri(app, :buildpack_cache)
+          buildpack_cache_blobstore.download_uri(app.guid)
         end
       end
 
@@ -146,61 +150,29 @@ module VCAP::CloudController
       # The url is valid for 1 hour when using aws.
       # TODO: The expiration should be configurable.
       def droplet_uri(app)
-        package_uri(app, :droplet)
+        f = app_droplet(app)
+        return nil unless f
+
+        return blobstore.download_uri_for_file(f)
       end
 
       def buildpack_cache_uri(app)
-        package_uri(app, :buildpack_cache)
+        buildpack_cache_blobstore.download_uri(app.guid)
       end
 
       private
-
-      def store_package(app, path, type)
-        File.open(path) do |file|
-          blob_store.files.create(
-            :key => key_from_app(app, type),
-            :body => file,
-            :public => blob_store.local?
-          )
-        end
-      end
 
       def upload_uri(app, type)
         prefix = type == :buildpack_cache ? BUILDPACK_CACHE_PATH : DROPLET_PATH
         staging_uri("#{prefix}/#{app.guid}/upload")
       end
 
-      def package_uri(app, type)
-        if type == :buildpack_cache
-          f = app_buildpack_cache(app)
-        elsif type == :droplet
-          f = app_droplet(app)
-        else
-          raise "unknown type #{type}"
-        end
-
-        return nil unless f
-
-        # unfortunately fog doesn't have a unified interface for non-public
-        # urls
-        if blob_store.local?
-          f.public_url
-        elsif @cdn && @cdn[:uri]
-          uri = "#{@cdn[:uri]}/#{f.key}"
-          AWS::CF::Signer.is_configured? ? AWS::CF::Signer.sign_url(uri) : uri
-        elsif f.respond_to?(:url)
-          f.url(Time.now + 3600)
-        else
-          f.public_url
-        end
-      end
-
       def staging_uri(path)
         URI::HTTP.build(
-          :host     => @config[:bind_address],
-          :port     => @config[:port],
+          :host => @config[:bind_address],
+          :port => @config[:port],
           :userinfo => [@config[:staging][:auth][:user], @config[:staging][:auth][:password]],
-          :path     => path
+          :path => path
         ).to_s
       end
 
@@ -219,38 +191,18 @@ module VCAP::CloudController
 
       def app_droplet(app)
         return unless app.staged?
-
-        key = key_from_app(app, :droplet)
-        old_key = key_from_guid(app.guid, :droplet)
-        blob_store.files.head(key) || blob_store.files.head(old_key)
+        key = File.join(app.guid, app.droplet_hash)
+        old_key = app.guid
+        blobstore.file(key) || blobstore.file(old_key)
       end
 
       def app_buildpack_cache(app)
-        key = key_from_guid(app.guid, :buildpack_cache)
-        blob_store.files.head(key)
-      end
-
-      def key_from_app(app, type)
-        if type == :droplet
-          File.join(key_from_guid(app.guid, type), app.droplet_hash)
-        else
-          key_from_guid(app.guid, type)
-        end
-      end
-
-      def key_from_guid(guid, type)
-        guid = guid.to_s.downcase
-
-        if type == :buildpack_cache
-          File.join("buildpack_cache", guid[0..1], guid[2..3], guid)
-        else
-          File.join(guid[0..1], guid[2..3], guid)
-        end
+        @buildpack_cache_blobstore.file(app.guid)
       end
     end
 
     def download_app(guid)
-      raise InvalidRequest unless AppPackage.blob_store.local?
+      raise InvalidRequest unless AppPackage.blobstore.local?
 
       app = App.find(:guid => guid)
       raise AppNotFound.new(guid) if app.nil?
@@ -293,6 +245,7 @@ module VCAP::CloudController
 
       droplet_path = StagingsController.droplet_local_path(app)
       droplet_url = StagingsController.droplet_uri(app)
+
       download(app, droplet_path, droplet_url)
     end
 
@@ -308,7 +261,7 @@ module VCAP::CloudController
     private
 
     def download(app, droplet_path, url)
-      raise InvalidRequest unless self.class.blob_store.local?
+      raise InvalidRequest unless self.class.blobstore.local?
 
       logger.debug "guid: #{app.guid} droplet_path #{droplet_path}"
 
@@ -378,22 +331,20 @@ module VCAP::CloudController
       (config[:directories] && config[:directories][:tmpdir]) || Dir.tmpdir
     end
 
-    # TODO: put this back to all of staging once we change the auth scheme
-    # (and add a test for /staging/droplets with bad auth)
-    controller.before "#{APP_PATH}/*" do
-      auth =  Rack::Auth::Basic::Request.new(env)
+    controller.before "#{STAGING_PATH}/*" do
+      auth = Rack::Auth::Basic::Request.new(env)
       unless auth.provided? && auth.basic? &&
-              auth.credentials == [@config[:staging][:auth][:user],
-                                   @config[:staging][:auth][:password]]
+        auth.credentials == [@config[:staging][:auth][:user],
+                             @config[:staging][:auth][:password]]
         raise NotAuthorized
       end
     end
 
-    get  "/staging/apps/:guid", :download_app
+    get "/staging/apps/:guid", :download_app
 
     # Make sure that nginx upload path rules do not apply to download paths!
     post "#{DROPLET_PATH}/:guid/upload", :upload_droplet
-    get  "#{DROPLET_PATH}/:guid/download", :download_droplet
+    get "#{DROPLET_PATH}/:guid/download", :download_droplet
 
     post "#{BUILDPACK_CACHE_PATH}/:guid/upload", :upload_buildpack_cache
     get "#{BUILDPACK_CACHE_PATH}/:guid/download", :download_buildpack_cache

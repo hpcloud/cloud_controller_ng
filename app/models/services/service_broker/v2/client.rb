@@ -9,7 +9,12 @@ module VCAP::CloudController
     end
 
     def provision(instance)
-      response = @http_client.provision(instance.guid, instance.service_plan.broker_provided_id)
+      response = @http_client.provision(
+        instance.guid,
+        instance.service_plan.broker_provided_id,
+        instance.space.organization.guid,
+        instance.space.guid
+      )
 
       instance.dashboard_url = response['dashboard_url']
 
@@ -21,6 +26,14 @@ module VCAP::CloudController
       response = @http_client.bind(binding.guid, binding.service_instance.guid)
 
       binding.credentials = response['credentials']
+    end
+
+    def unbind(binding)
+      @http_client.unbind(binding.guid)
+    end
+
+    def deprovision(instance)
+      @http_client.deprovision(instance.guid)
     end
   end
 end

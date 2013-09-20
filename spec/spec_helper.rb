@@ -74,7 +74,7 @@ module VCAP::CloudController
     def db
       Thread.current[:db] ||= begin
         db_connection = ENV["DB_CONNECTION"] || "sqlite:///tmp/cc_test#{ENV["TEST_ENV_NUMBER"]}.db"
-        ar_db_connection = ENV["AR_DB_CONNECTION"] || "sqlite:///tmp/cc_test_ar#{ENV["TEST_ENV_NUMBER"]}.db"
+        ar_db_connection = ENV["AR_DB_CONNECTION"] || "sqlite:///tmp/cc_test#{ENV["TEST_ENV_NUMBER"]}.db"
 
         VCAP::CloudController::DB.connect(
           db_logger,
@@ -556,7 +556,7 @@ RSpec.configure do |rspec_config|
   rspec_config.before :each do
     # We need to stub out this because it's in an after_destroy_commit hook
     # Is event emitter our salvation?
-    VCAP::CloudController::AppManager.stub(:delete_droplet)
+    #VCAP::CloudController::AppObserver.stub(:delete_droplet)
     VCAP::CloudController::AppPackage.stub(:delete_package)
   end
 end

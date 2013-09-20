@@ -61,6 +61,9 @@ module VCAP::CloudController
 
     def parse_config
       @config = VCAP::CloudController::Config.from_redis
+    rescue Membrane::SchemaValidationError => ve
+      puts "ERROR: There was a problem validating the supplied config: #{ve}"
+      exit 1
     rescue => e
       exit 1
     end
@@ -77,7 +80,7 @@ module VCAP::CloudController
       logger.info "db config #{@config[:db]}"
       db_logger = Steno.logger("cc.db")
       DB.connect(db_logger, @config[:db], @config[:active_record_db])
-      VCAP::CloudController::DB.load_models
+      DB.load_models
     end
 
     def setup_loggregator_emitter
@@ -135,14 +138,16 @@ module VCAP::CloudController
       setup_db
       setup_loggregator_emitter
 
-      VCAP::CloudController::Config.configure(@config)
-      VCAP::CloudController::Config.configure_message_bus(message_bus)
+      @config[:bind_address] = VCAP.local_ip(@config[:local_route])
+
+      Config.configure(@config)
+      Config.configure_message_bus(message_bus)
 
       # TODO:Stackato: Move to CloudController::DependencyLocator ?
-      VCAP::CloudController::StackatoRedisClient::configure(@config)
-      VCAP::CloudController::StackatoAppLogsClient::configure(@config)
-      VCAP::CloudController::StackatoDropletAccountability::configure(@config, message_bus)
-      VCAP::CloudController::StackatoDropletAccountability::start
+      StackatoRedisClient::configure(@config)
+      StackatoAppLogsClient::configure(@config)
+      StackatoDropletAccountability::configure(@config, message_bus)
+      StackatoDropletAccountability::start
     end
 
     def create_app(config, message_bus)
@@ -153,23 +158,23 @@ module VCAP::CloudController
       Rack::Builder.new do
         use Rack::CommonLogger
 
-        VCAP::CloudController::DeaClient.run
-        VCAP::CloudController::AppManager.run
+        DeaClient.run
+        AppObserver.run
 
-        VCAP::CloudController::LegacyBulk.register_subscription
+        LegacyBulk.register_subscription
 
         VCAP::CloudController.health_manager_respondent = \
-          VCAP::CloudController::HealthManagerRespondent.new(
-            VCAP::CloudController::DeaClient,
+          HealthManagerRespondent.new(
+            DeaClient,
             message_bus)
         VCAP::CloudController.health_manager_respondent.handle_requests
 
-        VCAP::CloudController.dea_respondent = VCAP::CloudController::DeaRespondent.new(message_bus)
+        VCAP::CloudController.dea_respondent = DeaRespondent.new(message_bus)
 
         VCAP::CloudController.dea_respondent.start
 
         map "/" do
-          run VCAP::CloudController::Controller.new(config, token_decoder)
+          run Controller.new(config, token_decoder)
         end
       end
     end

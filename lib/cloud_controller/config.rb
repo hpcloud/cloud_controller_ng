@@ -52,7 +52,7 @@ module VCAP::CloudController
         optional(:stacks_file) => String,
 
         :db => {
-          optional(:database_uri) => String,
+          optional(:database_uri) => String, # db connection string for sequel
           optional(:database) => {
             :host => String,
             :port => Integer,
@@ -145,11 +145,11 @@ module VCAP::CloudController
       }
     end
 
-    def self.logger
+    def logger
       @logger ||= Steno.logger("cc.config")
     end
 
-    def self.config_watch
+    def config_watch
       Kato::Config.watch "cloud_controller_ng" do |new_config|
         new_config = new_config.symbolize_keys
         updates = Kato::Config.diff(@config, new_config)
@@ -190,33 +190,15 @@ module VCAP::CloudController
       end
     end
 
-    def self.from_redis(config_overrides = {})
-      @config = Kato::Config.get("cloud_controller_ng").symbolize_keys
-
-      unless @config
-        $stderr.puts %[FATAL: Unable to load config]
-        exit 1
-      end
-
-      @config.update(config_overrides)
-
-      EM.next_tick do
-        # TODO:Stackato: Re-enable config watcher
-        #self.config_watch
-      end
-
-      merge_defaults(@config)
-      @config
-    end
-
-    def self.from_file(file_name)
-      config = super(file_name)
-      merge_defaults(config)
-    end
-
     class << self
       def from_file(file_name)
         config = super(file_name)
+        merge_defaults(config)
+      end
+
+      def from_redis(config_overrides = {})
+        config = Kato::Config.get("cloud_controller_ng").symbolize_keys
+        config.update(config_overrides)
         merge_defaults(config)
       end
 
@@ -225,29 +207,36 @@ module VCAP::CloudController
       def configure(config)
         @config = config
 
-        VCAP::CloudController::Config.db_encryption_key = config[:db_encryption_key]
-        VCAP::CloudController::AccountCapacity.configure(config)
-        VCAP::CloudController::ResourcePool.instance =
-          VCAP::CloudController::ResourcePool.new(config)
-        VCAP::CloudController::AppPackage.configure(config)
+        # TODO:Stackato: Re-enable config watcher
+        config_watch
 
-        VCAP::CloudController::StagingsController.configure(config)
+        Config.db_encryption_key = config[:db_encryption_key]
+        AccountCapacity.configure(config)
+        ResourcePool.instance =
+          ResourcePool.new(config)
+        AppPackage.configure(config)
 
-        VCAP::CloudController::QuotaDefinition.configure(config)
-        VCAP::CloudController::Stack.configure(config[:stacks_file])
-        VCAP::CloudController::ServicePlan.configure(config[:trial_db])
+        StagingsController.configure(config)
+
+        QuotaDefinition.configure(config)
+        Stack.configure(config[:stacks_file])
+        ServicePlan.configure(config[:trial_db])
 
         run_initializers(config)
       end
 
       def configure_message_bus(message_bus)
         @message_bus = message_bus
-        stager_pool = VCAP::CloudController::StagerPool.new(@config, message_bus)
-        VCAP::CloudController::AppManager.configure(@config, message_bus, stager_pool)
-        dea_pool = VCAP::CloudController::DeaPool.new(message_bus)
-        VCAP::CloudController::DeaClient.configure(@config, message_bus, dea_pool)
 
-        VCAP::CloudController::LegacyBulk.configure(@config, message_bus)
+        stager_pool = StagerPool.new(@config, message_bus)
+
+        AppObserver.configure(@config, message_bus, stager_pool)
+
+        dea_pool = DeaPool.new(message_bus)
+
+        DeaClient.configure(@config, message_bus, dea_pool)
+
+        LegacyBulk.configure(@config, message_bus)
       end
 
       def run_initializers(config)
@@ -278,3 +267,4 @@ module VCAP::CloudController
       end
     end
   end
+end

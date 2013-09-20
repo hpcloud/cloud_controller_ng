@@ -60,6 +60,8 @@ module VCAP::CloudController
       let(:expected_request_body) do
         {
           plan_id: plan_id,
+          organization_guid: "org-guid",
+          space_guid: "space-guid"
         }.to_json
       end
 
@@ -74,7 +76,7 @@ module VCAP::CloudController
           with(body: expected_request_body, headers: { 'X-VCAP-Request-ID' => request_id }).
           to_return(status: 201, body: expected_response_body)
 
-        response = client.provision(instance_id, plan_id)
+        response = client.provision(instance_id, plan_id, "org-guid", "space-guid")
 
         expect(response.fetch('dashboard_url')).to eq('dashboard url')
       end
@@ -84,7 +86,7 @@ module VCAP::CloudController
           stub_request(:put, "http://cc:#{auth_token}@broker.example.com/v2/service_instances/#{instance_id}").
             to_return(status: 409)  # 409 is CONFLICT
 
-          expect { client.provision(instance_id, plan_id) }.to raise_error(VCAP::Errors::ServiceBrokerConflict)
+          expect { client.provision(instance_id, plan_id, "org-guid", "space-guid") }.to raise_error(VCAP::Errors::ServiceBrokerConflict)
         end
       end
     end
@@ -132,6 +134,32 @@ module VCAP::CloudController
         response = client.bind(service_binding.guid, service_instance.guid)
 
         expect(response.fetch('credentials')).to eq({'user' => 'admin', 'pass' => 'secret'})
+      end
+    end
+
+    describe '#unbind' do
+      let(:service_binding) { ServiceBinding.make }
+      let(:bind_url) { "http://cc:#{auth_token}@broker.example.com/v2/service_bindings/#{service_binding.guid}" }
+      before do
+        @request = stub_request(:delete, bind_url).to_return(status: 204)
+      end
+
+      it 'sends a DELETE to the broker' do
+        client.unbind(service_binding.guid)
+        @request.should have_been_requested
+      end
+    end
+
+    describe '#deprovision' do
+      let(:instance) { ManagedServiceInstance.make }
+      let(:instance_url) { "http://cc:#{auth_token}@broker.example.com/v2/service_instances/#{instance.guid}" }
+      before do
+        @request = stub_request(:delete, instance_url).to_return(status: 204)
+      end
+
+      it 'sends a DELETE to the broker' do
+        client.deprovision(instance.guid)
+        @request.should have_been_requested
       end
     end
 
