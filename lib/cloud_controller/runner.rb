@@ -17,6 +17,7 @@ require_relative "message_bus_configurer"
 require_relative "stackato/redis_client"
 require_relative "stackato/app_logs_client"
 require_relative "stackato/droplet_accountability"
+require_relative "stackato/auto_scaler_respondent"
 
 module VCAP::CloudController
   class Runner
@@ -175,6 +176,10 @@ module VCAP::CloudController
         VCAP::CloudController.dea_respondent = DeaRespondent.new(message_bus)
 
         VCAP::CloudController.dea_respondent.start
+
+        VCAP::CloudController.auto_scaler_respondent = \
+          VCAP::CloudController::AutoScalerRespondent.new(config, message_bus)
+        VCAP::CloudController.auto_scaler_respondent.handle_requests
 
         map "/" do
           run Controller.new(config, token_decoder)

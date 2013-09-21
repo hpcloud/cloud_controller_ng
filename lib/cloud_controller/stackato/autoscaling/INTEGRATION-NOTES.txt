@@ -1,0 +1,68 @@
+Integrating with the CCv1/CCv2
+#################################
+
+For the entry point, see test/test.rb.
+
+Steps for integration with CC:
+
+ - Ensure gems below are in Gemfile.lock
+ - Ensure the CC 'requires' autoscaler.rb
+ - remove legacy code from app/models/app.rb if integrating with v1
+ - Ensure 'autoscaling_config_file' redisconf key is set and the example config
+   file is installed onto the VM.
+ - Write up docs
+
+The CC should construct a new instance of the `Autoscaling` class
+'autoscaling.rb' with the { :config_file => "/path/to/config"} hash argument.
+The `config_file` symbol should be a setting in the cloud_controllers config,
+accessible by `kato config ...`
+
+Then each time a `scale_up` NATS event is processed by the CC, it should be
+doing something like:
+
+    autoscaler = AutoScaler.new({config_file => AppConfig[:autoscaling_config]})
+    autoscaler.scale_up
+
+The `scale_up` call will happen in an individual thread, so as not to block the
+CC's main thread of execution, but the plugin may still continue to log output.
+Exceptions thrown by the scaling operation or scaling plugins will be caught
+by the AutoScaling class and logged to the console. The CC should override
+the plugin.log method for whatever it may be using (steno, logyard..).
+
+Edit the config with the credentials and run 'rake' test to test the scaling
+operations of each plugin.
+
+Gems Required:
+
+ - fog - ONLY required in CCv1 (CCng already has this available)
+ - rbvmomi
+
+Gems required for running tests:
+
+ - riot
+
+Running tests
+#####################
+
+Copy config/config.yaml to config/dev_config.yaml then customize as desired.
+Then run:
+
+`TEST_CONFIG=config/dev_config.yaml rake test`
+
+New Features
+#####################
+
+- support native openstack API
+- support HPCS
+- support tags on EC2, HPCS
+- support metadata on OpenStack
+- support userdata on EC2, HPCS, OpenStack (Base64 encoded)
+- support multiple scaling backends on scaling ops received
+- support mutiple security groups (EC2, HPCS, OpenStack
+- support debug / testing scaling outside of the CC ( targeted testing for user level )
+- support scaling op timeouts
+- all scaling ops happen in a thread, cannot block the CC.
+
+- removed database tracking for vsphere, in memory is sufficient
+
+

@@ -1,0 +1,160 @@
+---
+# Enable scaling events
+# #######################
+enabled: true
+
+# Enable plugins
+# #######################
+
+# When a scaling event is triggered, the autoscaler
+# will trigger a scaling operation on each enabled plugin.
+# The core plugins available are: "EC2", "HPCS", "OpenStack" and "vSphere".
+enabled_plugins: [ "HPCS" ]
+
+# Scaling Operation Timeout
+# ###########################
+
+# Specify a value to timeout scale up operations (seconds)
+scale_op_timeout: 300
+
+# Cooldown period - prevent multiple scaling ops from happening in a short
+# period of time (seconds)
+cooldown_period: 120
+
+# Wait for server to become ready
+
+# If set to true, the plugin will attempt to wait for a 'READY' status for the
+# newly scaled node, and indicate this in the logs. This operation is included
+# in the scale_op_timeout setting above.
+wait_ready: true
+
+# VM Name Prefix
+# #################
+
+# Where possible, have the platform plugin prefix the newly scaled nodes' name
+# with this value
+vm_name_prefix: "Auto-Scaled"
+
+# Email Alert
+# ################
+
+# An alert will be sent via sendmail to the configured address below
+# on scaling events
+#alert_email: admin@domain.com
+#alert_subject: "Stackato::Autoscaling Event"
+
+#alert_only_on_error: false
+
+
+# ###################################
+# Platform specific configuration
+# ###################################
+platform_config:
+  HPCS:
+    # az-1.region-a.geo-1
+    # az-2.region-a.geo-1
+    # az-3.region-a.geo-1
+    compute:
+      zone: az-1.region-a.geo-1
+      api_version: v2
+
+    # HPCS account credentials
+    auth:
+      access_key: <ACCESS_KEY_>
+      secret_key: <SECRET_KEY>
+      tenant_id: <TENANT ID>
+
+    # DEA image ID
+    template_id: <IMAGE_ID>
+
+    # m1.medium
+    flavor_id: 102
+
+    tags:
+      :autoscaled: true
+
+    # Provisions a new server with the following.
+    security_groups: [ "stackato" ]
+    keypair: <KEYPAIR NAME>
+
+    user_data: [ "this will be Base64 encoded"]
+
+    # Personality (file injection customization)
+    # File mappings here will be added to the new server
+    # personality:
+    #   -
+    #     local_path: /foo/bar
+    #     remote_path: /bar/foo
+
+  EC2:
+
+    template_id: <ami-xxxxxx>
+    instance_type: m1.medium
+
+    # Available regions:
+    #  'ap-northeast-1', 'ap-southeast-1', 'ap-southeast-2', 'eu-west-1',
+    #  'us-east-1', 'us-west-1', 'us-west-2', 'sa-east-1'
+    compute:
+      region: us-west-2
+
+    security_group: [ "stackato" ]
+    keypair: <KEYPAIR NAME>
+
+    tags:
+      :autoscaled: true
+
+    auth:
+      access_key: <ACCESS_KEY>
+      secret_key: <SECRET_KEY>
+
+  OpenStack:
+
+    auth_url: http://<IP>:5000/v2.0/tokens
+    password: <PASSWORD>
+    username: <USERNAME>
+    tenant_id: <PROJECT / TENANT NAME>
+
+    region: # optional #
+
+    template_id: <IMAGE_ID>
+    flavor: m1.medium
+
+    metadata:
+      autoscaled: "true"
+
+  vSphere:
+
+    server: vcenter.domain.com
+    user: <USER>
+    password: <PASSWORD>
+    https: true
+    port: 443
+    insecure: true
+    path: /sdk
+    datacenter: <DATACENTER>
+    #datastores: "Datastore name"
+    template: <TEMPLATE NAME>
+
+    # Start the scaled VM with the following resource configuration
+    # Default: template settings.
+
+    # numCPUs: 2
+    # memoryMB: 2048
+
+    # Only allow the certain resource hosts to be used
+    # host_whitelist: []
+
+    # Specify Cluster or Compute resource Host names to use
+    # If the whitelist above is enabled, it will still be applied.
+    # clusters: []
+
+    # Specify the destination VM folder placement for the scaled VM if required
+    # dest_folder: ''
+
+
+# Debug
+# #########
+# !! Dev ONLY. Don't enable this in production, it will block the CC's
+# main thread of execution
+debug: true
+

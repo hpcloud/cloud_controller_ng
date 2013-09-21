@@ -158,3 +158,8 @@ maintenance_mode: false
 
 # Maximum number of drains for any app.
 max_drains_per_app: 2
+
+auto_scaling:
+  enabled: false
+  config_file: /s/etc/autoscaling.yaml
+

@@ -1,0 +1,23 @@
+require 'rubygems'
+
+require 'rake'
+require 'rake/testtask'
+
+unless Kernel.respond_to?(:require_relative)
+  module Kernel
+    def require_relative(path)
+      require File.join(File.dirname(caller[0]), path.to_str)
+    end
+  end
+end
+
+desc "Run all the AutoScaler tests"
+task :test do
+  Rake::TestTask.new do |t|
+    t.libs << "test"
+    t.pattern = "test/*test.rb"
+    t.verbose = true
+  end
+end
+
+task :default => :test

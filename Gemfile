@@ -96,6 +96,7 @@ gem 'rack-test'         ,    '0.6.2', :groups => [:test, :default]
 gem 'rake'              ,   '10.1.0'
 gem 'rb-fsevent'        ,    '0.9.3', :groups => [:test]
 gem 'rb-inotify'        ,    '0.9.2', :groups => [:test]
+gem 'rbvmomi'           ,    '1.6.0'
 gem 'redis'             ,    '3.0.6'
 gem 'rfc822'            ,    '0.1.4'
 gem 'rspec'             ,   '2.14.1', :groups => [:default, :test]
