@@ -9,6 +9,7 @@ require "cf/registrar"
 require "loggregator_emitter"
 require "loggregator_messages"
 require "loggregator"
+require 'kato/local/node'
 
 require_relative "seeds"
 require_relative "message_bus_configurer"
@@ -138,7 +139,7 @@ module VCAP::CloudController
       setup_db
       setup_loggregator_emitter
 
-      @config[:bind_address] = VCAP.local_ip(@config[:local_route])
+      @config[:bind_address] = Kato::Local::Node.get_local_node_id
 
       Config.configure(@config)
       Config.configure_message_bus(message_bus)
