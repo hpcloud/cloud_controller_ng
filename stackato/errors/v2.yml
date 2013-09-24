@@ -175,3 +175,8 @@
   name: StackatoDropletAccountabilityMessageBusNotConfigured
   http_code: 500
   message: "Message bus is not configured for droplet accountability."
+
+135:
+  name: StackatoSshKeyNotConfigured
+  http_code: 500
+  message: "Stackato SSH key not configured."
