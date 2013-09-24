@@ -64,12 +64,12 @@ module VCAP::CloudController
         new_plan_attrs = Array(req.plans).map {|plan_name|
           {
             "name" => plan_name,
-            "free" => !!(plan_name =~ /^1[0-9][0-9]$/), #only 100-level plans are free
+            "free" => (plan_name == "free") || !!(plan_name =~ /^1[0-9][0-9]$/), #only 100-level plans are free
           }
         }
       end
 
-      new_plan_attrs.each {|attrs| attrs["description"] ||= "dummy description" }
+      new_plan_attrs.each {|attrs| attrs["description"] ||= plan_name }
 
       old_plan_names = ServicePlan.dataset.
         join(:services, :id => :service_id).
