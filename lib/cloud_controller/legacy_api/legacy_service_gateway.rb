@@ -69,7 +69,7 @@ module VCAP::CloudController
         }
       end
 
-      new_plan_attrs.each {|attrs| attrs["description"] ||= plan_name }
+      new_plan_attrs.each {|attrs| attrs["description"] ||= attrs["name"] }
 
       old_plan_names = ServicePlan.dataset.
         join(:services, :id => :service_id).
