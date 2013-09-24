@@ -7,7 +7,9 @@ module VCAP::CloudController
     def get_ssh_key
       ssh_key = Kato::Config.get("cluster", "stackato_ssh_keypair_alluser/privkey")
       if ssh_key
-        Yajl::Encoder.encode(ssh_key)
+        Yajl::Encoder.encode({
+          :sshkey => ssh_key
+        })
       else
         raise Errors::StackatoSshKeyNotConfigured.new
       end
