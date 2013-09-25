@@ -58,6 +58,8 @@ uaa:
 
 cc_partition: ng
 
+max_time_in_cache: 5d
+
 bulk_api:
   auth_user: bulk_user
   auth_password: bulk_password
@@ -88,7 +90,7 @@ quota_definitions:
 default_quota_definition: free
 
 resource_pool:
-  resource_directory_key: "spec-cc-resources"
+  resource_directory_key: "cc-resources"
   fog_connection:
     provider: Local
     local_root: /home/stackato/stackato/data/
