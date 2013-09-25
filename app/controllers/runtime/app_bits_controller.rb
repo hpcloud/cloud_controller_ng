@@ -23,6 +23,13 @@ module VCAP::CloudController
         app_bits_packer_job.perform
         HTTP::CREATED
       end
+
+      event = {
+        :user => SecurityContext.current_user,
+        :app => app,
+        :event => 'APP_DEPLOYED'}
+      logger.info("TIMELINE #{event.to_json}")
+      
     rescue VCAP::CloudController::Errors::AppBitsUploadInvalid, VCAP::CloudController::Errors::AppPackageInvalid
       app.mark_as_failed_to_stage
       raise
