@@ -3,6 +3,7 @@ require "kato/cluster/status"
 
 module VCAP::CloudController
   class StackatoStatusController < RestController::Base
+    # TODO:Stacakto: Remove this
     allow_unauthenticated_access
 
     def get_status
