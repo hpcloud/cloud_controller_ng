@@ -180,3 +180,8 @@
   name: StackatoSshKeyNotConfigured
   http_code: 500
   message: "Stackato SSH key not configured."
+
+136:
+  name: StackatoAppStoresNotConfigured
+  http_code: 404
+  message: "Stackato stores are not configured."
