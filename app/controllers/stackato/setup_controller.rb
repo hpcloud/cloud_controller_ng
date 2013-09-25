@@ -14,6 +14,9 @@ module VCAP::CloudController
     #    b. in the internal admins list
     def setup
       user = nil
+
+      user_data = Yajl::Parser.parse(body)
+
       if Kato::Config.get("cluster", "license")
         raise Errors::StackatoLicenseAlreadySetup.new
       elsif Kato::Config.get("aok", "enabled") && !aok_users_enabled?
@@ -22,12 +25,12 @@ module VCAP::CloudController
       # Validation
       # TODO: Move validation to the user model & determine 
       # what we can really enforce in light of AOK
-      elsif not (params[:email])
+      elsif not (user_data["email"])
         raise Errors::StackatoSetupEmailRequired.new
-      elsif params[:email].length < USERNAME_MIN_SIZE
-        raise Errors::StackatoSetupEmailMinLength.new(USERNAME_MIN_SIZE)
-      elsif params[:password] && params[:password].length <= 4 or
-          (params[:unix_password] and params[:unix_password].length <= 4)
+      elsif user_data["email"].length < 6
+        raise Errors::StackatoSetupEmailMinLength.new(6)
+      elsif user_data["password"] && user_data["password"].length <= 4 or
+          (user_data["unix_password"] and user_data["unix_password"].length <= 4)
         raise Errors::StackatoSetupPasswordMinLength.new(4)
       else
 
@@ -36,24 +39,24 @@ module VCAP::CloudController
         # TODO:Stackato: Define transaction correctly
         #Sequel::Model.db.transaction do
         begin
-          logger.info("SETUP: creating admin user #{params[:email]}")
+          logger.info("SETUP: creating admin user #{user_data["email"]}")
 
           # TODO:Stackato: Figure out how to create user. Should we
           #                be creating a user here?
-          #user = create_user(params[:email], params[:password], true, :check_admin => false)
+          #user = create_user(user_data["email"], user_data["password"], true, :check_admin => false)
           # ???
           #user = Models::User.create(
-          #  :id => params[:email], :provider => provider
+          #  :id => user_data["email"], :provider => provider
           #)
 
           # Change the unix password, assuming 'stackato' as the current password
-          if params[:unix_password] and Kato::Local::Util.password_is_stackato?
+          if user_data["unix_password"] and Kato::Local::Util.password_is_stackato?
             logger.info("SETUP: changing unix user password")
             # passwords may contain shell meta-characters; so write to a
             # tmp file and then pipe its contents to chpasswd
             passwdfile = '/tmp/cc-setup-p-tmp'
             File.open(passwdfile, 'w') do |f|
-              f.puts("stackato:#{params[:unix_password]}")
+              f.puts("stackato:#{user_data["unix_password"]}")
             end
             cmd = "echo 'stackato' | sudo -S sh -c \"cat #{passwdfile} | chpasswd\""
             run_cmd(cmd, "failed to change stackato unix password")
@@ -62,14 +65,16 @@ module VCAP::CloudController
 
           # from this point, only an admin should be able to create new users
           logger.info("SETUP: disabling user registration")
-          Kato::Config.set("cloud_controller", "allow_registration", false)
+          Kato::Config.set("cloud_controller_ng", "allow_registration", false)
 
         end # transaction
 
         logger.info("SETUP: storing the license key in config")
         Kato::Config.set("cluster", "license", "type: microcloud")
 
-        Yajl::Encoder.encode(UserToken.create(user.email))
+        # TODO:Stackato encode the created usertoken if the return value is used anywhere
+        #Yajl::Encoder.encode(UserToken.create(user.email))
+        Yajl::Encoder.encode({})
       end
     end
 
