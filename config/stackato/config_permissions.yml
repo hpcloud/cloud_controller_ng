@@ -16,7 +16,6 @@ processes:
     allowed_repos: RW
     default_account_capacity: RW
     admin_account_capacity: RW
-    app_store: RW
     allow_registration: RW
     maintenance_mode: RW
     max_user_drains: R

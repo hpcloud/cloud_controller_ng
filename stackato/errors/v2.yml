@@ -185,3 +185,28 @@
   name: StackatoAppStoresNotConfigured
   http_code: 404
   message: "Stackato stores are not configured."
+
+137:
+  name: StackatoAppStoreExists
+  http_code: 400
+  message: "App store exists : %s"
+
+138:
+  name: StackatoAppStoreDoesNotExist
+  http_code: 400
+  message: "App store does not exist : %s"
+
+139:
+  name: StackatoAppStoreValidNameRequired
+  http_code: 400
+  message: "'name' not given or is invalid."
+
+140:
+  name: StackatoAppStoreValidContentUrlRequired
+  http_code: 400
+  message: "'content_url' not given or is invalid."
+
+141:
+  name: StackatoAppStoreValidEnabledRequired
+  http_code: 400
+  message: "'enabled' is not given or is invalid."
