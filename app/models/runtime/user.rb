@@ -48,7 +48,7 @@ module VCAP::CloudController
 
     default_order_by  :id
 
-    export_attributes :admin, :active, :default_space_guid
+    export_attributes :admin, :active, :default_space_guid, :guid
 
     import_attributes :guid, :admin, :active,
                       :organization_guids,
