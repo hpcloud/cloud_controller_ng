@@ -54,7 +54,7 @@ module VCAP::CloudController
       Yajl::Encoder.encode({
         :metadata => {
           :guid => drain_name,
-          :url => "#{DRAINS_BASE_URL}/#{drain_name}"
+          :url => drain_url(drain_name)
         },
         :entity => {
           :name => drain_name,
@@ -75,7 +75,9 @@ module VCAP::CloudController
       end
       logger.info("Adding drain with args: #{drain}")
       Kato::Logyard.add_drain drain["name"], drain["uri"]
-      [204, {}, nil]
+
+      # Return HTTP 201 (Created) and set the Location header to URL of resource
+      [ 201, { "Location" => drain_url(drain["name"]) }, nil ]
     end
 
     def delete(name)
@@ -83,6 +85,10 @@ module VCAP::CloudController
       logger.info("Deleting drain '#{name}'")
       response = Kato::Logyard.run_logyard_remote "delete", [name]
       Yajl::Encoder.encode(response)
+    end
+
+    def drain_url(drain_name)
+      [DRAINS_BASE_URL, drain_name].join("/")
     end
 
     # TODO:Stackato: We need to limit scope and define what this API is.
