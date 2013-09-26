@@ -4,8 +4,12 @@ processes:
   cloud_controller_ng:
     logging: RW
     external_uri: R
-    description: R
-    support_address: RW
+    info:
+      name: R
+      build: R
+      support_address: RW
+      description: R
+      api_version: R
     admins: RW
     app_uris: RW
     drains: RW
