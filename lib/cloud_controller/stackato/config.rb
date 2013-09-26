@@ -141,7 +141,7 @@ module VCAP::CloudController
       component_name = component_name.to_s
       can_write, writable_config = filter_permissible_values(new_config, PERMISSIONS[component_name], "W")
       unless can_write
-        raise Errors::StackatoConfigUnsupportedUpdate.new(component_name)
+        raise Errors::StackatoConfigUnsupportedUpdate.new(component_name, "Submitted non-writable config.")
       end
       unsupported_keys = new_config.keys - writable_config.keys
       if unsupported_keys.size > 0
@@ -193,6 +193,12 @@ module VCAP::CloudController
         app_startup_port_ready = timeouts["app_startup_port_ready"].to_i
         logger.info("Setting #{component}/timeouts/app_startup_port_ready to #{app_startup_port_ready}")
         Kato::Config.set(component, "timeouts/app_startup_port_ready", app_startup_port_ready)
+      end
+    end
+
+    def _update__cloud_controller_ng__info(component, info_key, info)
+      info.each do |key, value|
+        Kato::Config.set(component, "#{info_key}/#{key}", value, { :must_exist => true })
       end
     end
   
