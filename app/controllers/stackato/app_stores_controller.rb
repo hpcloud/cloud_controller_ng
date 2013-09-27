@@ -13,10 +13,7 @@ module VCAP::CloudController
     def list
       store_config = load_store_config
       proxy_config = store_config["proxy"]
-      fetch_content = \
-        (params["inline-relations-depth"] || DEFAULT_INLINE_RELATIONS_DEPTH).to_i > 0 \
-        rescue false
-      logger.info("fetch_content=#{fetch_content} #{params["inline-relations-depth"]}")
+      fetch_content = fetch_store_content?
 
       resources = []
       # TODO:Stackato: Make requests concurrent
@@ -39,12 +36,9 @@ module VCAP::CloudController
       validate_store_exists(store_config["stores"], store_name)
 
       proxy_config = store_config["proxy"]
-      fetch_content = \
-        (params["inline-relations-depth"] || DEFAULT_INLINE_RELATIONS_DEPTH).to_i > 0 \
-        rescue false
 
       store = store_config["stores"][store_name]
-      resource = construct_resource(store_name, store, fetch_content, proxy_config)
+      resource = construct_resource(store_name, store, fetch_store_content?, proxy_config)
 
       Yajl::Encoder.encode(resource)
     end
@@ -95,6 +89,11 @@ module VCAP::CloudController
       [APP_STORES_BASE_URL, store_name].join("/")
     end
 
+    def fetch_store_content?
+      (params["inline-relations-depth"] || DEFAULT_INLINE_RELATIONS_DEPTH).to_i > 0 \
+        rescue false
+    end
+
     def add
       # TODO:Stackato: re-enable this line
       #raise Errors::NotAuthorized unless roles.admin?
@@ -106,8 +105,22 @@ module VCAP::CloudController
       validate_store_not_exists(store_config["stores"], new_store["name"])
       save_store(new_store["name"], new_store["content_url"], new_store["enabled"])
 
+      proxy_config = store_config["proxy"]
+      new_resource = construct_resource(
+        new_store["name"],
+        {
+          "content_url" => new_store["content_url"],
+          "enabled" => new_store["enabled"]
+        },
+        fetch_store_content?, proxy_config
+      )
+
       # Return HTTP 201 (Created) and set the Location header to URL of resource
-      [ 201, { "Location" => store_url(new_store["name"]) }, nil ]
+      [
+        201,
+        { "Location" => store_url(new_store["name"]) },
+        Yajl::Encoder.encode(new_resource)
+      ]
     end
 
     def update(store_name)
