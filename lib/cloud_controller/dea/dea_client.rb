@@ -110,7 +110,10 @@ module VCAP::CloudController
                   :debug_ip => instance["debug_ip"],
                   :debug_port => instance["debug_port"],
                   :console_ip => instance["console_ip"],
-                  :console_port => instance["console_port"]
+                  :console_port => instance["console_port"],
+                  # For stackato-ssh
+                  :host_ip => instance["host_ip"],
+                  :app_ip => instance["app_ip"],
               }
             end
           end
