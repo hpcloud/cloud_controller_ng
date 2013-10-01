@@ -7,9 +7,9 @@
   message: "Stackato micro-cloud is not setup with a license."
 
 101:
-  name: StackatoLicenseAlreadySetup
-  http_code: 500
-  message: "Stackato is already setup with a license."
+  name: StackatoFirstUserAlreadySetup
+  http_code: 400
+  message: "Stackato first user has already been set up."
 
 102:
   name: StackatoConsoleSetupRequiresAokBuiltinUserDB
