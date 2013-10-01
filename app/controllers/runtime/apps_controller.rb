@@ -70,10 +70,13 @@ module VCAP::CloudController
         Event.record_app_delete(app, SecurityContext.current_user)
       end
 
+      name = app[:name]
       event = {
         :user => SecurityContext.current_user,
         :app => app,
-        :event => 'APP_DELETED'}
+        :event => 'APP_DELETED',
+        :message => "Updated app '#{name}'"
+      }
       logger.info("TIMELINE #{event.to_json}")
 
       [ HTTP::NO_CONTENT, nil ]
@@ -97,11 +100,14 @@ module VCAP::CloudController
         Event.record_app_update(obj, SecurityContext.current_user) if obj.previous_changes
       end
 
+      name = obj[:name]
       event = {
         :user => SecurityContext.current_user,
         :app => obj,
         :changes => obj.auditable_changes,
-        :event => 'APP_UPDATED'}
+        :event => 'APP_UPDATED',
+        :message => "Updated app '#{name}'"
+      }
       logger.info("TIMELINE #{event.to_json}")
 
       after_update(obj)
@@ -129,10 +135,13 @@ module VCAP::CloudController
       after_create(obj)
       Loggregator.emit(obj.guid, "Created app with guid #{obj.guid}")
 
+      name = obj[:name]
       event = {
         :user => SecurityContext.current_user,
         :app => obj,
-        :event => 'APP_CREATED'}
+        :event => 'APP_CREATED',
+        :message => "Updated app '#{name}'"
+      }
       logger.info("TIMELINE #{event.to_json}")
 
       [ HTTP::CREATED,
