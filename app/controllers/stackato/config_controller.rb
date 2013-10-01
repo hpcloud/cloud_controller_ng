@@ -32,10 +32,10 @@ module VCAP::CloudController
       # TODO:Stackato: re-enable this line
       #raise Errors::NotAuthorized unless roles.admin?
       component_name = params["name"]
+      new_config = Yajl::Parser.parse(body)
       unless new_config.is_a? Hash and new_config.size > 0
         raise Errors::StackatoConfigUnsupportedUpdate.new(component_name, "No config given.")
       end
-      new_config = Yajl::Parser.parse(body)
       logger.info("Newconfig: #{new_config}")
       StackatoConfig.new(component_name).save(new_config)
       [204, {}, nil]
