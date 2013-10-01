@@ -7,32 +7,36 @@ module VCAP::CloudController
     model_class_name :App
 
     def app_create
-      validate_params
       body_params = Yajl::Parser.parse(body)
       ensure_params(body_params, ["space_guid", "app_name"])
       logger.info("Requesting appstore to create a new app #{body_params}")
       response = invoke_api "/create", {
         :Token => auth_token_header,
-        :SpaceGUID => body_params["space_guid"],
+        :Space => body_params["space_guid"],
         :AppName => body_params["app_name"]
       }
-      Yajl::Encoder.encode({:id => response["AppGUID"]})
+      Yajl::Encoder.encode({
+        :app_guid => response["GUID"]
+      })
     end
 
     def app_deploy(app_guid)
-      validate_params
       body_params = Yajl::Parser.parse(body)
-      ensure_params(body_params, ["from"])
+      validate_params(body_params)
+      ensure_params(body_params, ["app_name", "space_guid", "from"])
       app = find_guid_and_validate_access(:update, app_guid)
       logger.info("Requesting appstore to deploy an app #{body_params}")
       response = invoke_api "/push", {
         :AppGUID => app.guid,
+        :AppName => body_params["app_name"],
+        :Space => body_params["space_guid"],
         :Token => auth_token_header,
         :VcsUrl => body_params["from"],
         :VcsRef => body_params["commit"],
         :VcsType => body_params["type"],
         :AutoStart => body_params["autostart"],
       }
+      # TODO:Stackato: do not just blindly pass repsonse
       Yajl::Encoder.encode(response)
     end
 
@@ -45,7 +49,7 @@ module VCAP::CloudController
     end
 
     # TODO:Stackato: Add validation here. There is none.
-    def validate_params
+    def validate_params(params)
       # convert null to empty string to workaround
       # http://code.google.com/p/go/issues/detail?id=2540
       params["type"] = "" if params["type"].nil?
