@@ -1,5 +1,7 @@
 module VCAP::CloudController
   module StackatoUserCreation
+    ADMIN_GROUPS = %W{cloud_controller.admin scim.read scim.write}
+
     # There's a model() method to do this but it breaks things
     def model; User; end
 
@@ -49,19 +51,21 @@ module VCAP::CloudController
         logger.debug "Response from SCIM user creation: #{scim_user.inspect}"
 
         if request_attrs["admin"] || first_user
-          scim_group = scim_client.query( :group, 'filter' => %Q!displayName eq "#{ADMIN_GROUP}"!, 'startIndex' => 1)["resources"].first
-          group_guid = scim_group["id"]
-          members = (scim_group["members"] || []).collect{|hash|hash["value"]}
-          members << scim_user['id']
-          group_info = {
-            "id" => group_guid,
-            "schemas" => scim_group['schemas'],
-            "members" => members,
-            "meta" => scim_group['meta'],
-            "displayName" => ADMIN_GROUP
-          }
-          logger.debug "updated group info to put: #{group_info.inspect}"
-          scim_client.put :group, group_info
+          ADMIN_GROUPS.each do |group|
+            scim_group = scim_client.query( :group, 'filter' => %Q!displayName eq "#{group}"!, 'startIndex' => 1)["resources"].first
+            group_guid = scim_group["id"]
+            members = (scim_group["members"] || []).collect{|hash|hash["value"]}
+            members << scim_user['id']
+            group_info = {
+              "id" => group_guid,
+              "schemas" => scim_group['schemas'],
+              "members" => members,
+              "meta" => scim_group['meta'],
+              "displayName" => group
+            }
+            logger.debug "updated group info to put: #{group_info.inspect}"
+            scim_client.put :group, group_info
+          end
         end
 
         cc_user_info = {
