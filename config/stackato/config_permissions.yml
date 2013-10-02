@@ -44,7 +44,8 @@ processes:
 
   dea_ng:
     logging: RW
-    max_memory_percentage: RW
+    resources:
+      memory_max_percent: RW
     timeouts: RW
 
   harbor_node:

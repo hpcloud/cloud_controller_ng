@@ -184,6 +184,17 @@ module VCAP::CloudController
         end
       end
     end
+
+    def _update__dea_ng__resources(component, key, resources)
+      unless resources.key? 'memory_max_percent'
+        raise Errors::StackatoConfigUnsupportedUpdate.new(component, "Attempting to update #{component} resources with no valid key/value pairs!")
+      end
+      if resources.key? 'memory_max_percent'
+        memory_max_percent = resources['memory_max_percent'].to_i
+        logger.info("Setting #{component}/resources/memory_max_percent to #{memory_max_percent}")
+        Kato::Config.set(component, "resources/memory_max_percent", memory_max_percent)
+      end
+    end
   
     def _update__dea_ng__timeouts(component, key, timeouts)
       if ( !(timeouts.key? "app_startup_port_ready"))
