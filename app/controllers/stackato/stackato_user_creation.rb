@@ -31,8 +31,7 @@ module VCAP::CloudController
 
       target = Kato::Config.get("cloud_controller_ng", 'uaa/url')
 
-      #TODO: generate this, retrieve it from config
-      secret = 'cloudcontrollersecret'
+      secret = Kato::Config.get("cloud_controller_ng", 'aok/client_secret')
 
       token_issuer =
         CF::UAA::TokenIssuer.new(target, 'cloud_controller', secret)
