@@ -1,6 +1,7 @@
 module VCAP::CloudController
   module StackatoUserCreation
-    ADMIN_GROUPS = %W{cloud_controller.admin scim.read scim.write}
+    ADMIN_GROUPS = %W{cloud_controller.admin scim.write}
+    ALL_USER_GROUPS = %W{scim.read}
 
     # There's a model() method to do this but it breaks things
     def model; User; end
@@ -52,20 +53,11 @@ module VCAP::CloudController
 
         if request_attrs["admin"] || first_user
           ADMIN_GROUPS.each do |group|
-            scim_group = scim_client.query( :group, 'filter' => %Q!displayName eq "#{group}"!, 'startIndex' => 1)["resources"].first
-            group_guid = scim_group["id"]
-            members = (scim_group["members"] || []).collect{|hash|hash["value"]}
-            members << scim_user['id']
-            group_info = {
-              "id" => group_guid,
-              "schemas" => scim_group['schemas'],
-              "members" => members,
-              "meta" => scim_group['meta'],
-              "displayName" => group
-            }
-            logger.debug "updated group info to put: #{group_info.inspect}"
-            scim_client.put :group, group_info
+            add_user_to_group(scim_user, group, scim_client)
           end
+        end
+        ALL_USER_GROUPS.each do |group|
+          add_user_to_group(scim_user, group, scim_client)
         end
 
         cc_user_info = {
@@ -137,6 +129,22 @@ module VCAP::CloudController
       if Kato::Config.get("cluster", "license")
         raise Errors::StackatoFirstUserAlreadySetup
       end
+    end
+
+    def add_user_to_group scim_user, group, scim_client
+      scim_group = scim_client.query( :group, 'filter' => %Q!displayName eq "#{group}"!, 'startIndex' => 1)["resources"].first
+      group_guid = scim_group["id"]
+      members = (scim_group["members"] || []).collect{|hash|hash["value"]}
+      members << scim_user['id']
+      group_info = {
+        "id" => group_guid,
+        "schemas" => scim_group['schemas'],
+        "members" => members,
+        "meta" => scim_group['meta'],
+        "displayName" => group
+      }
+      logger.debug "updated group info to put: #{group_info.inspect}"
+      scim_client.put :group, group_info
     end
 
     def self.included(base)
