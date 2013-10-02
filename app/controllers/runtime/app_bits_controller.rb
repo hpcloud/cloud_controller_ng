@@ -24,10 +24,12 @@ module VCAP::CloudController
         HTTP::CREATED
       end
 
+      name = app[:name]
       event = {
         :user => SecurityContext.current_user,
         :app => app,
-        :event => 'APP_DEPLOYED'}
+        :event => 'APP_DEPLOYED',
+        :message => "Deployed app '#{name}'"}
       logger.info("TIMELINE #{event.to_json}")
       
     rescue VCAP::CloudController::Errors::AppBitsUploadInvalid, VCAP::CloudController::Errors::AppPackageInvalid

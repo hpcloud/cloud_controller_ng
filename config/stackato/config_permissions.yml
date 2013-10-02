@@ -22,6 +22,7 @@ processes:
     keys:
       token: RW
       token_expiration: RW
+    app_store: RW
 
   avahi_announcer:
     logging: RW
