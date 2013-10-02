@@ -40,7 +40,7 @@ module VCAP::CloudController
 
     def stage(&completion_callback)
       @stager_id = @stager_pool.find_stager(@app.stack.name, [1024, @app.memory].max)
-      raise Errors::StagingError, "no available stagers" unless @stager_id
+      raise Errors::StagingError, "no available stagers for stack #{@app.stack.name} and mem #{@app.memory}" unless @stager_id
 
       subject = "staging.#{@stager_id}.start"
       @multi_message_bus_request = MultiResponseMessageBusRequest.new(@message_bus, subject)
