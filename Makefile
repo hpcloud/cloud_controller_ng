@@ -35,11 +35,11 @@ install:
 	rsync -ap . $(INSTDIR) $(RSYNC_EXCLUDE)
 	if [ -d etc ] ; then rsync -ap etc $(BASEDIR) ; fi
 	chmod a+x $(INSTDIR)/bin/*
-	
+
 	# Custom Postgresql Server Configuration
 	mkdir -p $(PG_CONF_DIR) && \
 	cp -fp $(INSTDIR)/config/postgresql/*.conf $(PG_CONF_DIR)/
-	
+
 	chown -R stackato.stackato $(HOMEDIR)
 
 uninstall:
@@ -48,3 +48,27 @@ uninstall:
 
 clean:
 	@ true
+
+sync: rsync restart
+
+VM=$(VMNAME).local
+rsync: vmname
+	rsync -avzL ./ stackato@$(VM):/s/code/cloud_controller_ng/ $(RSYNC_EXCLUDE)
+
+start stop restart: vmname
+	ssh stackato@$(VM) sup $@ cloud_controller_ng
+
+ssh: vmname
+	ssh stackato@$(VM)
+
+unfirstuser: vmname
+	ssh stackato@$(VM) kato config set cluster license false --force
+
+vmname:
+ifndef VMNAME
+	@echo "You need to set VMNAME. Something like this:"
+	@echo
+	@echo "export VMNAME=stackato-g4jx"
+	@echo
+	@exit 1
+endif

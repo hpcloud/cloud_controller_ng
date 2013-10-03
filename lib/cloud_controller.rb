@@ -101,6 +101,7 @@ module VCAP::CloudController
 
     def current_user_admin?(token_information)
       if User.count.zero?
+        # TODO: evaluate if we want to continue making users admins this way
         admin_email = config[:bootstrap_admin_email]
         admin_email && (admin_email == token_information['email'])
       else

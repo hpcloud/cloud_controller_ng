@@ -8,15 +8,6 @@ module VCAP::CloudController
 
     do_define_attributes
 
-    # def self.translate_validation_exception(e, attributes)
-    #   guid_errors = e.errors.on(:guid)
-    #   if guid_errors && guid_errors.include?(:unique)
-    #     Errors::UaaIdTaken.new(attributes["guid"])
-    #   else
-    #     Errors::UserInvalid.new(e.errors.full_messages)
-    #   end
-    # end
-
     def create
       raise Errors::NotAuthenticated unless user
       raise Errors::NotAuthorized unless roles.admin?
