@@ -9,7 +9,9 @@ external_domain: api.vcap.me
 
 bootstrap_admin_email: stackato@stackato.com
 
-system_domain_organization: my-org-name
+#Not creating default org-- done by first user setup
+#system_domain_organization: my-org-name
+
 system_domain: vcap.me
 app_domains:
   - vcap.me

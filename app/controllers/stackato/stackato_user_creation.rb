@@ -14,6 +14,9 @@ module VCAP::CloudController
       @request_attrs = json_msg.extract(:stringify_keys => true)
       logger.debug "Request Atts: #{request_attrs.inspect}"
 
+      # first user should be an admin
+      admin = request_attrs["admin"] || first_user
+
       password = request_attrs["password"]
       user_info = {
         :userName => request_attrs["username"],
@@ -46,12 +49,13 @@ module VCAP::CloudController
 
 
       before_create
-      obj = nil
+      @new_user = nil
+      scim_user = nil
       model.db.transaction do
         scim_user = scim_client.add :user, user_info
         logger.debug "Response from SCIM user creation: #{scim_user.inspect}"
 
-        if request_attrs["admin"] || first_user
+        if admin
           ADMIN_GROUPS.each do |group|
             add_user_to_group(scim_user, group, scim_client)
           end
@@ -62,22 +66,22 @@ module VCAP::CloudController
 
         cc_user_info = {
           'guid' => scim_user['id'],
-          'admin' => request_attrs["admin"] # Should I extract this from scim_user?
+          'admin' => admin
         }
-        obj = model.create_from_hash(cc_user_info)
+        @new_user = model.create_from_hash(cc_user_info)
 
         if first_user
           firstuser(password)
         else
-          validate_access(:create, obj, user, roles)
+          validate_access(:create, @new_user, user, roles)
         end
       end
 
-      after_create(obj)
+      after_create(@new_user)
 
       [ VCAP::RestAPI::HTTP::CREATED,
-        { "Location" => "#{UsersController.path}/#{obj.guid}" },
-        serialization.render_json(UsersController, obj, @opts)
+        { "Location" => "#{UsersController.path}/#{@new_user.guid}" },
+        serialization.render_json(UsersController, @new_user, @opts)
       ]
     rescue CF::UAA::InvalidToken => e
       logger.error "The token for the 'cloud_controller' oauth2 client was
@@ -86,8 +90,17 @@ module VCAP::CloudController
     rescue CF::UAA::TargetError => e
       # Probably a validation error coming from the target.
       return 400, e.info.to_json
+    rescue Sequel::ValidationFailed => e
+      logger.debug "Validation failed on the local user or org-- rolling back UAA user."
+      scim_client.delete :user, scim_user['id']
+      raise e
     rescue Exception => e
-      #TODO: Rollback UAA user creation.
+      begin
+        logger.debug "Attempting to roll back UAA user..."
+        scim_client.delete :user, scim_user['id']
+      rescue Exception => uaa_rollback
+        logger.debug "Rolling back UAA user failed: #{uaa_rollback.inspect}"
+      end
       raise e
     end
 
@@ -109,6 +122,13 @@ module VCAP::CloudController
           f.close! # also unlinks
         end
       end
+
+      # create a default org
+      quota_definition = QuotaDefinition.find(:name => "paid")
+      org = Organization.find_or_create(:name => request_attrs["org_name"]) do |o|
+        o.quota_definition = quota_definition
+      end
+      org.add_user(@new_user)
 
       logger.info("SETUP: storing the license key in config")
       Kato::Config.set("cluster", "license", "type: microcloud")
@@ -149,7 +169,7 @@ module VCAP::CloudController
 
     def self.included(base)
       base.instance_eval do
-        def do_define_attributes(password_required = false)
+        def do_define_attributes(firstuser = false)
           # Attributes defined here control what gets extracted from
           # the POST body during CreateMessage instantiation.
           define_attributes do
@@ -159,13 +179,42 @@ module VCAP::CloudController
             attribute :email, VCAP::RestAPI::Message::EMAIL
             attribute :phone, String, :default => nil
             password_opts = {:exclude_in => [:read, :enumerate]}
-            password_opts.merge!(:default => nil) unless password_required
+            password_opts.merge!(:default => nil) unless firstuser
             attribute :password, String, password_opts
             attribute :admin, VCAP::RestAPI::Message::Boolean, :default => false
+            if firstuser
+              attribute :org_name, String
+            end
+          end
+        end
+      end
+      base.extend ClassMethods
+    end
+
+
+    module ClassMethods
+      def translate_validation_exception(e, attributes)
+        if e.model.kind_of?(Organization)
+          quota_def_errors = e.errors.on(:quota_definition_id)
+          name_errors = e.errors.on(:name)
+          if quota_def_errors && quota_def_errors.include?(:not_authorized)
+            Errors::NotAuthorized.new(e.model.quota_definition_id)
+          elsif name_errors && name_errors.include?(:unique)
+            Errors::OrganizationNameTaken.new(e.model.name)
+          else
+            Errors::OrganizationInvalid.new(e.errors.full_messages)
+          end
+        else
+          guid_errors = e.errors.on(:guid)
+          if guid_errors && guid_errors.include?(:unique)
+            Errors::UaaIdTaken.new(attributes["guid"])
+          else
+            Errors::UserInvalid.new(e.errors.full_messages)
           end
         end
       end
     end
+
 
   end
 end
