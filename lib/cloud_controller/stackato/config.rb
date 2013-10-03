@@ -218,6 +218,12 @@ module VCAP::CloudController
         Kato::Config.set(component, "#{parent_key}/#{key_name}", key_value, { :must_exist => true })
       end
     end
+
+    def _update__cloud_controller_ng__quota_definitions(component, definition_key, definitions)
+      definitions.each do |key, value|
+        Kato::Config.set(component, "#{definition_key}/#{key}", value, {:must_exist => true})
+      end
+    end
   
     def _update__harbor_node__port_range(component, key, port_range)
       if ( !(port_range.key? "min") && !(port_range.key? "max") )
