@@ -46,6 +46,10 @@ module VCAP::CloudController
       def delete_droplet(app)
         droplet_blobstore.delete(droplet_key(app))
         droplet_blobstore.delete(old_droplet_key(app))
+      rescue Errno::EISDIR => e
+        # XXX: make logger.error work here
+        puts "ERROR -- Error deleting droplet: #{e}\n#{e.backtrace}"
+        true
       #rescue Errno::ENOTEMPTY => e
       #  logger.warn("Failed to delete droplet: #{e}\n#{e.backtrace}")
       #  true
