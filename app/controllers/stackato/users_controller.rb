@@ -4,7 +4,6 @@ require_relative 'stackato_user_creation'
 module VCAP::CloudController
   rest_controller :StackatoUsers do
     include StackatoUserCreation
-    ADMIN_GROUP = "cloud_controller.admin"
     path_base('stackato/users')
 
     do_define_attributes
