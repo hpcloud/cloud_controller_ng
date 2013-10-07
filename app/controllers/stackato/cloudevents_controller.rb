@@ -8,10 +8,10 @@ module VCAP::CloudController
     allow_unauthenticated_access
 
     def get_cloudevents
-      num = params[:n].to_i
+      num = params["n"].to_i
       num = 25 unless num > 0
       events_list =  redis { |r| r.lrange("cloud_events", 0, num-1) }
-      since_md5 = params[:since_md5]
+      since_md5 = params["since_md5"]
 
       ignore = false
       filtered_events = []
