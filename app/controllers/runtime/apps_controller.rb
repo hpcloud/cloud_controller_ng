@@ -75,7 +75,7 @@ module VCAP::CloudController
         :user => SecurityContext.current_user,
         :app => app,
         :event => 'APP_DELETED',
-        :message => "Updated app '#{name}'"
+        :message => "Deleted app '#{name}'"
       }
       logger.info("TIMELINE #{event.to_json}")
 
@@ -140,7 +140,7 @@ module VCAP::CloudController
         :user => SecurityContext.current_user,
         :app => obj,
         :event => 'APP_CREATED',
-        :message => "Updated app '#{name}'"
+        :message => "Created app '#{name}'"
       }
       logger.info("TIMELINE #{event.to_json}")
 
