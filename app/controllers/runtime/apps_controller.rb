@@ -106,7 +106,7 @@ module VCAP::CloudController
         :app => obj,
         :changes => obj.auditable_changes,
         :event => 'APP_UPDATED',
-        :message => "Updated app '#{name}'"
+        :message => "Updated app '#{name}' -- #{request_attrs}"
       }
       logger.info("TIMELINE #{event.to_json}")
 
