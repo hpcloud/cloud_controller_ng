@@ -29,7 +29,7 @@ module VCAP::CloudController
         :user => SecurityContext.current_user,
         :app => app,
         :event => 'APP_DEPLOYED',
-        :message => "Deployed app '#{name}'"}
+        :message => "Queued deployment of app '#{name}'"}
       logger.info("TIMELINE #{event.to_json}")
       
     rescue VCAP::CloudController::Errors::AppBitsUploadInvalid, VCAP::CloudController::Errors::AppPackageInvalid
