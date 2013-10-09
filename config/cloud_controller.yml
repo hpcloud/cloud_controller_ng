@@ -31,7 +31,7 @@ nginx:
   instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 logging:
-  level: debug2
+  level: debug
 
 loggregator:
   router: "127.0.0.1:3456"
