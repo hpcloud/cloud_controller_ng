@@ -86,6 +86,8 @@ module VCAP::CloudController
               all_instances[index] = {
                   :state => "FLAPPING",
                   :since => entry["since"],
+                  # Docker-specific information
+                  :docker_id => entry["docker_id"],
               }
             end
           end
@@ -114,6 +116,8 @@ module VCAP::CloudController
                   # For stackato-ssh
                   :host_ip => instance["host_ip"],
                   :app_ip => instance["app_ip"],
+                  # Docker-specific information
+                  :docker_id => instance["docker_id"],
               }
             end
           end
