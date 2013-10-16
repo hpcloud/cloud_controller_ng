@@ -8,11 +8,7 @@ module VCAP::CloudController
 
     def create_core(first_user=false)
       check_firstuser_allowed if first_user
-      json = body.read
-      logger.debug "JSON POST body: #{json.inspect}"
-      json_msg = self.class::CreateMessage.decode(json)
-      @request_attrs = json_msg.extract(:stringify_keys => true)
-      logger.debug "Request Atts: #{request_attrs.inspect}"
+      parameter_extraction
 
       # first user should be an admin
       admin = request_attrs["admin"] || first_user
@@ -35,19 +31,6 @@ module VCAP::CloudController
 
       logger.debug "User info to post to UAA: #{user_info.inspect}"
 
-      target = Kato::Config.get("cloud_controller_ng", 'uaa/url')
-
-      secret = Kato::Config.get("cloud_controller_ng", 'aok/client_secret')
-
-      token_issuer =
-        CF::UAA::TokenIssuer.new(target, 'cloud_controller', secret)
-
-
-      token = token_issuer.client_credentials_grant
-
-      scim_client = CF::UAA::Scim.new(target, token.auth_header)
-
-
       before_create
       @new_user = nil
       scim_user = nil
@@ -57,16 +40,17 @@ module VCAP::CloudController
 
         if admin
           ADMIN_GROUPS.each do |group|
-            add_user_to_group(scim_user, group, scim_client)
+            add_user_to_group(scim_user, group)
           end
         end
         ALL_USER_GROUPS.each do |group|
-          add_user_to_group(scim_user, group, scim_client)
+          add_user_to_group(scim_user, group)
         end
 
         cc_user_info = {
           'guid' => scim_user['id'],
-          'admin' => admin
+          'admin' => admin,
+          'active' => true
         }
         @new_user = model.create_from_hash(cc_user_info)
 
@@ -151,20 +135,54 @@ module VCAP::CloudController
       end
     end
 
-    def add_user_to_group scim_user, group, scim_client
+    def modify_user_group_membership scim_user, group, add_or_remove=:+
       scim_group = scim_client.query( :group, 'filter' => %Q!displayName eq "#{group}"!, 'startIndex' => 1)["resources"].first
       group_guid = scim_group["id"]
       members = (scim_group["members"] || []).collect{|hash|hash["value"]}
-      members << scim_user['id']
+      case add_or_remove
+      when :+
+        members << scim_user['id']
+      when :-
+        members.delete scim_user['id']
+      else
+        raise "unknown group membership modification #{add_or_remove.inspect}."
+      end
       group_info = {
         "id" => group_guid,
         "schemas" => scim_group['schemas'],
-        "members" => members,
+        "members" => members.uniq,
         "meta" => scim_group['meta'],
         "displayName" => group
       }
       logger.debug "updated group info to put: #{group_info.inspect}"
       scim_client.put :group, group_info
+    end
+
+    def add_user_to_group scim_user, group
+      modify_user_group_membership scim_user, group, :+
+    end
+
+    def remove_user_from_group scim_user, group
+      modify_user_group_membership scim_user, group, :-
+    end
+
+    def parameter_extraction
+      json = body.read
+      logger.debug "JSON POST body: #{json.inspect}"
+      json_msg = self.class::CreateMessage.decode(json)
+      @request_attrs = json_msg.extract(:stringify_keys => true)
+      logger.debug "Request Atts: #{request_attrs.inspect}"
+    end
+
+    def scim_client
+      return @scim_client if @scim_client
+      target = Kato::Config.get("cloud_controller_ng", 'uaa/url')
+      secret = Kato::Config.get("cloud_controller_ng", 'aok/client_secret')
+      token_issuer =
+        CF::UAA::TokenIssuer.new(target, 'cloud_controller', secret)
+      token = token_issuer.client_credentials_grant
+      @scim_client = CF::UAA::Scim.new(target, token.auth_header)
+      return @scim_client
     end
 
     def self.included(base)
