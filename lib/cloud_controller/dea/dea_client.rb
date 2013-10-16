@@ -2,6 +2,7 @@
 
 require "vcap/stager/client"
 require "vcap/errors"
+require "logyard"
 
 module VCAP::CloudController
   module DeaClient
@@ -157,6 +158,11 @@ module VCAP::CloudController
             dea_pool.mark_app_started(dea_id: dea_id, app_id: app.guid)
           else
             Loggregator.emit_error(app.guid, "no resources available #{msg}")
+            Logyard.report_event "NORESOURCES", "No DEA available satisfying mem #{app.memory}M and stack #{app.stack.name}", nil, {
+              :name => app.name,
+              :guid => app.guid,
+              :space_guid => app.space_guid,
+            }
             logger.error "no resources available #{msg}"
           end
         end
