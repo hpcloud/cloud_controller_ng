@@ -10,6 +10,7 @@ require "loggregator_emitter"
 require "loggregator_messages"
 require "loggregator"
 require 'kato/local/node'
+require "kato/proc_ready"
 
 require_relative "seeds"
 require_relative "message_bus_configurer"
@@ -103,6 +104,7 @@ module VCAP::CloudController
         app = create_app(config, message_bus)
         start_thin_server(app, config)
         registrar.register_with_router
+        ::Kato::ProcReady.i_am_ready("cloud_controller_ng")
       end
     end
 
