@@ -28,6 +28,7 @@ module VCAP::CloudController
       event = {
         :user => SecurityContext.current_user,
         :app => app,
+        :instance_index => -1,
         :event => 'APP_DEPLOYED',
         :message => "Queued deployment of app '#{name}'"}
       logger.info("TIMELINE #{event.to_json}")
