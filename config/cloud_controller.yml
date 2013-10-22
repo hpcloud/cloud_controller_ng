@@ -28,7 +28,7 @@ info:
 
 nginx:
   use_nginx: false
-  instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
+  instance_socket: "/var/stackato/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 logging:
   level: debug
