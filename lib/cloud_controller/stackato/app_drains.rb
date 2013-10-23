@@ -58,7 +58,7 @@ module VCAP::CloudController
         raise Errors::StackatoAppDrainInvalidScheme.new
       elsif not uri.port.nil? and uri.port < DRAIN_PORT_MIN
         logger.warn("An user tried to create a drain with lesser ports: #{uri}")
-        raise Errors::StackatoAppDrainPortMin.new(DRAIN_PORT_MIN)
+        raise Errors::StackatoAppDrainPortMax.new(DRAIN_PORT_MIN)
       elsif uri.scheme.nil?
         raise Errors::StackatoAppDrainMissingScheme.new
       elsif uri.host.nil?
