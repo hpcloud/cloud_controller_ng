@@ -1,5 +1,7 @@
 # Copyright (c) 2009-2012 VMware, Inc.
 
+require 'kato/config'
+
 module VCAP::CloudController
   class LegacyInfo < LegacyApiBase
     include VCAP::Errors
@@ -23,6 +25,7 @@ module VCAP::CloudController
         info[:user]   = user.guid
         info[:limits] = account_capacity
         info[:usage]  = account_usage if has_default_space?
+        info[:cc_nginx]  = Kato::Config.get("cloud_controller_ng", "nginx").fetch("use_nginx", false)
       end
 
       Yajl::Encoder.encode(info)

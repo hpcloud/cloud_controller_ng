@@ -6,6 +6,7 @@ module VCAP::CloudController
 
     def read
       license = Kato::Config.get("cluster", "license")
+      cc_nginx = Kato::Config.get("cloud_controller_ng", "nginx").fetch("use_nginx", false)
       info = {
         :name        => @config[:info][:name],
         :build       => @config[:info][:build],
@@ -21,6 +22,7 @@ module VCAP::CloudController
 
       if user
         info[:user] = user.guid
+        info[:stackato][:cc_nginx] = cc_nginx
       end
 
       Yajl::Encoder.encode(info)
