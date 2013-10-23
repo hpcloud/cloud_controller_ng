@@ -11,23 +11,26 @@ module VCAP::CloudController
       parameter_extraction
 
       # first user should be an admin
-      admin = request_attrs["admin"] || first_user
-
-      password = request_attrs["password"]
-      user_info = {
-        :userName => request_attrs["username"],
-        :name => {
-          :givenName => request_attrs["given_name"],
-          :familyName => request_attrs["family_name"]
-        },
-        :emails => [
-          :value => request_attrs["email"] #TODO: support multiple emails
-        ],
-        :phoneNumbers => [
-          :value => request_attrs["phone"] #TODO: support multiple phones
-        ],
-        :password => password
-      }
+      attrs = request_attrs
+      admin = attrs["admin"] || first_user
+      password = attrs["password"]
+      user_info = Hash.new {|h,k| h[k] = Hash.new(&h.default_proc)}
+      user_info[:userName] = attrs["username"] if attrs["username"]
+      user_info[:name][:givenName] = attrs["given_name"] if attrs["given_name"]
+      user_info[:name][:familyName] = attrs["family_name"] if attrs["family_name"]
+      if attrs["email"]
+        #TODO: support multiple emails
+        user_info[:emails] = [
+          :value => attrs["email"]
+        ]
+      end
+      if attrs["phone"]
+        #TODO: support multiple phones
+        user_info[:phoneNumbers] = [
+          :value => attrs["phone"]
+        ]
+      end
+      user_info[:password] = password if password
 
       logger.debug "User info to post to UAA: #{user_info.inspect}"
 
@@ -73,6 +76,10 @@ module VCAP::CloudController
       raise e
     rescue CF::UAA::TargetError => e
       # Probably a validation error coming from the target.
+      if scim_user && scim_user['id']
+        logger.debug "Attempting to roll back UAA user..."
+        scim_client.delete :user, scim_user['id']
+      end
       return 400, e.info.to_json
     rescue Sequel::ValidationFailed => e
       logger.debug "Validation failed on the local user or org-- rolling back UAA user."
@@ -135,22 +142,26 @@ module VCAP::CloudController
       end
     end
 
+    # TODO: This uses PUT to modify group membership. I don't believe this will work once
+    # groups are big enough that they are paginated. The proper way to do this would be
+    # with PATCH, but the cf-uaa-lib doesn't support patch currently and I need to move on.
     def modify_user_group_membership scim_user, group, add_or_remove=:+
       scim_group = scim_client.query( :group, 'filter' => %Q!displayName eq "#{group}"!, 'startIndex' => 1)["resources"].first
+      raise "Group not found" unless scim_group
       group_guid = scim_group["id"]
-      members = (scim_group["members"] || []).collect{|hash|hash["value"]}
+      members = scim_group["members"] || []
       case add_or_remove
       when :+
-        members << scim_user['id']
+        members << {'type' => 'USER', 'value' => scim_user['id']}
       when :-
-        members.delete scim_user['id']
+        members.delete_if{|h| h['value'] == scim_user['id']}
       else
         raise "unknown group membership modification #{add_or_remove.inspect}."
       end
       group_info = {
         "id" => group_guid,
         "schemas" => scim_group['schemas'],
-        "members" => members.uniq,
+        "members" => members.uniq{|h|h['value']},
         "meta" => scim_group['meta'],
         "displayName" => group
       }
