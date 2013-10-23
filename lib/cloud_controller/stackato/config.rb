@@ -1,8 +1,7 @@
 
 require 'kato/config'
+require 'vcap/errors'
 require 'yaml'
-
-module VCAP; end
 
 module VCAP::CloudController
   class StackatoConfig
@@ -15,7 +14,6 @@ module VCAP::CloudController
     # These are the keys that are just set directly, without any additional logic
     SIMPLE_CASE = {
       "cloud_controller_ng" => [
-        "allow_registration",
         "maintenance_mode",
         "support_address"
       ],
@@ -143,11 +141,11 @@ module VCAP::CloudController
       component_name = component_name.to_s
       can_write, writable_config = filter_permissible_values(new_config, PERMISSIONS[component_name], "W")
       unless can_write
-        raise Errors::StackatoConfigUnsupportedUpdate.new(component_name, "Submitted non-writable config.")
+        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component_name, "Submitted non-writable config.")
       end
       unsupported_keys = new_config.keys - writable_config.keys
       if unsupported_keys.size > 0
-        raise Errors::StackatoConfigUnsupportedKeys.new(unsupported_keys)
+        raise ::VCAP::Errors::StackatoConfigUnsupportedKeys.new(unsupported_keys)
       end
   
       writable_config.each do |key, value|
@@ -178,7 +176,7 @@ module VCAP::CloudController
           # Log levels taken from here
           # https://github.com/cloudfoundry/common/blob/master/vcap_logging/lib/vcap/logging.rb#L14
           unless %w{debug2 debug1 debug info warn error fatal off}.include? log_level
-            raise Errors::StackatoConfigUnsupportedUpdate.new(component, "invalid logging level")
+            raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "invalid logging level")
           end
           Kato::Config.set(component, "logging/level", log_level, { :must_exist => true })
         else
@@ -189,7 +187,7 @@ module VCAP::CloudController
 
     def _update__dea_ng__resources(component, key, resources)
       unless resources.key? 'memory_max_percent'
-        raise Errors::StackatoConfigUnsupportedUpdate.new(component, "Attempting to update #{component} resources with no valid key/value pairs!")
+        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Attempting to update #{component} resources with no valid key/value pairs!")
       end
       if resources.key? 'memory_max_percent'
         memory_max_percent = resources['memory_max_percent'].to_i
@@ -200,7 +198,7 @@ module VCAP::CloudController
   
     def _update__dea_ng__timeouts(component, key, timeouts)
       if ( !(timeouts.key? "app_startup_port_ready"))
-        raise Errors::StackatoConfigUnsupportedUpdate.new(component, "Attempting to update #{component} timeouts with no valid key/value pairs!")
+        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Attempting to update #{component} timeouts with no valid key/value pairs!")
       end
       if (timeouts.key? "app_startup_port_ready")
         app_startup_port_ready = timeouts["app_startup_port_ready"].to_i
@@ -229,17 +227,17 @@ module VCAP::CloudController
   
     def _update__harbor_node__port_range(component, key, port_range)
       if ( !(port_range.key? "min") && !(port_range.key? "max") )
-        raise Errors::StackatoConfigUnsupportedUpdate.new(component, "Attempting to update port_range with no valid key/value pairs!")
+        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Attempting to update port_range with no valid key/value pairs!")
       end
       current_min = Kato::Config.get("harbor_node", "port_range/min")
       current_max = Kato::Config.get("harbor_node", "port_range/max")
       if port_range.key? "min"
         port_range_min = port_range["min"].to_i
         if port_range_min < 1024 || port_range_min > 65535
-          raise Errors::StackatoConfigUnsupportedUpdate.new(component, "Minimum port range must be between 1024 and 65535")
+          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Minimum port range must be between 1024 and 65535")
         end
         if port_range_min > current_max
-          raise Errors::StackatoConfigUnsupportedUpdate.new(component, "Minimum port range must be an equal or lesser value than the current maximum port range of #{current_max}");
+          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Minimum port range must be an equal or lesser value than the current maximum port range of #{current_max}");
         end
         logger.info("Setting harbor_node/port_range/min to #{port_range_min}")
         Kato::Config.set("harbor_node", "port_range/min", port_range_min)
@@ -247,10 +245,10 @@ module VCAP::CloudController
       if port_range.key? "max"
         port_range_max = port_range["max"].to_i
         if port_range_max > 65535 || port_range_max < 1024
-          raise Errors::StackatoConfigUnsupportedUpdate.new(component, "Max port range must be between 1024 and 65535")
+          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Max port range must be between 1024 and 65535")
         end
         if port_range_max < current_min
-          raise Errors::StackatoConfigUnsupportedUpdate.new(component, "Maximum port range must be an equal or greater value than the current minimum port range value of #{current_min}");
+          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Maximum port range must be an equal or greater value than the current minimum port range value of #{current_min}");
         end
         logger.info("Setting harbor_node/port_range/max to #{port_range_max}")
         Kato::Config.set("harbor_node", "port_range/max", port_range_max)
@@ -261,7 +259,7 @@ module VCAP::CloudController
       if apptail.key? "max_record_size"
         max_record_size = apptail["max_record_size"].to_i
         if max_record_size <= 0
-          raise Errors::StackatoConfigUnsupportedUpdate.new(component, "max_record_size must be a (positive) number")
+          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "max_record_size must be a (positive) number")
         end
         logger.info("Setting logyard apptail/max_record_size to #{max_record_size}")
         Kato::Config.set("logyard", "apptail/max_record_size", max_record_size)
@@ -272,7 +270,7 @@ module VCAP::CloudController
       if systail.key? "max_record_size"
         max_record_size = systail["max_record_size"].to_i
         if max_record_size <= 0
-          raise Errors::StackatoConfigUnsupportedUpdate.new(component, "max_record_size must be a (positive) number")
+          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "max_record_size must be a (positive) number")
         end
         logger.info("Setting logyard systail/max_record_size to #{max_record_size}")
         Kato::Config.set("logyard", "systail/max_record_size", max_record_size)
@@ -283,7 +281,7 @@ module VCAP::CloudController
       if app_uris.key? "allow_external"
         allow_external = app_uris["allow_external"]
         if not [true, false].include? allow_external
-          raise Errors::StackatoConfigUnsupportedUpdate.new(component, "`allow_external' must be of boolean type")
+          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "`allow_external' must be of boolean type")
         end
         logger.info("Setting CC app_uris/allow_external to #{allow_external}")
         Kato::Config.set("cloud_controller_ng", "app_uris/allow_external", allow_external)
@@ -309,7 +307,7 @@ module VCAP::CloudController
       stores.each do |store|
         store.delete_if{|key, value| key != "url" && key != "enabled"}
         unless store["url"].kind_of?(String) && store["url"].size >= min_length
-          raise Errors::StackatoConfigUnsupportedUpdate.new(component, "url must be a string of size at least #{min_length}")
+          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "url must be a string of size at least #{min_length}")
         end
       end
       logger.info("Setting app_store to #{stores.inspect}")
@@ -319,7 +317,7 @@ module VCAP::CloudController
     def _update__cloud_controller_ng__admins(component, key, admins)
       _assert_array_of_strings component, admins, "admins", USERNAME_MIN_SIZE
       if admins.size == 0
-        raise Errors::StackatoConfigUnsupportedUpdate.new(component, "must have at least one admin")
+        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "must have at least one admin")
       else
         logger.info("Setting admins = #{admins}")
         existing_admins = get_component_config[:admins]
@@ -354,7 +352,7 @@ module VCAP::CloudController
         
     def _update__cloud_controller_ng__account_capacity(key, val, who)
       if not val.is_a? Hash
-        raise Errors::StackatoConfigUnsupportedUpdate.new(component, "`#{key}' should be a hash/dictionary")
+        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "`#{key}' should be a hash/dictionary")
       end
       %W{memory app_uris drains services apps}.each do |type|
         if val.key? type
@@ -377,11 +375,11 @@ module VCAP::CloudController
       if arr.is_a? Array
         arr.each do |item|
           unless (item.is_a? String and (min_length.nil? or item.size >= min_length))
-            raise Errors::StackatoConfigUnsupportedUpdate.new(component, "#{name} array must contain strings of size at least #{min_length}")
+            raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "#{name} array must contain strings of size at least #{min_length}")
           end
         end
       else
-        raise Errors::StackatoConfigUnsupportedUpdate.new(component, "`#{name}' should be of array type")
+        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "`#{name}' should be of array type")
       end
     end
   

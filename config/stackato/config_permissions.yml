@@ -23,6 +23,8 @@ processes:
       token: RW
       token_expiration: RW
     quota_definitions: RW
+    staging:
+      max_staging_runtime: R
 
   avahi_announcer:
     logging: RW
