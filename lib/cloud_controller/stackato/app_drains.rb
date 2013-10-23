@@ -169,7 +169,7 @@ module VCAP::CloudController
     def self.user_uri(drain_name, uri_string)
       uri = URI.parse(uri_string)
       format = CGI::parse(uri.query)["format"][0]
-      json = (format == "json")
+      json = format.nil? or format == "json"
       uri.query = ''  # remove ?filter= and ?format=
       newuri = uri.to_s.gsub /\?$/, ""
       newname = drain_name.to_s.gsub /^appdrain\.\d+\./, ""
