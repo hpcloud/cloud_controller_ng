@@ -1,0 +1,7 @@
+# Installed by package stackato-vcap-vcap-services.
+---
+name: rabbit_node
+config_origin: /s/vcap/services/rabbit/config/rabbit_node.yml
+doozer_ephemeral: true
+roles:
+  - rabbit

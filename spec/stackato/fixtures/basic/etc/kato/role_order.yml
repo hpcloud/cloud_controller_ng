@@ -1,0 +1,53 @@
+---
+# Standard roles in Stackato.
+# Order defines the order in which roles will be started.
+
+# All nodes will run this role
+base:
+    mandatory: true
+
+mdns:
+
+primary:
+    min_per_cluster: 1
+    max_per_cluster: 1
+
+controller:
+    min_per_cluster: 1
+
+router:
+    min_per_cluster: 1
+
+dea:
+    min_per_cluster: 1
+
+#postgresql:
+#    max_per_cluster: 1
+
+#mysql:
+#    max_per_cluster: 1
+
+#rabbit:
+#    max_per_cluster: 1
+
+#rabbit3:
+#    max_per_cluster: 1
+
+#mongodb:
+#    max_per_cluster: 1
+
+#redis:
+#    max_per_cluster: 1
+
+#filesystem:
+#    max_per_cluster: 1
+
+#harbor:
+#    max_per_cluster: 1
+
+#memcached:
+#    max_per_cluster: 1
+
+#load_balancer:
+#    max_per_cluster: 1
+#    exclude_from_add_all: true

@@ -1,0 +1,97 @@
+---
+processes:
+  # Order defines the order in which the processes *within an
+  # individual role* will start (reverse order will be used for
+  # stopping).
+  -
+    name: doozerd
+  -
+    name: systail
+  -
+    name: cloud_events
+  -
+    name: postgresql
+  -
+    name: avahi_daemon
+  -
+    name: avahi_publisher
+  -
+    name: nginx_load_balancer
+  -
+    name: nats_server
+  -
+    name: redis_server
+  -
+    name: app_mdns
+  -
+    name: applog_redis
+  -
+    name: logyard
+  -
+    name: aok
+  -
+    name: apptail
+  -
+    name: app_store
+  -
+    name: cloud_controller_ng
+  -
+    name: cc_nginx
+  -
+    name: stackato_rest
+  -
+    name: health_manager
+  -
+    name: fence
+  -
+    name: warden
+  -
+    name: dea_ng
+  -
+    name: uaa
+  -
+    name: mysql
+  -
+    name: filesystem_node
+  -
+    name: filesystem_gateway
+  -
+    name: harbor_node
+  -
+    name: harbor_gateway
+  -
+    name: harbor_proxy_connector
+  -
+    name: harbor_redis
+  -
+    name: memcached_node
+  -
+    name: memcached_gateway
+  -
+    name: mongodb_node
+  -
+    name: mongodb_gateway
+  -
+    name: mysql_node
+  -
+    name: mysql_gateway
+  -
+    name: postgresql_node
+  -
+    name: postgresql_gateway
+  -
+    name: rabbit_node
+  -
+    name: rabbit_gateway
+  -
+    name: rabbit3_node
+  -
+    name: rabbit3_gateway
+  -
+    name: redis_node
+  -
+    name: redis_gateway
+  -
+    name: gorouter
+  -
+    name: router2g

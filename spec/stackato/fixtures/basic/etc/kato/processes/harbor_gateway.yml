@@ -1,0 +1,7 @@
+# Installed by package stackato-harbor.
+---
+name: harbor_gateway
+config_origin: /s/vcap/services/harbor/config/harbor_gateway.yml
+doozer_ephemeral: true
+roles:
+  - harbor

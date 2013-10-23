@@ -2,6 +2,8 @@
 require 'kato/config'
 require 'yaml'
 
+module VCAP; end
+
 module VCAP::CloudController
   class StackatoConfig
   

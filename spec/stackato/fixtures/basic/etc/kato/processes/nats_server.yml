@@ -1,0 +1,5 @@
+# Defined by stackato.git.
+---
+name: nats_server
+roles:
+  - primary

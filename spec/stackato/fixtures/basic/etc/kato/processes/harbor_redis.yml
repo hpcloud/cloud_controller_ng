@@ -1,0 +1,5 @@
+# Installed by package stackato-harbor.
+---
+name: harbor_redis
+roles:
+  - harbor

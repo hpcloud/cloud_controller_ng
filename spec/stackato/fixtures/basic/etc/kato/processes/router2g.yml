@@ -1,0 +1,7 @@
+# Installed by package stackato-router.
+---
+name: router2g
+config_origin: /s/vcap/stackato-router/config/router.yml
+doozer_ephemeral: true
+roles:
+  - router

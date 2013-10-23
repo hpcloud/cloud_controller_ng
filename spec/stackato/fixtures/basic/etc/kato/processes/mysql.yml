@@ -1,0 +1,6 @@
+# Installed by package stackato-vcap-vcap-services.
+---
+name: mysql
+listen_port: 3306
+roles:
+  - mysql

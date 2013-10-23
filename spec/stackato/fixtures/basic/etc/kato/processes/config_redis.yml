@@ -1,0 +1,5 @@
+# Installed by package confdis-redis
+---
+name: config_redis
+roles:
+  - primary

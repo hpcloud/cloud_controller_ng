@@ -1,0 +1,21 @@
+---
+
+"data-services":
+    - mysql
+    - postgresql
+    - redis
+    - mongodb
+    - rabbit
+    - memcached
+    - filesystem
+
+"microcloud":
+    - base
+    - primary
+    - controller
+    - router
+    - dea
+    - filesystem
+    - mysql
+    - postgresql
+

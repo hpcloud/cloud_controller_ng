@@ -1,0 +1,6 @@
+# Installed by package stackato-vcap-dea.
+---
+name: dea_ng
+config_origin: /s/code/dea_ng/config/dea.yml
+roles:
+  - dea

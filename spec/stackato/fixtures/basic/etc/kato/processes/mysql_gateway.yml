@@ -1,0 +1,7 @@
+# Installed by package stackato-vcap-vcap-services.
+---
+name: mysql_gateway
+config_origin: /s/vcap/services/mysql/config/mysql_gateway.yml
+doozer_ephemeral: true
+roles:
+  - mysql

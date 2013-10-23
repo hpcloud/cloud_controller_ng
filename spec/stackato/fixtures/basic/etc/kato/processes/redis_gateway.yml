@@ -1,0 +1,7 @@
+# Installed by package stackato-vcap-vcap-services.
+---
+name: redis_gateway
+config_origin: /s/vcap/services/redis/config/redis_gateway.yml
+doozer_ephemeral: true
+roles:
+  - redis

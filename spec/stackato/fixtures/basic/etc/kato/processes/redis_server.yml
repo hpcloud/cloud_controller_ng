@@ -1,0 +1,9 @@
+# Installed by package stackato-vcap-vcap-services.
+---
+name: redis_server
+roles:
+  - redis
+  - primary
+  - postgresql
+  - mysql
+  - mongodb

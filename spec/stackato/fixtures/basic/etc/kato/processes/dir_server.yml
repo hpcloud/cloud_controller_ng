@@ -1,0 +1,4 @@
+---
+name: dir_server
+roles:
+  - dea

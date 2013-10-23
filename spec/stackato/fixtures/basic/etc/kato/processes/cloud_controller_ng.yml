@@ -1,0 +1,5 @@
+---
+name: cloud_controller_ng
+config_origin: /s/code/cloud_controller_ng/config/cloud_controller.yml
+roles:
+  - controller

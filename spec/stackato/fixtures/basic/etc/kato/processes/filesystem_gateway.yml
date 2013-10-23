@@ -1,0 +1,7 @@
+# Installed by package stackato-vcap-vcap-services.
+---
+name: filesystem_gateway
+config_origin: /s/vcap/services/filesystem/config/filesystem_gateway.yml
+doozer_ephemeral: true
+roles:
+  - filesystem

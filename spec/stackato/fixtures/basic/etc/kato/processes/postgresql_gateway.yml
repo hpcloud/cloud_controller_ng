@@ -1,0 +1,7 @@
+# Installed by package stackato-vcap-vcap-services.
+---
+name: postgresql_gateway
+config_origin: /s/vcap/services/postgresql/config/postgresql_gateway.yml
+doozer_ephemeral: true
+roles:
+  - postgresql

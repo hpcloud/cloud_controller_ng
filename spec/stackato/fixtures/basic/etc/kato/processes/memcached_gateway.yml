@@ -1,0 +1,7 @@
+# Installed by package stackato-vcap-vcap-services.
+---
+name: memcached_gateway
+config_origin: /s/vcap/services/memcached/config/memcached_gateway.yml
+doozer_ephemeral: true
+roles:
+  - memcached

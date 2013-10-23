@@ -1,0 +1,5 @@
+# Defined by stackato.git.
+---
+name: nginx_load_balancer
+roles:
+  - load_balancer

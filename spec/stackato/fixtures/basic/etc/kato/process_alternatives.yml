@@ -1,0 +1,14 @@
+---
+
+# These processes can be replaced by alternative
+# processes, but should not run at the same time.
+
+# Retired example usage:
+#
+#legacy_router:
+#    replace:
+#        - router2g
+#    with:
+#        - router_legacy
+#        - nginx
+
