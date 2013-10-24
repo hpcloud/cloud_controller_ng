@@ -1,0 +1,10 @@
+
+[program:cc_nginx]
+command=/usr/sbin/nginx -c /s/code/cloud_controller/config/nginx/cc_nginx.conf
+user=stackato
+priority=1
+redirect_stderr=true
+stdout_logfile=/s/logs/cc_nginx.log
+stdout_logfile_maxbytes=1MB
+stdout_logfile_backups=3
+autostart=false
