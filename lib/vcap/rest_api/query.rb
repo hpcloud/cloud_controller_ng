@@ -9,8 +9,6 @@ module VCAP::RestAPI
   # about the model.  We also want to query against a potentially already
   # filtered dataset.  Since datasets aren't bound to a particular model,
   # we need to pass both pieces of infomration.
-  #
-  # TODO: * at the end of strings
   class Query
 
     # Create a new Query.
@@ -91,7 +89,11 @@ module VCAP::RestAPI
     end
 
     def query_filter(key, comparison, val)
-      case column_type(key)
+
+      glob = false
+      col_type = column_type(key)
+
+      case col_type
       when :foreign_key
         return clean_up_foreign_key(key, val)
       when :integer
@@ -100,6 +102,8 @@ module VCAP::RestAPI
         val = clean_up_boolean(key, val)
       when :datetime
         val = clean_up_datetime(val)
+      when :citext
+        val, glob = clean_up_string(val)
       end
 
       if comparison == " IN "
@@ -108,9 +112,23 @@ module VCAP::RestAPI
 
       if val.nil?
         { key => nil }
+      elsif col_type == :citext && glob
+        ["#{key} LIKE ?", val]
       else
         ["#{key} #{comparison} ?", val]
       end
+    end
+
+    def clean_up_string(q_val)
+
+      glob = false
+
+      if q_val.match /#{Regexp.escape('*')}$/
+        q_val = q_val.gsub(/\*$/, '%')
+        glob = true
+      end
+
+      return q_val, glob
     end
 
     def clean_up_foreign_key(q_key, q_val)
@@ -162,7 +180,11 @@ module VCAP::RestAPI
     def column_type(query_key)
       return :foreign_key if query_key =~ /(.*)_(gu)?id$/
       column = model.db_schema[query_key.to_sym]
-      column && column[:type]
+      if column
+        column[:type] || column[:db_type].to_sym
+      else
+        nil
+      end
     end
 
     attr_accessor :model, :access_filter, :queryable_attributes, :query
