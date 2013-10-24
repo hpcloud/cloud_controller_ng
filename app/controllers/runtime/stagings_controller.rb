@@ -217,10 +217,10 @@ module VCAP::CloudController
 
       if config[:nginx][:use_nginx]
         url = AppPackage.package_uri(guid)
-        logger.debug "nginx redirect #{url}"
+        logger.debug "nginx app download redirect #{url} #{package_path}"
         [200, { "X-Accel-Redirect" => url }, ""]
       else
-        logger.debug "send_file #{package_path}"
+        logger.debug "send_file #{package_path} #{url}"
         send_file package_path
       end
     end
@@ -272,10 +272,10 @@ module VCAP::CloudController
       end
 
       if config[:nginx][:use_nginx]
-        logger.debug "nginx redirect #{url}"
+        logger.debug "nginx droplet download redirect #{url} #{droplet_path}"
         [200, { "X-Accel-Redirect" => url }, ""]
       else
-        logger.debug "send_file #{droplet_path}"
+        logger.debug "send_file #{droplet_path} #{url}"
         send_file droplet_path
       end
     end

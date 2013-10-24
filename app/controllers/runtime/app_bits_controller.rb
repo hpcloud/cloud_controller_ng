@@ -70,6 +70,7 @@ module VCAP::CloudController
     end
 
     put "#{path_guid}/bits", :upload
+    post "#{path_guid}/bits", :upload
     get "#{path_guid}/download", :download
   end
 end
