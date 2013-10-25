@@ -1,5 +1,3 @@
-require "uaa/misc"
-
 module VCAP
   class UaaTokenDecoder
     attr_reader :config

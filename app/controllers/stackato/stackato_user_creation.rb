@@ -149,12 +149,12 @@ module VCAP::CloudController
       scim_group = scim_client.query( :group, 'filter' => %Q!displayName eq "#{group}"!, 'startIndex' => 1)["resources"].first
       raise "Group not found" unless scim_group
       group_guid = scim_group["id"]
-      members = scim_group["members"] || []
+      members = [{'type' => 'USER', 'value' => scim_user['id']}]
       case add_or_remove
       when :+
-        members << {'type' => 'USER', 'value' => scim_user['id']}
+        # nothing to do
       when :-
-        members.delete_if{|h| h['value'] == scim_user['id']}
+        members.first['operation'] = 'delete'
       else
         raise "unknown group membership modification #{add_or_remove.inspect}."
       end
@@ -163,10 +163,9 @@ module VCAP::CloudController
         "schemas" => scim_group['schemas'],
         "members" => members.uniq{|h|h['value']},
         "meta" => scim_group['meta'],
-        "displayName" => group
       }
       logger.debug "updated group info to put: #{group_info.inspect}"
-      scim_client.put :group, group_info
+      scim_client.patch :group, group_info
     end
 
     def add_user_to_group scim_user, group
