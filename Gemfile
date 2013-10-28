@@ -12,6 +12,8 @@ gem "sinatra", "~> 1.4"
 gem "sinatra-contrib"
 gem "yajl-ruby"
 gem "membrane", "~> 0.0.2"
+gem 'errand', '0.7.3'
+gem 'librrd', '1.0.3'
 gem "httpclient"
 gem "steno"
 gem "cloudfront-signer"
