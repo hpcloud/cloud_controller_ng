@@ -290,6 +290,7 @@ module VCAP::CloudController
             :disk => app.disk_quota,
             :fds => app.file_descriptors
           },
+          :allowed_repos => config[:allowed_repos],
           :cc_partition => config[:cc_partition],
           :env => (app.environment_json || {}).map {|k,v| "#{k}=#{v}"},
           :console => app.console,

@@ -139,3 +139,7 @@ app_store:
       content_url: http://get.stackato.com/store/2.90/third-party-apps.yaml
       enabled: true
 
+allowed_repos:
+  - "deb mirror://mirrors.ubuntu.com/mirrors.txt precise main restricted universe multiverse"
+  - "deb mirror://mirrors.ubuntu.com/mirrors.txt precise-updates main restricted universe multiverse"
+  - "deb http://security.ubuntu.com/ubuntu precise-security main universe"
