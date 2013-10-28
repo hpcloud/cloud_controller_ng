@@ -215,3 +215,8 @@
   name: StackatoRequiredParametersMissing
   http_code: 400
   message: "Must supply all required parameters: %s"
+
+143:
+  name: StackatoCreateReportFailed
+  http_code: 400
+  message: "Failed to create report: %s"
