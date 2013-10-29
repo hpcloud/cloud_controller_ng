@@ -3,3 +3,4 @@ name: postgresql
 listen_port: 5432
 roles:
   - primary
+  - postgresql
