@@ -82,6 +82,7 @@ module VCAP::CloudController
     # We never stage if there is not a start request
     def staging_request
       { :app_id => @app.guid,
+        :space_guid => @app.space_guid,
         :task_id => task_id,
         :properties => staging_task_properties(@app),
         :download_uri => StagingsController.app_uri(@app),
