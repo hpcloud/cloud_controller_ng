@@ -66,7 +66,7 @@ module VCAP::CloudController
 
     def self.get_app_stats(app)
 
-      logger.debug2("Getting droplet stats for app #{app.guid}")
+      logger.debug2("Getting droplet stats for app.guid:#{app.guid}")
 
       droplet_id = app.guid
 
@@ -76,7 +76,7 @@ module VCAP::CloudController
       instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
 
       instance_ids.each do |instance_id|
-        logger.debug2("Getting droplet #{droplet_id} stats for instance #{instance_id}")
+        logger.debug2("Getting droplet instance stats for droplet_id:#{droplet_id} instance_id:#{instance_id}")
 
         keyname = "droplet:#{droplet_id}:instance:#{instance_id}"
         index = redis { |r| r.hget(keyname, "index") }
@@ -123,8 +123,10 @@ module VCAP::CloudController
     end
 
     def self.housekeeping
+      logger.debug2 "Housekeeping iteration..."
       deas = redis { |r| r.smembers "deas" }
       deas.each do |dea|
+        logger.debug2 "Housekeeping for dea:#{dea}"
         dea_exists = redis { |r| r.exists("dea:#{dea}") } == 1
         unless dea_exists
           redis { |r| r.srem("deas", dea) }
@@ -134,6 +136,7 @@ module VCAP::CloudController
       droplet_ids = redis { |r| r.smembers("droplets") }
       droplet_ids.each do |droplet_id|
         instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
+        logger.debug2 "Housekeeping for droplet droplet_id:#{droplet_id} instance_ids:#{instance_ids}"
         if ((instance_ids.is_a? Array) && (instance_ids.count > 0))
           instance_ids.each do |instance_id|
             droplet_exists = redis { |r| r.exists("droplet:#{droplet_id}:instance:#{instance_id}") } == 1
@@ -149,56 +152,52 @@ module VCAP::CloudController
     end
 
     def self.update_stats_for_all_droplets
+      logger.debug2 "Stats update iteration..."
       droplets = redis { |r| r.smembers("droplets") }
       droplets.each do |droplet_id|
-        update_stats(droplet_id)
+        update_stats_for_droplet(droplet_id)
       end
     end
 
-    def self.update_stats(droplet_id)
-
+    def self.update_stats_for_droplet(droplet_id)
+      logger.debug2 "Stats update for droplet droplet_id:#{droplet_id}"
       request = {
         :droplet => droplet_id.to_i,
         :include_stats => true
       }
-
-      logger.debug2 "Updating stats for app #{droplet_id}"
       instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
-
-      logger.debug2 "Testing #{instance_ids.count} instances"
-
+      logger.debug2 "Stats update for droplet droplet_id:#{droplet_id} instances=#{instance_ids}"
       instance_ids.each do |instance_id|
+        logger.debug2 "Stats update for droplet instance droplet_id:#{droplet_id} instance_id:#{instance_id}"
         instance_request = {
           :instances => [instance_id]
         }
         instance_request.merge(request)
+        logger.debug2 "Request dea.find.droplet for droplet_id:#{droplet_id} instance_id:#{instance_id} request:#{request}"
         sid = message_bus.request("dea.find.droplet", Yajl::Encoder.encode(instance_request) ) do |instance_json, error|
-          instance = Yajl::Parser.parse(instance_json).with_indifferent_access
-          logger.debug2 "About to process an instance"
-          process_instance(instance)
+          logger.debug2 "Response dea.find.droplet for droplet_id:#{droplet_id} instance_id:#{instance_id} instance:#{instance_json} error:#{error}"
+          droplet_instance = Yajl::Parser.parse(instance_json).with_indifferent_access
+          update_stats_for_droplet_instance(droplet_instance)
         end
-
         # timeout this request in 30 secs
         message_bus.timeout(sid, 30) {}
-
       end
     end
 
     def self.subscribe_to_dea_heartbeats
       message_bus.subscribe('dea.heartbeat') do |response, error|
-
         begin
           handle_dea_heartbeat(response)
         rescue => e
           logger.error("Failed processing dea heartbeat: '#{msg}'")
           logger.error(e)
         end
-
       end
       message_bus.publish('dea.locate')
     end
 
     def self.handle_dea_heartbeat(msg)
+      logger.debug2("DEA heartbeat received")
 
       dea = msg["dea"]
       droplets = msg["droplets"]
@@ -208,16 +207,18 @@ module VCAP::CloudController
 
       unless dea_exists
         # DEAs announce yourselves!
-        message_bus.request("dea.status", "{}") do |response, error|
-          logger.debug2("Got a reply to dea.status : #{response}")
+        request = "{}"
+        logger.debug2("DEA heartbeat. dea.status request:#{request}")
+        message_bus.request("dea.status", request) do |response, error|
+          logger.debug2("DEA heartbeat. dea.status response:#{response}")
           handle_dea_status(response)
         end
       end
 
-      logger.debug2("Processing #{droplets.size} droplets...")
+      logger.debug2("DEA heartbeat. Processing #{droplets.size} droplets...")
       droplets.each do |drop|
-        logger.debug2("Processing droplet : #{drop}")
         droplet_id = drop["droplet"]
+        logger.debug2("DEA heartbeat. Processing droplet droplet_id:#{droplet_id} drop:#{drop}")
         instance_id = drop["instance"]
 
         next unless droplet_id.to_s.match(/^[\da-z\-]+$/)
@@ -247,13 +248,13 @@ module VCAP::CloudController
       redis { |r| r.expire("dea:#{msg["id"]}", STATS_UPDATES_EXPIRY) }
     end
 
-    def self.process_instance(instance)
+    def self.update_stats_for_droplet_instance(droplet_instance)
 
-      logger.debug2 "Processing individual instance #{instance.inspect}"
+      logger.debug2 "Processing droplet instance #{instance.inspect}"
 
-      droplet_id = instance["droplet"]
-      instance_id = instance["instance"]
-      stats = instance["stats"]
+      droplet_id = droplet_instance["droplet"]
+      instance_id = droplet_instance["instance"]
+      stats = droplet_instance["stats"]
 
       return unless stats
 
