@@ -65,15 +65,20 @@ module VCAP::CloudController
     end
 
     def self.get_app_stats(app)
+
+      logger.debug2("Getting droplet stats for app #{app.guid}")
+
+      droplet_id = app.guid
+
       indices = {}
       return indices if (app.nil? || !app.started?)
 
-      droplet = app.id
+      instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
 
-      instances = redis { |r| r.smembers("droplet:#{droplet}:instances") }
+      instance_ids.each do |instance_id|
+        logger.debug2("Getting droplet #{droplet_id} stats for instance #{instance_id}")
 
-      instances.each do |instance|
-        keyname = "droplet:#{droplet}:instance:#{instance}"
+        keyname = "droplet:#{droplet_id}:instance:#{instance_id}"
         index = redis { |r| r.hget(keyname, "index") }
 
         next unless index
@@ -88,18 +93,18 @@ module VCAP::CloudController
           stats = Yajl::Parser.parse(stats_ar[4])
 
           stats.merge!(
-            :uptime => stats_ar[0],
-            :usage  => {
-              :disk => stats_ar[1],
-              :mem  => stats_ar[2],
-              :cpu  => stats_ar[3],
-              :time => Time.now.to_s,
+            "uptime" => stats_ar[0],
+            "usage"  => {
+              "disk" => stats_ar[1],
+              "mem"  => stats_ar[2],
+              "cpu"  => stats_ar[3],
+              "time" => Time.now.to_s,
             }
           )
 
           indices[index] = {
-            :state => redis { |r| r.hget(keyname, "state") },
-            :stats => stats,
+            "state" => redis { |r| r.hget(keyname, "state") },
+            "stats" => stats,
           }
         end
       end
@@ -108,8 +113,8 @@ module VCAP::CloudController
         index_entry = indices[index]
         unless index_entry
           indices[index] = {
-            :state => :DOWN,
-            :since => Time.now.to_i
+            "state" => "DOWN",
+            "since" => Time.now.to_i
           }
         end
       end
@@ -126,19 +131,19 @@ module VCAP::CloudController
         end
       end
 
-      droplets = redis { |r| r.smembers("droplets") }
-      droplets.each do |droplet|
-        instances = redis { |r| r.smembers("droplet:#{droplet}:instances") }
-        if ((instances.is_a? Array) && (instances.count > 0))
-          instances.each do |instance|
-            droplet_exists = redis { |r| r.exists("droplet:#{droplet}:instance:#{instance}") } == 1
+      droplet_ids = redis { |r| r.smembers("droplets") }
+      droplet_ids.each do |droplet_id|
+        instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
+        if ((instance_ids.is_a? Array) && (instance_ids.count > 0))
+          instance_ids.each do |instance_id|
+            droplet_exists = redis { |r| r.exists("droplet:#{droplet_id}:instance:#{instance_id}") } == 1
             unless droplet_exists
-              redis { |r| r.srem("droplet:#{droplet}:instances", instance) }
+              redis { |r| r.srem("droplet:#{droplet_id}:instances", instance_id) }
             end
           end
         else
-          redis { |r| r.del("droplet:#{droplet}:instances") }
-          redis { |r| r.srem("droplets", droplet) }
+          redis { |r| r.del("droplet:#{droplet_id}:instances") }
+          redis { |r| r.srem("droplets", droplet_id) }
         end
       end
     end
@@ -157,12 +162,12 @@ module VCAP::CloudController
         :include_stats => true
       }
 
-      logger.debug2 "Updating stats for droplet #{droplet_id}"
-      instances = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
+      logger.debug2 "Updating stats for app #{droplet_id}"
+      instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
 
-      logger.debug2 "Testing #{instances.count} instances"
+      logger.debug2 "Testing #{instance_ids.count} instances"
 
-      instances.each do |instance_id|
+      instance_ids.each do |instance_id|
         instance_request = {
           :instances => [instance_id]
         }
@@ -209,19 +214,23 @@ module VCAP::CloudController
         end
       end
 
+      logger.debug2("Processing #{droplets.size} droplets...")
       droplets.each do |drop|
-        id = drop["droplet"]
-        instance = drop["instance"]
+        logger.debug2("Processing droplet : #{drop}")
+        droplet_id = drop["droplet"]
+        instance_id = drop["instance"]
 
-        next unless id.to_s.match(/^\d+$/)
+        next unless droplet_id.to_s.match(/^[\da-z\-]+$/)
 
-        redis { |r| r.sadd("droplets", id) }
-        redis { |r| r.sadd("droplet:#{id}:instances", instance) }
-        redis { |r| r.hmset("droplet:#{id}:instance:#{instance}",
-          "state", drop["state"], "index", drop["index"],
-          "dea", dea, "version",drop["version"])
+        redis { |r| r.sadd("droplets", droplet_id) }
+        redis { |r| r.sadd("droplet:#{droplet_id}:instances", instance_id) }
+        redis { |r| r.hmset("droplet:#{droplet_id}:instance:#{instance_id}",
+          "state",   drop["state"],
+          "index",   drop["index"],
+          "dea",     dea,
+          "version", drop["version"])
         }
-        redis { |r| r.expire("droplet:#{id}:instance:#{instance}",
+        redis { |r| r.expire("droplet:#{droplet_id}:instance:#{instance_id}",
           STATS_UPDATES_EXPIRY)
         }
       end
@@ -242,8 +251,8 @@ module VCAP::CloudController
 
       logger.debug2 "Processing individual instance #{instance.inspect}"
 
-      droplet = instance["droplet"]
-      id = instance["instance"]
+      droplet_id = instance["droplet"]
+      instance_id = instance["instance"]
       stats = instance["stats"]
 
       return unless stats
@@ -254,7 +263,7 @@ module VCAP::CloudController
       return unless usage
 
       redis { |r| r.hmset(
-          "droplet:#{droplet}:instance:#{id}", 
+          "droplet:#{droplet_id}:instance:#{instance_id}",
           "stats",  Yajl::Encoder.encode(stats),
           "uptime", uptime,
           "mem",    usage["mem"],
@@ -263,7 +272,7 @@ module VCAP::CloudController
         )
       }
       redis { |r| r.expire(
-          "droplet:#{droplet}:instance:#{id}",
+          "droplet:#{droplet_id}:instance:#{instance_id}",
           STATS_UPDATES_EXPIRY
         )
       }
