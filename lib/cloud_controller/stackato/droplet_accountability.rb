@@ -162,7 +162,7 @@ module VCAP::CloudController
     def self.update_stats_for_droplet(droplet_id)
       logger.debug2 "Stats update for droplet droplet_id:#{droplet_id}"
       request = {
-        :droplet => droplet_id.to_i,
+        :droplet => droplet_id,
         :include_stats => true
       }
       instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
