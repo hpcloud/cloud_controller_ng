@@ -127,7 +127,7 @@ module VCAP::CloudController
       deas = redis { |r| r.smembers "deas" }
       deas.each do |dea|
         logger.debug2 "Housekeeping for dea:#{dea}"
-        dea_exists = redis { |r| r.exists("dea:#{dea}") } == 1
+        dea_exists = redis { |r| r.exists("dea:#{dea}") }
         unless dea_exists
           redis { |r| r.srem("deas", dea) }
         end
@@ -139,7 +139,7 @@ module VCAP::CloudController
         logger.debug2 "Housekeeping for droplet droplet_id:#{droplet_id} instance_ids:#{instance_ids}"
         if ((instance_ids.is_a? Array) && (instance_ids.count > 0))
           instance_ids.each do |instance_id|
-            droplet_exists = redis { |r| r.exists("droplet:#{droplet_id}:instance:#{instance_id}") } == 1
+            droplet_exists = redis { |r| r.exists("droplet:#{droplet_id}:instance:#{instance_id}") }
             unless droplet_exists
               redis { |r| r.srem("droplet:#{droplet_id}:instances", instance_id) }
             end
@@ -203,7 +203,7 @@ module VCAP::CloudController
       droplets = msg["droplets"]
 
       # make sure we know about this DEA already
-      dea_exists = redis { |r| r.exists("dea:#{dea}") } == 1
+      dea_exists = redis { |r| r.exists("dea:#{dea}") }
 
       unless dea_exists
         # DEAs announce yourselves!
