@@ -1,6 +1,6 @@
 
 [program:postgresql]
-command=sudo /usr/local/bin/stackato-start-service postgresql
+command=sudo /usr/bin/stackato-start-service postgresql
 priority=1
 redirect_stderr=true
 stdout_logfile=/s/logs/postgresql.log
