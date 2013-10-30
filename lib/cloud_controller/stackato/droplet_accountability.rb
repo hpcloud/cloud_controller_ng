@@ -44,8 +44,8 @@ module VCAP::CloudController
       logger.info("Droplet accountability stats updater starting")
       @@stats_updater_thread = Thread.new do
         while true
-          update_stats_for_all_droplets
           sleep STATS_UPDATER_SLEEP
+          update_stats_for_all_droplets
         end
       end
     end
@@ -58,8 +58,8 @@ module VCAP::CloudController
       logger.info("Droplet accountability housekeeping starting")
       @@housekeeping_thread = Thread.new do
         while true
-          housekeeping
           sleep HOUSEKEEPING_SLEEP
+          housekeeping
         end
       end
     end
