@@ -210,3 +210,8 @@
   name: StackatoAppStoreValidEnabledRequired
   http_code: 400
   message: "'enabled' is not given or is invalid."
+
+142:
+  name: StackatoRequiredParametersMissing
+  http_code: 400
+  message: "Must supply all required parameters: %s"
