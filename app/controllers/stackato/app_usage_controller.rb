@@ -22,7 +22,7 @@ module VCAP::CloudController
       instances = StackatoDropletAccountability.get_app_stats(app)
       instances.each do |index, instance|
         next unless instance["stats"] && instance["stats"]["usage"] && instance["stats"]["usage"]["mem"]
-        stats_total["mem"] += instance["stats"]["usage"]["mem"].to_f
+        stats_total[:mem] += instance["stats"]["usage"]["mem"].to_f
       end
 
       Yajl::Encoder.encode({

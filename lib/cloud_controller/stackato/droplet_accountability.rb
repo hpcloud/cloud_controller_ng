@@ -243,7 +243,7 @@ module VCAP::CloudController
 
     def self.update_stats_for_droplet_instance(droplet_instance)
 
-      logger.debug2 "Processing droplet instance #{instance.inspect}"
+      logger.debug2 "Processing droplet instance #{droplet_instance.inspect}"
 
       droplet_id = droplet_instance["droplet"]
       instance_id = droplet_instance["instance"]
