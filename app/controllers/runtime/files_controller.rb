@@ -7,10 +7,10 @@ module VCAP::CloudController
     path_base "apps"
     model_class_name :App
 
-    def files(guid, search_param, path = nil, opts = {})
-      opts = { :allow_redirect => true }.merge(opts)
-      app = find_guid_and_validate_access(:read, guid)
+    def files(guid, search_param, path = nil)
 
+      opts = { "allow_redirect" => true }.merge(params)
+      app = find_guid_and_validate_access(:read, guid)
       info = get_file_uri_for_search_param(app, path, search_param)
 
       headers = {}
@@ -21,24 +21,12 @@ module VCAP::CloudController
       http_response = nil
       # new VMC and new DEA, let's hand out the directory server url.
       # We sadly still have to serve the files through CC otherwise
-      if info.file_uri_v2 && opts[:allow_redirect]
+      if info.file_uri_v2 && opts["allow_redirect"] == true
         uri = info.file_uri_v2
         uri = add_tail(uri) if params.include?("tail")
         return [HTTP::FOUND, {"Location" => uri}, nil]
       else
-        # We either have an old VMC that doesn't know the tail capability, or
-        # that we're serving a file from an old DEA that isn't capable of tail
-        # queries
-        if config[:nginx][:use_nginx]
-          basic_auth = {
-            "X-Auth" => "Basic #{[info.credentials.join(":")].pack("m0")}",
-          }
-          # use the v1 dir server to avoid resolving domain names in nginx
-          x_accel = {"X-Accel-Redirect" => "/internal_redirect/#{info.file_uri_v1}"}
-          return [200, x_accel.merge(basic_auth), ""]
-        end
-
-        http_response = http_get(info.file_uri_v1, headers, info.credentials[0], info.credentials[1])
+        http_response = http_get(info.file_uri_v2, headers, nil, nil)
       end
 
       unless [200, 206, 416].include? http_response.status
