@@ -160,27 +160,20 @@ module VCAP::CloudController
     end
 
     def self.update_stats_for_droplet(droplet_id)
-      logger.debug2 "Stats update for droplet droplet_id:#{droplet_id}"
-      request = {
-        :droplet => droplet_id,
-        :include_stats => true
-      }
       instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
       logger.debug2 "Stats update for droplet droplet_id:#{droplet_id} instances=#{instance_ids}"
       instance_ids.each do |instance_id|
-        logger.debug2 "Stats update for droplet instance droplet_id:#{droplet_id} instance_id:#{instance_id}"
-        instance_request = {
-          :instances => [instance_id]
+        request = {
+          :droplet => droplet_id,
+          :instances => [instance_id],
+          :include_stats => true
         }
-        instance_request.merge(request)
         logger.debug2 "Request dea.find.droplet for droplet_id:#{droplet_id} instance_id:#{instance_id} request:#{request}"
-        sid = message_bus.request("dea.find.droplet", Yajl::Encoder.encode(instance_request) ) do |instance_json, error|
-          logger.debug2 "Response dea.find.droplet for droplet_id:#{droplet_id} instance_id:#{instance_id} instance:#{instance_json} error:#{error}"
-          droplet_instance = Yajl::Parser.parse(instance_json).with_indifferent_access
+        # timeout this request in 30 secs
+        message_bus.request("dea.find.droplet", request, :timeout => 30) do |droplet_instance|
+          logger.debug2 "Response dea.find.droplet for droplet_id:#{droplet_id} instance_id:#{instance_id} instance:#{droplet_instance}"
           update_stats_for_droplet_instance(droplet_instance)
         end
-        # timeout this request in 30 secs
-        message_bus.timeout(sid, 30) {}
       end
     end
 
@@ -207,9 +200,9 @@ module VCAP::CloudController
 
       unless dea_exists
         # DEAs announce yourselves!
-        request = "{}"
-        logger.debug2("DEA heartbeat. dea.status request:#{request}")
-        message_bus.request("dea.status", request) do |response, error|
+        logger.debug2("DEA heartbeat. dea.status")
+        # timeout this request in 30 secs
+        message_bus.request("dea.status", nil, :timeout => 30) do |response|
           logger.debug2("DEA heartbeat. dea.status response:#{response}")
           handle_dea_status(response)
         end
