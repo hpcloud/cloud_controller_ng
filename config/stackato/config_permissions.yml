@@ -84,6 +84,15 @@ processes:
     capacity: RW
     max_memory: RW
 
+  rabbit3_gateway:
+    logging: RW
+    allow_over_provisioning: RW
+
+  rabbit3_node:
+    logging: RW
+    capacity: RW
+    max_memory: RW
+
   redis_gateway:
     logging: RW
     allow_over_provisioning: RW

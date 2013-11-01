@@ -51,7 +51,14 @@ module VCAP::CloudController
         "capacity",
         "max_memory"
       ],
+      "rabbit3_node" => [
+        "capacity",
+        "max_memory"
+      ],
       "rabbit_gateway" => [
+        "allow_over_provisioning"
+      ],
+      "rabbit3_gateway" => [
         "allow_over_provisioning"
       ],
       "redis_node" => [
