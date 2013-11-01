@@ -1,6 +1,7 @@
 
 require "kato/config"
 require "kato/local/util"
+require "controllers/stackato/stackato_user_creation"
 
 module VCAP::CloudController
   rest_controller :StackatoSetup do
