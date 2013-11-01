@@ -4,8 +4,6 @@ require "httpclient"
 
 module VCAP::CloudController
   class StackatoAppStoresController < RestController::Base
-    # TODO:Stacakto: Remove this
-    allow_unauthenticated_access
 
     APP_STORES_BASE_URL = "/v2/stackato/app_stores"
     DEFAULT_INLINE_RELATIONS_DEPTH = 0
@@ -95,8 +93,7 @@ module VCAP::CloudController
     end
 
     def add
-      # TODO:Stackato: re-enable this line
-      #raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::NotAuthorized unless roles.admin?
       new_store = Yajl::Parser.parse(body)
       store_config = load_store_config
       validate_store_name(new_store["name"])
@@ -124,8 +121,7 @@ module VCAP::CloudController
     end
 
     def update(store_name)
-      # TODO:Stackato: re-enable this line
-      #raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::NotAuthorized unless roles.admin?
       store_config = load_store_config
       validate_store_name(store_name)
       validate_store_exists(store_config["stores"], store_name)
@@ -146,8 +142,7 @@ module VCAP::CloudController
     end
 
     def delete(store_name)
-      # TODO:Stackato: re-enable this line
-      #raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::NotAuthorized unless roles.admin?
 
       store_config = load_store_config
       validate_store_name(store_name)
