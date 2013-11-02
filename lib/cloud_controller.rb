@@ -79,7 +79,7 @@ module VCAP::CloudController
 
     def decode_token(auth_token)
       token_information = @token_decoder.decode_token(auth_token)
-      logger.info("Token received from the UAA #{token_information.inspect}")
+      logger.debug2 "Token received from the UAA #{token_information.inspect}"
       token_information
     rescue CF::UAA::TokenExpired
       logger.info('Token expired')

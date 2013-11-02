@@ -15,7 +15,7 @@ module VCAP::CloudController
 
     def create_offering
       req = VCAP::Services::Api::ServiceOfferingRequest.decode(body)
-      logger.debug("Update or create legacy service request: #{req.extract.inspect}")
+      logger.debug2 "Update or create legacy service request: #{req.extract.inspect}"
 
       (label, version_from_label, label_dash_check) = req.label.split("-")
       if label_dash_check
