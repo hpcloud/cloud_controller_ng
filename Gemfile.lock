@@ -319,11 +319,13 @@ DEPENDENCIES
   cloudfront-signer
   debugger
   delayed_job_active_record (~> 4.0)
+  errand (= 0.7.3)
   eventmachine (~> 1.0.3)
   fakefs
   fog
   guard-rspec
   httpclient
+  librrd (= 1.0.3)
   loggregator_emitter (~> 0.0.11.pre)
   loggregator_messages (~> 0.0.4.pre)
   machinist (~> 1.0.6)
