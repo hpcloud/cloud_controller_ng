@@ -5,6 +5,7 @@
 # arbitrary actions.  The main intent is to set up various PKG_*
 # variables used to configure and generate the package.
 
+KATO_GEM_VERSION="2.11.0"
 PKG_NAME="stackato-cloud-controller-ng"
 PKG_VERSION="auto"
 #PKG_VERSION_COUNTER="auto"
@@ -27,6 +28,7 @@ gem_pg_deps="libpq-dev"
 
 PKG_DEPENDS="stackato-rubies, stackato-redis, postgresql, postgresql-contrib, \
 stackato-nginx, \
+stackato-kato-core-ng-$KATO_GEM_VERSION, \
 steno-codec-text, \
 librrd-dev, \
 $gem_nokogiri_deps, $gem_mysql_deps, $gem_sqlite_deps, $gem_pg_deps"
