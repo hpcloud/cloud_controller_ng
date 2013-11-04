@@ -1,4 +1,5 @@
 require 'kato/config'
+require 'cloud_controller/stackato/vendor_config'
 
 module VCAP::CloudController
   class InfoController < RestController::Base
@@ -15,8 +16,10 @@ module VCAP::CloudController
         :description => @config[:info][:description],
         :authorization_endpoint => @config[:login] ? @config[:login][:url] : @config[:uaa][:url],
         :api_version => @config[:info][:api_version],
+        :vendor_version => StackatoVendorConfig.vendor_version,
         :stackato => {
-            :license_accepted => !license.blank?
+            :license_accepted => !license.blank?,
+            :UUID => STACKATO_UUID
         }
       }
 

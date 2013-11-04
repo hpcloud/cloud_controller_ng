@@ -1,6 +1,7 @@
 # Copyright (c) 2009-2012 VMware, Inc.
 
 require 'kato/config'
+require 'cloud_controller/stackato/vendor_config'
 
 module VCAP::CloudController
   class LegacyInfo < LegacyApiBase
@@ -9,6 +10,7 @@ module VCAP::CloudController
     allow_unauthenticated_access
 
     def info
+      license = Kato::Config.get("cluster", "license")
       info = {
         :name        => config[:info][:name],
         :build       => config[:info][:build],
@@ -17,7 +19,12 @@ module VCAP::CloudController
         :description => config[:info][:description],
         :authorization_endpoint => config[:login] ? config[:login][:url] : config[:uaa][:url],
         :token_endpoint => config[:uaa][:url],
-        :allow_debug => config.fetch(:allow_debug, true)
+        :allow_debug => config.fetch(:allow_debug, true),
+        :vendor_version => StackatoVendorConfig.vendor_version,
+        :stackato => {
+          :license_accepted => !license.blank?,
+          :UUID => STACKATO_UUID
+        }
       }
 
       # If there is a logged in user, give out additional information

@@ -1,6 +1,7 @@
 
 require "kato/config"
 require "kato/cluster/manager"
+require 'cloud_controller/stackato/vendor_config'
 
 module VCAP::CloudController
   class StackatoInfoController < RestController::Base
@@ -35,6 +36,7 @@ module VCAP::CloudController
     # }
     #
     def get_info
+      license = Kato::Config.get("cluster", "license")
       endpoint = Kato::Config.get("cluster", "endpoint")
       mbusip = Kato::Config.get("cluster", "mbusip")
       nodes = {}
@@ -56,7 +58,11 @@ module VCAP::CloudController
         :restricted => restricted,
         :nodes => nodes,
         :admins => admins,
-        :UUID => ::STACKATO_UUID
+        :vendor_version => StackatoVendorConfig.vendor_version,
+        :stackato => {
+            :license_accepted => !license.blank?,
+            :UUID => STACKATO_UUID
+        }
       })
     end
 
