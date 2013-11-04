@@ -41,7 +41,8 @@ module VCAP::CloudController
         context "when system domain organization is missing in the configuration" do
           it "does not raise error" do
             config_without_org = config.clone
-            config_without_org.delete(:system_domain_organization)
+            # Not creating default org-- done by first user setup (disabled in 67a488b98c)
+            #config_without_org.delete(:system_domain_organization)
 
             expect do
               Seeds.create_seed_organizations(config_without_org)

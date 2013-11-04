@@ -8,7 +8,8 @@ info:
   support_address: "http://support.cloudfoundry.com"
   description: "Cloud Foundry sponsored by Pivotal"
 
-system_domain_organization: the-system-domain-org-name
+# Not creating default org-- done by first user setup (disabled in 67a488b98c)
+#system_domain_organization: the-system-domain-org-name
 system_domain: the-system-domain.com
 app_domains:
   - customer-app-domain1.com

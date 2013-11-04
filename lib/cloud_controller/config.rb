@@ -19,7 +19,8 @@ module VCAP::CloudController
         },
 
         :system_domain => String,
-        :system_domain_organization => enum(String, NilClass),
+        # Not creating default org-- done by first user setup (disabled in 67a488b98c)
+        #:system_domain_organization => enum(String, NilClass),
         :app_domains => [ String ],
 
         optional(:allow_debug) => bool,
