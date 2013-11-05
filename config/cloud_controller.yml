@@ -76,7 +76,7 @@ staging:
 quota_definitions:
   free:
     non_basic_services_allowed: false
-    total_services: 2
+    total_services: 100
     memory_limit: 2048 # 2 GB
   paid:
     non_basic_services_allowed: true
