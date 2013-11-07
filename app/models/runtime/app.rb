@@ -484,5 +484,10 @@ module VCAP::CloudController
     def generate_salt
       self.salt ||= VCAP::CloudController::Encryptor.generate_salt.freeze
     end
+
+    def allow_sudo?
+      space && space.allow_sudo?
+    end
+
   end
 end

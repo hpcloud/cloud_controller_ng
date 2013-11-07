@@ -289,7 +289,8 @@ module VCAP::CloudController
           :limits => {
             :mem => app.memory,
             :disk => app.disk_quota,
-            :fds => app.file_descriptors
+            :fds => app.file_descriptors,
+            :allow_sudo => app.allow_sudo?
           },
           :allowed_repos => config[:allowed_repos],
           :cc_partition => config[:cc_partition],

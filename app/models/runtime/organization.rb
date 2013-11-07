@@ -165,6 +165,10 @@ module VCAP::CloudController
       false
     end
 
+    def allow_sudo?
+      quota_definition && quota_definition.allow_sudo
+    end
+
     def memory_remaining
       memory_used = apps_dataset.sum(Sequel.*(:memory, :instances)) || 0
       quota_definition.memory_limit - memory_used

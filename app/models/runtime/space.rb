@@ -83,6 +83,10 @@ module VCAP::CloudController
       end
     end
 
+    def allow_sudo?
+      organization && organization.allow_sudo?
+    end
+
     def self.user_visibility_filter(user)
       Sequel.or({
         :organization => user.managed_organizations_dataset,
