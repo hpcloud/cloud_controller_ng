@@ -78,15 +78,18 @@ quota_definitions:
     non_basic_services_allowed: false
     total_services: 100
     memory_limit: 2048 # 2 GB
+    allow_sudo: false
   paid:
     non_basic_services_allowed: true
     total_services: 500
     memory_limit: 204800 # 200 GB
+    allow_sudo: false
   trial:
     non_basic_services_allowed: false
     total_services: 2
     memory_limit: 512 # 0.5 GB
     trial_db_allowed: true
+    allow_sudo: false
 
 default_quota_definition: free
 
