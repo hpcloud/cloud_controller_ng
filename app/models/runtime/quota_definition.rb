@@ -18,6 +18,7 @@ module VCAP::CloudController
       validates_presence :non_basic_services_allowed
       validates_presence :total_services
       validates_presence :memory_limit
+      validates_presence :allow_sudo
     end
 
     def self.configure(config)

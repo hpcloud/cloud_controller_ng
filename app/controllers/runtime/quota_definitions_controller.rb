@@ -6,7 +6,7 @@ module VCAP::CloudController
       attribute  :total_services,             Integer
       attribute  :memory_limit,               Integer
       attribute  :trial_db_allowed,           Message::Boolean, :default => false
-      attribute  :sudo_allowed,               Message::Boolean, :default => false
+      attribute  :allow_sudo,                 Message::Boolean, :default => false
     end
 
     query_parameters :name
