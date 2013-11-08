@@ -58,7 +58,7 @@ gem "steno-codec-text", :path => "../steno-codec-text"
 if ENV["KATO_DEV"] and File.directory? '../kato'
   gem 'stackato-kato', :path => '../kato'
 else
-  gem 'stackato-kato', '~> 2.11.0'
+  gem 'stackato-kato', '~> 3.0.0'
 end
 gem 'redis', '~> 3.0.4'
 
