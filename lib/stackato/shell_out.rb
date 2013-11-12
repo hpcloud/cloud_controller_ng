@@ -1,8 +1,9 @@
-#require 'cloud_error'
+require 'vcap/errors'
 
 # todo: Any threading.
 # todo: Change ActiveRecord to appropriate alternative if required.
-# todo: CloudError -> Best error function for here.
+
+Errors = VCAP::Errors
 
 class ShellOut
 
@@ -43,8 +44,7 @@ class ShellOut
     retval = output.join('')
     unless success
       logger.error "#{command} : #{retval}"
-      raise errmsg
-      #raise CloudError.new(CloudError::CONSOLE_GENERIC, errmsg)
+      raise Errors::ShellOutFailure.new(errmsg)
     end
     retval
   end

@@ -220,3 +220,8 @@
   name: StackatoCreateReportFailed
   http_code: 400
   message: "Failed to create report: %s"
+
+144:
+  name: ShellOutFailure
+  http_code: 500
+  message: "Shell out failed: %s"
