@@ -3,14 +3,16 @@
 # todo: Any threading.
 # todo: Change ActiveRecord to appropriate alternative if required.
 # todo: CloudError -> Best error function for here.
-# todo: Proper logging over puts.
 
 class ShellOut
 
+  def self.logger
+    @logger ||= Steno.logger("cc.shell_out")
+  end
+
   def self.run(command, env={}, errmsg="failed to run", &on_data)
     raise "ShellOut must be called with an array command (to prevent shell injection)." unless command.kind_of?(Array)
-    puts "Running: #{command}"
-    #CloudController.logger.info("Running: #{command}")
+    logger.info "Running: #{command}"
     #fiber = Fiber.current
 
     output = []
@@ -40,9 +42,8 @@ class ShellOut
 
     retval = output.join('')
     unless success
-      puts "#{command} : #{retval}"
+      logger.error "#{command} : #{retval}"
       raise errmsg
-      #CloudController.logger.error("#{command} : #{retval}")
       #raise CloudError.new(CloudError::CONSOLE_GENERIC, errmsg)
     end
     retval
