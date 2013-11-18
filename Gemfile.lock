@@ -1,4 +1,12 @@
 GIT
+  remote: git://github.com/ActiveState/cf-uaa-lib.git
+  revision: 3026895da933a7b1102735db96568c007b4c9148
+  ref: 3026895da933a7b1102735db96568c007b4c9148
+  specs:
+    cf-uaa-lib (2.0.0)
+      multi_json
+
+GIT
   remote: https://github.com/ActiveState/cf-message-bus.git
   revision: dbc2fc6e71b70980d6d4559b39ed9451449140eb
   specs:
@@ -8,14 +16,6 @@ GIT
       vcap-concurrency
       vcap-concurrency
       yajl-ruby
-
-GIT
-  remote: https://github.com/aocole/cf-uaa-lib.git
-  revision: 3026895da933a7b1102735db96568c007b4c9148
-  ref: 3026895da933a7b1102735db96568c007b4c9148
-  specs:
-    cf-uaa-lib (2.0.0)
-      multi_json
 
 GIT
   remote: https://github.com/cloudfoundry/stager-client.git
