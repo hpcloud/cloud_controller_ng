@@ -49,6 +49,7 @@ module VCAP::CloudController
     def validate
       validates_presence :name
       validates_unique   :name
+      validates_max_length 64, :name
       validate_only_admin_can_update(:billing_enabled)
       validate_only_admin_can_update(:quota_definition_id)
     end
