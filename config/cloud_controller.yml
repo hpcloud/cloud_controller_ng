@@ -146,3 +146,11 @@ allowed_repos:
   - "deb mirror://mirrors.ubuntu.com/mirrors.txt precise main restricted universe multiverse"
   - "deb mirror://mirrors.ubuntu.com/mirrors.txt precise-updates main restricted universe multiverse"
   - "deb http://security.ubuntu.com/ubuntu precise-security main universe"
+
+app_uris:
+  # Allow applications to register URIs that are outside your domain.
+  allow_external: true
+  reserved_list: [www, api, login, ports]
+  reserved_length: 2
+#  reserved_file:
+
