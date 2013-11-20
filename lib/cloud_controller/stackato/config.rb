@@ -377,7 +377,29 @@ module VCAP::CloudController
         end
       end
     end
-    
+
+    def _update__cloud_controller_ng__staging(component_id, staging_key, staging_hash)
+      if staging_hash.key? "max_staging_runtime"
+        max_staging_runtime = staging_hash["max_staging_runtime"].to_i
+        if max_staging_runtime <= 0
+          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "max_staging_runtime must be a (positive) number")
+        end
+        logger.info("Setting #{component_id} #{staging_key}/max_staging_runtime to #{max_staging_runtime}")
+        Kato::Config.set(component_id, "#{staging_key}/max_staging_runtime", max_staging_runtime)
+      end
+    end
+
+    def _update__dea_ng__staging(component_id, staging_key, staging_hash)
+      if staging_hash.key? "max_staging_duration"
+        max_staging_duration = staging_hash["max_staging_duration"].to_i
+        if max_staging_duration <= 0
+          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "max_staging_duration must be a (positive) number")
+        end
+        logger.info("Setting #{component_id} #{staging_key}/max_staging_duration to #{max_staging_duration}")
+        Kato::Config.set(component_id, "#{staging_key}/max_staging_duration", max_staging_duration)
+      end
+    end
+
     def _assert_array_of_strings(component, arr, name, min_length=nil)
       if arr.is_a? Array
         arr.each do |item|

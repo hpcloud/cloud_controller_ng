@@ -24,7 +24,7 @@ processes:
       token_expiration: RW
     quota_definitions: RW
     staging:
-      max_staging_runtime: R
+      max_staging_runtime: RW
 
   avahi_announcer:
     logging: RW
@@ -50,6 +50,10 @@ processes:
     resources:
       memory_max_percent: RW
     timeouts: RW
+    staging:
+      max_staging_duration: RW
+      memory_limit_mb: R
+      disk_limit_mb: R
 
   harbor_node:
     logging: RW
