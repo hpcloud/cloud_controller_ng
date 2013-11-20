@@ -155,4 +155,5 @@ app_uris:
 #  reserved_file:
 
 maintenance_mode: false
+max_user_drains: 5
 
