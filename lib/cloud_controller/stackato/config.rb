@@ -220,12 +220,6 @@ module VCAP::CloudController
       end
     end
   
-    def _update__cloud_controller_ng__keys(component, parent_key, keys)
-      keys.each do |key_name, key_value|
-        Kato::Config.set(component, "#{parent_key}/#{key_name}", key_value, { :must_exist => true })
-      end
-    end
-
     def _update__cloud_controller_ng__quota_definitions(component, definition_key, definitions)
       definitions.each do |key, value|
         Kato::Config.set(component, "#{definition_key}/#{key}", value, {:must_exist => true})
@@ -261,27 +255,22 @@ module VCAP::CloudController
         Kato::Config.set("harbor_node", "port_range/max", port_range_max)
       end
     end
-  
-    def _update__logyard__apptail(component, key, apptail)
-      if apptail.key? "max_record_size"
-        max_record_size = apptail["max_record_size"].to_i
-        if max_record_size <= 0
-          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "max_record_size must be a (positive) number")
-        end
-        logger.info("Setting logyard apptail/max_record_size to #{max_record_size}")
-        Kato::Config.set("logyard", "apptail/max_record_size", max_record_size)
+
+    def _update_generic__positive_integer(component_id, key_path, value)
+      value = value.to_i rescue nil
+      if value.nil? or value <= 0
+        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component_id, "#{key_path} must be a (positive) number")
       end
+      logger.info("Setting #{component_id} #{key_path} to #{value}")
+      Kato::Config.set(component_id, key_path, value)
+    end
+
+    def _update__apptail__max_record_size(component_id, key, max_record_size)
+      _update_generic__positive_integer(component_id, key, max_record_size)
     end
   
-    def _update__logyard__systail(component, key, systail)
-      if systail.key? "max_record_size"
-        max_record_size = systail["max_record_size"].to_i
-        if max_record_size <= 0
-          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "max_record_size must be a (positive) number")
-        end
-        logger.info("Setting logyard systail/max_record_size to #{max_record_size}")
-        Kato::Config.set("logyard", "systail/max_record_size", max_record_size)
-      end
+    def _update__systail__max_record_size(component_id, key, max_record_size)
+      _update_generic__positive_integer(component_id, key, max_record_size)
     end
   
     def _update__cloud_controller_ng__app_uris(component, key, app_uris)
@@ -345,35 +334,6 @@ module VCAP::CloudController
         end
         if changed
           Kato::Config.set("cloud_controller_ng", "admins", admins)
-        end
-      end
-    end
-  
-    def _update__cloud_controller_ng__default_account_capacity(component, key, val)
-      _update__cloud_controller_ng__account_capacity(key, val, "default")
-    end
-        
-    def _update__cloud_controller_ng__admin_account_capacity(component, key, val)
-      _update__cloud_controller_ng__account_capacity(key, val, "admin")
-    end
-        
-    def _update__cloud_controller_ng__account_capacity(key, val, who)
-      if not val.is_a? Hash
-        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "`#{key}' should be a hash/dictionary")
-      end
-      %W{memory app_uris drains services apps}.each do |type|
-        if val.key? type
-          setting = val[type].to_i
-          logger.info("Setting #{who}_account_capacity[#{type}] = #{setting}")
-          Kato::Config.set("cloud_controller_ng", "/#{key}/#{type}", setting)
-        end
-      end
-      # Booleans...
-      ["sudo"].each do |type|
-        if val.key? type and (val[type].instance_of? FalseClass or val[type].instance_of? TrueClass)
-          setting = val[type]
-          logger.info("Setting #{who}_account_capacity[#{type}] = #{setting}")
-          Kato::Config.set("cloud_controller_ng", "/#{key}/#{type}", setting)
         end
       end
     end
