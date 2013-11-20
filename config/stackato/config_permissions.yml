@@ -3,25 +3,16 @@ processes:
 
   cloud_controller_ng:
     logging: RW
-    external_uri: R
     info:
       name: R
       build: R
       support_address: RW
       description: R
       api_version: R
-    admins: RW
     app_uris: RW
-    drains: RW
     allowed_repos: RW
-    default_account_capacity: RW
-    admin_account_capacity: RW
-    allow_registration: RW
     maintenance_mode: RW
     max_user_drains: R
-    keys:
-      token: RW
-      token_expiration: RW
     quota_definitions: RW
     staging:
       max_staging_runtime: RW
@@ -35,7 +26,7 @@ processes:
   health_manager:
     logging: RW
 
-  router:
+  router2g:
     logging: RW
 
   prealloc:
