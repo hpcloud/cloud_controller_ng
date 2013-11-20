@@ -411,6 +411,43 @@ module VCAP::CloudController
         raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "`#{name}' should be of array type")
       end
     end
-  
+
+    # should only have config_permissions for existing config
+    def self.find_redundant_permissions
+      def self.test_config_exists(component_id, path, value)
+        if value.is_a? Hash
+          value.each_pair do |k, v|
+            test_config_exists(component_id, File.join(path, k), v)
+          end
+        else
+          if Kato::Config.get(component_id, path).nil?
+            $stderr.puts "WARNING: Stackato redundant config permission: #{component_id} #{path}"
+          end
+        end
+      end
+      PERMISSIONS.each_pair do |component_id, value|
+        test_config_exists(component_id, "/", value)
+      end
+    end
+
+    # should only have config update methods for permission RW
+    def self.find_redundant_updaters
+      VCAP::CloudController::StackatoConfig.new("all").private_methods.sort.each do |method_sym|
+        method_name = method_sym.to_s
+        next unless method_name.start_with? "_update__"
+        next if method_name == "_update__logging"
+        match = (/^_update__(.*)__(.*)$/.match(method_name) || /^_update__(.*)$/.match(method_name))
+        component_id = match[1]
+        key = match[2]
+        if Kato::Config.get(component_id, key).nil?
+          $stderr.puts "WARN Stackato redundant config updater: #{method_name}"
+        end
+      end
+    end
+
+    # On startup, log as WARN any redundancy in configuration methods or permissions
+    find_redundant_permissions
+    find_redundant_updaters
+
   end
 end
