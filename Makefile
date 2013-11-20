@@ -25,7 +25,7 @@ INSTDIR=$(DESTDIR)$(prefix)$(DIRNAME)
 
 PG_CONF_DIR=$(DESTDIR)/etc/postgresql/9.1/cloud_controller_ng
 
-RSYNC_EXCLUDE=--exclude=/.git* --exclude=/Makefile --exclude=/.stackato-pkg --exclude=/debian --exclude=/etc
+RSYNC_EXCLUDE=--exclude=/.git* --exclude=/Makefile --exclude=/.stackato-pkg --exclude=/debian --exclude=/etc --exclude=/spec
 
 all:
 	@ true
