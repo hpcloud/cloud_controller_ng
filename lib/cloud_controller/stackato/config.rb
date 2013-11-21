@@ -309,34 +309,6 @@ module VCAP::CloudController
       logger.info("Setting app_store to #{stores.inspect}")
       Kato::Config.set("cloud_controller_ng", "app_store/stores", stores)
     end
-  
-    def _update__cloud_controller_ng__admins(component, key, admins)
-      _assert_array_of_strings component, admins, "admins", USERNAME_MIN_SIZE
-      if admins.size == 0
-        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "must have at least one admin")
-      else
-        logger.info("Setting admins = #{admins}")
-        existing_admins = get_component_config[:admins]
-        changed = false
-        admins.each do |email|
-          if not existing_admins.include? email
-            # new admin
-            logger.info("Making #{email} an admin")
-            changed = true
-          end
-        end
-        existing_admins.each do |email|
-          if not admins.include? email
-            # removed admin
-            logger.info("Removing #{email} as an admin")
-            changed = true
-          end
-        end
-        if changed
-          Kato::Config.set("cloud_controller_ng", "admins", admins)
-        end
-      end
-    end
 
     def _update__cloud_controller_ng__staging(component_id, staging_key, staging_hash)
       if staging_hash.key? "max_staging_runtime"
