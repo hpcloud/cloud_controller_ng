@@ -31,6 +31,7 @@ module VCAP::CloudController
         :AppName => body_params["app_name"],
         :Space => body_params["space_guid"],
         :Url => body_params["url"],
+        :Buildpack => body_params["buildpack"],
         :Token => auth_token_header,
         :VcsUrl => body_params["from"],
         :VcsRef => body_params["commit"],
