@@ -33,7 +33,7 @@ gem 'crack'             ,    '0.4.1', :groups => [:test]
 gem 'daemons'           ,    '1.1.9'
 gem 'debugger'          ,    '1.6.2', :groups => [:development]
 gem 'debugger-linecache',    '1.2.0', :groups => [:development]
-gem 'debugger-ruby_core_source',    '1.2.3', :groups => [:development]
+gem 'debugger-ruby_core_source',    '1.2.4', :groups => [:development]
 gem 'delayed_job'       ,    '4.0.0'
 gem 'delayed_job_active_record',    '4.0.0'
 gem 'descendants_tracker',    '0.0.3'
@@ -48,11 +48,12 @@ gem 'eventmachine'      ,    '1.0.3'
 gem 'excon'             ,   '0.28.0'
 gem 'fakefs'            ,    '0.4.3', :groups => [:test], :require => "fakefs/safe"
 gem 'ffi'               ,    '1.9.3', :groups => [:test]
-gem 'fluent-logger'     ,    '0.4.6'
+gem 'fluent-logger'     ,    '0.4.7'
 gem 'fog'               ,   '1.18.0'
 gem 'formatador'        ,    '0.2.4', :groups => [:default, :test]
+gem 'futuroscope'       ,    '0.1.5'
 gem 'grape'             ,    '0.6.1'
-gem 'guard'             ,    '2.2.3', :groups => [:test]
+gem 'guard'             ,    '2.2.4', :groups => [:test]
 gem 'guard-rspec'       ,    '4.0.4', :groups => [:test]
 gem 'hashie'            ,    '2.0.5'
 gem 'http_parser.rb'    , '0.6.0.beta.2'
@@ -64,7 +65,6 @@ gem 'json'              ,    '1.8.1'
 gem 'json_pure'         ,    '1.8.1'
 gem 'librrd'            ,    '1.0.3'
 gem 'listen'            ,    '2.2.0', :groups => [:test]
-gem 'lockfile'          ,    '2.1.0', :groups => [:test]
 gem 'loggregator_emitter',   '0.0.16'
 gem 'loggregator_messages', '0.0.5.pre'
 gem 'lumberjack'        ,    '1.0.4', :groups => [:test]
@@ -106,7 +106,7 @@ gem 'ruby-hmac'         ,    '0.4.0'
 gem 'ruby-termios'      ,    '0.9.6'
 gem 'safe_yaml'         ,    '0.9.7', :groups => [:test]
 gem 'sequel'            ,   '3.48.0'
-gem 'simplecov'         ,    '0.8.1', :groups => [:test]
+gem 'simplecov'         ,    '0.8.2', :groups => [:test]
 gem 'simplecov-html'    ,    '0.8.0', :groups => [:test]
 gem 'simplecov-rcov'    ,    '0.2.3', :groups => [:test]
 gem 'sinatra'           ,    '1.4.4'
@@ -129,7 +129,7 @@ gem 'vcap-concurrency'  ,    '0.1.0', :git => "https://github.com/cloudfoundry/v
 gem 'vcap_common'       ,    '2.2.1', :path => '../common'
 gem 'virtus'            ,    '1.0.0'
 gem 'vmstat'            ,    '2.0.0'
-gem 'webmock'           ,   '1.15.2', :groups => [:test]
+gem 'webmock'           ,   '1.16.0', :groups => [:test]
 gem 'xmlparser'         ,  '0.7.2.1'
 gem 'yajl-ruby'         ,    '1.1.0'
 
