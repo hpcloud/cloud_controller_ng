@@ -56,7 +56,7 @@ module VCAP::CloudController
       binding.broker_provided_id = response.service_id
       binding.gateway_data = response.configuration
       binding.credentials = response.credentials
-      # binding.syslog_drain_url = response.syslog_drain_url
+      binding.syslog_drain_url = response.syslog_drain_url
     end
 
     def unbind(binding)
