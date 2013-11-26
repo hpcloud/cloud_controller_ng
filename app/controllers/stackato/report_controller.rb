@@ -3,9 +3,8 @@ require 'stackato/kato_shell'
 
 module VCAP::CloudController
   class StackatoReportController < RestController::Base
-    # TODO:Stackato: Remove this
     allow_unauthenticated_access
-
+    
     def redis_key_for_token(token)
       "cc:report_controller:token:#{token}"
     end
@@ -16,7 +15,7 @@ module VCAP::CloudController
       logger.info "Adding token #{token} expiring after #{period} seconds"
       StackatoRedisClient.redis do |r|
         r.set redis_key_for_token(token), "empty"
-        r.expire redis_key_for_token(token), periold
+        r.expire redis_key_for_token(token), period
       end
     end
 
