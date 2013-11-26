@@ -28,12 +28,12 @@ module VCAP::CloudController
 
       loglines.reverse.map do |record|
         record = Yajl::Parser.parse(record)
-        timestamp = record['UnixTime']
-        source = record['Source']
-        filename = record['LogFilename']
-        idx = record['InstanceIndex']
-        text = record['Text']
-        nodeid = record['NodeID']
+        timestamp = record['unix_time']
+        source = record['source']
+        filename = record['filename']
+        idx = record['instance_index']
+        text = record['text']
+        nodeid = record['node_id']
         # XXX: `raw` should be part of the logyard record. we
         # shouldn't have to deal with formatting at all.
         if raw

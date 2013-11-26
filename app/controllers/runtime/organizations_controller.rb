@@ -28,6 +28,8 @@ module VCAP::CloudController
         Errors::NotAuthorized.new(attributes["quota_definition_id"])
       elsif name_errors && name_errors.include?(:unique)
         Errors::OrganizationNameTaken.new(attributes["name"])
+      elsif name_errors && name_errors.include?(:max_length)
+        Errors::StackatoParameterLengthInvalid.new(64, attributes["name"])
       else
         Errors::OrganizationInvalid.new(e.errors.full_messages)
       end

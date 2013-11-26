@@ -3,53 +3,34 @@ processes:
 
   cloud_controller_ng:
     logging: RW
-    external_uri: R
     info:
       name: R
       build: R
       support_address: RW
       description: R
       api_version: R
-    admins: RW
     app_uris: RW
-    drains: RW
     allowed_repos: RW
-    default_account_capacity: RW
-    admin_account_capacity: RW
-    allow_registration: RW
     maintenance_mode: RW
     max_user_drains: R
-    keys:
-      token: RW
-      token_expiration: RW
     quota_definitions: RW
     staging:
-      max_staging_runtime: R
-
-  avahi_announcer:
-    logging: RW
-
-  nats_server:
-    logging: RW
+      max_staging_runtime: RW
 
   health_manager:
     logging: RW
 
-  router:
+  router2g:
     logging: RW
-
-  prealloc:
-    logging: RW
-
-  stager:
-    logging: RW
-    max_staging_duration: RW
 
   dea_ng:
     logging: RW
     resources:
       memory_max_percent: RW
-    timeouts: RW
+    staging:
+      max_staging_duration: RW
+      memory_limit_mb: R
+      disk_limit_mb: R
 
   harbor_node:
     logging: RW
@@ -59,7 +40,6 @@ processes:
 
   mysql_gateway:
     logging: RW
-    allow_over_provisioning: RW
 
   mysql_node:
     logging: RW
@@ -68,7 +48,6 @@ processes:
 
   postgresql_gateway:
     logging: RW
-    allow_over_provisioning: RW
 
   postgresql_node:
     logging: RW
@@ -77,7 +56,6 @@ processes:
 
   rabbit_gateway:
     logging: RW
-    allow_over_provisioning: RW
 
   rabbit_node:
     logging: RW
@@ -86,7 +64,6 @@ processes:
 
   rabbit3_gateway:
     logging: RW
-    allow_over_provisioning: RW
 
   rabbit3_node:
     logging: RW
@@ -95,7 +72,6 @@ processes:
 
   redis_gateway:
     logging: RW
-    allow_over_provisioning: RW
 
   redis_node:
     logging: RW
@@ -104,7 +80,6 @@ processes:
 
   mongodb_gateway:
     logging: RW
-    allow_over_provisioning: RW
 
   mongodb_node:
     logging: RW
@@ -112,7 +87,6 @@ processes:
 
   filesystem_gateway:
     logging: RW
-    allow_over_provisioning: RW
 
   filesystem_node:
     logging: RW
@@ -126,12 +100,14 @@ processes:
 
   memcached_gateway:
     logging: RW
-    allow_over_provisioning: RW
 
   logyard:
-    logging: RW
     retrylimits: R
-    apptail: RW
     drains: R
-    systail: RW
+
+  systail:
+    max_record_size: RW
+
+  apptail:
+    max_record_size: RW
 

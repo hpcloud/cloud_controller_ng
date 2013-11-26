@@ -4,8 +4,6 @@ require "cloud_controller/stackato/redis_client"
 
 module VCAP::CloudController
   class StackatoCloudeventsController < RestController::Base
-    # TODO:Stackato remove this line
-    allow_unauthenticated_access
 
     def get_cloudevents
       num = params["n"].to_i

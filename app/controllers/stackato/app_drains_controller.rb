@@ -17,7 +17,7 @@ module VCAP::CloudController
     def create_app_drain(app_guid)
       app = find_guid_and_validate_access(:update, app_guid)
 
-      max_user_drains = @config[:max_user_drains] || StackatoAppDrains::DEFAULT_MAX_USER_DRAINS
+      max_user_drains = @config[:max_user_drains]
       if StackatoAppDrains.user_drain_count >= max_user_drains
         raise Errors::StackatoAppDrainLimitReached.new(max_user_drains)
       end

@@ -9,6 +9,7 @@ module VCAP::CloudController
       end
 
       def create_seed_quota_definitions(config)
+        return if QuotaDefinition.count > 0
         config[:quota_definitions].each do |k, v|
           QuotaDefinition.update_or_create(:name => k.to_s) do |r|
             r.update_from_hash(v)
@@ -17,10 +18,12 @@ module VCAP::CloudController
       end
 
       def create_seed_stacks(config)
+        return if Stack.count > 0
         Stack.populate
       end
 
       def create_seed_organizations(config)
+        return if Organization.count > 0
         # It is assumed that if no system domain organization is present,
         # then the 'system domain' feature is unused.
         return unless config[:system_domain_organization]
@@ -37,6 +40,7 @@ module VCAP::CloudController
       end
 
       def create_seed_domains(config, system_org)
+        return if Domain.count > 0
         Domain.populate_from_config(config, system_org)
       end
     end

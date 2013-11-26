@@ -9,7 +9,6 @@ require "kato/logyard"
 module VCAP::CloudController
   class StackatoAppDrains
 
-    DEFAULT_MAX_USER_DRAINS = 5
     DRAIN_NAME_MIN_LENGTH = 4
     DRAIN_NAME_MAX_LENGTH = 25
 

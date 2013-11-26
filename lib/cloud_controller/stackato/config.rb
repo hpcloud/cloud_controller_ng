@@ -220,12 +220,6 @@ module VCAP::CloudController
       end
     end
   
-    def _update__cloud_controller_ng__keys(component, parent_key, keys)
-      keys.each do |key_name, key_value|
-        Kato::Config.set(component, "#{parent_key}/#{key_name}", key_value, { :must_exist => true })
-      end
-    end
-
     def _update__cloud_controller_ng__quota_definitions(component, definition_key, definitions)
       definitions.each do |key, value|
         Kato::Config.set(component, "#{definition_key}/#{key}", value, {:must_exist => true})
@@ -261,27 +255,22 @@ module VCAP::CloudController
         Kato::Config.set("harbor_node", "port_range/max", port_range_max)
       end
     end
-  
-    def _update__logyard__apptail(component, key, apptail)
-      if apptail.key? "max_record_size"
-        max_record_size = apptail["max_record_size"].to_i
-        if max_record_size <= 0
-          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "max_record_size must be a (positive) number")
-        end
-        logger.info("Setting logyard apptail/max_record_size to #{max_record_size}")
-        Kato::Config.set("logyard", "apptail/max_record_size", max_record_size)
+
+    def _update_generic__positive_integer(component_id, key_path, value)
+      value = value.to_i rescue nil
+      if value.nil? or value <= 0
+        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component_id, "#{key_path} must be a (positive) number")
       end
+      logger.info("Setting #{component_id} #{key_path} to #{value}")
+      Kato::Config.set(component_id, key_path, value)
+    end
+
+    def _update__apptail__max_record_size(component_id, key, max_record_size)
+      _update_generic__positive_integer(component_id, key, max_record_size)
     end
   
-    def _update__logyard__systail(component, key, systail)
-      if systail.key? "max_record_size"
-        max_record_size = systail["max_record_size"].to_i
-        if max_record_size <= 0
-          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "max_record_size must be a (positive) number")
-        end
-        logger.info("Setting logyard systail/max_record_size to #{max_record_size}")
-        Kato::Config.set("logyard", "systail/max_record_size", max_record_size)
-      end
+    def _update__systail__max_record_size(component_id, key, max_record_size)
+      _update_generic__positive_integer(component_id, key, max_record_size)
     end
   
     def _update__cloud_controller_ng__app_uris(component, key, app_uris)
@@ -320,64 +309,29 @@ module VCAP::CloudController
       logger.info("Setting app_store to #{stores.inspect}")
       Kato::Config.set("cloud_controller_ng", "app_store/stores", stores)
     end
-  
-    def _update__cloud_controller_ng__admins(component, key, admins)
-      _assert_array_of_strings component, admins, "admins", USERNAME_MIN_SIZE
-      if admins.size == 0
-        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "must have at least one admin")
-      else
-        logger.info("Setting admins = #{admins}")
-        existing_admins = get_component_config[:admins]
-        changed = false
-        admins.each do |email|
-          if not existing_admins.include? email
-            # new admin
-            logger.info("Making #{email} an admin")
-            changed = true
-          end
+
+    def _update__cloud_controller_ng__staging(component_id, staging_key, staging_hash)
+      if staging_hash.key? "max_staging_runtime"
+        max_staging_runtime = staging_hash["max_staging_runtime"].to_i
+        if max_staging_runtime <= 0
+          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "max_staging_runtime must be a (positive) number")
         end
-        existing_admins.each do |email|
-          if not admins.include? email
-            # removed admin
-            logger.info("Removing #{email} as an admin")
-            changed = true
-          end
-        end
-        if changed
-          Kato::Config.set("cloud_controller_ng", "admins", admins)
-        end
+        logger.info("Setting #{component_id} #{staging_key}/max_staging_runtime to #{max_staging_runtime}")
+        Kato::Config.set(component_id, "#{staging_key}/max_staging_runtime", max_staging_runtime)
       end
     end
-  
-    def _update__cloud_controller_ng__default_account_capacity(component, key, val)
-      _update__cloud_controller_ng__account_capacity(key, val, "default")
-    end
-        
-    def _update__cloud_controller_ng__admin_account_capacity(component, key, val)
-      _update__cloud_controller_ng__account_capacity(key, val, "admin")
-    end
-        
-    def _update__cloud_controller_ng__account_capacity(key, val, who)
-      if not val.is_a? Hash
-        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "`#{key}' should be a hash/dictionary")
-      end
-      %W{memory app_uris drains services apps}.each do |type|
-        if val.key? type
-          setting = val[type].to_i
-          logger.info("Setting #{who}_account_capacity[#{type}] = #{setting}")
-          Kato::Config.set("cloud_controller_ng", "/#{key}/#{type}", setting)
+
+    def _update__dea_ng__staging(component_id, staging_key, staging_hash)
+      if staging_hash.key? "max_staging_duration"
+        max_staging_duration = staging_hash["max_staging_duration"].to_i
+        if max_staging_duration <= 0
+          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "max_staging_duration must be a (positive) number")
         end
-      end
-      # Booleans...
-      ["sudo"].each do |type|
-        if val.key? type and (val[type].instance_of? FalseClass or val[type].instance_of? TrueClass)
-          setting = val[type]
-          logger.info("Setting #{who}_account_capacity[#{type}] = #{setting}")
-          Kato::Config.set("cloud_controller_ng", "/#{key}/#{type}", setting)
-        end
+        logger.info("Setting #{component_id} #{staging_key}/max_staging_duration to #{max_staging_duration}")
+        Kato::Config.set(component_id, "#{staging_key}/max_staging_duration", max_staging_duration)
       end
     end
-    
+
     def _assert_array_of_strings(component, arr, name, min_length=nil)
       if arr.is_a? Array
         arr.each do |item|
@@ -389,6 +343,43 @@ module VCAP::CloudController
         raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "`#{name}' should be of array type")
       end
     end
-  
+
+    # should only have config_permissions for existing config
+    def self.find_redundant_permissions
+      def self.test_config_exists(component_id, path, value)
+        if value.is_a? Hash
+          value.each_pair do |k, v|
+            test_config_exists(component_id, File.join(path, k), v)
+          end
+        else
+          if Kato::Config.get(component_id, path).nil?
+            $stderr.puts "WARNING: Stackato redundant config permission: #{component_id} #{path}"
+          end
+        end
+      end
+      PERMISSIONS.each_pair do |component_id, value|
+        test_config_exists(component_id, "/", value)
+      end
+    end
+
+    # should only have config update methods for permission RW
+    def self.find_redundant_updaters
+      VCAP::CloudController::StackatoConfig.new("all").private_methods.sort.each do |method_sym|
+        method_name = method_sym.to_s
+        next unless method_name.start_with? "_update__"
+        next if method_name == "_update__logging"
+        match = (/^_update__(.*)__(.*)$/.match(method_name) || /^_update__(.*)$/.match(method_name))
+        component_id = match[1]
+        key = match[2]
+        if Kato::Config.get(component_id, key).nil?
+          $stderr.puts "WARN Stackato redundant config updater: #{method_name}"
+        end
+      end
+    end
+
+    # On startup, log as WARN any redundancy in configuration methods or permissions
+    find_redundant_permissions
+    find_redundant_updaters
+
   end
 end

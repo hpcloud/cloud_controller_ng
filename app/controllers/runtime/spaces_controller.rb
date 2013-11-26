@@ -19,6 +19,8 @@ module VCAP::CloudController
       name_errors = e.errors.on([:organization_id, :name])
       if name_errors && name_errors.include?(:unique)
         Errors::SpaceNameTaken.new(attributes["name"])
+      elsif name_errors && name_errors.include?(:max_length)
+        Errors::StackatoParameterLengthInvalid.new(64, attributes["name"])
       else
         Errors::SpaceInvalid.new(e.errors.full_messages)
       end
