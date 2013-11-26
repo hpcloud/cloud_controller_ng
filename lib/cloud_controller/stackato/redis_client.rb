@@ -1,5 +1,6 @@
 
 module VCAP::CloudController
+  # FIXME: this should be split into AppLogRedisClient (applog_redis) and StackatoRedisClient (ephemeral_client)
   class StackatoRedisClient
 
     CC_CONFIG_KEY = :app_logs_redis

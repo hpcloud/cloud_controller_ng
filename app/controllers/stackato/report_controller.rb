@@ -6,7 +6,29 @@ module VCAP::CloudController
     # TODO:Stackato: Remove this
     allow_unauthenticated_access
 
-    def get_report
+    def redis_key_for_token(token)
+      "cc:report_controller:token:#{token}"
+    end
+
+    def add_token(token)
+      raise Errors::NotAuthorized unless roles.admin?
+      period = 60
+      logger.info "Adding token #{token} expiring after #{period} seconds"
+      StackatoRedisClient.redis do |r|
+        r.set redis_key_for_token(token), "empty"
+        r.expire redis_key_for_token(token), periold
+      end
+    end
+
+    def get_report(token)
+      StackatoRedisClient.redis do |r|
+        data = r.get redis_key_for_token(token)
+        if data.nil?
+          raise Errors::StackatoCreateReportFailed.new("Invalid or expired token")
+        end
+        r.del redis_key_for_token(token)
+      end
+      
       begin
         report_file = KatoShell.report
       rescue Exception => e
@@ -25,7 +47,8 @@ module VCAP::CloudController
       )
     end
 
-    get '/v2/stackato/report', :get_report
+    put '/v2/stackato/report/token/:token', :add_token
+    get '/v2/stackato/report/file/:token',  :get_report
 
   end
 end
