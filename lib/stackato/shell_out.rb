@@ -1,7 +1,7 @@
 require 'vcap/errors'
 
-# todo: Any threading.
-# todo: Change ActiveRecord to appropriate alternative if required.
+# TODO: obviate shell_out.rb and kato_shell.rb in favour of moving long-
+# running tasks to kato-daemon (targetting Iggy)
 
 Errors = VCAP::Errors
 

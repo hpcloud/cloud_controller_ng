@@ -1,6 +1,9 @@
 require 'fileutils'
 require 'stackato/shell_out'
 
+# TODO: obviate shell_out.rb and kato_shell.rb in favour of moving long-
+# running tasks to kato-daemon (targetting Iggy)
+
 class KatoShell
   # todo: Correct paths.
   #FILESERVE = '/home/stackato/fileserve/files'
