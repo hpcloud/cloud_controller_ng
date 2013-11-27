@@ -1,5 +1,5 @@
 class StagerAdvertisement
-  ADVERTISEMENT_EXPIRATION = 10.freeze
+  ADVERTISEMENT_EXPIRATION = 45.freeze
 
   attr_reader :stats
 
