@@ -105,6 +105,7 @@ module VCAP::CloudController
       Kato::Config.del("logyard", "drains/#{drain_id}")
     end
 
+    # Return the total number of app drains in the cluster.
     def self.user_drain_count
       Kato::Config.get("logyard", "drains").select { |drain|
         drain.to_s.start_with? "appdrain"

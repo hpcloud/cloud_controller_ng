@@ -155,5 +155,7 @@ app_uris:
 #  reserved_file:
 
 maintenance_mode: false
+
+# Total number of app drains possible.
 max_user_drains: 5
 
