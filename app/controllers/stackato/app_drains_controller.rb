@@ -17,9 +17,9 @@ module VCAP::CloudController
     def create_app_drain(app_guid)
       app = find_guid_and_validate_access(:update, app_guid)
 
-      max_user_drains = @config[:max_user_drains]
-      if StackatoAppDrains.user_drain_count >= max_user_drains
-        raise Errors::StackatoAppDrainLimitReached.new(max_user_drains)
+      max_drains_per_app = @config[:max_drains_per_app]
+      if StackatoAppDrains.app_drains_count(app) >= max_drains_per_app
+        raise Errors::StackatoAppDrainLimitReached.new(max_drains_per_app)
       end
 
       # TODO:Stackato: Implement user specific account capacity for drains.

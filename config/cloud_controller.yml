@@ -156,6 +156,5 @@ app_uris:
 
 maintenance_mode: false
 
-# Total number of app drains possible.
-max_user_drains: 5
-
+# Maximum number of drains for any app.
+max_drains_per_app: 2
