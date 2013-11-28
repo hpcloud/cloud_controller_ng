@@ -50,7 +50,12 @@ class Blobstore
 
   def delete(key)
     blob_file = file(key)
+    return if blob_directory?(blob_file)
     blob_file.destroy if blob_file
+  end
+
+  def blob_directory?(blob_file)
+    blob_file.key.end_with?("/")
   end
 
   def download_uri(key)
