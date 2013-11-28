@@ -175,6 +175,7 @@ module VCAP::CloudController
     end
 
     def after_destroy
+      StackatoAppDrains.delete_all self
       AppStopEvent.create_from_app(self) unless stopped? || has_stop_event_for_latest_run?
     end
 
