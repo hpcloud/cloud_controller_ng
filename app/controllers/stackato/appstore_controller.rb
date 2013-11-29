@@ -82,6 +82,8 @@ module VCAP::CloudController
         response = http.request(request)
       rescue Errno::ECONNREFUSED
         raise Errors::StackatoAppStoreAPIConnectionFailed.new
+      rescue Timeout::Error
+	raise Errors::StackatoAppStoreAPITimeout.new
       end
       [response.code.to_i, response.body]
     end

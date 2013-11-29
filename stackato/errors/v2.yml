@@ -230,3 +230,9 @@
   name: StackatoParameterLengthInvalid
   http_code: 400
   message: "Parameter length must not exceed %s characters: %s"
+
+146:
+  name: StackatoAppStoreAPITimeout
+  http_code: 500
+  message: "There was a timeout communicating with the AppStore API."
+
