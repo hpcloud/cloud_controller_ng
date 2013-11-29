@@ -149,9 +149,9 @@ module VCAP::CloudController
 
     def error_message(response)
       if response.is_a?(String) || response.nil?
-        "failed to stage application:\n#{response}"
+        "failed to stage application: #{response}"
       elsif response["error"]
-        "failed to stage application:\n#{response["error"]}\n#{response["task_log"]}"
+        "failed to stage application: #{response["error"]}\n#{response["task_log"]}"
       end
     end
 
