@@ -50,8 +50,8 @@ class Blobstore
 
   def delete(key)
     blob_file = file(key)
-    return if blob_directory?(blob_file)
-    blob_file.destroy if blob_file
+    return if blob_file.nil? || blob_directory?(blob_file)
+    blob_file.destroy
   end
 
   def blob_directory?(blob_file)
