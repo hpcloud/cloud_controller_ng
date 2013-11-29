@@ -32,6 +32,12 @@ processes:
       memory_limit_mb: R
       disk_limit_mb: R
 
+  harbor_gateway:
+    plan_management:
+      plans:
+        free:
+          allow_over_provisoning: RW
+
   harbor_node:
     logging: RW
     host_external: RW
@@ -40,6 +46,10 @@ processes:
 
   mysql_gateway:
     logging: RW
+    plan_management:
+      plans:
+        free:
+          allow_over_provisoning: RW
 
   mysql_node:
     logging: RW
@@ -48,6 +58,10 @@ processes:
 
   postgresql_gateway:
     logging: RW
+    plan_management:
+      plans:
+        free:
+          allow_over_provisoning: RW
 
   postgresql_node:
     logging: RW
@@ -56,6 +70,10 @@ processes:
 
   rabbit_gateway:
     logging: RW
+    plan_management:
+      plans:
+        free:
+          allow_over_provisoning: RW
 
   rabbit_node:
     logging: RW
@@ -64,6 +82,10 @@ processes:
 
   rabbit3_gateway:
     logging: RW
+    plan_management:
+      plans:
+        free:
+          allow_over_provisoning: RW
 
   rabbit3_node:
     logging: RW
@@ -72,6 +94,10 @@ processes:
 
   redis_gateway:
     logging: RW
+    plan_management:
+      plans:
+        free:
+          allow_over_provisoning: RW
 
   redis_node:
     logging: RW
@@ -80,6 +106,10 @@ processes:
 
   mongodb_gateway:
     logging: RW
+    plan_management:
+      plans:
+        free:
+          allow_over_provisoning: RW
 
   mongodb_node:
     logging: RW
@@ -87,6 +117,10 @@ processes:
 
   filesystem_gateway:
     logging: RW
+    plan_management:
+      plans:
+        free:
+          allow_over_provisoning: RW
 
   filesystem_node:
     logging: RW
@@ -100,6 +134,10 @@ processes:
 
   memcached_gateway:
     logging: RW
+    plan_management:
+      plans:
+        free:
+          allow_over_provisoning: RW
 
   logyard:
     retrylimits: R
