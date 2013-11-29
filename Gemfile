@@ -38,7 +38,7 @@ gem 'delayed_job'       ,    '4.0.0'
 gem 'delayed_job_active_record',    '4.0.0'
 gem 'descendants_tracker',    '0.0.3'
 gem 'diff-lcs'          ,    '1.2.5', :groups => [:default, :test]
-gem 'docile'            ,    '1.1.0', :groups => [:test]
+gem 'docile'            ,    '1.1.1', :groups => [:test]
 gem 'docopt'            ,    '0.5.0'
 gem 'em-http-request'   ,    '1.1.1'
 gem 'em-socksify'       ,    '0.3.0'
@@ -83,11 +83,11 @@ gem 'nats'              ,   '0.4.26'
 gem 'net-scp'           ,    '1.1.2'
 gem 'net-ssh'           ,    '2.7.0'
 gem 'nokogiri'          ,    '1.6.0'
-gem 'parallel'          ,    '0.9.0', :groups => [:test]
-gem 'parallel_tests'    ,   '0.16.3', :groups => [:test]
+gem 'parallel'          ,    '0.9.1', :groups => [:test]
+gem 'parallel_tests'    ,   '0.16.5', :groups => [:test]
 gem 'pg'                ,   '0.14.1', :groups => [:db, :default]
 gem 'posix-spawn'       ,    '0.3.6'
-gem 'pry'               , '0.9.12.3', :groups => [:development, :test]
+gem 'pry'               , '0.9.12.4', :groups => [:development, :test]
 gem 'rack'              ,    '1.5.2', :groups => [:default, :test]
 gem 'rack-accept'       ,    '0.4.5'
 gem 'rack-mount'        ,    '0.8.3'
@@ -114,7 +114,7 @@ gem 'sinatra'           ,    '1.4.4'
 gem 'sinatra-contrib'   ,    '1.4.1'
 gem 'slop'              ,    '3.4.7', :groups => [:development, :test]
 gem 'sqlite3'           ,    '1.3.7', :groups => [:db, :default]
-gem 'squash_ruby'       ,    '1.2.2'
+gem 'squash_ruby'       ,    '1.2.3'
 gem 'stackato-kato'     ,    '3.0.0'
 gem 'stager-client'     ,    '0.0.2', :git => "https://github.com/cloudfoundry/stager-client.git", :ref => "04c2aee9"
 gem 'steno'             ,    '1.1.0'
@@ -125,6 +125,7 @@ gem 'thor'              ,   '0.18.1', :groups => [:test]
 gem 'tilt'              ,    '1.4.1'
 gem 'timecop'           ,    '0.6.3', :groups => [:test]
 gem 'timers'            ,    '1.1.0', :groups => [:test]
+gem 'trollop'           ,      '2.0'
 gem 'tzinfo'            ,   '0.3.38'
 gem 'vcap-concurrency'  ,    '0.1.0', :git => "https://github.com/cloudfoundry/vcap-concurrency.git", :ref => "2a5b0179"
 gem 'vcap_common'       ,    '2.2.1', :path => '../common'
