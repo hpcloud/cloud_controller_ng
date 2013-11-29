@@ -15,7 +15,7 @@ module VCAP::CloudController
     end
 
     def self.redis &block
-      StackatoRedisClient.redis &block
+      AppLogsRedisClient.redis &block
     end
 
     def self.fetch_app_loglines(app, num=25, raw=false)

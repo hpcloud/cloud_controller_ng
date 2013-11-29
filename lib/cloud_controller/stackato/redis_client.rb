@@ -1,16 +1,13 @@
 
 module VCAP::CloudController
-  # FIXME: this should be split into AppLogRedisClient (applog_redis) and StackatoRedisClient (ephemeral_client)
-  class StackatoRedisClient
-
-    CC_CONFIG_KEY = :app_logs_redis
-
-    def self.configure(config)
+  class RedisClient
+    def self.configure_base(config, key)
       @@cc_config = config
+      @@config_key = key
     end
 
     def self.logger
-      @@logger ||= Steno.logger("cc.stackato.redis_client")
+      @@logger ||= Steno.logger("cc.stackato.redis_client.#{@@config_key}")
     end
 
     def self.mutex
@@ -27,9 +24,9 @@ module VCAP::CloudController
         # connection.
         @@redis ||= nil
         unless @@redis and @@redis.client.connected?
-          redis_config = @@cc_config[CC_CONFIG_KEY]
+          redis_config = @@cc_config[@@config_key]
           unless redis_config.is_a? Hash and redis_config[:host] and redis_config[:port]
-            raise Errors::StackatoRedisClientNotConfigured.new
+            raise Errors::RedisClientNotConfigured.new
           end
           logger.info("Connecting to redis at #{redis_config[:host]}:#{redis_config[:port]}")
           @@redis = Redis.new(
@@ -46,6 +43,20 @@ module VCAP::CloudController
       end
 
     end
-
   end
+
+  class EphemeralRedisClient < RedisClient
+    CC_CONFIG_KEY = :ephemeral_redis
+    def self.configure(config)
+      configure_base(config, CC_CONFIG_KEY)
+    end
+  end
+
+  class AppLogsRedisClient < RedisClient
+    CC_CONFIG_KEY = :app_logs_redis
+    def self.configure(config)
+      configure_base(config, CC_CONFIG_KEY)
+    end
+  end
+
 end

@@ -62,7 +62,7 @@
   message: "Failed to update component. Invalid %s '%s'"
 
 112:
-  name: StackatoRedisClientNotConfigured
+  name: RedisClientNotConfigured
   http_code: 500
   message: "The redis client is not configured within the Cloud Controller config."
 
