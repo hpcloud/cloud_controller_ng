@@ -26,7 +26,7 @@ module VCAP::CloudController
         unless @@redis and @@redis.client.connected?
           redis_config = @@cc_config[@@config_key]
           unless redis_config.is_a? Hash and redis_config[:host] and redis_config[:port]
-            raise Errors::RedisClientNotConfigured.new
+            raise Errors::StackatoRedisClientNotConfigured.new
           end
           logger.info("Connecting to redis at #{redis_config[:host]}:#{redis_config[:port]}")
           @@redis = Redis.new(
