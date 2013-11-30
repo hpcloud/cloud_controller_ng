@@ -75,6 +75,7 @@ module VCAP::CloudController
     def http_post_json(url, data)
       uri = URI(url)
       http = Net::HTTP.new(uri.host, uri.port)
+      http.read_timeout = 60*5  # TODO: match max_staging_duration+grace?
       request = Net::HTTP::Post.new(uri.request_uri)
       request.content_type = 'application/json'
       request.body = Yajl::Encoder.encode(data)
