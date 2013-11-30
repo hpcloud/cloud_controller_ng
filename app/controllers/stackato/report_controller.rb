@@ -13,14 +13,14 @@ module VCAP::CloudController
       raise Errors::NotAuthorized unless roles.admin?
       period = 60
       logger.info "Adding token #{token} expiring after #{period} seconds"
-      StackatoRedisClient.redis do |r|
+      EphemeralRedisClient.redis do |r|
         r.set redis_key_for_token(token), "empty"
         r.expire redis_key_for_token(token), period
       end
     end
 
     def get_report(token)
-      StackatoRedisClient.redis do |r|
+      EphemeralRedisClient.redis do |r|
         data = r.get redis_key_for_token(token)
         if data.nil?
           raise Errors::StackatoCreateReportFailed.new("Invalid or expired token")

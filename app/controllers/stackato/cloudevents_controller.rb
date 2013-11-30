@@ -28,7 +28,7 @@ module VCAP::CloudController
     end
 
     def redis &block
-      StackatoRedisClient.redis &block
+      AppLogsRedisClient.redis &block
     end
 
     get "/v2/stackato/cloudevents", :get_cloudevents

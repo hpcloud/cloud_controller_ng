@@ -19,7 +19,7 @@ module VCAP::CloudController
     end
 
     def self.redis &block
-      StackatoRedisClient.redis &block
+      EphemeralRedisClient.redis &block
     end
 
     def self.message_bus
