@@ -128,6 +128,11 @@ app_logs_redis:
   host: 127.0.0.1
   port: 6464
 
+
+ephemeral_redis:
+  host: 127.0.0.1
+  port: 6379
+
 # App stores
 app_store:
   default_icon: http://get.stackato.com/store/icon/default.png
