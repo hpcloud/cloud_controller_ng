@@ -20,14 +20,21 @@ module VCAP::CloudController
       query_json = params["q"] || ''
       query = QueryUserMessage.decode(query_json)
       attributes_to_request = query.attributes
+      guids_to_request = [];
 
-      # XXX: This could be made more efficient. Query DB for this information
-      all_guids = user.organizations.collect(&:user_guids).flatten.uniq
-      guids_to_request = query.guids & all_guids
+      if user.admin?
+        # Admins can get info on all users without restrictions
+        guids_to_request = query.guids
+      else
+        # Normal users can only get info on users that belong to the same org(s) as them
+        # XXX: This could be made more efficient. Query DB for this information
+        all_guids = user.organizations.collect(&:user_guids).flatten.uniq 
+        guids_to_request = query.guids & all_guids
 
-      # Work around for the case where guids_to_request is empty which would result in all users being returned
-      if guids_to_request.length == 0
-        guids_to_request << "X_NOT_A_REAL_GUID_X"
+        # Work around for the case where guids_to_request is empty which would result in all users being returned
+        if guids_to_request.length == 0
+          guids_to_request << "X_NOT_A_REAL_GUID_X"
+        end
       end
 
       result = scim_client.query(
