@@ -25,6 +25,11 @@ module VCAP::CloudController
       all_guids = user.organizations.collect(&:user_guids).flatten.uniq
       guids_to_request = query.guids & all_guids
 
+      # Work around for the case where guids_to_request is empty which would result in all users being returned
+      if guids_to_request.length == 0
+        guids_to_request << "X_NOT_A_REAL_GUID_X"
+      end
+
       result = scim_client.query(
         :user,
         'attributes' => attributes_to_request.join(','),
