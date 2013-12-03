@@ -424,6 +424,8 @@ module VCAP::CloudController
     end
 
     def mark_as_failed_to_stage
+      app_from_db = self.class.find(:guid => guid)
+      return unless app_from_db
       self.package_state = "FAILED"
       save
     end
