@@ -5,7 +5,7 @@ module Sequel::Plugins::StackatoValidations
     #
     # @param [Symbol] The attribute to validate
     def validates_app_name(attr)
-      validates_format(/^[\w-]+$/, attr, :message => :app_name) if send(attr)
+      validates_format(/^[a-zA-Z0-9\-]+$/, attr, :message => :app_name) if send(attr)
     end
 
   end

@@ -55,7 +55,7 @@ module VCAP::CloudController
     end
 
     def validate_app_name(app_name)
-      if app_name !~ /^[\w-]+$/
+      if app_name !~ /^[a-zA-Z0-9\-]+$/
         raise Errors::StackatoAppNameInvalid.new
       end
     end
