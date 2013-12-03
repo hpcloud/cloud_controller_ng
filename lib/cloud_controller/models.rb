@@ -3,6 +3,7 @@
 module VCAP::CloudController; end
 
 require "sequel_plugins/vcap_validations"
+require "sequel_plugins/stackato_validations"
 require "sequel_plugins/vcap_serialization"
 require "sequel_plugins/vcap_normalization"
 require "sequel_plugins/vcap_relations"
@@ -64,6 +65,7 @@ module VCAP::CloudController
 end
 
 Sequel::Model.plugin :vcap_validations
+Sequel::Model.plugin :stackato_validations
 Sequel::Model.plugin :vcap_serialization
 Sequel::Model.plugin :vcap_normalization
 Sequel::Model.plugin :vcap_relations

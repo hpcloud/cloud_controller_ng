@@ -9,6 +9,8 @@ module VCAP::CloudController
     def app_create
       body_params = Yajl::Parser.parse(body)
       ensure_params(body_params, ["space_guid", "app_name"])
+      validate_app_name(body_params["app_name"])
+      # TODO:Stackato: More validation needed
       logger.info("Requesting appstore to create a new app #{body_params}")
       response = invoke_api "/create", {
         :Token => auth_token_header,
@@ -22,21 +24,23 @@ module VCAP::CloudController
 
     def app_deploy(app_guid)
       body_params = Yajl::Parser.parse(body)
-      validate_params(body_params)
-      ensure_params(body_params, ["app_name", "space_guid", "from"])
+      params = set_app_deploy_defaults(body_params)
+      ensure_params(params, ["app_name", "space_guid", "from"])
+      validate_app_name(params["app_name"])
+      # TODO:Stackato: More validation needed
       app = find_guid_and_validate_access(:update, app_guid)
-      logger.info("Requesting appstore to deploy an app #{body_params}")
+      logger.info("Requesting appstore to deploy an app #{params}")
       response = invoke_api "/push", {
         :AppGUID => app.guid,
-        :AppName => body_params["app_name"],
-        :Space => body_params["space_guid"],
-        :Url => body_params["url"],
-        :Buildpack => body_params["buildpack"],
+        :AppName => params["app_name"],
+        :Space => params["space_guid"],
+        :Url => params["url"],
+        :Buildpack => params["buildpack"],
         :Token => auth_token_header,
-        :VcsUrl => body_params["from"],
-        :VcsRef => body_params["commit"],
-        :VcsType => body_params["type"],
-        :AutoStart => body_params["autostart"],
+        :VcsUrl => params["from"],
+        :VcsRef => params["commit"],
+        :VcsType => params["type"],
+        :AutoStart => params["autostart"],
       }
       # TODO:Stackato: do not just blindly pass repsonse
       Yajl::Encoder.encode(response)
@@ -50,14 +54,21 @@ module VCAP::CloudController
       end
     end
 
-    # TODO:Stackato: Add validation here. There is none.
-    def validate_params(params)
+    def validate_app_name(app_name)
+      if app_name !~ /^[\w-]+$/
+        raise Errors::StackatoAppNameInvalid.new
+      end
+    end
+
+    def set_app_deploy_defaults(params)
+      params = params.dup
       # convert null to empty string to workaround
       # http://code.google.com/p/go/issues/detail?id=2540
       params["type"] = "" if params["type"].nil?
       params["type"] = "git" if params["type"].empty?
       # console using the legacy API does not pass 'autostart'
       params["autostart"] = true if params["autostart"].nil?
+      params
     end
 
     def auth_token_header

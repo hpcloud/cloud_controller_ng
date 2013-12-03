@@ -236,3 +236,8 @@
   http_code: 500
   message: "There was a timeout communicating with the AppStore API."
 
+147:
+  name: StackatoAppNameInvalid
+  http_code: 400
+  message: "Application name is invalid. Only alphanumerics and dashes allowed."
+
