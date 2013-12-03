@@ -36,7 +36,7 @@ processes:
     plan_management:
       plans:
         free:
-          allow_over_provisoning: RW
+          allow_over_provisioning: RW
 
   harbor_node:
     logging: RW
@@ -49,7 +49,7 @@ processes:
     plan_management:
       plans:
         free:
-          allow_over_provisoning: RW
+          allow_over_provisioning: RW
 
   mysql_node:
     logging: RW
@@ -61,7 +61,7 @@ processes:
     plan_management:
       plans:
         free:
-          allow_over_provisoning: RW
+          allow_over_provisioning: RW
 
   postgresql_node:
     logging: RW
@@ -73,7 +73,7 @@ processes:
     plan_management:
       plans:
         free:
-          allow_over_provisoning: RW
+          allow_over_provisioning: RW
 
   rabbit_node:
     logging: RW
@@ -85,7 +85,7 @@ processes:
     plan_management:
       plans:
         free:
-          allow_over_provisoning: RW
+          allow_over_provisioning: RW
 
   rabbit3_node:
     logging: RW
@@ -97,7 +97,7 @@ processes:
     plan_management:
       plans:
         free:
-          allow_over_provisoning: RW
+          allow_over_provisioning: RW
 
   redis_node:
     logging: RW
@@ -109,7 +109,7 @@ processes:
     plan_management:
       plans:
         free:
-          allow_over_provisoning: RW
+          allow_over_provisioning: RW
 
   mongodb_node:
     logging: RW
@@ -120,7 +120,7 @@ processes:
     plan_management:
       plans:
         free:
-          allow_over_provisoning: RW
+          allow_over_provisioning: RW
 
   filesystem_node:
     logging: RW
@@ -137,7 +137,7 @@ processes:
     plan_management:
       plans:
         free:
-          allow_over_provisoning: RW
+          allow_over_provisioning: RW
 
   logyard:
     retrylimits: R

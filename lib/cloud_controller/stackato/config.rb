@@ -332,6 +332,54 @@ module VCAP::CloudController
       end
     end
 
+    def _update__harbor_gateway__plan_management(component_id, key, plan_management)
+      update_plan_management(component_id, key, plan_management)
+    end
+
+    def _update__mysql_gateway__plan_management(component_id, key, plan_management)
+      update_plan_management(component_id, key, plan_management)
+    end
+
+    def _update__postgresql_gateway__plan_management(component_id, key, plan_management)
+      update_plan_management(component_id, key, plan_management)
+    end
+
+    def _update__rabbit_gateway__plan_management(component_id, key, plan_management)
+      update_plan_management(component_id, key, plan_management)
+    end
+
+    def _update__rabbit3_gateway__plan_management(component_id, key, plan_management)
+      update_plan_management(component_id, key, plan_management)
+    end
+
+    def _update__redis_gateway__plan_management(component_id, key, plan_management)
+      update_plan_management(component_id, key, plan_management)
+    end
+
+    def _update__mongodb_gateway__plan_management(component_id, key, plan_management)
+      update_plan_management(component_id, key, plan_management)
+    end
+
+    def _update__filesystem_gateway__plan_management(component_id, key, plan_management)
+      update_plan_management(component_id, key, plan_management)
+    end
+
+    def _update__memcached_gateway__plan_management(component_id, key, plan_management)
+      update_plan_management(component_id, key, plan_management)
+    end
+
+    def update_plan_management(component_id, key, plan_management)
+      plan_management["plans"].each do |plan_id, plan|
+        if [true, false].include? plan["allow_over_provisioning"]
+          Kato::Config.set(
+            component_id,
+            "#{key}/plans/#{plan_id}/allow_over_provisioning",
+            plan["allow_over_provisioning"]
+          )
+        end
+      end
+    end
+
     def _assert_array_of_strings(component, arr, name, min_length=nil)
       if arr.is_a? Array
         arr.each do |item|
