@@ -156,5 +156,5 @@ platform_config:
 # #########
 # !! Dev ONLY. Don't enable this in production, it will block the CC's
 # main thread of execution
-debug: true
+debug: false
 
