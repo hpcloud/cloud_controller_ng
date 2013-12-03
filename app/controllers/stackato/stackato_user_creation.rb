@@ -32,7 +32,7 @@ module VCAP::CloudController
       end
       user_info[:password] = password if password
 
-      logger.debug "User info to post to UAA: #{user_info.inspect}"
+      logger.debug "User info to post to UAA: #{user_info.merge({:password => "******"}).inspect}"
 
       before_create
       @new_user = nil
@@ -178,10 +178,8 @@ module VCAP::CloudController
 
     def parameter_extraction
       json = body.read
-      logger.debug "JSON POST body: #{json.inspect}"
       json_msg = self.class::CreateMessage.decode(json)
       @request_attrs = json_msg.extract(:stringify_keys => true)
-      logger.debug "Request Atts: #{request_attrs.inspect}"
     end
 
     def scim_client
