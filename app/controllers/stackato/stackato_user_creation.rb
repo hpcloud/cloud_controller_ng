@@ -1,7 +1,7 @@
 module VCAP::CloudController
   module StackatoUserCreation
-    ADMIN_GROUPS = %W{cloud_controller.admin scim.write}
-    ALL_USER_GROUPS = %W{scim.read}
+    ADMIN_GROUPS = %W{cloud_controller.admin scim.write scim.read}
+    ALL_USER_GROUPS = %W{}
 
     # There's a model() method to do this but it breaks things
     def model; User; end
