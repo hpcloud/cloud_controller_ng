@@ -54,10 +54,17 @@ module VCAP::CloudController
       [HTTP::OK, serialization.render_json(self.class, obj, @opts)]
     end
 
-    def delete
-      # TODO: implement or not
-      raise "Not Implemented"
-    end
+    def delete(guid)
 
+      obj = find_guid_and_validate_access(:delete, guid)
+
+      model.db.transaction do
+        obj.destroy
+        scim_client.delete(:user, guid)
+      end
+
+      [HTTP::OK]
+    end
+    
   end
 end
