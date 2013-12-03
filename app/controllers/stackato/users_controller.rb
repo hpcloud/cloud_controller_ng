@@ -17,8 +17,20 @@ module VCAP::CloudController
 
     def enumerate
       raise Errors::NotAuthenticated unless user
-      # TODO: stub, here to satisfy tests
-      return {}.to_json
+      query_json = params["q"] || ''
+      query = QueryUserMessage.decode(query_json)
+      attributes_to_request = query.attributes
+
+      # XXX: This could be made more efficient. Query DB for this information
+      all_guids = user.organizations.collect(&:user_guids).flatten.uniq
+      guids_to_request = query.guids & all_guids
+
+      result = scim_client.query(
+        :user,
+        'attributes' => attributes_to_request.join(','),
+        'filter' => guids_to_request.collect{|guid| %Q!id eq #{guid.inspect}!}.join(' or ')
+        )
+      [HTTP::OK, Hash[result].to_json]
     end
 
     # Update operation
@@ -65,6 +77,23 @@ module VCAP::CloudController
 
       [HTTP::OK]
     end
-    
+
+    class QueryUserMessage < JsonMessage
+
+      def self.decode json
+        #logger.debug "JSON to decode: #{json.inspect}"
+        begin
+          dec_json = Yajl::Parser.parse(json)
+        rescue => e
+          raise ParseError, e.to_s
+        end
+        #logger.debug "Downcased json: #{dec_json.inspect}"
+        from_decoded_json(dec_json)
+      end
+
+      required :attributes, [String]
+      required :guids,      [String]
+
+    end
   end
 end
