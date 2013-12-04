@@ -155,7 +155,7 @@ allowed_repos:
 app_uris:
   # Allow applications to register URIs that are outside your domain.
   allow_external: true
-  reserved_list: [www, api, login, ports]
+  reserved_list: []
   reserved_length: 2
 #  reserved_file:
 
