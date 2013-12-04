@@ -48,7 +48,20 @@ module VCAP::CloudController
       validates_format   /^([\w\-]+)$/, :host if (host && !host.empty?)
       validates_unique   [:host, :domain_id]
 
+      main_domain = Kato::Config.get("cluster", "endpoint").gsub(/^api\./, '')
+      reserved_domains = Kato::Config.get("cloud_controller_ng", "app_uris/reserved_list").map { |x| "#{x}.#{main_domain}" }
       if domain
+        reserved_domains.each do |rdomain|
+          if rdomain == fqdn
+            errors.add(:host, :reserved_host)
+            break
+          end
+        end
+
+        if fqdn == main_domain
+          errors.add(:host, :reserved_host)
+        end
+
         unless domain.wildcard
           errors.add(:host, :host_not_empty) unless (host.nil? || host.empty?)
         end
