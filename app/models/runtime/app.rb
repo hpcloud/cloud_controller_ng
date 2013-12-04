@@ -125,7 +125,10 @@ module VCAP::CloudController
 
       validate_environment
       validate_metadata
-      check_memory_quota
+
+      if state == "STARTED" || total_requested_memory > total_existing_memory
+        check_memory_quota
+      end
       validate_instances
       validate_autoscaling_settings
       validate_health_check_timeout
