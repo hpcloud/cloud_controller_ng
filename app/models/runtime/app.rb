@@ -107,7 +107,10 @@ module VCAP::CloudController
 
       validate_environment
       validate_metadata
-      check_memory_quota
+
+      if state == "STARTED" || total_requested_memory > total_existing_memory
+        check_memory_quota
+      end
     end
 
     def before_create
