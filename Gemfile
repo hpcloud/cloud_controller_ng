@@ -8,9 +8,9 @@ source (ENV['RUBYGEMS_MIRROR'] or 'https://rubygems.org')
 
 ruby '1.9.3' # prevents hard-to-diagnose errors with bundle install
 
-gem 'activemodel'       ,   '3.2.15'
-gem 'activerecord'      ,   '3.2.15'
-gem 'activesupport'     ,   '3.2.15'
+gem 'activemodel'       ,   '3.2.16'
+gem 'activerecord'      ,   '3.2.16'
+gem 'activesupport'     ,   '3.2.16'
 gem 'addressable'       ,    '2.3.5', :groups => [:test]
 gem 'allowy'            ,    '0.4.0'
 gem 'arel'              ,    '3.0.3'
@@ -31,7 +31,7 @@ gem 'columnize'         ,    '0.3.6', :groups => [:development]
 gem 'cookiejar'         ,    '0.3.0'
 gem 'crack'             ,    '0.4.1', :groups => [:test]
 gem 'daemons'           ,    '1.1.9'
-gem 'debugger'          ,    '1.6.2', :groups => [:development]
+gem 'debugger'          ,    '1.6.3', :groups => [:development]
 gem 'debugger-linecache',    '1.2.0', :groups => [:development]
 gem 'debugger-ruby_core_source',    '1.2.4', :groups => [:development]
 gem 'delayed_job'       ,    '4.0.0'
@@ -42,7 +42,7 @@ gem 'docile'            ,    '1.1.1', :groups => [:test]
 gem 'docopt'            ,    '0.5.0'
 gem 'em-http-request'   ,    '1.1.1'
 gem 'em-socksify'       ,    '0.3.0'
-gem 'equalizer'         ,    '0.0.7'
+gem 'equalizer'         ,    '0.0.8'
 gem 'errand'            ,    '0.7.3'
 gem 'eventmachine'      ,    '1.0.3'
 gem 'excon'             ,   '0.28.0'
@@ -54,17 +54,17 @@ gem 'formatador'        ,    '0.2.4', :groups => [:default, :test]
 gem 'futuroscope'       ,    '0.1.5'
 gem 'grape'             ,    '0.6.1'
 gem 'guard'             ,    '2.2.4', :groups => [:test]
-gem 'guard-rspec'       ,    '4.0.4', :groups => [:test]
+gem 'guard-rspec'       ,    '4.1.0', :groups => [:test]
 gem 'hashie'            ,    '2.0.5'
 gem 'http_parser.rb'    , '0.6.0.beta.2'
 gem 'httpclient'        ,  '2.3.4.1'
-gem 'i18n'              ,    '0.6.5'
+gem 'i18n'              ,    '0.6.9'
 gem 'ice_nine'          ,   '0.10.0'
 gem 'ipaddress'         ,    '0.8.0'
 gem 'json'              ,    '1.8.1'
 gem 'json_pure'         ,    '1.8.1'
 gem 'librrd'            ,    '1.0.3'
-gem 'listen'            ,    '2.2.0', :groups => [:test]
+gem 'listen'            ,    '2.3.1', :groups => [:test]
 gem 'loggregator_emitter',   '0.0.16'
 gem 'loggregator_messages', '0.0.5.pre'
 gem 'lumberjack'        ,    '1.0.4', :groups => [:test]
@@ -111,7 +111,7 @@ gem 'simplecov'         ,    '0.8.2', :groups => [:test]
 gem 'simplecov-html'    ,    '0.8.0', :groups => [:test]
 gem 'simplecov-rcov'    ,    '0.2.3', :groups => [:test]
 gem 'sinatra'           ,    '1.4.4'
-gem 'sinatra-contrib'   ,    '1.4.1'
+gem 'sinatra-contrib'   ,    '1.4.2'
 gem 'slop'              ,    '3.4.7', :groups => [:development, :test]
 gem 'sqlite3'           ,    '1.3.7', :groups => [:db, :default]
 gem 'squash_ruby'       ,    '1.2.3'
@@ -123,7 +123,7 @@ gem 'term-ansicolor'    ,    '1.0.7'
 gem 'thin'              ,    '1.6.1'
 gem 'thor'              ,   '0.18.1', :groups => [:test]
 gem 'tilt'              ,    '1.4.1'
-gem 'timecop'           ,    '0.6.3', :groups => [:test]
+gem 'timecop'           ,    '0.7.0', :groups => [:test]
 gem 'timers'            ,    '1.1.0', :groups => [:test]
 gem 'trollop'           ,      '2.0'
 gem 'tzinfo'            ,   '0.3.38'
