@@ -272,6 +272,7 @@ module VCAP::CloudController
     end
 
     def total_existing_memory
+      return 0 if new?
       app_from_db = self.class.find(:guid => guid)
       app_from_db[:memory] * app_from_db[:instances]
     end
