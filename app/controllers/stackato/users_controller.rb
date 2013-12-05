@@ -28,7 +28,7 @@ module VCAP::CloudController
       else
         # Normal users can only get info on users that belong to the same org(s) as them
         # XXX: This could be made more efficient. Query DB for this information
-        all_guids = user.organizations.collect(&:user_guids).flatten.uniq 
+        all_guids = user.organizations.collect(&:user_guids).flatten.uniq
         guids_to_request = query.guids & all_guids
 
         # Work around for the case where guids_to_request is empty which would result in all users being returned
@@ -42,7 +42,9 @@ module VCAP::CloudController
         'attributes' => attributes_to_request.join(','),
         'filter' => guids_to_request.collect{|guid| %Q!id eq #{guid.inspect}!}.join(' or ')
         )
-      [HTTP::OK, Hash[result].to_json]
+      # XXX Hack alert! Using a private method in the SCIM client to correct key case
+      result = @scim_client.method(:force_case).call(Hash[result])
+      [HTTP::OK, result.to_json]
     end
 
     # Update operation
