@@ -274,14 +274,6 @@ module VCAP::CloudController
     end
   
     def _update__cloud_controller_ng__app_uris(component, key, app_uris)
-      if app_uris.key? "allow_external"
-        allow_external = app_uris["allow_external"]
-        if not [true, false].include? allow_external
-          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "`allow_external' must be of boolean type")
-        end
-        logger.info("Setting CC app_uris/allow_external to #{allow_external}")
-        Kato::Config.set("cloud_controller_ng", "app_uris/allow_external", allow_external)
-      end
       if app_uris.key? "reserved_list"
         reserved_list = app_uris["reserved_list"]
         _assert_array_of_strings component, reserved_list, "reserved_list", 1
