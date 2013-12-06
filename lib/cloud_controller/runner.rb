@@ -16,8 +16,9 @@ require_relative "seeds"
 require_relative "message_bus_configurer"
 require_relative "stackato/redis_client"
 require_relative "stackato/app_logs_client"
-require_relative "stackato/droplet_accountability"
 require_relative "stackato/auto_scaler_respondent"
+require_relative "stackato/deactivate_services"
+require_relative "stackato/droplet_accountability"
 
 module VCAP::CloudController
   class Runner
@@ -153,6 +154,7 @@ module VCAP::CloudController
       StackatoAppLogsClient::configure(@config)
       StackatoDropletAccountability::configure(@config, message_bus)
       StackatoDropletAccountability::start
+      StackatoDeactivateServices::start
     end
 
     def create_app(config, message_bus)

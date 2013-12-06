@@ -163,6 +163,9 @@ maintenance_mode: false
 # Maximum number of drains for any app.
 max_drains_per_app: 2
 
+# Mark services inactive if they have not updated within the time period (s)
+service_activity_timeout: 120
+
 auto_scaling:
   enabled: false
   config_file: /s/etc/autoscaling.yaml
