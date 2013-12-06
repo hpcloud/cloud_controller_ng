@@ -39,7 +39,7 @@ module VCAP::CloudController
     end
 
     def stage(&completion_callback)
-      @stager_id = @stager_pool.find_stager(@app.stack.name, [1024, @app.memory].max)
+      @stager_id = @stager_pool.find_stager(@app.stack.name, @app.memory)
       raise Errors::StagingError, "no available stagers for stack #{@app.stack.name} and mem #{@app.memory}" unless @stager_id
 
       subject = "staging.#{@stager_id}.start"
