@@ -168,5 +168,5 @@ service_activity_timeout: 120
 
 autoscaling:
   enabled: false
-  config_file: /s/etc/autoscaling.yaml
+  config_file: /s/etc/autoscaling/autoscaling.yaml
 
