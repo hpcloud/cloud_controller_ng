@@ -324,11 +324,6 @@ module VCAP::CloudController
           FileUtils.rm_rf(tmpdir)
         end
         
-        it "should call a file's public_url method if there's no url method" do
-          Fog::Storage::HP::File.any_instance.should_receive(:public_url)
-          uri = AppPackage.package_uri(@guid)
-        end
-
         it "should return nil for an invalid guid" do
           uri = AppPackage.package_uri(Sham.guid)
           uri.should be_nil
