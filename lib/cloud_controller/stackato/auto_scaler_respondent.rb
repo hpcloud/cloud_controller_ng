@@ -35,7 +35,7 @@ module VCAP::CloudController
 
     def process_scale_operation(msg)
       begin
-        @auto_scaler.scale_up if @disabled == false
+        @auto_scaler.scale_up if @disabled == false and (msg.fetch("op", false) == "up")
       rescue Exception => e
         @logger.warn "Error processing scale up operation\n#{e.message}\n#{e.backtrace.inspect}"
       end
