@@ -532,6 +532,7 @@ end
 module VCAP::CloudController::StackatoSpecHelper
   def self.kato_config_preload
     ::Kato::Config.set("cluster", "endpoint", "api.example.com", { :force => true })
+    ::Kato::Config.set("cloud_controller_ng", "app_uris/reserved_list", [])
   end
 end
 
