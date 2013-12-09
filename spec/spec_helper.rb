@@ -529,6 +529,12 @@ class Redis
   end
 end
 
+module VCAP::CloudController::StackatoSpecHelper
+  def self.kato_config_preload
+    ::Kato::Config.set("cluster", "endpoint", "api.example.com", { :force => true })
+  end
+end
+
 Dir[File.expand_path("../support/**/*.rb", __FILE__)].each { |file| require file }
 
 RSpec.configure do |rspec_config|
@@ -563,6 +569,8 @@ RSpec.configure do |rspec_config|
   end
 
   rspec_config.fail_fast = ENV["RSPEC_FAIL_FAST"] ? true : false
+
+  VCAP::CloudController::StackatoSpecHelper.kato_config_preload
 end
 
 # Ensures that entries are not returned ordered by the id field by
@@ -573,3 +581,4 @@ end
 class VCAP::CloudController::App
   set_dataset dataset.order(:guid)
 end
+
