@@ -5,6 +5,8 @@ require "rubygems"
 require "bundler"
 require "bundler/setup"
 
+require File.expand_path("../../../kato/spec-common/spec_helper.rb", __FILE__)
+
 require "fakefs/safe"
 require "machinist/sequel"
 require "machinist/object"
