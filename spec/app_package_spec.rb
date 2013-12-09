@@ -312,7 +312,8 @@ module VCAP::CloudController
                 :hp_tenant_id => "fake_credentials",
                 :hp_auth_uri =>  'https://auth.example.com:5000/v2.0/',
                 :hp_use_upass_auth_style => true,
-                :hp_avl_zone => 'nova'
+                :hp_avl_zone => 'nova',
+                :os_account_meta_temp_url_key => 'fake_os_account_meta_temp_url_key'
               }
             }
           )
