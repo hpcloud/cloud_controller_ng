@@ -31,6 +31,11 @@ module VCAP::CloudController
         all_guids = user.organizations.collect(&:user_guids).flatten.uniq
         guids_to_request = query.guids & all_guids
 
+        # Handle the case where a user doesn't belong to any orgs and is fetching their own info
+        if query.guids.include? user.guid
+          guids_to_request << user.guid
+        end
+
         # Work around for the case where guids_to_request is empty which would result in all users being returned
         if guids_to_request.length == 0
           guids_to_request << "X_NOT_A_REAL_GUID_X"
