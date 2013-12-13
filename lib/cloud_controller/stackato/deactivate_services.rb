@@ -5,9 +5,9 @@ module VCAP::CloudController
     include VCAP::Errors
 
     def self.start
-      @service_activity_timeout = Kato::Config.get('service_activity_timeout') || 120
+      @service_activity_timeout = Kato::Config.get('cloud_controller_ng', 'service_activity_timeout') || 120
 
-      logger.debug2 "Expiring inactive services... (active timeout: #{@service_activity_timeout})"
+      logger.debug2 "Inactive service sweeper started... (active timeout: #{@service_activity_timeout})"
 
       @deactivate_services_thread ||= nil
       if @deactivate_services_thread
