@@ -1,5 +1,8 @@
+require "uaa/scim"
+
 module VCAP::CloudController
   class User < Sequel::Model
+    include StackatoUserCreation
     no_auto_guid
 
     many_to_many      :organizations
@@ -48,9 +51,9 @@ module VCAP::CloudController
 
     default_order_by  :id
 
-    export_attributes :admin, :active, :default_space_guid, :guid
+    export_attributes :admin, :active, :default_space_guid, :guid, :username
 
-    import_attributes :guid, :admin, :active,
+    import_attributes :guid, :admin, :active, :username,
                       :organization_guids,
                       :managed_organization_guids,
                       :billing_managed_organization_guids,
@@ -63,6 +66,17 @@ module VCAP::CloudController
     def validate
       validates_presence :guid
       validates_unique   :guid
+    end
+
+    def before_save
+      super
+      cache_username
+    end
+
+    def cache_username 
+      # Cache the users username so we can provide username searching/filtering in the api
+      result = scim_client.get(:user, guid)
+      self.username = result["username"]
     end
 
     def admin?

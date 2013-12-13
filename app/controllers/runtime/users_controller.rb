@@ -18,7 +18,8 @@ module VCAP::CloudController
                      :billing_managed_organization_guid,
                      :audited_organization_guid,
                      :managed_space_guid,
-                     :audited_space_guid
+                     :audited_space_guid,
+                     :username
 
     def self.translate_validation_exception(e, attributes)
       guid_errors = e.errors.on(:guid)

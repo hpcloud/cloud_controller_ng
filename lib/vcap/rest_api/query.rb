@@ -94,16 +94,16 @@ module VCAP::RestAPI
       col_type = column_type(key)
 
       case col_type
-      when :foreign_key
-        return clean_up_foreign_key(key, val)
-      when :integer
-        val = clean_up_integer(val)
-      when :boolean
-        val = clean_up_boolean(key, val)
-      when :datetime
-        val = clean_up_datetime(val)
-      when :citext
-        val, glob = clean_up_string(val)
+        when :foreign_key
+          return clean_up_foreign_key(key, val)
+        when :integer
+          val = clean_up_integer(val)
+        when :boolean
+          val = clean_up_boolean(key, val)
+        when :datetime
+          val = clean_up_datetime(val)
+        when :string, :citext
+          val, glob = clean_up_string(val)
       end
 
       if comparison == " IN "
@@ -112,7 +112,7 @@ module VCAP::RestAPI
 
       if val.nil?
         { key => nil }
-      elsif col_type == :citext && glob
+      elsif glob
         ["#{key} LIKE ?", val]
       else
         ["#{key} #{comparison} ?", val]
