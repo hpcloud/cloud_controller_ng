@@ -21,7 +21,7 @@ module VCAP::CloudController
           Service.all.each do |service|
             next unless service.updated_at
             if (Time.now - service.updated_at) > @service_activity_timeout
-              logger.debug2 "Deactivating service #{service.name}, no gateway activity for #{@service_activity_timeout}) seconds."
+              logger.debug2 "Deactivating service #{service.label}-#{service.version}, no gateway activity for #{@service_activity_timeout}) seconds."
               service.active = false
               service.save
             end
