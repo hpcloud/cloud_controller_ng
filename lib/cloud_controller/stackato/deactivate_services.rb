@@ -18,12 +18,17 @@ module VCAP::CloudController
       @deactivate_services_thread  = Thread.new do
         while true
           sleep @service_activity_timeout
+          logger.debug2 "Expiring inactive services"
           Service.all.each do |service|
-            next unless service.updated_at
-            if (Time.now - service.updated_at) > @service_activity_timeout
-              logger.debug2 "Deactivating service #{service.label}-#{service.version}, no gateway activity for #{@service_activity_timeout}) seconds."
-              service.active = false
-              service.save
+            begin
+              next unless service.updated_at
+              if (Time.now - service.updated_at) > @service_activity_timeout
+                logger.debug2 "Deactivating service #{service.label}-#{service.version}, no gateway activity for #{@service_activity_timeout}) seconds."
+                service.active = false
+                service.save
+              end
+            rescue Exception => e
+              logger.warn "Unable to deactivate service: #{e.message} #{e.backtrace.inspect}"
             end
           end
         end
