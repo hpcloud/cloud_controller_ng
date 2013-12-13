@@ -21,20 +21,20 @@ end
 Sequel.migration do
   change do
     alter_table(:users) do
-	    add_column :username, String, :default => nil, :case_insenstive => true
-		add_index :username
-	end
+      add_column :username, String, :default => nil, :case_insenstive => true
+      add_index :username
+    end
 
-	DB[:users].where(:username => nil).each do |user|
-		begin
-			guid = user[:guid]
-			result = scim_client.get(:user, guid)
-			username = result["username"]
-			DB[:users].where(:guid => guid).update(:username => username)
-			puts "Cached username for user with guid #{guid}: #{username}" 
-		rescue CF::UAA::NotFound
-			puts "User with guid #{user[:guid]} doesn't exist in AOK. Skipping."
-		end
-	end
+    from(:users).where(:username => nil).each do |user|
+      begin
+        guid = user[:guid]
+        result = scim_client.get(:user, guid)
+        username = result["username"]
+        from(:users).where(:guid => guid).update(:username => username)
+        puts "Cached username for user with guid #{guid}: #{username}" 
+      rescue CF::UAA::NotFound
+        puts "User with guid #{user[:guid]} doesn't exist in AOK. Skipping."
+      end
+    end
   end
 end
