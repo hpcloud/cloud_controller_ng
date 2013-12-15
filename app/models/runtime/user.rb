@@ -68,7 +68,7 @@ module VCAP::CloudController
       validates_unique   :guid
     end
 
-    def before_save
+    def after_save
       super
       cache_username
     end
