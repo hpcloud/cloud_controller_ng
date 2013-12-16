@@ -68,15 +68,19 @@ module VCAP::CloudController
       validates_unique   :guid
     end
 
-    def after_save
+    def before_save
       super
       cache_username
     end
 
     def cache_username 
-      # Cache the users username so we can provide username searching/filtering in the api
-      result = scim_client.get(:user, guid)
-      self.username = result["username"]
+      begin
+        # Cache the users username so we can provide username searching/filtering in the api
+        result = scim_client.get(:user, guid)
+        self.username = result["username"]
+      rescue CF::UAA::NotFound
+        # User doesn't exist in AOK. This shouldn't happen but it will crop up if the user is being created in the CC before AOK.
+      end
     end
 
     def admin?
