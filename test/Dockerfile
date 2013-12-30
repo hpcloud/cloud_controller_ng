@@ -31,5 +31,5 @@ RUN cd /kato && git pull && cd core && gem build stackato-kato.gemspec && gem in
 # make the subsequent CMD runs faster
 RUN cd /cloud_controller_ng && bundle install
 
-CMD if [ -z $BRANCH ]; then BRANCH=cfv2; fi; cd /kato && git pull && cd core && gem build stackato-kato.gemspec && gem install stackato-kato*.gem && cd /cloud_controller_ng && git checkout $BRANCH && git submodule init && git submodule update && bundle install && bundle exec rspec spec
+CMD if [ -z $BRANCH ]; then BRANCH=cfv2; fi; cd /kato && git pull && cd core && gem build stackato-kato.gemspec && gem install stackato-kato*.gem && cd /cloud_controller_ng && git checkout $BRANCH && git submodule init && git submodule update && bundle install && RSPEC_FAIL_FAST=1 bundle exec rspec spec
 
