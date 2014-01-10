@@ -11,10 +11,9 @@ class UploadHandler
 
   def uploaded_file(params, resource_name)
     if using_nginx?
-      file_path = nginx_uploaded_file(params, resource_name)
-      # attempt to fall back to Rack to deal with the situation where a file was uploaded via PUT and nginx couldn't handle it, bug #101009
-      file_path = rack_temporary_file(params, resource_name) if nginx_file_path.nil? 
-      return file_path
+      # Attempt to fall back to Rack to deal with the situation where a file was
+      # uploaded via PUT and nginx couldn't handle it, bug #101009
+      nginx_uploaded_file(params, resource_name) || rack_temporary_file(params, resource_name)
     else
       rack_temporary_file(params, resource_name)
     end
