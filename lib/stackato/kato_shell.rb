@@ -38,6 +38,10 @@ class KatoShell
     end
     return EXPORT_FILEPATH
   end
+
+  def self.patch_status
+    run(%W{patch status})
+  end
   
   def self.export_in_progress?
     return `ps --no-headers -C kato -f | grep export | wc -l`.strip.to_i > 0
