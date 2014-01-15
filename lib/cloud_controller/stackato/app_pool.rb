@@ -52,6 +52,11 @@ module VCAP::CloudController
               dea_droplets.delete(droplet_id)
             end
           end
+
+          # If no droplets remain for a dea then remove the dea from the mapping.
+          if dea_droplets.size == 0
+            dea_droplet_map.delete(dea_id)
+          end
         end
       end
 
