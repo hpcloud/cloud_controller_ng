@@ -58,9 +58,13 @@ module VCAP::CloudController::RestController
     # @param [Array] parents The recursion stack of classes that
     # we have expanded through.
     #
+    # @param [Hash] children The hash to append inlined relationships to, or null
+    # to use the the old behaviour of inlining children against their parents (with potential duplicates).
+    #
     # @return [Hash] Hash encoding of the object.
-    def self.to_hash(controller, obj, opts, depth=0, parents=[])
-      rel_hash = relations_hash(controller, obj, opts, depth, parents)
+    def self.to_hash(controller, obj, opts, depth=0, parents=[], children=nil)
+
+      rel_hash = relations_hash(controller, obj, opts, depth, parents, children)
       entity_hash = obj.to_hash.merge(rel_hash)
 
       metadata_hash = {
@@ -73,20 +77,19 @@ module VCAP::CloudController::RestController
       {"metadata" => metadata_hash, "entity" => entity_hash}
     end
 
-    def self.relations_hash(controller, obj, opts, depth, parents)
+    def self.relations_hash(controller, obj, opts, depth, parents, children)
       inline_relations_depth = opts[:inline_relations_depth] || INLINE_RELATIONS_DEFAULT
       max_number_of_associated_objects_to_inline = opts[:max_inline] || MAX_INLINE_DEFAULT
 
       {}.tap do |res|
         parents.push(controller)
-        res.merge!(serialize_relationships(controller.to_one_relationships, controller, depth, obj, opts, parents, inline_relations_depth))
-        res.merge!(serialize_relationships(controller.to_many_relationships, controller, depth, obj, opts, parents, inline_relations_depth, max_number_of_associated_objects_to_inline))
+        res.merge!(serialize_relationships(controller.to_one_relationships, controller, depth, obj, opts, parents, inline_relations_depth, children))
+        res.merge!(serialize_relationships(controller.to_many_relationships, controller, depth, obj, opts, parents, inline_relations_depth, children, max_number_of_associated_objects_to_inline))
         parents.pop
       end
     end
 
-
-    def self.serialize_relationships(relationships, controller, depth, obj, opts, parents, inline_relations_depth, max_number_of_associated_objects_to_inline= nil)
+    def self.serialize_relationships(relationships, controller, depth, obj, opts, parents, inline_relations_depth, children, max_number_of_associated_objects_to_inline= nil)
       response = {}
       (relationships || {}).each do |association_name, association|
 
@@ -108,12 +111,24 @@ module VCAP::CloudController::RestController
           if association.is_a?(ControllerDSL::ToOneAttribute)
             associated_model_instance = associated_model_instances.first
             if associated_model_instance
-              response[association_name.to_s] = to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents)
+              if children == nil
+                response[association_name.to_s] = to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents)
+              elsif !children[associated_model_instance.guid]
+                children[associated_model_instance.guid] = to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents, children)
+              end
             end
           else
             if associated_model_instances.count <= max_number_of_associated_objects_to_inline
-              response[association_name.to_s] = associated_model_instances.map do |associated_model_instance|
-                to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents)
+              if children == nil
+                response[association_name.to_s] = associated_model_instances.map do |associated_model_instance|
+                  to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents)
+                end
+              else
+                associated_model_instances.map do |associated_model_instance|
+                  if !children[associated_model_instance.guid]
+                    children[associated_model_instance.guid] = to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents, children)
+                  end
+                end
               end
             end
           end

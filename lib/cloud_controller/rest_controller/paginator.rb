@@ -71,13 +71,20 @@ module VCAP::CloudController::RestController
     #
     # @return [String] Json encoding pagination of the dataset.
     def render_json
+
+      parents, children = resources
+
       res = {
         :total_results => @paginated.pagination_record_count,
         :total_pages   => @paginated.page_count,
         :prev_url      => prev_page_url,
         :next_url      => next_page_url,
-        :resources     => resources,
+        :resources     => parents,
       }
+
+      if children
+        res[:children] = children
+      end
 
       Yajl::Encoder.encode(res, :pretty => true)
     end
@@ -85,9 +92,16 @@ module VCAP::CloudController::RestController
     private
 
     def resources
+
+      parents = []
+      children = @opts[:segregate_children] == 1 ? {} : nil
+
       @paginated.all.map do |m|
-        @serialization.to_hash(@controller, m, @opts)
+        hash = @serialization.to_hash(@controller, m, @opts, 0, [], children)
+        parents.push(hash)
       end
+
+      return parents, children
     end
 
     def prev_page_url
