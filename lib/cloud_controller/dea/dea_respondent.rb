@@ -1,3 +1,6 @@
+
+require 'cloud_controller/stackato/app_pool'
+
 module VCAP::CloudController
   class << self
     attr_accessor :dea_respondent
@@ -19,6 +22,10 @@ module VCAP::CloudController
     def start
       message_bus.subscribe("droplet.exited", :queue => CRASH_EVENT_QUEUE) do |decoded_msg|
         process_droplet_exited_message(decoded_msg)
+      end
+
+      message_bus.subscribe("dea.heartbeat") do |heartbeat_message|
+        process_dea_heartbeat_message(heartbeat_message)
       end
     end
 
@@ -43,6 +50,10 @@ module VCAP::CloudController
           timestamp: Time.now
         )
       end
+    end
+
+    def process_dea_heartbeat_message(heartbeat_message)
+      VCAP::CloudController::StackatoAppPool.add_dea_heartbeat heartbeat_message
     end
   end
 end
