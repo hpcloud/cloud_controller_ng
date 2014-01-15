@@ -11,7 +11,7 @@ module VCAP::CloudController::RestController
   # FIXME: add authz checks to attribures and inlined relations
 
   module ObjectSerialization
-    PRETTY_DEFAULT = true
+    PRETTY_DEFAULT = !ENV["RACK_ENV"] == "production"
     MAX_INLINE_DEFAULT = 50
     INLINE_RELATIONS_DEFAULT = 0
 
@@ -23,8 +23,8 @@ module VCAP::CloudController::RestController
     #
     # @param [Sequel::Model] obj Object to encode.
     #
-    # @option opts [Boolean] :pretty Controlls pretty formating of the encoded
-    # json.  Defaults to true.
+    # @option opts [Integer] :pretty Controlls pretty formating of the encoded
+    # json.  Defaults to false in production.
     #
     # @option opts [Integer] :inline_relations_depth Depth to recursively
     # exapend relationships in addition to providing the URLs.
@@ -34,9 +34,8 @@ module VCAP::CloudController::RestController
     #
     # @return [String] Json encoding of the object.
     def self.render_json(controller, obj, opts = {})
-      opts[:pretty] = PRETTY_DEFAULT unless opts.has_key?(:pretty)
       Yajl::Encoder.encode(to_hash(controller, obj, opts),
-                           :pretty => opts[:pretty])
+                           :pretty => opts[:pretty] == 1 ? true : PRETTY_DEFAULT)
     end
 
     # Render an object as a hash, using export and security properties

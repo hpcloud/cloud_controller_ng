@@ -86,7 +86,7 @@ module VCAP::CloudController::RestController
         res[:relations] = relations
       end
 
-      Yajl::Encoder.encode(res, :pretty => true)
+      Yajl::Encoder.encode(res, :pretty => @opts[:pretty] == 1 ? true : ObjectSerialization.PRETTY_DEFAULT)
     end
 
     private

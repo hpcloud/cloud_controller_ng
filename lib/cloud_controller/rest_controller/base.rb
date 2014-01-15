@@ -62,7 +62,8 @@ module VCAP::CloudController::RestController
       # than an array (which we might have for q)
       res = {}
       [ [ "inline-relations-depth", Integer ],
-        [ "orphan-relations",     Integer ],
+        [ "orphan-relations",       Integer ],
+        [ "pretty",                 Integer ],
         [ "page",                   Integer ],
         [ "results-per-page",       Integer ],
         [ "q",                      String  ]
