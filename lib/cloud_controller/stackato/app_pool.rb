@@ -27,6 +27,9 @@ module VCAP::CloudController
 
           # Add the droplet data to the dea
           dea_heartbeat['droplets'].each do |droplet|
+            # Ignore crashed instances
+            next if droplet['state'] == 'CRASHED'
+
             droplet_id = droplet['droplet']
             droplet_instance = droplet['instance']
             heartbeat_droplet_instances.push(droplet_instance)
