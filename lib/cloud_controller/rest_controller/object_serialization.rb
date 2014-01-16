@@ -15,7 +15,7 @@ module VCAP::CloudController::RestController
     INLINE_RELATIONS_DEFAULT = 0
 
     def self.pretty_default
-      !ENV["RACK_ENV"] == "production"
+      !(ENV["RACK_ENV"] == "production")
     end
 
     # Render an object to json, using export and security properties

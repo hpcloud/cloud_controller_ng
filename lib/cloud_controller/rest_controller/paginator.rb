@@ -117,7 +117,11 @@ module VCAP::CloudController::RestController
       if @opts[:inline_relations_depth]
         res += "inline-relations-depth=#{@opts[:inline_relations_depth]}&"
       end
+      if @opts[:orphan_relations]
+        res += "orphan-relations=#{@opts[:orphan_relations]}&"
+      end
       res += "q=#{@opts[:q]}&" if @opts[:q]
+      res += "pretty=#{@opts[:pretty]}&" if @opts[:pretty]
       res += "page=#{page}&results-per-page=#{@paginated.page_size}"
     end
   end
