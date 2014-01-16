@@ -126,10 +126,11 @@ module VCAP::CloudController::RestController
                   to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents)
                 end
               else
-                associated_model_instances.map do |associated_model_instance|
+                response[association_name.to_s] = associated_model_instances.map do |associated_model_instance|
                   if !relations[associated_model_instance.guid]
                     relations[associated_model_instance.guid] = to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents, relations)
                   end
+                  associated_model_instance.guid
                 end
               end
             end
