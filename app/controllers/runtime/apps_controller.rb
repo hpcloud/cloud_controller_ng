@@ -17,6 +17,8 @@ module VCAP::CloudController
       attribute  :console,             Message::Boolean, :default => false
       attribute  :debug,               String,     :default => nil
 
+      attribute  :distribution_zone,   String,     :default => nil
+
       # a URL pointing to a git repository
       # note that this will not match private git URLs, i.e. git@github.com:foo/bar.git
       attribute  :buildpack,           Message::GIT_URL, :default => nil

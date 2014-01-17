@@ -49,7 +49,7 @@ module VCAP::CloudController
       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
       :environment_json, :memory, :instances, :disk_quota,
       :state, :version, :command, :console, :debug,
-      :staging_task_id
+      :staging_task_id, :distribution_zone
 
     import_attributes :name, :production,
       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
