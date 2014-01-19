@@ -66,7 +66,8 @@ module VCAP::CloudController::RestController
         [ "pretty",                 Integer ],
         [ "page",                   Integer ],
         [ "results-per-page",       Integer ],
-        [ "q",                      String  ]
+        [ "q",                      String  ],
+        [ "order-by",               String  ],
       ].each do |key, klass|
         val = params[key]
         res[key.underscore.to_sym] = Object.send(klass.name, val) if val
