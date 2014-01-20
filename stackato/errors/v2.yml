@@ -241,3 +241,7 @@
   http_code: 400
   message: "Application name is invalid. Only alphanumerics and dashes allowed."
 
+148:
+  name: StackatoZoneDoesNotExist
+  http_code: 404
+  message: "Distribution zone %s does not exist."
