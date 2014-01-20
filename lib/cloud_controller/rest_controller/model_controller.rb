@@ -127,6 +127,10 @@ module VCAP::CloudController::RestController
         associated_controller, filtered_dataset, associated_path, @opts)
     end
 
+    def self.default_order_by
+      :id
+    end
+
     # Add a related object.
     #
     # @param [String] guid The GUID of the object for which to add a related

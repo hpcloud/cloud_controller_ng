@@ -9,6 +9,10 @@ module VCAP::CloudController
 
     query_parameters :name, :owning_organization_guid, :space_guid
 
+    def self.default_order_by
+      :name
+    end
+
     def self.translate_validation_exception(e, attributes)
       name_errors = e.errors.on(:name)
       if name_errors && name_errors.include?(:unique)

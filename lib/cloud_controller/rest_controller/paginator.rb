@@ -57,7 +57,7 @@ module VCAP::CloudController::RestController
     def initialize(controller, ds, path, opts)
       page       = opts[:page] || 1
       page_size  = opts[:results_per_page] || 50
-      criteria = opts[:order_by] ? opts[:order_by].to_sym : :id
+      criteria = order_by(opts, controller, ds)
 
       @paginated = ds.order_by(criteria).extension(:pagination).paginate(page, page_size)
       @serialization = opts[:serialization] || ObjectSerialization
@@ -65,6 +65,20 @@ module VCAP::CloudController::RestController
       @controller = controller
       @path = path
       @opts = opts
+    end
+
+    # Determines the column to order the paged dataset by.
+    #
+    # @returns [Symbol] The name of the column to order by.
+    def order_by(opts, controller, ds)
+
+      requested_order_by = opts[:order_by] ? opts[:order_by].to_sym : nil
+
+      if requested_order_by && ds.columns.include?(requested_order_by)
+        return requested_order_by
+      else
+        return controller.default_order_by
+      end
     end
 
     # Pagination
@@ -121,6 +135,7 @@ module VCAP::CloudController::RestController
         res += "orphan-relations=#{@opts[:orphan_relations]}&"
       end
       res += "q=#{@opts[:q]}&" if @opts[:q]
+      res += "order-by=#{@opts[:order_by]}&" if @opts[:order_by]
       res += "pretty=#{@opts[:pretty]}&" if @opts[:pretty]
       res += "page=#{page}&results-per-page=#{@paginated.page_size}"
     end

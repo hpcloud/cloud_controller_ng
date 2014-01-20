@@ -21,6 +21,10 @@ module VCAP::CloudController
     define_messages
     define_routes
 
+    def self.default_order_by
+      :name 
+    end
+
     def self.translate_validation_exception(e, attributes)
       quota_def_errors = e.errors.on(:quota_definition_id)
       name_errors = e.errors.on(:name)

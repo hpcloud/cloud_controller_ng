@@ -30,6 +30,10 @@ module VCAP::CloudController
 
     query_parameters :name, :space_guid, :organization_guid
 
+    def self.default_order_by
+      :name
+    end
+
     def self.translate_validation_exception(e, attributes)
       space_and_name_errors = e.errors.on([:space_id, :name])
       memory_quota_errors = e.errors.on(:memory)

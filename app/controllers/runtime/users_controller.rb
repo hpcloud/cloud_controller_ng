@@ -21,6 +21,10 @@ module VCAP::CloudController
                      :audited_space_guid,
                      :username
 
+    def self.default_order_by
+      :username
+    end
+
     def self.translate_validation_exception(e, attributes)
       guid_errors = e.errors.on(:guid)
       if guid_errors && guid_errors.include?(:unique)

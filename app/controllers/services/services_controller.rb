@@ -32,6 +32,10 @@ module VCAP::CloudController
     end
 
     query_parameters :active, :label
+    
+    def self.default_order_by
+      :label
+    end
 
     def self.translate_validation_exception(e, attributes)
       label_provider_errors = e.errors.on([:label, :provider])

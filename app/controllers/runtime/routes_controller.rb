@@ -9,6 +9,10 @@ module VCAP::CloudController
 
     query_parameters :host, :domain_guid
 
+    def self.default_order_by
+      :host
+    end 
+
     def self.translate_validation_exception(e, attributes)
       name_errors = e.errors.on([:host, :domain_id])
       if name_errors && name_errors.include?(:unique)

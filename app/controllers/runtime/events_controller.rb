@@ -6,9 +6,8 @@ module VCAP::CloudController
 
     query_parameters :timestamp, :type
 
-    def initialize(*args)
-      super
-      @opts.merge!(order_by: :timestamp)
+    def self.default_order_by
+      :timestamp
     end
   end
 end
