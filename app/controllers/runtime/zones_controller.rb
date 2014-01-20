@@ -39,14 +39,10 @@ module VCAP::CloudController
       zones.each_pair do |zone_name, zone_deas|
         if search_filter.nil?
           ret_data[:resources].push(format_zone(zone_name, zone_deas))
-        elsif search_filter.include?('*')
-          if zone_name.start_with?(search_filter.chomp('*'))
+        elsif search_filter.include?('*') && zone_name.start_with?(search_filter.chomp('*'))
             ret_data[:resources].push(format_zone(zone_name, zone_deas))
-          end
-        else
-          if zone_name == search_filter
+        elsif zone_name == search_filter
             ret_data[:resources].push(format_zone(zone_name, zone_deas))
-          end
         end
       end
 
