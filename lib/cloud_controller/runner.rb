@@ -155,9 +155,7 @@ module VCAP::CloudController
 
       @config[:bind_address] = Kato::Local::Node.get_local_node_id
 
-      Config.configure(@config)
       Config.configure_components_depending_on_message_bus(message_bus)
-
 
       # TODO:Stackato: Move to CloudController::DependencyLocator ?
       EphemeralRedisClient::configure(@config)

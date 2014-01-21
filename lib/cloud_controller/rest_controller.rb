@@ -7,6 +7,12 @@ require "cloud_controller/rest_controller/base"
 require "cloud_controller/rest_controller/model_controller"
 
 module VCAP::CloudController
+  def self.rest_controller(name, &blk)
+    klass = Class.new RestController::ModelController
+    self.const_set "#{name}Controller", klass
+    klass.class_eval &blk
+  end
+  
   def self.controller_from_model(model)
     controller_from_model_name(model.class.name)
   end

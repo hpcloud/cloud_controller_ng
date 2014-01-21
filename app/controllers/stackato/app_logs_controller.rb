@@ -1,7 +1,6 @@
 
 module VCAP::CloudController
   rest_controller :StackatoAppLogs do
-    disable_default_routes
     path_base "apps"
     model_class_name :App
 
