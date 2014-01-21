@@ -302,7 +302,7 @@ module VCAP::CloudController
           :prod => app.production,
           :sha1 => app.droplet_hash,
           :executableFile => "deprecated",
-          :executableUri => StagingsController.droplet_download_uri(app),
+          :executableUri => @blobstore_url_generator.droplet_download_url(app),
           :version => app.version,
           :services => app.service_bindings.map do |sb|
             ServiceBindingPresenter.new(sb).to_hash

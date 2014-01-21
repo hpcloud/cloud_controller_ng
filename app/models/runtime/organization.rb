@@ -111,6 +111,10 @@ module VCAP::CloudController
       billing_enabled
     end
 
+    def allow_sudo?
+      quota_definition && quota_definition.allow_sudo
+    end
+
     private
 
     def check_addable!(legacy_domain)
@@ -119,10 +123,6 @@ module VCAP::CloudController
       end
 
       false
-    end
-
-    def allow_sudo?
-      quota_definition && quota_definition.allow_sudo
     end
 
     def require_admin_for(field_name)
