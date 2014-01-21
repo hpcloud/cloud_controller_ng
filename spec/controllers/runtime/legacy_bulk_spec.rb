@@ -34,13 +34,7 @@ module VCAP::CloudController
       end
 
       describe "GET", "/bulk/apps" do
-        before :all do
-          reset_database
-
-          100.times do
-            App.make
-          end
-        end
+        before { 5.times { AppFactory.make } }
 
         it "requires authentication" do
           get "/bulk/apps"
@@ -61,9 +55,16 @@ module VCAP::CloudController
             last_response.status.should == 400
           end
 
-          it "returns bulk_token with the intial request" do
-            pending "bulk_token is mandatory in ccng"
+          it "returns nil bulk_token for the initial request" do
             get "/bulk/apps"
+            decoded_response["bulk_token"].should be_nil
+          end
+
+          it "returns a populated bulk_token for the initial request (which has an empty bulk token)" do
+            get "/bulk/apps", {
+              "batch_size" => 20,
+              "bulk_token" => "{}",
+            }
             decoded_response["bulk_token"].should_not be_nil
           end
 
@@ -139,17 +140,6 @@ module VCAP::CloudController
               "bulk_token" => Yajl::Encoder.encode(token),
             }
             decoded_response["results"].size.should == 0
-          end
-
-          it "does not include soft-deleted apps" do
-            App.first.soft_delete
-
-            get "/bulk/apps", {
-              "batch_size" => 100,
-              "bulk_token" => "{\"id\":0}",
-            }
-            decoded_response["results"].size.should == 99
-            last_response.status.should == 200
           end
         end
       end

@@ -1,11 +1,10 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 require "bcrypt"
 require "sinatra"
 require "sequel"
 require "thin"
 require "yajl"
-# require "yaml"
+require "delayed_job"
+require "newrelic_rpm"
 
 require "allowy"
 
@@ -18,8 +17,12 @@ require "uaa/token_coder"
 require "sinatra/vcap"
 require "cloud_controller/security_context"
 require "active_support/core_ext/hash"
+require "active_support/core_ext/object/to_query"
 require "active_support/json/encoding"
 require "cloud_controller/models"
+require "cloud_controller/jobs"
+require "cloud_controller/background_job_environment"
+require "cloud_controller/db_migrator"
 
 module VCAP::CloudController
   include VCAP::RestAPI
@@ -61,16 +64,6 @@ module VCAP::CloudController
       validate_scheme(user, VCAP::CloudController::SecurityContext.admin?)
     end
 
-    after do
-      begin
-        # Because we aren't using Rails, we need to manually ensure that AR connections are closed.
-        ActiveRecord::Base.connection.close
-      rescue
-        nil # you can't close a sqlite connection, so this will probably throw an exception
-      end
-    end
-
-    # TODO: remove from usage in cloud_controller_spec.rb
     get "/hello/sync" do
       "sync return\n"
     end
@@ -116,13 +109,13 @@ require "vcap/errors"
 require "cloud_controller/config"
 require "cloud_controller/db"
 require "cloud_controller/runner"
-require "cloud_controller/app_package"
 require "cloud_controller/app_observer"
 require "cloud_controller/app_stager_task"
 require "cloud_controller/controllers"
 require "cloud_controller/roles"
 require "cloud_controller/encryptor"
 require "cloud_controller/blobstore/blobstore"
+require "cloud_controller/blobstore/blobstore_url_generator"
 require "cloud_controller/dependency_locator"
 require "cloud_controller/controller_factory"
 
@@ -141,6 +134,13 @@ require "cloud_controller/dea/dea_respondent"
 require "cloud_controller/stager/stager_pool"
 
 require "cloud_controller/health_manager_client"
+require "cloud_controller/hm9000_client"
 require "cloud_controller/health_manager_respondent"
+require "cloud_controller/hm9000_respondent"
 
 require "cloud_controller/task_client"
+
+require "cloud_controller/hashify"
+require "cloud_controller/structured_error"
+require "cloud_controller/http_request_error"
+require "cloud_controller/http_response_error"

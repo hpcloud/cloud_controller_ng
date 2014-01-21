@@ -13,8 +13,9 @@ module VCAP::CloudController
                      unique_attributes: %w(label provider),
                      extra_attributes: {extra: ->{Sham.extra}, bindable: false, tags: ["relational"], requires: ["loggyness"]}
     include_examples "deleting a valid object", path: "/v2/services", model: Service,
-      one_to_many_collection_ids: {:service_plans => lambda { |service| ServicePlan.make(:service => service) }},
-      one_to_many_collection_ids_without_url: {}
+      one_to_many_collection_ids: {
+        :service_plans => lambda { |service| ServicePlan.make(:service => service) },
+      }
     include_examples "collection operations", path: "/v2/services", model: Service,
       one_to_many_collection_ids: {
         service_plans: lambda { |service| ServicePlan.make(service: service) }
@@ -33,11 +34,8 @@ module VCAP::CloudController
     describe "Permissions" do
       include_context "permissions"
 
-      before(:all) do
-        reset_database
-        5.times do
-          ServicePlan.make
-        end
+      before do
+        5.times { ServicePlan.make }
         @obj_a = ServicePlan.make.service
         @obj_b = ServicePlan.make.service
       end
@@ -111,12 +109,9 @@ module VCAP::CloudController
 
     describe "get /v2/services" do
       let(:user) {VCAP::CloudController::User.make  }
-      let (:headers) do
-        headers_for(user)
-      end
+      let(:headers) { headers_for(user) }
 
-      before(:each) do
-        reset_database
+      before do
         @active = 3.times.map { Service.make(:active => true, :long_description => Sham.long_description).
           tap{|svc| ServicePlan.make(:service => svc) } }
         @inactive = 2.times.map { Service.make(:active => false).tap{|svc| ServicePlan.make(:service => svc) } }
@@ -304,7 +299,7 @@ module VCAP::CloudController
     end
 
     describe "PUT", "/v2/services/:guid" do
-      it "ignores the unique_id attribute" do
+      it "updates the unique_id attribute" do
         service = Service.make
         old_unique_id = service.unique_id
         new_unique_id = old_unique_id.reverse
@@ -314,7 +309,7 @@ module VCAP::CloudController
 
         service.reload
         expect(last_response.status).to be == 201
-        expect(service.unique_id).to be == old_unique_id
+        expect(service.unique_id).to be == new_unique_id
       end
     end
   end

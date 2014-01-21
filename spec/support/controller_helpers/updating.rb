@@ -1,10 +1,6 @@
 module ControllerHelpers
   shared_examples "updating" do |opts|
     opts[:extra_attributes] ||= {}
-    before(:all) do
-      reset_database
-      configure_stacks
-    end
 
     describe "updating" do
       define_method(:creation_opts) do
@@ -15,15 +11,6 @@ module ControllerHelpers
           initial_obj = opts[:model].make
           attrs = creation_opts_from_obj(initial_obj, opts)
           initial_obj.destroy
-
-          create_attribute = opts[:create_attribute]
-          if create_attribute
-            opts[:create_attribute_reset].call
-            attrs.keys.each do |k|
-              v = create_attribute.call k
-              attrs[k] = v if v
-            end
-          end
 
           opts[:extra_attributes].each do |attr, val|
             attrs[attr.to_s] = val.respond_to?(:call) ? val.call : val
@@ -126,9 +113,7 @@ module ControllerHelpers
         opts[:unique_attributes].each do |new_attr|
           new_attr = new_attr.to_s
           context "with duplicate attributes other than #{new_attr}" do
-            # FIXME: this is a cut/paste from the model spec, refactor
             let(:orig_obj) do
-              # FIXME: this name isn't right now that it is shared with PUT
               orig_obj = opts[:model].create do |instance|
                 instance.set_all(creation_opts)
               end
@@ -150,8 +135,7 @@ module ControllerHelpers
               # the value from that
               val = nil
               if create_attribute
-                # FIXME: do we use this?  do we use it in the model specs
-                val = create_attribute.call(new_attr)
+                val = create_attribute.call(new_attr, orig_obj)
               end
 
               if val.nil?
@@ -175,7 +159,7 @@ module ControllerHelpers
         # make sure we get failures if all of the unique attributes are the
         # same
         #
-        dup_attrs = opts[:unique_attributes].dup
+        dup_attrs = opts.fetch(:unique_attributes, []).dup
         dup_attrs = dup_attrs - ["id"]
         unless dup_attrs.empty?
           desc = dup_attrs.map { |v| ":#{v}" }.join(", ")

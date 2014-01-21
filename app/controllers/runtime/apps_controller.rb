@@ -1,5 +1,5 @@
 module VCAP::CloudController
-  rest_controller :Apps do
+  class AppsController < RestController::ModelController
     define_attributes do
       attribute  :name,                String
       attribute  :production,          Message::Boolean,    :default => false
@@ -8,7 +8,8 @@ module VCAP::CloudController
       to_one     :stack,               :optional_in => :create
 
       attribute  :environment_json,    Hash,       :default => {}
-      attribute  :memory,              Integer,    :default => 256
+      attribute  :system_env_json,     Hash,       :default => {}
+      attribute  :memory,              Integer,    :default => nil
       attribute  :instances,           Integer,    :default => 1
       attribute  :disk_quota,          Integer,    :default => 1024
 
@@ -16,10 +17,9 @@ module VCAP::CloudController
       attribute  :command,             String,     :default => nil
       attribute  :console,             Message::Boolean, :default => false
       attribute  :debug,               String,     :default => nil
+      attribute  :health_check_timeout, Integer,   :default => nil
 
-      # a URL pointing to a git repository
-      # note that this will not match private git URLs, i.e. git@github.com:foo/bar.git
-      attribute  :buildpack,           Message::GIT_URL, :default => nil
+      attribute  :buildpack,           String, :default => nil
       attribute  :detected_buildpack,  String, :exclude_in => [:create, :update]
 
       to_many    :service_bindings,    :exclude_in => :create
@@ -37,6 +37,7 @@ module VCAP::CloudController
     def self.translate_validation_exception(e, attributes)
       space_and_name_errors = e.errors.on([:space_id, :name])
       memory_quota_errors = e.errors.on(:memory)
+      instance_number_errors = e.errors.on(:instances)
 
       if space_and_name_errors && space_and_name_errors.include?(:unique)
         Errors::AppNameTaken.new(attributes["name"])
@@ -45,33 +46,23 @@ module VCAP::CloudController
           Errors::AppMemoryQuotaExceeded.new
         elsif memory_quota_errors.include?(:zero_or_less)
           Errors::AppMemoryInvalid.new
-
         end
+      elsif instance_number_errors
+        Errors::AppInvalid.new("Number of instances less than 0")
       else
         Errors::AppInvalid.new(e.errors.full_messages)
       end
     end
 
-    # Override this method because we want to enable the concept of
-    # deleted apps. This is necessary because we have an app events table
-    # which is a foreign key constraint on apps. Thus, we can't actually delete
-    # the app itself, but instead mark it as deleted.
-    #
-    # @param [String] guid The GUID of the object to delete.
+    def inject_dependencies(dependencies)
+      @app_event_repository = dependencies.fetch(:app_event_repository)
+    end
+
     def delete(guid)
       app = find_guid_and_validate_access(:delete, guid)
-      recursive = params["recursive"] == "true"
 
-      if v2_api? && !recursive
-        if app.has_deletable_associations?
-          message = app.deletable_association_names.join(", ")
-          raise VCAP::Errors::AssociationNotEmpty.new(message, app.class.table_name)
-        end
-      end
-
-      app.db.transaction do
-        app.soft_delete
-        Event.record_app_delete(app, SecurityContext.current_user)
+      if !recursive? && app.service_bindings.present?
+        raise VCAP::Errors::AssociationNotEmpty.new("service_bindings", app.class.table_name)
       end
 
       name = app[:name]
@@ -83,81 +74,18 @@ module VCAP::CloudController
         :message => "Deleted app '#{name}'"
       }
       logger.info("TIMELINE #{event.to_json}")
+      @app_event_repository.record_app_delete_request(app, SecurityContext.current_user, recursive?)
+      app.destroy
 
       [ HTTP::NO_CONTENT, nil ]
     end
 
-    def update(guid)
-      obj = find_guid_and_validate_access(:update, guid)
-
-      json_msg = self.class::UpdateMessage.decode(body)
-      @request_attrs = json_msg.extract(:stringify_keys => true)
-
-      Loggregator.emit(guid, "Updated app with guid #{guid}")
-      logger.debug "cc.update", :guid => guid,
-        :attributes => request_attrs
-
-      raise InvalidRequest unless request_attrs
-
-      model.db.transaction do
-        obj.lock!
-        obj.update_from_hash(request_attrs)
-        Event.record_app_update(obj, SecurityContext.current_user) if obj.previous_changes
-      end
-
-      name = obj[:name]
-      event = {
-        :user => SecurityContext.current_user,
-        :app => obj,
-        :changes => obj.auditable_changes,
-        :event => 'APP_UPDATED',
-        :instance_index => -1,
-        :message => "Updated app '#{name}' -- #{request_attrs}"
-      }
-      logger.info("TIMELINE #{event.to_json}")
-
-      after_update(obj)
-
-      [HTTP::CREATED, serialization.render_json(self.class, obj, @opts)]
-    end
-
-    def create
-      json_msg = self.class::CreateMessage.decode(body)
-
-      @request_attrs = json_msg.extract(:stringify_keys => true)
-
-      logger.debug "cc.create", :model => self.class.model_class_name,
-        :attributes => request_attrs
-
-      raise InvalidRequest unless request_attrs
-
-      obj = nil
-      model.db.transaction do
-        obj = model.create_from_hash(request_attrs)
-        validate_access(:create, obj, user, roles)
-        Event.record_app_create(obj, SecurityContext.current_user)
-      end
-
-      after_create(obj)
-      Loggregator.emit(obj.guid, "Created app with guid #{obj.guid}")
-
-      name = obj[:name]
-      event = {
-        :user => SecurityContext.current_user,
-        :app => obj,
-        :event => 'APP_CREATED',
-        :instance_index => -1,
-        :message => "Created app '#{name}'"
-      }
-      logger.info("TIMELINE #{event.to_json}")
-
-      [ HTTP::CREATED,
-        { "Location" => "#{self.class.path}/#{obj.guid}" },
-        serialization.render_json(self.class, obj, @opts)
-      ]
-    end
-
     private
+
+    def after_create(app)
+      record_app_create_value = @app_event_repository.record_app_create(app, SecurityContext.current_user, request_attrs)
+      record_app_create_value if request_attrs
+    end
 
     def after_update(app)
       stager_response = app.last_stager_response
@@ -168,6 +96,11 @@ module VCAP::CloudController
       if app.dea_update_pending?
         DeaClient.update_uris(app)
       end
+
+      @app_event_repository.record_app_update(app, SecurityContext.current_user, request_attrs)
     end
+
+    define_messages
+    define_routes
   end
 end

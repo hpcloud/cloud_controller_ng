@@ -4,7 +4,6 @@ module VCAP::CloudController
   describe ServicePlan, type: :model do
     it_behaves_like "a CloudController model", {
       :required_attributes => [:name, :free, :description, :service],
-      :unique_attributes => [ [:service, :name] ],
       :stripped_string_attributes => :name,
       :many_to_one => {
         :service => {
@@ -36,6 +35,19 @@ module VCAP::CloudController
             expect(plan.unique_id).to eq(attrs[:unique_id])
           end
         end
+
+        context 'when a plan with the same name has already been added for this service' do
+          let(:attrs1) { {name: 'dumbo', service_id: service.id }}
+          let(:attrs2) { {name: 'dumbo', service_id: service.id }}
+          let(:service) { Service.make({})}
+
+          before { plan = ServicePlan.make(attrs1) }
+
+          it 'throws a useful error' do
+            expect{ ServicePlan.make(attrs2) }.to raise_exception('Plans within a service must have unique names')
+          end
+        end
+
       end
 
       context 'on update' do
@@ -64,7 +76,7 @@ module VCAP::CloudController
 
       it "destroys all service plan visibilities" do
         service_plan_visibility = ServicePlanVisibility.make(:service_plan => service_plan)
-        expect { service_plan.destroy }.to change {
+        expect { service_plan.destroy(savepoint: true) }.to change {
           ServicePlanVisibility.where(:id => service_plan_visibility.id).any?
         }.to(false)
       end
@@ -75,6 +87,7 @@ module VCAP::CloudController
         hidden_private_plan = ServicePlan.make(public: false)
         visible_public_plan = ServicePlan.make(public: true)
         visible_private_plan = ServicePlan.make(public: false)
+        inactive_public_plan = ServicePlan.make(public: true, active: false)
 
         organization = Organization.make
         ServicePlanVisibility.make(organization: organization, service_plan: visible_private_plan)
@@ -83,6 +96,7 @@ module VCAP::CloudController
         visible.should include(visible_public_plan)
         visible.should include(visible_private_plan)
         visible.should_not include(hidden_private_plan)
+        visible.should_not include(inactive_public_plan)
       end
     end
 
@@ -121,5 +135,6 @@ module VCAP::CloudController
         specify { service_plan.should_not be_bindable }
       end
     end
+
   end
 end

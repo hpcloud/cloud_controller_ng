@@ -1,9 +1,7 @@
 require "spec_helper"
 
-describe "Sequel::Plugins::VcapNormalization" do
+describe "Sequel::Plugins::VcapNormalization", non_transactional: true do
   let!(:model_class) do
-    reset_database
-
     db.create_table :test do
       primary_key :id
 

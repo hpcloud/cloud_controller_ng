@@ -2,8 +2,11 @@
 local_route: 127.0.0.1
 port: 8181
 pid_filename: /tmp/cloud_controller.pid
-message_bus_uri: nats://127.0.0.1:4222
-nats_uri: nats://127.0.0.1:4222
+
+# development_mode: true
+
+message_bus_servers:
+  - nats://127.0.0.1:4222
 
 external_domain: api.vcap.me
 
@@ -16,6 +19,21 @@ system_domain: vcap.me
 app_domains:
   - vcap.me
 
+jobs:
+  global:
+    timeout_in_seconds: 14400
+
+app_events:
+  cutoff_age_in_days: 31
+
+app_usage_events:
+  cutoff_age_in_days: 31
+
+audit_events:
+  cutoff_age_in_days: 31
+
+default_app_memory: 1024 #mb
+
 info:
   name: "stackato"
   build: "2222"
@@ -23,8 +41,6 @@ info:
   support_address: "stackato-support@activestate.com"
   description: "ActiveState Stackato"
   api_version: "2.0.0"
-# TODO: put back once json schema is sorted out
-# allow_debug: false
 
 nginx:
   use_nginx: true
@@ -35,6 +51,8 @@ logging:
 
 loggregator:
   router: "127.0.0.1:3456"
+  shared_secret: "loggregatorsecret"
+  url: "ws://loggregator.vcap.me:80"
 
 db:
   database:
@@ -44,11 +62,6 @@ db:
     password: root
     adapter: postgres
     database: cloudcontroller
-  max_connections: 32
-  pool_timeout: 10
-
-active_record_db:
-  database: "sqlite:///home/stackato/stackato/db/cloud_controller_ar.db"
   max_connections: 32
   pool_timeout: 10
 
@@ -74,24 +87,15 @@ staging:
     password: placeholder
 
 quota_definitions:
-  free:
-    non_basic_services_allowed: false
+  default:
+    memory_limit: 2048
     total_services: 100
-    memory_limit: 2048 # 2 GB
-    allow_sudo: false
-  paid:
     non_basic_services_allowed: true
-    total_services: 500
-    memory_limit: 204800 # 200 GB
-    allow_sudo: false
-  trial:
-    non_basic_services_allowed: false
-    total_services: 2
-    memory_limit: 512 # 0.5 GB
+    total_routes: 1000
     trial_db_allowed: true
     allow_sudo: false
 
-default_quota_definition: free
+default_quota_definition: default
 
 resource_pool:
   resource_directory_key: "cc-resources"
@@ -127,7 +131,6 @@ tasks_disabled: false
 app_logs_redis:
   host: 127.0.0.1
   port: 6464
-
 
 ephemeral_redis:
   host: 127.0.0.1
@@ -170,3 +173,9 @@ autoscaling:
   enabled: false
   config_file: /s/etc/autoscaling/autoscaling.yaml
 
+hm9000_noop: true
+flapping_crash_count_threshold: 3
+
+disable_custom_buildpacks: false
+broker_client_timeout_seconds: 60
+maximum_health_check_timeout: 180

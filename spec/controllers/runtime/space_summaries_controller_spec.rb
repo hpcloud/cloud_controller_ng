@@ -9,18 +9,18 @@ module VCAP::CloudController
 
     let!(:apps) do
       started_apps = 2.times.map do |i|
-        App.make(
-          :space => space,
-          :instances => i,
-          :memory => mem_size,
-          :state => "STARTED",
-          :package_hash => "abc",
-          :package_state => "STAGED",
+        AppFactory.make(
+          space: space,
+          instances: i,
+          memory: mem_size,
+          state: "STARTED",
+          package_hash: "abc",
+          package_state: "STAGED",
         )
       end
 
       stopped_apps = 2.times.map do |i|
-        App.make(
+        AppFactory.make(
           :space => space,
           :instances => i,
           :memory => mem_size,
@@ -60,7 +60,7 @@ module VCAP::CloudController
 
         it "returns the correct info for the apps" do
           request["apps"].each do |app_resp|
-            app = apps.find { |a| a.guid == app_resp["guid"] }
+            app = apps.find { |a| a.guid == app_resp["guid"] }.reload
             expected_running_instances = app.started? ? app.instances : 0
 
             expect(app_resp).to eq({

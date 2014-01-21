@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-require "rfc822"
 
 module Sequel::Plugins::VcapValidations
   module InstanceMethods
@@ -15,10 +13,6 @@ module Sequel::Plugins::VcapValidations
     # @param [Symbol] The attribute to validate
     def validates_email(attr)
       validates_format(RFC822::EMAIL_REGEXP_WHOLE, attr, :message => :email) if send(attr)
-    end
-
-    def validates_git_url(attr)
-      validates_format(URI::regexp(%w(http https git)), attr, :message => :git_url) if send(attr)
     end
   end
 end

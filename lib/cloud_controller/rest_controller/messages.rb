@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module VCAP::CloudController::RestController
   # Auto generation of Message classes based on the attributes
   # exposed by a rest endpoint.
@@ -61,6 +59,7 @@ module VCAP::CloudController::RestController
           end
         end
 
+        # grep-friendly location where CreateMessage, ResponseMessage, and UpdateMessage are declared
         self.const_set "#{type.to_s.camelize}Message", klass
       end
     end

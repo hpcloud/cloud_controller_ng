@@ -1,11 +1,9 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module VCAP::CloudController
   class QuotaDefinition < Sequel::Model
 
     one_to_many :organizations
 
-    add_association_dependencies :organizations => :destroy
+    add_association_dependencies organizations: :destroy
 
     export_attributes :name, :non_basic_services_allowed, :total_services,
                       :memory_limit, :trial_db_allowed, :allow_sudo
@@ -17,6 +15,7 @@ module VCAP::CloudController
       validates_unique :name
       validates_presence :non_basic_services_allowed
       validates_presence :total_services
+      validates_presence :total_routes
       validates_presence :memory_limit
       validates_presence :allow_sudo
     end
@@ -26,7 +25,7 @@ module VCAP::CloudController
     end
 
     def self.default
-      @default ||= QuotaDefinition[:name => @default_quota_name]
+      self[:name => @default_quota_name]
     end
 
     def self.user_visibility_filter(user)

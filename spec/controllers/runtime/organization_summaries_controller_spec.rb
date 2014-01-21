@@ -10,7 +10,7 @@ module VCAP::CloudController
     free_mem_size = 1024
     num_apps = num_prod_apps + num_free_apps
 
-    before :all do
+    before do
       @org = Organization.make
       @spaces = []
       num_spaces.times do
@@ -22,7 +22,7 @@ module VCAP::CloudController
       end
 
       num_free_apps.times do
-        App.make(
+        AppFactory.make(
           :space => @spaces.first,
           :production => false,
           :instances => 1,
@@ -34,7 +34,7 @@ module VCAP::CloudController
       end
 
       num_prod_apps.times do
-        App.make(
+        AppFactory.make(
           :space => @spaces.first,
           :production => true,
           :instances => 1,
@@ -47,7 +47,7 @@ module VCAP::CloudController
     end
 
     describe "GET /v2/organizations/:id/summary" do
-      before :all do
+      before do
         get "/v2/organizations/#{@org.guid}/summary", {}, admin_headers
       end
 
@@ -71,15 +71,15 @@ module VCAP::CloudController
         decoded_response["spaces"].size.should == num_spaces
       end
 
-      it "should return the correct info for a space" do
-        decoded_response["spaces"][0].should == {
-          "guid" => @spaces[0].guid,
-          "name" => @spaces[0].name,
+      it "should return the correct info for all spaces" do
+        expect(decoded_response["spaces"]).to include(
+          "guid" => @spaces.first.guid,
+          "name" => @spaces.first.name,
           "app_count" => num_apps,
           "service_count" => num_services,
           "mem_dev_total" => free_mem_size * num_free_apps,
           "mem_prod_total" => prod_mem_size * num_prod_apps,
-        }
+        )
       end
     end
   end

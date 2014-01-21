@@ -5,13 +5,18 @@ module VCAP::CloudController
     let(:message_bus) { CfMessageBus::MockMessageBus.new }
     let(:stager_pool) { double(:stager_pool) }
     let(:config_hash) { { :config => 'hash' } }
-    let(:app) { App.make(:package_hash => "abc", :droplet_hash => nil, :package_state => "PENDING", :state => "STARTED", :instances => 1) }
+    let(:app) do
+      AppFactory.make(:package_hash => "abc",
+        :droplet_hash => nil,
+        :package_state => "PENDING",
+        :state => "STARTED",
+        :instances => 1)
+    end
     let(:stager_id) { "my_stager" }
+    let(:blobstore_url_generator) { CloudController::DependencyLocator.instance.blobstore_url_generator }
 
     let(:options) { {} }
-    let(:upload_handle) { double(:upload_handle, upload_path: '/upload/path', buildpack_cache_upload_path: '/buildpack/upload/path') }
-
-    subject(:staging_task) { AppStagerTask.new(config_hash, message_bus, app, stager_pool) }
+    subject(:staging_task) { AppStagerTask.new(config_hash, message_bus, app, stager_pool, blobstore_url_generator) }
 
     let(:reply_json_error) { nil }
     let(:task_streaming_log_url) { "task-streaming-log-url" }
@@ -48,13 +53,6 @@ module VCAP::CloudController
       EM.stub(:add_timer)
       EM.stub(:defer).and_yield
       EM.stub(:schedule_sync)
-
-      StagingsController.stub(:create_handle).and_return(upload_handle)
-      StagingsController.stub(:store_droplet)
-      StagingsController.stub(:store_buildpack_cache)
-      StagingsController.stub(:destroy_handle)
-      # Some other tests inter
-      Buildpack.stub(:list_admin_buildpacks).and_return([])
     end
 
     context 'when no stager can be found' do
@@ -104,11 +102,6 @@ module VCAP::CloudController
             expect(app).to be_pending
           end
 
-          it "creates upload handle for stager to upload droplet" do
-            StagingsController.should_receive(:create_handle).and_return(upload_handle)
-            stage
-          end
-
           context "when there are available stagers" do
             it "stops other staging tasks and starts a new one" do
               message_bus.should_receive(:publish).with("staging.stop", anything)
@@ -126,12 +119,6 @@ module VCAP::CloudController
             expect {
               ignore_error(Errors::StagingError) { stage }
             }.to_not change { app.staged? }.from(false)
-          end
-
-          it "does not store droplet" do
-            expect {
-              ignore_error(Errors::StagingError) { stage }
-            }.to_not change { StagingsController.droplet_exists?(app) }.from(false)
           end
 
           it "does not save the detected buildpack" do
@@ -158,20 +145,10 @@ module VCAP::CloudController
             }.to raise_error(Errors::StagingError, /failed to stage/)
           end
 
-          it "removes upload handle" do
-            StagingsController.should_receive(:destroy_handle).with(upload_handle)
-            ignore_error(Errors::StagingError) { stage }
-          end
           it "keeps the app as not staged" do
             expect {
               ignore_error(Errors::StagingError) { stage }
             }.to_not change { app.staged? }.from(false)
-          end
-
-          it "does not store droplet" do
-            expect {
-              ignore_error(Errors::StagingError) { stage }
-            }.to_not change { StagingsController.droplet_exists?(app) }.from(false)
           end
 
           it "does not save the detected buildpack" do
@@ -187,6 +164,7 @@ module VCAP::CloudController
             end
             callback_called.should be_false
           end
+
           it "marks the app as having failed to stage" do
             expect {
               ignore_error(Errors::StagingError) { stage }
@@ -201,20 +179,10 @@ module VCAP::CloudController
             expect { stage }.to raise_error(Errors::StagingError, /failed to stage/)
           end
 
-          it "removes upload handle" do
-            StagingsController.should_receive(:destroy_handle).with(upload_handle)
-            ignore_error(Errors::StagingError) { stage }
-          end
           it "keeps the app as not staged" do
             expect {
               ignore_error(Errors::StagingError) { stage }
             }.to_not change { app.staged? }.from(false)
-          end
-
-          it "does not store droplet" do
-            expect {
-              ignore_error(Errors::StagingError) { stage }
-            }.to_not change { StagingsController.droplet_exists?(app) }.from(false)
           end
 
           it "does not save the detected buildpack" do
@@ -230,6 +198,7 @@ module VCAP::CloudController
             end
             callback_called.should be_false
           end
+
           it "marks the app as having failed to stage" do
             expect {
               ignore_error(Errors::StagingError) { stage }
@@ -244,7 +213,7 @@ module VCAP::CloudController
 
           it "copes when the app is destroyed halfway between staging (currently we dont know why this happened but seen on tabasco)" do
             VCAP::CloudController::AppStagerTask::Response.stub(:new) do
-              app.destroy # We saw that app maybe destroyed half-way through staging
+              app.destroy(savepoint: true) # We saw that app maybe destroyed half-way through staging
               raise ArgumentError, "Some Fake Error"
             end
 
@@ -273,29 +242,21 @@ module VCAP::CloudController
                 DeaClient.dea_pool.stub(:mark_app_started)
               end
 
-              it "stages the app" do
-                expect {
-                  stage
-                }.to change {
-                  [app.staged?, app.needs_staging?]
-                }.from([false, true]).to([true, false])
-              end
-
-              it "stores droplet" do
-                StagingsController.should_receive(:store_droplet).with(app, '/upload/path')
-                stage
-              end
-
-              it "updates droplet hash on the app" do
-                expect { stage }.to change { app.droplet_hash }.from(nil).to("droplet-sha1")
-              end
-
-              it "marks the app as having staged successfully" do
-                expect { stage }.to change { app.staged? }.to(true)
-              end
-
               it "saves the detected buildpack" do
-                expect { stage }.to change { app.detected_buildpack }.from(nil)
+                expect { stage }.to change { app.refresh.detected_buildpack }.from(nil)
+              end
+
+              it "does not clobber other attributes that changed between staging" do
+                # fake out the app refresh as the race happens after it
+                app.stub(:refresh)
+
+                other_app_ref = App.find(guid: app.guid)
+                other_app_ref.command = "some other command"
+                other_app_ref.save
+
+                expect { stage }.to_not change {
+                  other_app_ref.refresh.command
+                }
               end
 
               it "marks app started in dea pool" do
@@ -303,76 +264,10 @@ module VCAP::CloudController
                 stage
               end
 
-              it "removes upload handle" do
-                StagingsController.should_receive(:destroy_handle).with(upload_handle)
-                stage
-              end
-
               it "calls provided callback" do
                 callback_options = nil
                 stage { |options| callback_options = options }
                 callback_options[:started_instances].should equal(1)
-              end
-            end
-
-            context "and the app was staged by the DEA" do
-              #This is only here for backward compatibility while we perform a rolling deploy.  It should be deleted after the deploy.
-              let(:reply_json) do
-                {
-                  "task_id" => "task-id",
-                  "task_log" => "task-log",
-                  "task_streaming_log_url" => task_streaming_log_url,
-                  "detected_buildpack" => detected_buildpack,
-                  "error" => reply_json_error
-                  # no droplet sha from (old) DEAs "droplet_sha1" => "droplet-sha1"
-                }
-              end
-
-              let(:upload_handle) { double(:upload_handle, upload_path: __FILE__, buildpack_cache_upload_path: '/buildpack/upload/path') }
-
-              before do
-                DeaClient.dea_pool.stub(:mark_app_started)
-              end
-
-              it "stages the app" do
-                expect {
-                  stage
-                }.to change {
-                  [app.staged?, app.needs_staging?]
-                }.from([false, true]).to([true, false])
-              end
-
-              it "stores droplet" do
-                StagingsController.should_receive(:store_droplet).with(app, __FILE__)
-                stage
-              end
-
-              it "updates droplet hash on the app" do
-                expect { stage }.to change { app.droplet_hash }.from(nil).to(Digest::SHA1.file(__FILE__).hexdigest)
-              end
-
-              it "marks the app as having staged successfully" do
-                expect { stage }.to change { app.staged? }.to(true)
-              end
-
-              it "saves the detected buildpack" do
-                expect { stage }.to change { app.detected_buildpack }.from(nil)
-              end
-
-              it "does not mark the app as staged" do
-                DeaClient.dea_pool.should_not_receive(:mark_app_started).with({ :dea_id => stager_id, :app_id => app.guid })
-                stage
-              end
-
-              it "removes upload handle" do
-                StagingsController.should_receive(:destroy_handle).with(upload_handle)
-                stage
-              end
-
-              it "calls provided callback" do
-                callback_options = nil
-                stage { |options| callback_options = options }
-                callback_options[:started_instances].should equal(0)
               end
             end
           end
@@ -392,12 +287,6 @@ module VCAP::CloudController
                      Errors::StagingError,
                      /another staging request was initiated/
                    )
-            end
-
-            it "does not store droplet" do
-              expect {
-                ignore_error(Errors::StagingError) { stage }
-              }.to_not change { StagingsController.droplet_exists?(app) }.from(false)
             end
 
             it "does not update droplet hash on the app" do
@@ -431,26 +320,16 @@ module VCAP::CloudController
 
           it "logs StagingError instead of raising to avoid stopping main runloop" do
             logger = double(:logger, :info => nil)
-            logger.should_receive(:error).with(/failed to stage/)
+            logger.should_receive(:error).with(/Encountered error on stager with id #{stager_id}/)
 
             Steno.stub(:logger => logger)
             stage
           end
 
-          it "removes upload handle" do
-            StagingsController.should_receive(:destroy_handle).with(upload_handle)
-            stage
-          end
           it "keeps the app as not staged" do
             expect {
               ignore_error(Errors::StagingError) { stage }
             }.to_not change { app.staged? }.from(false)
-          end
-
-          it "does not store droplet" do
-            expect {
-              ignore_error(Errors::StagingError) { stage }
-            }.to_not change { StagingsController.droplet_exists?(app) }.from(false)
           end
 
           it "does not save the detected buildpack" do
@@ -478,28 +357,19 @@ module VCAP::CloudController
 
           it "logs StagingError instead of raising to avoid stopping main runloop" do
             logger = double(:logger, :info => nil)
+
             logger.should_receive(:error) do |msg|
-              msg.should match(/failed to stage/)
+              msg.should match(/Encountered error on stager with id #{stager_id}/)
             end
 
             Steno.stub(:logger => logger)
             stage
           end
 
-          it "removes upload handle" do
-            StagingsController.should_receive(:destroy_handle).with(upload_handle)
-            stage
-          end
           it "keeps the app as not staged" do
             expect {
               ignore_error(Errors::StagingError) { stage }
             }.to_not change { app.staged? }.from(false)
-          end
-
-          it "does not store droplet" do
-            expect {
-              ignore_error(Errors::StagingError) { stage }
-            }.to_not change { StagingsController.droplet_exists?(app) }.from(false)
           end
 
           it "does not save the detected buildpack" do
@@ -525,8 +395,7 @@ module VCAP::CloudController
     end
 
     describe ".staging_request" do
-      let(:staging_task) { AppStagerTask.new(nil, message_bus, app, stager_pool) }
-      let(:app) { App.make :droplet_hash => nil, :package_state => "PENDING" }
+      let(:app) { AppFactory.make :droplet_hash => nil, :package_state => "PENDING" }
       let(:dea_start_message) { { :dea_client_message => "start app message" } }
 
       before do
@@ -540,11 +409,10 @@ module VCAP::CloudController
       end
 
       it "includes app guid, task id and download/upload uris" do
-        StagingsController.stub(:app_uri).with(app).and_return("http://www.app.uri")
-        StagingsController.stub(:droplet_upload_uri).with(app).and_return("http://www.droplet.upload.uri")
-        StagingsController.stub(:buildpack_cache_download_uri).with(app).and_return("http://www.buildpack.cache.download.uri")
-        StagingsController.stub(:buildpack_cache_upload_uri).with(app).and_return("http://www.buildpack.cache.upload.uri")
-
+        blobstore_url_generator.stub(:app_package_download_url).with(app).and_return("http://www.app.uri")
+        blobstore_url_generator.stub(:droplet_upload_url).with(app).and_return("http://www.droplet.upload.uri")
+        blobstore_url_generator.stub(:buildpack_cache_download_url).with(app).and_return("http://www.buildpack.cache.download.uri")
+        blobstore_url_generator.stub(:buildpack_cache_upload_url).with(app).and_return("http://www.buildpack.cache.upload.uri")
         request = staging_task.staging_request
 
         request[:app_id].should == app.guid
@@ -582,6 +450,13 @@ module VCAP::CloudController
           app.buildpack = "git://example.com/foo.git"
           request = staging_task.staging_request
           request[:properties][:buildpack].should == "git://example.com/foo.git"
+          request[:properties][:buildpack_git_url].should == "git://example.com/foo.git"
+        end
+
+        it "doesn't return a buildpack key" do
+          app.buildpack = "git://example.com/foo.git"
+          request = staging_task.staging_request
+          expect(request[:properties]).to_not have_key(:buildpack_key)
         end
       end
 
@@ -605,15 +480,95 @@ module VCAP::CloudController
         request[:start_message].should include ({ :executableUri => nil })
       end
 
-      it "includes a list of admin buildpacks" do
-        expected_buildpack_url = "http://example.com/buildpacks/1"
-        VCAP::CloudController::Buildpack.stub(:list_admin_buildpacks).
-          and_return([{
-                        url: expected_buildpack_url,
-                      }])
-        request = staging_task.staging_request
-        expect(request[:admin_buildpacks]).to include({ :url => expected_buildpack_url })
+      describe "the list of admin buildpacks" do
+        let!(:buildpack_a) { Buildpack.make(key: "a key", position: 2) }
+        let!(:buildpack_b) { Buildpack.make(key: "b key", position: 1) }
+        let!(:buildpack_c) { Buildpack.make(key: "c key", position: 4) }
+
+        let(:buildpack_file_1) { Tempfile.new("admin buildpack 1") }
+        let(:buildpack_file_2) { Tempfile.new("admin buildpack 2") }
+        let(:buildpack_file_3) { Tempfile.new("admin buildpack 3") }
+
+        let(:buildpack_blobstore) { CloudController::DependencyLocator.instance.buildpack_blobstore }
+
+        before do
+          buildpack_blobstore.cp_to_blobstore(buildpack_file_1.path, "a key")
+          buildpack_blobstore.cp_to_blobstore(buildpack_file_2.path, "b key")
+          buildpack_blobstore.cp_to_blobstore(buildpack_file_3.path, "c key")
+        end
+
+        context "when a specific buildpack is not requested" do
+          it "includes a list of admin buildpacks as hashes containing its blobstore URI and key" do
+            Timecop.freeze do #download_uri have an expire_at
+              request = staging_task.staging_request
+
+              admin_buildpacks = request[:admin_buildpacks]
+
+              expect(admin_buildpacks).to have(3).items
+              expect(admin_buildpacks).to include(url: buildpack_blobstore.download_uri("a key"), key: "a key")
+              expect(admin_buildpacks).to include(url: buildpack_blobstore.download_uri("b key"), key: "b key")
+              expect(admin_buildpacks).to include(url: buildpack_blobstore.download_uri("c key"), key: "c key")
+            end
+          end
+        end
+
+        context "when a specific buildpack is requested" do
+          before do
+            app.buildpack = Buildpack.first.name
+            app.save()
+          end
+
+          it "includes a list of admin buildpacks so that the system doesn't think the buildpacks are gone" do
+            request = staging_task.staging_request
+
+            admin_buildpacks = request[:admin_buildpacks]
+
+            expect(admin_buildpacks).to have(3).items
+          end
+        end
+
+        context "when a buildpack is disabled" do
+          before do
+            buildpack_a.enabled = false
+            buildpack_a.save
+          end
+
+          context "when a specific buildpack is not requested" do
+            it "includes a list of enabled admin buildpacks as hashes containing its blobstore URI and key" do
+              Timecop.freeze do #download_uri have an expire_at
+                request = staging_task.staging_request
+
+                admin_buildpacks = request[:admin_buildpacks]
+
+                expect(admin_buildpacks).to have(2).items
+                expect(admin_buildpacks).to include(url: buildpack_blobstore.download_uri("b key"), key: "b key")
+                expect(admin_buildpacks).to include(url: buildpack_blobstore.download_uri("c key"), key: "c key")
+              end
+            end
+          end
+        end
+
       end
+
+      it "includes the key of an admin buildpack when the app has a buildpack specified" do
+        buildpack = Buildpack.make()
+        app.buildpack = buildpack.name
+        app.save()
+
+        request = staging_task.staging_request
+        expect(request[:properties][:buildpack_key]).to eql buildpack.key
+      end
+
+      it "doesn't include the custom buildpack url keys when the app has a buildpack specified" do
+        buildpack = Buildpack.make()
+        app.buildpack = buildpack.name
+        app.save()
+
+        request = staging_task.staging_request
+        expect(request[:properties]).to_not have_key(:buildpack)
+        expect(request[:properties]).to_not have_key(:buildpack_git_url)
+      end
+
     end
   end
 end

@@ -1,14 +1,6 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module VCAP::CloudController::RestController
   # Serialize objects according in the format required by the vcap
   # rest api.
-  #
-  # TODO: migrate this to be like messages and routes in that
-  # it is included and mixed in rather than having the controller
-  # passed into it?
-  #
-  # FIXME: add authz checks to attribures and inlined relations
 
   module ObjectSerialization
     MAX_INLINE_DEFAULT = 50
@@ -73,8 +65,11 @@ module VCAP::CloudController::RestController
         "guid" => obj.guid,
         "url" => controller.url_for_guid(obj.guid),
         "created_at" => obj.created_at,
-        "updated_at" => obj.updated_at
       }
+
+      if obj.respond_to?(:updated_at)
+        metadata_hash["updated_at"] = obj.updated_at
+      end
 
       {"metadata" => metadata_hash, "entity" => entity_hash}
     end

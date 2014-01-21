@@ -2,21 +2,19 @@ require "spec_helper"
 
 module VCAP::CloudController
   describe AppSummariesController, type: :controller do
-    before(:all) do
+    before do
       @num_services = 2
       @free_mem_size = 128
 
-      @system_domain = Domain.new(
-          :name => Sham.domain,
-          :owning_organization => nil)
-      @system_domain.save(:validate => false)
+      @shared_domain = SharedDomain.make
+      @shared_domain.save
 
       @space = Space.make
       @route1 = Route.make(:space => @space)
       @route2 = Route.make(:space => @space)
       @services = []
 
-      @app = App.make(
+      @app = AppFactory.make(
         :space => @space,
         :production => false,
         :instances => 1,
@@ -34,10 +32,6 @@ module VCAP::CloudController
 
       @app.add_route(@route1)
       @app.add_route(@route2)
-    end
-
-    after(:all) do
-      @system_domain.destroy
     end
 
     describe "GET /v2/apps/:id/summary" do
@@ -82,17 +76,29 @@ module VCAP::CloudController
 
       it "should contain the basic app attributes" do
         @app.to_hash.each do |k, v|
-          decoded_response[k.to_s].should == v
+          v.should eql(decoded_response[k.to_s]), "value of field #{k} expected to eql #{v}"
         end
       end
 
-      it "should contain list of available domains" do
-        _, domain1, domain2 = @app.space.domains
-        decoded_response["available_domains"].should =~ [
-          {"guid" => domain1.guid, "name" => domain1.name, "owning_organization_guid" => domain1.owning_organization.guid},
-          {"guid" => domain2.guid, "name" => domain2.name, "owning_organization_guid" => domain2.owning_organization.guid},
-          {"guid" => @system_domain.guid, "name" => @system_domain.name, "owning_organization_guid" => nil}
-        ]
+      it "should contain list of both private domains and shared domains" do
+        domains = @app.space.organization.private_domains
+        expect(domains.count > 0).to eq(true)
+
+        private_domains = domains.collect do |domain|
+          { "guid" => domain.guid,
+            "name" => domain.name,
+            "owning_organization_guid" =>
+              domain.owning_organization.guid
+          }
+        end
+
+        shared_domains = SharedDomain.all.collect do |domain|
+          { "guid" => domain.guid,
+            "name" => domain.name,
+          }
+        end
+
+        decoded_response["available_domains"].should =~ (private_domains + shared_domains)
       end
 
       it "should return correct number of services" do

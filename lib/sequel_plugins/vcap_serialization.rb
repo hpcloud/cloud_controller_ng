@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 require "yajl"
 
 module Sequel::Plugins::VcapSerialization
@@ -20,7 +18,14 @@ module Sequel::Plugins::VcapSerialization
       hash = {}
       attrs = self.class.export_attrs || []
       attrs.each do |k|
-        hash[k.to_s] = send(k) if opts[:only].nil? || opts[:only].include?(k)
+        if opts[:only].nil? || opts[:only].include?(k)
+          value = send(k)
+          if value.respond_to?(:nil_object?) && value.nil_object?
+            hash[k.to_s] = nil
+          else
+            hash[k.to_s] = value
+          end
+        end
       end
       hash
     end
@@ -80,7 +85,6 @@ module Sequel::Plugins::VcapSerialization
     # parameter.  The resulting data set is sorted by :id unless an order
     # is set via default_order_by.
     def to_json(opts = {})
-      # TODO: pagination
       order_attr = @default_order_by || :id
       elements = order_by(Sequel.asc(order_attr)).map { |e| e.to_hash(opts) }
       Yajl::Encoder.encode(elements)

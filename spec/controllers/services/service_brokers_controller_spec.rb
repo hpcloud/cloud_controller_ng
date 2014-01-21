@@ -10,8 +10,6 @@ module VCAP::CloudController
     end
 
     before do
-      reset_database
-
       Steno.init(Steno::Config.new(
         :default_log_level => "debug2",
         :sinks => [Steno::Sink::IO.for_file("/tmp/cloud_controller_test.log")]
@@ -21,13 +19,15 @@ module VCAP::CloudController
     describe 'POST /v2/service_brokers' do
       let(:name) { Sham.name }
       let(:broker_url) { 'http://cf-service-broker.example.com' }
-      let(:token) { 'abc123' }
+      let(:auth_username) { 'me' }
+      let(:auth_password) { 'abc123' }
 
       let(:body_hash) do
         {
           name: name,
           broker_url: broker_url,
-          token: token
+          auth_username: auth_username,
+          auth_password: auth_password,
         }
       end
 
@@ -41,7 +41,8 @@ module VCAP::CloudController
           guid: '123',
           name: 'My Custom Service',
           broker_url: 'http://broker.example.com',
-          token: 'abc123'
+          auth_username: 'me',
+          auth_password: 'abc123',
         })
       end
       let(:registration) do
@@ -96,54 +97,6 @@ module VCAP::CloudController
       context 'when there is an error in Broker Registration' do
         before { registration.stub(:save).and_return(nil) }
 
-        context 'when there is an error in API authentication' do
-          before { errors.stub(:on).with(:broker_api).and_return([:authentication_failed]) }
-
-          it 'returns an error' do
-            post '/v2/service_brokers', body, headers
-
-            last_response.status.should == 500
-            decoded_response.fetch('code').should == 270007
-            decoded_response.fetch('description').should =~ /Authentication failed for the service broker API. Double-check that the token is correct:/
-          end
-        end
-
-        context 'when the broker API is unreachable' do
-          before { errors.stub(:on).with(:broker_api).and_return([:unreachable]) }
-
-          it 'returns an error' do
-            post '/v2/service_brokers', body, headers
-
-            last_response.status.should == 500
-            decoded_response.fetch('code').should == 270004
-            decoded_response.fetch('description').should =~ /The service broker API could not be reached/
-          end
-        end
-
-        context 'when the broker API times out' do
-          before { errors.stub(:on).with(:broker_api).and_return([:timeout]) }
-
-          it 'returns an error' do
-            post '/v2/service_brokers', body, headers
-
-            last_response.status.should == 500
-            decoded_response.fetch('code').should == 270005
-            decoded_response.fetch('description').should =~ /The service broker API timed out/
-          end
-        end
-
-        context "when the broker's catalog is malformed" do
-          before { errors.stub(:on).with(:catalog).and_return([:malformed]) }
-
-          it 'returns an error' do
-            post '/v2/service_brokers', body, headers
-
-            last_response.status.should == 500
-            decoded_response.fetch('code').should == 270006
-            decoded_response.fetch('description').should =~ /The service broker response was not understood/
-          end
-        end
-
         context 'when the broker url is taken' do
           before { errors.stub(:on).with(:broker_url).and_return([:unique]) }
 
@@ -179,6 +132,36 @@ module VCAP::CloudController
             decoded_response.fetch('description').should == 'Service broker is invalid: A bunch of stuff was wrong'
           end
         end
+
+        context 'when the catalog has a service without any plans' do
+          before do
+            broker.stub(:save).and_raise(Errors::ServiceBrokerInvalid.new('each service must have at least one plan'))
+            errors.stub(:on).with(:services).and_return(['each service must have at least one plan'])
+          end
+
+          it 'returns an error' do
+            post '/v2/service_brokers', body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270001
+            decoded_response.fetch('description').should == 'Service broker is invalid: each service must have at least one plan'
+          end
+        end
+
+        context 'when the catalog has plans with non-unique names' do
+          before do
+            broker.stub(:save).and_raise(Errors::ServiceBrokerInvalid.new('Plans within a service must have unique names'))
+            errors.stub(:full_messages).and_return(['Plans within a service must have unique names'])
+          end
+
+          it 'returns an error' do
+            post '/v2/service_brokers', body, headers
+
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270001
+            decoded_response.fetch('description').should == 'Service broker is invalid: Plans within a service must have unique names'
+          end
+        end
       end
 
       describe 'authentication' do
@@ -195,7 +178,7 @@ module VCAP::CloudController
     end
 
     describe 'GET /v2/service_brokers' do
-      let!(:broker) { ServiceBroker.make(name: 'FreeWidgets', broker_url: 'http://example.com/', token: 'secret') }
+      let!(:broker) { ServiceBroker.make(name: 'FreeWidgets', broker_url: 'http://example.com/') }
       let(:single_broker_response) do
         {
           'total_results' => 1,
@@ -213,6 +196,7 @@ module VCAP::CloudController
               'entity' => {
                 'name' => broker.name,
                 'broker_url' => broker.broker_url,
+                'auth_username' => broker.auth_username,
               }
             }
           ],
@@ -225,7 +209,7 @@ module VCAP::CloudController
       end
 
       context "with a second service broker" do
-        let!(:broker2) { ServiceBroker.make(name: 'FreeWidgets2', broker_url: 'http://example.com/2', token: 'secret2') }
+        let!(:broker2) { ServiceBroker.make(name: 'FreeWidgets2', broker_url: 'http://example.com/2') }
 
         it "filters the things" do
           get "/v2/service_brokers?q=name%3A#{broker.name}", {}, headers
@@ -242,12 +226,15 @@ module VCAP::CloudController
         it 'returns 401 for logged-out users' do
           get '/v2/service_brokers'
           expect(last_response.status).to eq(401)
+          expect(decoded_response).to include({
+            'error_code' => 'CF-InvalidAuthToken'
+          })
         end
       end
     end
 
     describe 'DELETE /v2/service_brokers/:guid' do
-      let!(:broker) { ServiceBroker.make(name: 'FreeWidgets', broker_url: 'http://example.com/', token: 'secret') }
+      let!(:broker) { ServiceBroker.make(name: 'FreeWidgets', broker_url: 'http://example.com/', auth_password: 'secret') }
 
       it "deletes the service broker" do
         delete "/v2/service_brokers/#{broker.guid}", {}, headers
@@ -263,8 +250,7 @@ module VCAP::CloudController
         expect(last_response.status).to eq(404)
       end
 
-      context "when a service instance exists" do
-
+      context "when a service instance exists", non_transactional: true do
         it "returns a 400 and an appropriate error message" do
           service = Service.make(:service_broker => broker)
           service_plan = ServicePlan.make(:service => service)
@@ -307,7 +293,8 @@ module VCAP::CloudController
         {
           name: 'My Updated Service',
           broker_url: 'http://new-broker.example.com',
-          token: 'new-token'
+          auth_username: 'new-username',
+          auth_password: 'new-password',
         }
       end
 
@@ -321,7 +308,8 @@ module VCAP::CloudController
           guid: '123',
           name: 'My Custom Service',
           broker_url: 'http://broker.example.com',
-          token: 'abc123',
+          auth_username: 'me',
+          auth_password: 'abc123',
           set: nil
         })
       end
@@ -376,51 +364,15 @@ module VCAP::CloudController
       context 'when there is an error in Broker Registration' do
         before { registration.stub(:save).and_return(nil) }
 
-        context 'when there is an error in API authentication' do
-          before { errors.stub(:on).with(:broker_api).and_return([:authentication_failed]) }
+        context 'when the broker url is not a valid http/https url' do
+          before { errors.stub(:on).with(:broker_url).and_return([:url]) }
 
           it 'returns an error' do
             put "/v2/service_brokers/#{broker.guid}", body, headers
 
-            last_response.status.should == 500
-            decoded_response.fetch('code').should == 270007
-            decoded_response.fetch('description').should =~ /Authentication failed for the service broker API. Double-check that the token is correct:/
-          end
-        end
-
-        context 'when the broker API is unreachable' do
-          before { errors.stub(:on).with(:broker_api).and_return([:unreachable]) }
-
-          it 'returns an error' do
-            put "/v2/service_brokers/#{broker.guid}", body, headers
-
-            last_response.status.should == 500
-            decoded_response.fetch('code').should == 270004
-            decoded_response.fetch('description').should =~ /The service broker API could not be reached/
-          end
-        end
-
-        context 'when the broker API times out' do
-          before { errors.stub(:on).with(:broker_api).and_return([:timeout]) }
-
-          it 'returns an error' do
-            put "/v2/service_brokers/#{broker.guid}", body, headers
-
-            last_response.status.should == 500
-            decoded_response.fetch('code').should == 270005
-            decoded_response.fetch('description').should =~ /The service broker API timed out/
-          end
-        end
-
-        context "when the broker's catalog is malformed" do
-          before { errors.stub(:on).with(:catalog).and_return([:malformed]) }
-
-          it 'returns an error' do
-            put "/v2/service_brokers/#{broker.guid}", body, headers
-
-            last_response.status.should == 500
-            decoded_response.fetch('code').should == 270006
-            decoded_response.fetch('description').should =~ /The service broker response was not understood/
+            last_response.status.should == 400
+            decoded_response.fetch('code').should == 270011
+            decoded_response.fetch('description').should =~ /is not a valid URL/
           end
         end
 

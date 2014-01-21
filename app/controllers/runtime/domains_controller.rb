@@ -1,9 +1,9 @@
 module VCAP::CloudController
-  rest_controller :Domains do
+  class DomainsController < RestController::ModelController
     define_attributes do
       attribute :name, String
-      attribute :wildcard, Message::Boolean
-      to_one    :owning_organization
+      attribute :wildcard, Message::Boolean, default: true
+      to_one    :owning_organization, optional_in: :create
       to_many   :spaces
     end
 
@@ -21,5 +21,13 @@ module VCAP::CloudController
         Errors::DomainInvalid.new(e.errors.full_messages)
       end
     end
+
+    def delete(guid)
+      do_delete(find_guid_and_validate_access(:delete, guid))
+    end
+
+    deprecated_endpoint(path)
+    define_messages
+    define_routes
   end
 end

@@ -26,9 +26,22 @@ module CloudController
       case klass.name.demodulize
         when "CrashesController", "SpaceSummariesController"
           {health_manager_client: dependency_locator.health_manager_client}
-        when "BuildpacksController"
-          {buildpack_blobstore: dependency_locator.buildpack_blobstore,
-          upload_handler: dependency_locator.upload_handler}
+        when "BuildpacksController", "BuildpackBitsController"
+          {
+            buildpack_blobstore: dependency_locator.buildpack_blobstore,
+            upload_handler: dependency_locator.upload_handler
+          }
+        when "StagingsController"
+          {
+            droplet_blobstore: dependency_locator.droplet_blobstore,
+            buildpack_cache_blobstore: dependency_locator.buildpack_cache_blobstore,
+            package_blobstore: dependency_locator.package_blobstore,
+            config: @config,
+          }
+        when "AppsController"
+          { app_event_repository: dependency_locator.app_event_repository }
+        when "SpacesController"
+          { space_event_repository: dependency_locator.space_event_repository }
         else
           {}
       end

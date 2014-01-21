@@ -1,5 +1,5 @@
 module VCAP::CloudController
-  rest_controller :AppEvents do
+  class AppEventsController < RestController::ModelController
     define_attributes do
       to_one    :app
       attribute :instance_guid, String
@@ -9,5 +9,12 @@ module VCAP::CloudController
     end
 
     query_parameters :timestamp, :app_guid
+
+    def delete(guid)
+      do_delete(find_guid_and_validate_access(:delete, guid))
+    end
+
+    define_messages
+    define_routes
   end
 end

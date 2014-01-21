@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 require "services/api"
 
 module VCAP::CloudController
@@ -29,7 +27,7 @@ module VCAP::CloudController
       validate_access(label, provider)
 
       set_v2_security_context
-      Sequel::Model.db.transaction do
+      Sequel::Model.db.transaction(savepoint: true) do
         service = Service.update_or_create(
           :label => label, :provider => provider
         ) do |svc|
@@ -226,7 +224,6 @@ module VCAP::CloudController
         )
         binding.save_changes
       else
-        # TODO: shall we add a HandleNotFound?
         raise ServiceInstanceNotFound, "label=#{label} provider=#{provider} id=#{id}"
       end
     end

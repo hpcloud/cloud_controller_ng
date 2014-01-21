@@ -27,11 +27,12 @@ module VCAP::CloudController
     attr_reader :config
     attr_reader :message_bus
 
-    def initialize(config, message_bus, app, stager_pool)
+    def initialize(config, message_bus, app, stager_pool, blobstore_url_generator)
       @config = config
       @message_bus = message_bus
       @app = app
       @stager_pool = stager_pool
+      @blobstore_url_generator = blobstore_url_generator
     end
 
     def task_id
@@ -52,17 +53,17 @@ module VCAP::CloudController
       # this cloud controller completes the staging.
       @current_droplet_hash = @app.droplet_hash
 
-      @app.staging_task_id = task_id
-      @app.save
+      @app.update(staging_task_id: task_id)
 
       @message_bus.publish("staging.stop", :app_id => @app.guid)
 
-      @upload_handle = StagingsController.create_handle(@app.guid)
       @completion_callback = completion_callback
 
+      logger.info("staging.begin", :app_guid => @app.guid)
       staging_result = EM.schedule_sync do |promise|
         # First response is blocking stage_app.
         @multi_message_bus_request.on_response(staging_timeout) do |response, error|
+          logger.info("staging.first-response", :app_guid => @app.guid, :response => response, :error => error)
           handle_first_response(response, error, promise)
         end
 
@@ -70,6 +71,7 @@ module VCAP::CloudController
         # droplet was uploaded to the CC.
         # Second response does NOT block stage_app
         @multi_message_bus_request.on_response(staging_timeout) do |response, error|
+          logger.info("staging.second-response", :app_guid => @app.guid, :response => response, :error => error)
           handle_second_response(response, error)
         end
 
@@ -85,16 +87,30 @@ module VCAP::CloudController
         :space_guid => @app.space_guid,
         :task_id => task_id,
         :properties => staging_task_properties(@app),
-        :download_uri => StagingsController.app_uri(@app),
-        :upload_uri => StagingsController.droplet_upload_uri(@app),
-        :buildpack_cache_download_uri => StagingsController.buildpack_cache_download_uri(@app),
-        :buildpack_cache_upload_uri => StagingsController.buildpack_cache_upload_uri(@app),
+        # All url generation should go to blobstore_url_generator
+        :download_uri => @blobstore_url_generator.app_package_download_url(@app),
+        :upload_uri => @blobstore_url_generator.droplet_upload_url(@app),
+        :buildpack_cache_download_uri => @blobstore_url_generator.buildpack_cache_download_url(@app),
+        :buildpack_cache_upload_uri => @blobstore_url_generator.buildpack_cache_upload_url(@app),
         :start_message => start_app_message,
-        :admin_buildpacks => Buildpack.list_admin_buildpacks
+        :admin_buildpacks => admin_buildpacks
       }
     end
 
     private
+
+    def admin_buildpacks
+      Buildpack.list_admin_buildpacks.
+        select(&:enabled).
+        collect { |buildpack| admin_buildpack_entry(buildpack) }
+    end
+
+    def admin_buildpack_entry(buildpack)
+      {
+        key: buildpack.key,
+        url: @blobstore_url_generator.admin_buildpack_download_url(buildpack)
+      }
+    end
 
     def start_app_message
       msg = DeaClient.start_app_message(@app)
@@ -110,11 +126,9 @@ module VCAP::CloudController
       promise.deliver(Response.new(response))
     rescue => e
       Loggregator.emit_error(@app.guid, "exception handling first response #{e.message}")
-      logger.error("exception handling first response #{e.inspect}, backtrace: #{e.backtrace.join("\n")}")
-      destroy_upload_handle if staging_is_current?
+      logger.error("exception handling first response from stager with id #{@stager_id} response: #{e.inspect}, backtrace: #{e.backtrace.join("\n")}")
       promise.fail(e)
     end
-
 
     def handle_second_response(response, error)
       @multi_message_bus_request.ignore_subsequent_responses
@@ -122,9 +136,8 @@ module VCAP::CloudController
       ensure_staging_is_current!
       process_response(response)
     rescue => e
-      destroy_upload_handle if staging_is_current?
       Loggregator.emit_error(@app.guid, "Encountered error: #{e.message}")
-      logger.error "Encountered error: #{e}\n#{e.backtrace.join("\n")}"
+      logger.error "Encountered error on stager with id #{@stager_id}: #{e}\n#{e.backtrace.join("\n")}"
     end
 
     def process_response(response)
@@ -135,7 +148,7 @@ module VCAP::CloudController
           staging_completion(Response.new(response))
         rescue => e
           Loggregator.emit_error(@app.guid, "Encountered error: #{e.message}")
-          logger.error "Encountered error: #{e}\n#{e.backtrace.join("\n")}"
+          logger.error "Encountered error on stager with id #{@stager_id}: #{e}\n#{e.backtrace.join("\n")}"
         end
       end
     end
@@ -176,35 +189,20 @@ module VCAP::CloudController
     def staging_completion(stager_response)
       instance_was_started_by_dea = !!stager_response.droplet_hash
 
-      @app.droplet_hash = instance_was_started_by_dea ? stager_response.droplet_hash : Digest::SHA1.file(@upload_handle.upload_path).hexdigest
-      @app.detected_buildpack = stager_response.detected_buildpack
-
-      StagingsController.store_droplet(@app, @upload_handle.upload_path)
-
-      if (buildpack_cache = @upload_handle.buildpack_cache_upload_path)
-        StagingsController.store_buildpack_cache(@app, buildpack_cache)
-      end
-
-      @app.save
+      @app.update(detected_buildpack: stager_response.detected_buildpack)
 
       DeaClient.dea_pool.mark_app_started(:dea_id => @stager_id, :app_id => @app.guid) if instance_was_started_by_dea
 
       @completion_callback.call(:started_instances => instance_was_started_by_dea ? 1 : 0) if @completion_callback
-    ensure
-      destroy_upload_handle
-    end
-
-
-    def destroy_upload_handle
-      StagingsController.destroy_handle(@upload_handle)
     end
 
     def staging_task_properties(app)
+      staging_task_base_properties(app).merge(app.buildpack.staging_message)
+    end
+
+    def staging_task_base_properties(app)
       {
         :services    => app.service_bindings.map { |sb| service_binding_to_staging_request(sb) },
-
-        :buildpack => app.buildpack,
-
         :resources   => {
           :memory => app.memory,
           :disk   => app.disk_quota,

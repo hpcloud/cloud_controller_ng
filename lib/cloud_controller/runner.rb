@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 require "steno"
 require "steno/codec/text"
 require "optparse"
@@ -7,10 +5,10 @@ require "vcap/uaa_util"
 require "cf_message_bus/message_bus"
 require "cf/registrar"
 require "loggregator_emitter"
-require "loggregator_messages"
 require "loggregator"
 require 'kato/local/node'
 require "kato/proc_ready"
+require "cloud_controller/varz"
 
 require_relative "seeds"
 require_relative "message_bus_configurer"
@@ -22,6 +20,8 @@ require_relative "stackato/droplet_accountability"
 
 module VCAP::CloudController
   class Runner
+    attr_reader :config_file, :insert_seed_data
+
     def initialize(argv)
       @argv = argv
 
@@ -43,17 +43,19 @@ module VCAP::CloudController
           @config_file = opt
         end
 
-        opts.on("-m", "--run-migrations", "Run migrations") do
+        opts.on("-m", "--run-migrations", "Actually it means insert seed data") do
+          deprecation_warning "Deprecated: Use -s or --insert-seed flag"
           @insert_seed_data = true
         end
 
-        opts.on("-d", "--development-mode", "Run in development mode") do
-          # this must happen before requring any modules that use sinatra,
-          # otherwise it will not setup the environment correctly
-          @development = true
-          ENV["RACK_ENV"] = "development"
+        opts.on("-s", "--insert-seed", "Insert seed data") do
+          @insert_seed_data = true
         end
       end
+    end
+
+    def deprecation_warning(message)
+      puts message
     end
 
     def parse_options!
@@ -83,29 +85,36 @@ module VCAP::CloudController
     def setup_db
       logger.info "db config #{@config[:db]}"
       db_logger = Steno.logger("cc.db")
-      DB.connect(db_logger, @config[:db], @config[:active_record_db])
-      DB.load_models
+      DB.load_models(@config[:db], db_logger)
     end
 
     def setup_loggregator_emitter
-      if @config[:loggregator] && @config[:loggregator][:router]
-        Loggregator.emitter = LoggregatorEmitter::Emitter.new(@config[:loggregator][:router], LogMessage::SourceType::CLOUD_CONTROLLER)
+      if @config[:loggregator] && @config[:loggregator][:router] && @config[:loggregator][:shared_secret]
+        Loggregator.emitter = LoggregatorEmitter::Emitter.new(@config[:loggregator][:router], "API", @config[:index], @config[:loggregator][:shared_secret])
       end
     end
 
-    def development?
-      @development ||= false
+    def development_mode?
+      @config[:development_mode]
     end
 
     def run!
       EM.run do
         config = @config.dup
-        message_bus = MessageBusConfigurer::Configurer.new(:uri => config[:message_bus_uri], :logger => logger).go
+
+        message_bus = MessageBus::Configurer.new(
+          :servers => config[:message_bus_servers],
+          :logger => logger).go
+
         start_cloud_controller(message_bus)
+
         Seeds.write_seed_data(config) if @insert_seed_data
-        app = create_app(config, message_bus)
+
+        app = build_rack_app(config, message_bus, development_mode?)
+
         start_thin_server(app, config)
-        registrar.register_with_router
+
+        router_registrar.register_with_router
         ::Kato::ProcReady.i_am_ready("cloud_controller_ng")
       end
     end
@@ -122,7 +131,7 @@ module VCAP::CloudController
     def stop!
       logger.info("Unregistering routes.")
 
-      registrar.shutdown do
+      router_registrar.shutdown do
         stop_thin_server
         EM.stop
       end
@@ -141,12 +150,14 @@ module VCAP::CloudController
     def start_cloud_controller(message_bus)
       setup_logging
       setup_db
+      Config.configure_components(@config)
       setup_loggregator_emitter
 
       @config[:bind_address] = Kato::Local::Node.get_local_node_id
 
       Config.configure(@config)
-      Config.configure_message_bus(message_bus)
+      Config.configure_components_depending_on_message_bus(message_bus)
+
 
       # TODO:Stackato: Move to CloudController::DependencyLocator ?
       EphemeralRedisClient::configure(@config)
@@ -157,24 +168,27 @@ module VCAP::CloudController
       StackatoDeactivateServices::start
     end
 
-    def create_app(config, message_bus)
+    def build_rack_app(config, message_bus, development)
       token_decoder = VCAP::UaaTokenDecoder.new(config[:uaa])
-
-      register_component(message_bus)
+      register_with_collector(message_bus)
 
       Rack::Builder.new do
         use Rack::CommonLogger
+
+        if development
+          require 'new_relic/rack/developer_mode'
+          use NewRelic::Rack::DeveloperMode
+        end
 
         DeaClient.run
         AppObserver.run
 
         LegacyBulk.register_subscription
 
-        VCAP::CloudController.health_manager_respondent = \
-          HealthManagerRespondent.new(
-            DeaClient,
-            message_bus)
+        VCAP::CloudController.health_manager_respondent = HealthManagerRespondent.new(DeaClient, message_bus)
         VCAP::CloudController.health_manager_respondent.handle_requests
+
+        HM9000Respondent.new(DeaClient, message_bus, config[:hm9000_noop]).handle_requests
 
         VCAP::CloudController.dea_respondent = DeaRespondent.new(message_bus)
 
@@ -214,21 +228,24 @@ module VCAP::CloudController
       @thin_server.stop if @thin_server
     end
 
-    def registrar
+    def router_registrar
       @registrar ||= Cf::Registrar.new(
-          :mbus => @config[:message_bus_uri],
-          :host => @config[:bind_address],
-          :port => @config[:port],
-          :uri => @config[:external_domain],
-          :tags => {:component => "CloudController"},
-          :index => @config[:index]
+          message_bus_servers: @config[:message_bus_servers],
+          host: @config[:bind_address],
+          port: @config[:port],
+          uri: @config[:external_domain],
+          tags: {:component => "CloudController"},
+          index: @config[:index],
       )
     end
 
-    def register_component(message_bus)
+    def register_with_collector(message_bus)
       VCAP::Component.register(
           :type => 'CloudController',
           :host => @config[:bind_address],
+          :port => @config[:varz_port],
+          :user => @config[:varz_user],
+          :password => @config[:varz_password],
           :index => @config[:index],
           :config => @config,
           :nats => message_bus,

@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module Sequel::Plugins::VcapRelations
   # Depend on the instance_hooks plugin.
   def self.apply(model)
@@ -36,19 +34,8 @@ module Sequel::Plugins::VcapRelations
     # See the default many_to_one implementation for a description of the args
     # and return values.
     def many_to_one(name, opts = {})
-      guid_attr = "#{name}_guid"
-
-      define_method(guid_attr) do
-        other = send(name)
-        other.guid unless other.nil?
-      end
-
-      define_method("#{guid_attr}=") do |val|
-        ar = self.class.association_reflection(name)
-        other = ar.associated_class[:guid => val]
-        # FIXME: better error reporting
-        return if(other.nil? && !val.nil?)
-        send("#{name}=", other)
+      unless opts.fetch(:without_guid_generation, false)
+        define_guid_accessors(name)
       end
 
       opts[:reciprocal] ||=
@@ -66,15 +53,14 @@ module Sequel::Plugins::VcapRelations
     # and return values.
     def many_to_many(name, opts = {})
       singular_name = name.to_s.singularize
-      ids_attr      = "#{singular_name}_ids"
-      guids_attr    = "#{singular_name}_guids"
+      ids_attr = "#{singular_name}_ids"
+      guids_attr = "#{singular_name}_guids"
 
       define_method("add_#{singular_name}") do |other|
         # sequel is not capable of merging adds to a many_to_many association
         # like it is for a one_to_many and nds up throwing a db exception,
         # so lets squash the add
         if other.kind_of?(Integer)
-          # FIXME: this is inefficient as it has to pull all ids
           super(other) unless send(ids_attr).include? other
         else
           super(other) unless send(name).include? other
@@ -97,8 +83,8 @@ module Sequel::Plugins::VcapRelations
     # and return values.
     def one_to_many(name, opts = {})
       singular_name = name.to_s.singularize
-      ids_attr      = "#{singular_name}_ids"
-      guids_attr    = "#{singular_name}_guids"
+      ids_attr = "#{singular_name}_ids"
+      guids_attr = "#{singular_name}_guids"
 
       opts[:reciprocal] ||= self.name.split("::").last.underscore.to_sym
 
@@ -107,6 +93,22 @@ module Sequel::Plugins::VcapRelations
     end
 
     private
+
+    def define_guid_accessors(name)
+      guid_attr = "#{name}_guid"
+
+      define_method(guid_attr) do
+        other = send(name)
+        other.guid unless other.nil?
+      end
+
+      define_method("#{guid_attr}=") do |val|
+        ar = self.class.association_reflection(name)
+        other = ar.associated_class[:guid => val]
+        return if (other.nil? && !val.nil?)
+        send("#{name}=", other)
+      end
+    end
 
     def define_to_many_methods(name, singular_name, ids_attr, guids_attr)
       diff_collections = proc do |a, b|
@@ -124,10 +126,10 @@ module Sequel::Plugins::VcapRelations
         send(name).collect { |o| o.id }
       end
 
+      # greppable: add_domain_by_guid
       define_method("add_#{singular_name}_by_guid") do |guid|
         ar = self.class.association_reflection(name)
         other = ar.associated_class[:guid => guid]
-        # FIXME: better error reporting
         return if other.nil?
         if pk
           send("add_#{singular_name}", other)
@@ -152,20 +154,18 @@ module Sequel::Plugins::VcapRelations
         current_guids = send(name).map { |o| o.guid }
         (added, removed) = diff_collections.call(current_guids, guids)
         removed.each { |g| send("remove_#{singular_name}_by_guid", g) }
-        added.each   { |g| send("add_#{singular_name}_by_guid", g) }
+        added.each { |g| send("add_#{singular_name}_by_guid", g) }
       end
 
       define_method("remove_#{singular_name}_by_guid") do |guid|
         ar = self.class.association_reflection(name)
         other = ar.associated_class[:guid => guid]
-        # FIXME: better error reporting
         return if other.nil?
         send("remove_#{singular_name}", other)
       end
 
       define_method("remove_#{singular_name}") do |other|
         if other.kind_of?(Integer)
-          # FIXME: this is inefficient as it has to pull all ids
           super(other) if send(ids_attr).include? other
         else
           super(other) if send(name).include? other

@@ -5,6 +5,7 @@ module VCAP::CloudController
   class InfoController < RestController::Base
     allow_unauthenticated_access
 
+    get "/v2/info", :read
     def read
       license = Kato::Config.get("cluster", "license")
       cc_nginx = Kato::Config.get("cloud_controller_ng", "nginx").fetch("use_nginx", false)
@@ -30,7 +31,5 @@ module VCAP::CloudController
 
       Yajl::Encoder.encode(info)
     end
-
-    get "/v2/info", :read
   end
 end

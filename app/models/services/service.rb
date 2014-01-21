@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module VCAP::CloudController
   class Service < Sequel::Model
     plugin :serialization
@@ -34,6 +32,7 @@ module VCAP::CloudController
     serialize_attributes :json, :tags, :requires
 
     alias_method :bindable?, :bindable
+    alias_method :active?, :active
 
     def self.organization_visible(organization)
       service_ids = ServicePlan.
@@ -59,10 +58,18 @@ module VCAP::CloudController
       !service_broker.nil?
     end
 
+    class MissingServiceAuthToken < StandardError;
+      def error_code
+        500
+      end
+    end
+
     def client
       if v2?
         service_broker.client
       else
+        raise MissingServiceAuthToken, "Missing Service Auth Token for service: #{label}" if(service_auth_token.nil?)
+
         @v1_client ||= ServiceBroker::V1::Client.new(
           url: url,
           auth_token: service_auth_token.token,

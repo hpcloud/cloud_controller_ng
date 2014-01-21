@@ -1,4 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
 require "vcap/rest_api/http_constants"
 
 module VCAP::RestAPI
@@ -24,7 +23,10 @@ module VCAP::RestAPI
       def initialize(response_code, error_code, format, *args)
         @response_code = response_code
         @error_code = error_code
-        msg = sprintf(format, *args)
+        formatted_args = args.map do |arg|
+          (arg.is_a? Array) ? arg.map(&:to_s).join(', ') : arg.to_s
+        end
+        msg = sprintf(format, *formatted_args)
         super(msg)
       end
     end

@@ -6,35 +6,23 @@ module VCAP::CloudController
     include_examples "enumerating objects", path: "/v2/routes", model: Route
     include_examples "reading a valid object", path: "/v2/routes", model: Route, basic_attributes: %w(host domain_guid space_guid)
     include_examples "operations on an invalid object", path: "/v2/routes"
-    include_examples "deleting a valid object", path: "/v2/routes", model: Route, one_to_many_collection_ids: {}, one_to_many_collection_ids_without_url: {}
+    include_examples "deleting a valid object", path: "/v2/routes", model: Route, one_to_many_collection_ids: {}
     include_examples "creating and updating", path: "/v2/routes", model: Route,
                      required_attributes: %w(domain_guid space_guid),
                      unique_attributes: %w(host domain_guid),
                      extra_attributes: {host: -> { Sham.host }},
-                     create_attribute: lambda { |name|
-                       @space ||= Space.make
+                     create_attribute: lambda { |name, route|
                        case name.to_sym
                          when :space_guid
-                           @space.guid
+                           route.space.guid
                          when :domain_guid
-                           domain = Domain.make(wildcard: true, owning_organization: @space.organization,)
-                           @space.add_domain(domain)
+                           domain = PrivateDomain.make(owning_organization: route.space.organization,)
                            domain.guid
                          when :host
                            Sham.host
                        end
                      },
                      create_attribute_reset: lambda { @space = nil }
-
-    context "with a wildcard domain" do
-      it "should allow a nil host" do
-        domain = Domain.make(:wildcard => true)
-        space = Space.make(:organization => domain.owning_organization)
-        space.add_domain(domain)
-        post "/v2/routes", Yajl::Encoder.encode(:host => nil, :domain_guid => domain.guid, :space_guid => space.guid), json_headers(admin_headers)
-        last_response.status.should == 201
-      end
-    end
 
     describe "Permissions" do
       shared_examples "route permissions" do
@@ -127,53 +115,11 @@ module VCAP::CloudController
         end
 
         before do
-          @domain_a = Domain.make(:wildcard => true, :owning_organization => @org_a)
-          @space_a.add_domain(@domain_a)
+          @domain_a = PrivateDomain.make(:owning_organization => @org_a)
           @obj_a = Route.make(:domain => @domain_a, :space => @space_a)
 
-          @domain_b = Domain.make(:wildcard => true, :owning_organization => @org_b)
-          @space_b.add_domain(@domain_b)
+          @domain_b = PrivateDomain.make(:owning_organization => @org_b)
           @obj_b = Route.make(:domain => @domain_b, :space => @space_b)
-        end
-
-        include_examples "route permissions"
-      end
-
-      context "with the default serving domain" do
-        include_context "permissions"
-
-        let(:creation_req_for_a) do
-          Yajl::Encoder.encode(
-            :host => Sham.host,
-            :domain_guid => Domain.default_serving_domain.guid,
-            :space_guid => @space_a.guid,
-          )
-        end
-
-        let(:update_req_for_a) do
-          Yajl::Encoder.encode(:host => Sham.host)
-        end
-
-        before do
-          Domain.default_serving_domain_name = "shared.com"
-          @space_a.add_domain(Domain.default_serving_domain)
-          @space_b.add_domain(Domain.default_serving_domain)
-
-          @obj_a = Route.make(
-            :host => Sham.host,
-            :domain => Domain.default_serving_domain,
-            :space => @space_a,
-          )
-
-          @obj_b = Route.make(
-            :host => Sham.host,
-            :domain => Domain.default_serving_domain,
-            :space => @space_b,
-          )
-        end
-
-        after do
-          Domain.default_serving_domain_name = nil
         end
 
         include_examples "route permissions"
@@ -182,21 +128,18 @@ module VCAP::CloudController
   end
 
   describe "on app change" do
-    before :each do
-      reset_database
-
+    before do
       space = Space.make
       user = make_developer_for_space(space)
       @headers_for_user = headers_for(user)
-      @route = space.add_domain(
+      @route = PrivateDomain.make(
         :name => "jesse.cloud",
-        :wildcard => true,
         :owning_organization => space.organization,
       ).add_route(
         :host => "foo",
         :space => space,
       )
-      @foo_app = App.make(
+      @foo_app = AppFactory.make(
         :name   => "foo",
         :space  => space,
         :state  => "STARTED",
@@ -205,7 +148,7 @@ module VCAP::CloudController
         :droplet_hash => "def",
         :package_state => "STAGED",
       )
-      @bar_app = App.make(
+      @bar_app = AppFactory.make(
         :name   => "bar",
         :space  => space,
         :state  => "STARTED",

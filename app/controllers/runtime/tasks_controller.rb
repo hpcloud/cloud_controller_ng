@@ -1,5 +1,5 @@
 module VCAP::CloudController
-  rest_controller :Tasks do
+  class TasksController < RestController::ModelController
     define_attributes do
       to_one :app
     end
@@ -21,7 +21,10 @@ module VCAP::CloudController
 
     def delete(guid)
       return [HTTP::NOT_FOUND, nil] if config[:tasks_disabled]
-      super
+      do_delete(find_guid_and_validate_access(:delete, guid))
     end
+
+    define_messages
+    define_routes
   end
 end

@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 # NOTE: this will get refactored a bit as other methods get added
 # and as we start adding other legacy protocol conversions.
 module VCAP::CloudController
@@ -125,8 +123,6 @@ module VCAP::CloudController
         :info_url => svc.info_url,
         :plans => svc.service_plans.map(&:name),
         :supported_versions => [svc.version],
-        # TODO: this should really be optional in the API but VMC expects it
-        # now, therefore we're stubbing it here before fixing VMC
         :version_aliases => {},
         :active => true
       }

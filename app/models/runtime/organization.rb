@@ -1,30 +1,30 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module VCAP::CloudController
   class Organization < Sequel::Model
-    class InvalidDomainRelation < InvalidRelation; end
+    ORG_NAME_REGEX = /\A[[:alnum:][:punct:][:print:]]+\Z/.freeze
+    class UnauthorizedAccessToPrivateDomain < RuntimeError; end
 
-    one_to_many       :spaces
-    one_to_many       :service_instances, :dataset => lambda { VCAP::CloudController::ServiceInstance.filter(:space => spaces) }
-    one_to_many       :apps, :dataset => lambda { App.filter(:space => spaces) }
-    one_to_many       :app_events, :dataset => lambda { VCAP::CloudController::AppEvent.filter(:app => apps) }
-    one_to_many       :owned_domain, :class => "VCAP::CloudController::Domain", :key => :owning_organization_id
-    one_to_many       :service_plan_visibilities
-    many_to_many      :domains, :before_add => :validate_domain
-    many_to_one       :quota_definition
+    one_to_many :spaces
+    one_to_many :service_instances, dataset: -> { VCAP::CloudController::ServiceInstance.filter(space: spaces) }
+    one_to_many :apps, dataset: -> { App.filter(space: spaces) }
+    one_to_many :app_events, dataset: -> { VCAP::CloudController::AppEvent.filter(app: apps) }
+    one_to_many :private_domains, key: :owning_organization_id
+    one_to_many :service_plan_visibilities
+    many_to_one :quota_definition
+    one_to_many :domains,
+                dataset: -> { VCAP::CloudController::Domain.filter(owning_organization_id: id).or(owning_organization_id: nil) },
+                remover: ->(legacy_domain) { legacy_domain.destroy if legacy_domain.owning_organization_id == id },
+                clearer: -> { remove_all_private_domains },
+                adder: ->(legacy_domain) { check_addable!(legacy_domain) }
 
-    add_association_dependencies :domains => :nullify,
-      :spaces => :destroy,
-      :service_instances => :destroy,
-      :owned_domain => :destroy,
-      :service_plan_visibilities => :destroy
+    add_association_dependencies spaces: :destroy,
+      service_instances: :destroy,
+      private_domains: :destroy,
+      service_plan_visibilities: :destroy
 
     define_user_group :users
-    define_user_group :managers, :reciprocal => :managed_organizations
-    define_user_group :billing_managers,
-                      :reciprocal => :billing_managed_organizations
-    define_user_group :auditors,
-                      :reciprocal => :audited_organizations
+    define_user_group :managers, reciprocal: :managed_organizations
+    define_user_group :billing_managers, reciprocal: :billing_managed_organizations
+    define_user_group :auditors, reciprocal: :audited_organizations
 
     strip_attributes  :name
 
@@ -33,49 +33,27 @@ module VCAP::CloudController
     export_attributes :name, :billing_enabled, :quota_definition_guid, :status
     import_attributes :name, :billing_enabled,
                       :user_guids, :manager_guids, :billing_manager_guids,
-                      :auditor_guids, :domain_guids, :quota_definition_guid,
-                      :status
+                      :auditor_guids, :private_domain_guids, :quota_definition_guid,
+                      :status, :domain_guids
 
-    def billing_enabled?
-      billing_enabled
+
+    def self.user_visibility_filter(user)
+      Sequel.or(
+        managers: [user],
+        users: [user],
+        billing_managers: [user],
+        auditors: [user])
     end
 
     def before_create
-      add_inheritable_domains
       add_default_quota
       super
-    end
-
-    def validate
-      validates_presence :name
-      validates_unique   :name
-      validates_max_length 64, :name
-      validate_only_admin_can_update(:billing_enabled)
-      validate_only_admin_can_update(:quota_definition_id)
-    end
-
-    def validate_only_admin_can_enable_on_new(field_name)
-      if new? && !!public_send(field_name)
-        require_admin_for(field_name)
-      end
-    end
-
-    def validate_only_admin_can_update(field_name)
-      if !new? && column_changed?(field_name)
-        require_admin_for(field_name)
-      end
-    end
-
-    def require_admin_for(field_name)
-      unless VCAP::CloudController::SecurityContext.admin?
-        errors.add(field_name, :not_authorized)
-      end
     end
 
     def before_save
       super
       if column_changed?(:billing_enabled) && billing_enabled?
-         @is_billing_enabled = true
+        @is_billing_enabled = true
       end
     end
 
@@ -94,18 +72,23 @@ module VCAP::CloudController
       end
     end
 
-    def validate_domain(domain)
-      return if domain && domain.owning_organization.nil?
-      unless (domain &&
-              domain.owning_organization_id &&
-              domain.owning_organization_id == id)
-        raise InvalidDomainRelation.new(domain.guid)
+    def validate
+      validates_presence :name
+      validates_unique   :name
+      validate_only_admin_can_update(:billing_enabled)
+      validate_only_admin_can_update(:quota_definition_id)
+      validates_format ORG_NAME_REGEX, :name
+    end
+
+    def validate_only_admin_can_enable_on_new(field_name)
+      if new? && !!public_send(field_name)
+        require_admin_for(field_name)
       end
     end
 
-    def add_inheritable_domains
-      Domain.shared_domains.each do |d|
-        add_domain_by_guid(d.guid)
+    def validate_only_admin_can_update(field_name)
+      if !new? && column_changed?(field_name)
+        require_admin_for(field_name)
       end
     end
 
@@ -113,61 +96,6 @@ module VCAP::CloudController
       unless quota_definition_id
         self.quota_definition_id = QuotaDefinition.default.id
       end
-    end
-
-    def service_instance_quota_remaining?
-      quota_definition.total_services == -1 || # unlimited
-        service_instances.count < quota_definition.total_services
-    end
-
-    def check_quota?(service_plan)
-      return check_quota_for_trial_db if service_plan.trial_db?
-      check_quota_without_trial_db(service_plan)
-    end
-
-    def check_quota_for_trial_db
-      if trial_db_allowed?
-        return {:type => :org, :name => :trial_quota_exceeded} if trial_db_allocated?
-      elsif paid_services_allowed?
-        return {:type => :org, :name => :paid_quota_exceeded} unless service_instance_quota_remaining?
-      else
-        return {:type => :service_plan, :name => :paid_services_not_allowed }
-      end
-
-      {}
-    end
-
-    def check_quota_without_trial_db(service_plan)
-      if paid_services_allowed?
-        return {:type => :org, :name => :paid_quota_exceeded } unless service_instance_quota_remaining?
-      elsif service_plan.free
-        return {:type => :org, :name => :free_quota_exceeded } unless service_instance_quota_remaining?
-      else
-        return {:type => :service_plan, :name => :paid_services_not_allowed }
-      end
-
-      {}
-    end
-
-    def paid_services_allowed?
-      quota_definition.non_basic_services_allowed
-    end
-
-    def trial_db_allowed?
-      quota_definition.trial_db_allowed
-    end
-
-    # Does any service instance in any space have a trial DB plan?
-    def trial_db_allocated?
-      service_instances.each do |svc_instance|
-        return true if svc_instance.service_plan.trial_db?
-      end
-
-      false
-    end
-
-    def allow_sudo?
-      quota_definition && quota_definition.allow_sudo
     end
 
     def memory_remaining
@@ -179,12 +107,28 @@ module VCAP::CloudController
       status == 'active'
     end
 
-    def self.user_visibility_filter(user)
-      Sequel.or({
-        :managers => [user],
-        :users => [user],
-        :billing_managers => [user],
-        :auditors => [user] })
+    def billing_enabled?
+      billing_enabled
+    end
+
+    private
+
+    def check_addable!(legacy_domain)
+      if legacy_domain.owning_organization_id && legacy_domain.owning_organization_id != id
+        raise UnauthorizedAccessToPrivateDomain
+      end
+
+      false
+    end
+
+    def allow_sudo?
+      quota_definition && quota_definition.allow_sudo
+    end
+
+    def require_admin_for(field_name)
+      unless VCAP::CloudController::SecurityContext.admin?
+        errors.add(field_name, :not_authorized)
+      end
     end
   end
 end

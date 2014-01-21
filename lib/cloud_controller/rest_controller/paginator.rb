@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2012 VMware, Inc.
+require 'addressable/uri'
 
 module VCAP::CloudController::RestController
 
@@ -28,8 +28,8 @@ module VCAP::CloudController::RestController
     # expand inline in a relationship.
     #
     # @return [String] Json encoding pagination of the dataset.
-    def self.render_json(controller, ds, path, opts)
-      self.new(controller, ds, path, opts).render_json
+    def self.render_json(controller, ds, path, opts, request_params = {})
+      self.new(controller, ds, path, opts, request_params).render_json
     end
 
     # Create a paginator.
@@ -54,7 +54,7 @@ module VCAP::CloudController::RestController
     #
     # @option opts [Integer] :max_inline Maximum number of objects to
     # expand inline in a relationship.
-    def initialize(controller, ds, path, opts)
+    def initialize(controller, ds, path, opts, request_params = {})
       page       = opts[:page] || 1
       page_size  = opts[:results_per_page] || 50
       criteria = order_by(opts, controller, ds)
@@ -65,6 +65,7 @@ module VCAP::CloudController::RestController
       @controller = controller
       @path = path
       @opts = opts
+      @request_params = request_params
     end
 
     # Determines the column to order the paged dataset by.
@@ -127,17 +128,26 @@ module VCAP::CloudController::RestController
     end
 
     def url(page)
-      res = "#{@path}?"
-      if @opts[:inline_relations_depth]
-        res += "inline-relations-depth=#{@opts[:inline_relations_depth]}&"
+      params = {
+        'page' => page,
+        'results-per-page' => @paginated.page_size
+      }
+      params['inline-relations-depth'] = @opts[:inline_relations_depth] if @opts[:inline_relations_depth]
+      params['q'] = @opts[:q] if @opts[:q]
+      @controller.preserve_query_parameters.each do |preseved_param|
+        params[preseved_param] = @request_params[preseved_param] if @request_params[preseved_param]
       end
+
       if @opts[:orphan_relations]
-        res += "orphan-relations=#{@opts[:orphan_relations]}&"
+        params['orphan_relations'] = @opts[:orphan_relations]
       end
-      res += "q=#{@opts[:q]}&" if @opts[:q]
-      res += "order-by=#{@opts[:order_by]}&" if @opts[:order_by]
-      res += "pretty=#{@opts[:pretty]}&" if @opts[:pretty]
-      res += "page=#{page}&results-per-page=#{@paginated.page_size}"
+
+      params['order-by'] = @opts[:order_by] if @opts[:order_by]
+      params['pretty'] = @opts[:pretty] if @opts[:pretty]
+
+      uri = Addressable::URI.parse(@path)
+      uri.query_values = params
+      uri.normalize.request_uri
     end
   end
 end

@@ -1,19 +1,17 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module ControllerHelpers
-  def self.description_for_inline_depth(depth)
+  def self.description_for_inline_depth(depth, pagination = 50)
     if depth
-      "?inline-relations-depth=#{depth}"
+      "?inline-relations-depth=#{depth}&results-per-page=#{pagination}"
     else
       ""
     end
   end
 
-  def query_params_for_inline_depth(depth)
+  def query_params_for_inline_depth(depth, pagination = 50)
     if depth
-      { "inline-relations-depth" => depth }
+      { "inline-relations-depth" => depth, "results-per-page" => pagination }
     else
-      { }
+      { "results-per-page" => pagination }
     end
   end
 
@@ -61,7 +59,7 @@ module ControllerHelpers
       end
     end
 
-    before(:all) do
+    before do
       @opts = opts
       @attr = attr
     end
@@ -78,7 +76,7 @@ module ControllerHelpers
   end
 
   shared_context "inlined_relations_context" do |opts, attr, make, depth|
-    before(:all) do
+    before do
       query_parms = query_params_for_inline_depth(depth)
       get "#{opts[:path]}/#{obj.guid}", query_parms, headers
       @uri = entity["#{attr}_url"]
@@ -106,16 +104,9 @@ module ControllerHelpers
   shared_examples "get to_many attr url" do |opts, attr, make|
     describe "GET on the #{attr}_url" do
       describe "with no associated #{attr}" do
-        before(:all) do
+        before do
           obj.send("remove_all_#{attr}")
           get @uri, {}, headers
-        end
-
-        after(:all) do
-          begin
-            obj.send(get_method).map(&:destroy)
-          rescue WebMock::NetConnectNotAllowedError
-          end
         end
 
         it "should return 200" do
@@ -141,7 +132,7 @@ module ControllerHelpers
       end
 
       describe "with 2 associated #{attr}" do
-        before(:all) do
+        before do
           obj.send("remove_all_#{attr}")
           @child1 = make.call(obj)
           @child2 = make.call(obj)
@@ -151,13 +142,6 @@ module ControllerHelpers
           obj.save
 
           get @uri, {}, headers
-        end
-
-        after(:all) do
-          begin
-            obj.send(get_method).map(&:destroy)
-          rescue WebMock::NetConnectNotAllowedError
-          end
         end
 
         it "should return 200" do
@@ -194,129 +178,86 @@ module ControllerHelpers
 
   shared_examples "collection operations" do |opts|
     describe "collections" do
-      # FIXME: this needs to be re-enabled.. *BUT* needs to be split
-      # into read/write portions that can be turned on independently.
-      # Not all models currently have both import and export on their
-      # on_to_many relations, which this currently assumes.
-      #
-      # describe "modifying one_to_many collections" do
-      #   opts[:one_to_many_collection_ids].each do |attr, make|
-      #     describe "#{attr}" do
-      #       include_context "collections", opts, attr, make
-      #       child_name  = attr.to_s
+      describe "modifying collections" do
+        describe "one_to_many" do
+          opts[:one_to_many_collection_ids].each do |attr, make|
+            describe "#{attr}" do
+              include_context "collections", opts, attr, make
+              before do
+                @child1 = make.call(obj)
+              end
 
-      #       describe "PUT #{opts[:path]}/:guid with #{attr} in the request body" do
-      #         it "should return 200" do
-      #           do_write(:put, [@child1], 201, [@child1])
-      #         end
-      #       end
-      #     end
-      #   end
-      # end
-
-      describe "modifying many_to_many collections" do
-        opts[:many_to_many_collection_ids].each do |attr, make|
-          describe "#{attr}" do
-            include_context "collections", opts, attr, make
-            child_name  = attr.to_s.chomp("_guids")
-            path = "#{opts[:path]}/:guid"
-
-            before(:all) do
-              @child1 = make.call(obj)
-              @child2 = make.call(obj)
-              @child3 = make.call(obj)
+              describe "PUT #{opts[:path]}/:guid with #{attr} in the request body" do
+                it "should return 200" do
+                  do_write(:put, [@child1], 201, [@child1])
+                end
+              end
             end
+          end
+        end
 
-            describe "POST #{path} with only #{attr} in the request body" do
-              before(:all) do
-                do_write(:post, [@child1], 404, [])
+        describe "many_to_many" do
+          opts[:many_to_many_collection_ids].each do |attr, make|
+            describe "#{attr}" do
+              include_context "collections", opts, attr, make
+              child_name  = attr.to_s.chomp("_guids")
+              path = "#{opts[:path]}/:guid"
+
+              before do
+                @child1 = make.call(obj)
+                @child2 = make.call(obj)
+                @child3 = make.call(obj)
               end
 
-              it "should return 404" do
-                last_response.status.should == 404
+              describe "POST #{path} with only #{attr} in the request body" do
+                before do
+                  do_write(:post, [@child1], 404, [])
+                end
+
+                it "should return 404" do
+                  last_response.status.should == 404
+                end
+
+                it_behaves_like "a vcap rest error response"
               end
 
-              it_behaves_like "a vcap rest error response"
-            end
+              describe "PUT #{path} with only #{attr} in body" do
+                it "[:valid_id] should add a #{attr.to_s.singularize}" do
+                  do_write(:put, [@child1], 201, [@child1])
+                end
 
-            describe "PUT #{path} with only #{attr} in body" do
-              it "[:valid_id] should add a #{attr.to_s.singularize}" do
-                do_write(:put, [@child1], 201, [@child1])
+                it "[:valid_id1, :valid_id2] should add multiple #{attr}" do
+                  do_write(:put, [@child1, @child2], 201, [@child1, @child2])
+                end
+
+                it "[:valid_id1, :valid_id2] should replace existing #{attr}" do
+                  obj.send(add_method, @child1)
+                  obj.send(get_method).should include(@child1)
+                  do_write(:put, [@child2, @child3], 201, [@child2, @child3])
+                  obj.send(get_method).should_not include(@child1)
+                end
+
+                it "[] should remove all #{child_name}s" do
+                  obj.send(add_method, @child1)
+                  obj.send(get_method).should include(@child1)
+                  do_write(:put, [], 201, [])
+                  obj.send(get_method).should_not include(@child1)
+                end
+
+                it "[:invalid_id] should return 400" do
+                  obj.send(add_method, @child1)
+                  obj.send(get_method).should include(@child1)
+                  do_write(:put, [], 201, [])
+                  obj.send(get_method).should_not include(@child1)
+                end
               end
-
-              it "[:valid_id1, :valid_id2] should add multiple #{attr}" do
-                do_write(:put, [@child1, @child2], 201, [@child1, @child2])
-              end
-
-              it "[:valid_id1, :valid_id2] should replace existing #{attr}" do
-                obj.send(add_method, @child1)
-                obj.send(get_method).should include(@child1)
-                do_write(:put, [@child2, @child3], 201, [@child2, @child3])
-                obj.send(get_method).should_not include(@child1)
-              end
-
-              it "[] should remove all #{child_name}s" do
-                obj.send(add_method, @child1)
-                obj.send(get_method).should include(@child1)
-                do_write(:put, [], 201, [])
-                obj.send(get_method).should_not include(@child1)
-              end
-
-              it "[:invalid_id] should return 400" do
-                obj.send(add_method, @child1)
-                obj.send(get_method).should include(@child1)
-                do_write(:put, [], 201, [])
-                obj.send(get_method).should_not include(@child1)
-              end
-
-              # FIXME: add an error id in the middle of an array test
-
-              # FIXME: other bad json input tests
             end
           end
         end
       end
 
       describe "reading collections" do
-        describe "many_to_one" do
-          opts[:many_to_one_collection_ids].each do |attr, make|
-            path = "#{opts[:path]}/:guid"
-
-            [nil, 0, 1].each do |inline_relations_depth|
-              desc = ControllerHelpers::description_for_inline_depth(inline_relations_depth)
-              describe "GET #{path}#{desc}" do
-                include_context "collections", opts, attr, make
-
-                before(:all) do
-                  obj.send("#{attr}=", make.call(obj)) unless obj.send(attr)
-                  obj.save
-                end
-
-                include_context "inlined_relations_context", opts, attr, make, inline_relations_depth
-                include_examples "inlined_relations", attr, inline_relations_depth
-
-                it "should return a #{attr}_guid field" do
-                  entity.should have_key("#{attr}_guid")
-                end
-
-                # this is basically the read api, so we'll do most of the
-                # detailed read testing there
-                desc = ControllerHelpers::description_for_inline_depth(inline_relations_depth)
-                describe "GET on the #{attr}_url" do
-                  before(:all) do
-                    get @uri, {}, headers
-                  end
-
-                  it "should return 200" do
-                    last_response.status.should == 200
-                  end
-                end
-              end
-            end
-          end
-        end
-
-        describe "n_to_many" do
+        describe "many_to_many, one_to_many" do
           # this is basically the read api, so we'll do most of the
           # detailed read testing there
 
@@ -334,42 +275,40 @@ module ControllerHelpers
               end
             end
 
-            describe "with 51 associated #{attr}" do
+            describe "with 3 associated #{attr}" do
               depth = 1
-              desc = ControllerHelpers::description_for_inline_depth(depth)
+              pagination = 2
+              desc = ControllerHelpers::description_for_inline_depth(depth, pagination)
               describe "GET #{path}#{desc}" do
                 include_context "collections", opts, attr, make
 
-                before(:all) do
+                let(:query_params) {query_params_for_inline_depth(depth, pagination)}
+
+                before do
                   obj.send("remove_all_#{attr}")
-                  51.times do
+                  3.times do
                     child = make.call(obj)
                     obj.refresh
                     obj.send(add_method, child)
                   end
 
-                  query_parms = query_params_for_inline_depth(depth)
-                  get "#{opts[:path]}/#{obj.guid}", query_parms, headers
+                  get "#{opts[:path]}/#{obj.guid}", query_params, headers
                   @uri = entity["#{attr}_url"]
-                end
-
-                after(:all) do
-                  begin
-                    obj.send(get_method).map(&:destroy)
-                  rescue WebMock::NetConnectNotAllowedError
-                  end
                 end
 
                 # we want to make sure to only limit the assocation that
                 # has too many results yet still inline the others
-                include_examples "inlined_relations", attr
+                context "when inline depth = 0" do
+                  let(:query_params) { {} }
+                  include_examples "inlined_relations", attr
+                end
                 (to_many_attrs.keys - [attr]).each do |other_attr|
-                  include_examples "inlined_relations", other_attr, 1
+                  include_examples "inlined_relations", other_attr, depth
                 end
 
                 describe "GET on the #{attr}_url" do
-                  before(:all) do
-                    get @uri, {}, headers
+                  before do
+                    get @uri, query_params, headers
 
                     @raw_guids = obj.send(get_method).sort do |a, b|
                       a[:id] <=> b[:id]
@@ -380,8 +319,8 @@ module ControllerHelpers
                     last_response.status.should == 200
                   end
 
-                  it "should return total_results => 51" do
-                    decoded_response["total_results"].should == 51
+                  it "should return total_results => 3" do
+                    decoded_response["total_results"].should == 3
                   end
 
                   it "should return prev_url => nil" do
@@ -392,16 +331,17 @@ module ControllerHelpers
                   it "should return next_url" do
                     decoded_response.should have_key("next_url")
                     next_url = decoded_response["next_url"]
-                    next_url.should match /#{@uri}\?page=2&results-per-page=50/
+                    next_url.should match /#{@uri}\?/
+                    next_url.should include("page=2&results-per-page=2")
                   end
 
-                  it "should return the first 50 resources" do
-                    decoded_response["resources"].count.should == 50
+                  it "should return the first page of resources" do
+                    decoded_response["resources"].count.should == 2
                     api_guids = decoded_response["resources"].map do |v|
                       v["metadata"]["guid"]
                     end
 
-                    api_guids.should == @raw_guids[0..49]
+                    api_guids.should == @raw_guids[0..1]
                   end
 
                   it "should return the next 1 resource when fetching next_url" do
@@ -410,7 +350,45 @@ module ControllerHelpers
                     last_response.status.should == 200
                     decoded_response["resources"].count.should == 1
                     guid = decoded_response["resources"][0]["metadata"]["guid"]
-                    guid.should == @raw_guids[50]
+                    guid.should == @raw_guids[2]
+                  end
+                end
+              end
+            end
+          end
+        end
+
+        describe "many_to_one" do
+          opts[:many_to_one_collection_ids].each do |attr, make|
+            path = "#{opts[:path]}/:guid"
+
+            [nil, 0, 1].each do |inline_relations_depth|
+              desc = ControllerHelpers::description_for_inline_depth(inline_relations_depth)
+              describe "GET #{path}#{desc}" do
+                include_context "collections", opts, attr, make
+
+                before do
+                  obj.send("#{attr}=", make.call(obj)) unless obj.send(attr)
+                  obj.save
+                end
+
+                include_context "inlined_relations_context", opts, attr, make, inline_relations_depth
+                include_examples "inlined_relations", attr, inline_relations_depth
+
+                it "should return a #{attr}_guid field" do
+                  entity.should have_key("#{attr}_guid")
+                end
+
+                # this is basically the read api, so we'll do most of the
+                # detailed read testing there
+                desc = ControllerHelpers::description_for_inline_depth(inline_relations_depth)
+                describe "GET on the #{attr}_url" do
+                  before do
+                    get @uri, {}, headers
+                  end
+
+                  it "should return 200" do
+                    last_response.status.should == 200
                   end
                 end
               end

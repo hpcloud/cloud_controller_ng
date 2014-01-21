@@ -23,6 +23,7 @@ gem 'celluloid'         ,   '0.15.2', :groups => [:test]
 gem 'cf-message-bus'    ,    '0.0.5', :git => "https://github.com/ActiveState/cf-message-bus.git"
 gem 'cf-uaa-lib'        ,    '2.0.0', :github => "ActiveState/cf-uaa-lib", :ref => "3026895da933a7b1102735db96568c007b4c9148"
 gem 'ci_reporter'       ,    '1.9.0'
+gem "clockwork", require: false
 gem 'cloudfront-signer' ,    '2.1.1'
 gem 'coderay'           ,    '1.1.0', :groups => [:development, :test]
 gem 'coercible'         ,    '0.2.0'
@@ -119,6 +120,7 @@ gem 'stackato-kato'     ,    '3.0.0'
 gem 'stager-client'     ,    '0.0.2', :git => "https://github.com/cloudfoundry/stager-client.git", :ref => "04c2aee9"
 gem 'steno'             ,    '1.1.0'
 gem 'steno-codec-text'  ,      '0.1', :path => "../steno-codec-text"
+gem "talentbox-delayed_job_sequel" , '4.0.0'
 gem 'term-ansicolor'    ,    '1.0.7'
 gem 'thin'              ,    '1.6.1'
 gem 'thor'              ,   '0.18.1', :groups => [:test]
@@ -127,6 +129,7 @@ gem 'timecop'           ,    '0.7.0', :groups => [:test]
 gem 'timers'            ,    '1.1.0', :groups => [:test]
 gem 'trollop'           ,      '2.0'
 gem 'tzinfo'            ,   '0.3.38'
+gem 'unf'               ,    '0.1.3'
 gem 'vcap-concurrency'  ,    '0.1.0', :git => "https://github.com/cloudfoundry/vcap-concurrency.git", :ref => "2a5b0179"
 gem 'vcap_common'       ,    '2.2.1', :path => '../common'
 gem 'virtus'            ,    '1.0.0'
@@ -134,4 +137,3 @@ gem 'vmstat'            ,    '2.0.0'
 gem 'webmock'           ,   '1.16.0', :groups => [:test]
 gem 'xmlparser'         ,  '0.7.2.1'
 gem 'yajl-ruby'         ,    '1.1.0'
-

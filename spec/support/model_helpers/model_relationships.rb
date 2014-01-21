@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 require File.expand_path("../cloud_controller_model", __FILE__)
 
 module ModelHelpers
@@ -94,7 +92,7 @@ module ModelHelpers
             obj.save
 
             expect {
-              related.destroy
+              related.destroy(savepoint: true)
             }.to raise_error Sequel::DatabaseError, /foreign key/
           end
         else
@@ -102,7 +100,7 @@ module ModelHelpers
             related = create_for.call(obj)
             obj.send(add_attribute, related)
             obj.save
-            related.destroy
+            related.destroy(savepoint: true)
           end
         end
       end

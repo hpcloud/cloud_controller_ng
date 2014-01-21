@@ -1,5 +1,5 @@
 module VCAP::CloudController
-  rest_controller :Spaces do
+  class SpacesController < RestController::ModelController
     define_attributes do
       attribute  :name,            String
       to_one     :organization
@@ -15,10 +15,8 @@ module VCAP::CloudController
 
     query_parameters :name, :organization_guid, :developer_guid, :app_guid
 
-    def self.default_order_by
-      :name
-    end
-    
+    deprecated_endpoint "#{path_guid}/domains/*"
+
     def self.translate_validation_exception(e, attributes)
       name_errors = e.errors.on([:organization_id, :name])
       if name_errors && name_errors.include?(:unique)
@@ -30,8 +28,11 @@ module VCAP::CloudController
       end
     end
 
-    get "/v2/spaces/:guid/services", :enumerate_services
+    def inject_dependencies(dependencies)
+      @space_event_repository = dependencies.fetch(:space_event_repository)
+    end
 
+    get "/v2/spaces/:guid/services", :enumerate_services
     def enumerate_services(guid)
       space = find_guid_and_validate_access(:read, guid)
 
@@ -43,15 +44,14 @@ module VCAP::CloudController
       )
 
       RestController::Paginator.render_json(
-          ServicesController,
-          services,
-          "/v2/spaces/#{guid}/services",
-          @opts
+        ServicesController,
+        services,
+        "/v2/spaces/#{guid}/services",
+        @opts.merge(serialization: ServiceSerialization, organization: space.organization)
       )
     end
 
     get "/v2/spaces/:guid/service_instances", :enumerate_service_instances
-
     def enumerate_service_instances(guid)
       space = find_guid_and_validate_access(:read, guid)
 
@@ -77,5 +77,41 @@ module VCAP::CloudController
       )
     end
 
+    def delete(guid)
+      space = find_guid_and_validate_access(:delete, guid)
+      @space_event_repository.record_space_delete_request(space, SecurityContext.current_user, recursive?)
+      do_delete(space)
+    end
+
+    private
+    def after_create(space)
+      @space_event_repository.record_space_create(space, SecurityContext.current_user, request_attrs)
+    end
+
+    def after_update(space)
+      @space_event_repository.record_space_update(space, SecurityContext.current_user, request_attrs)
+    end
+
+    module ServiceSerialization
+      def self.to_hash(controller, service, opts)
+        entity_hash = service.to_hash.merge({
+          "service_plans" => service.service_plans_dataset.organization_visible(opts[:organization]).map do |service_plan|
+            RestController::ObjectSerialization.to_hash(controller, service_plan, opts)
+          end
+        })
+
+        metadata_hash = {
+          "guid" => service.guid,
+          "url" => controller.url_for_guid(service.guid),
+          "created_at" => service.created_at,
+          "updated_at" => service.updated_at
+        }
+
+        {"metadata" => metadata_hash, "entity" => entity_hash}
+      end
+    end
+
+    define_messages
+    define_routes
   end
 end

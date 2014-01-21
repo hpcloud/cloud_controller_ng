@@ -17,8 +17,7 @@ module VCAP::CloudController
                        :service_bindings => lambda { |service_instance|
                          make_service_binding_for_service_instance(service_instance)
                        }
-                     },
-                     one_to_many_collection_ids_without_url: {}
+                     }
     include_examples "collection operations", path: "/v2/service_instances", model: ManagedServiceInstance,
                      one_to_many_collection_ids: {
                        service_bindings: lambda { |service_instance| make_service_binding_for_service_instance(service_instance) }
@@ -177,6 +176,35 @@ module VCAP::CloudController
 
     describe 'POST', '/v2/service_instance' do
       let(:space) { Space.make }
+      let(:developer) { make_developer_for_space(space) }
+      let(:plan) { ServicePlan.make(:service => service) }
+
+      context 'when provisioning without a service-auth-token' do
+        let(:service) { Service.make(:description => "blah blah foobar") }
+
+        before do
+          service.stub(:v2?) { false }
+        end
+
+        it 'should throw a 500 and give you an error message saying "Missing service auth token"' do
+          req = Yajl::Encoder.encode(
+            :name => 'foo',
+            :space_guid => space.guid,
+            :service_plan_guid => plan.guid
+          )
+          headers = json_headers(headers_for(developer))
+
+          expect(plan.service.service_auth_token).to eq(nil)
+
+          post "/v2/service_instances", req, headers
+
+          expect(last_response.status).to eq(500)
+        end
+      end
+    end
+
+    describe 'POST', '/v2/service_instance' do
+      let(:space) { Space.make }
       let(:plan) { ServicePlan.make }
       let(:developer) { make_developer_for_space(space) }
       let(:client) { double('client') }
@@ -207,19 +235,69 @@ module VCAP::CloudController
         expect(instance.dashboard_url).to eq('the dashboard_url')
       end
 
+      context 'when name is blank' do
+        let(:body) do
+          Yajl::Encoder.encode(
+            :name => '',
+            :space_guid => space.guid,
+            :service_plan_guid => plan.guid
+          )
+        end
+        let(:headers) { json_headers(headers_for(developer)) }
+
+        it 'returns a name validation error' do
+          post '/v2/service_instances', body, headers
+
+          expect(last_response.status).to eq(400)
+          expect(decoded_response['description']).to match /name is invalid/
+        end
+
+        it 'does not provision or deprovision an instance' do
+          post '/v2/service_instances', body, headers
+
+          expect(client).to_not have_received(:provision)
+          expect(client).to_not have_received(:deprovision)
+        end
+
+        it 'does not create a service instance' do
+          expect {
+            post '/v2/service_instances', body, headers
+          }.to_not change(ServiceInstance, :count)
+        end
+      end
+
       it 'deprovisions the service instance when an exception is raised' do
         req = Yajl::Encoder.encode(
           :name => 'foo',
           :space_guid => space.guid,
           :service_plan_guid => plan.guid
         )
-        headers = json_headers(headers_for(developer))
-        ManagedServiceInstance.any_instance.stub(:save).and_raise
 
-        post "/v2/service_instances", req, headers
+        ManagedServiceInstance.any_instance.stub(:save).and_raise
+        Controller.any_instance.stub(:in_test_mode?).and_return(false)
+
+        post "/v2/service_instances", req, json_headers(headers_for(developer))
 
         expect(last_response.status).to eq(500)
         expect(client).to have_received(:deprovision).with(an_instance_of(ManagedServiceInstance))
+      end
+
+      context 'when the model save and the subsequent deprovision both raise errors' do
+        it 'raises the original error' do
+          req = Yajl::Encoder.encode(
+            :name => 'foo',
+            :space_guid => space.guid,
+            :service_plan_guid => plan.guid
+          )
+
+          client.stub(:deprovision).and_raise(StandardError, 'deprovision')
+          ManagedServiceInstance.any_instance.stub(:save).and_raise(StandardError, 'save')
+          Controller.any_instance.stub(:in_test_mode?).and_return(true)
+
+          expect {
+            post "/v2/service_instances", req, json_headers(headers_for(developer))
+          }.to raise_error(StandardError, "save")
+        end
       end
 
       context 'creating a service instance with a name over 50 characters' do
@@ -311,7 +389,7 @@ module VCAP::CloudController
 
         it "deletes the service instance with the given guid" do
           expect {
-            delete "v2/service_instances/#{service_instance.guid}", {}, admin_headers
+            delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
           }.to change(ServiceInstance, :count).by(-1)
           last_response.status.should == 204
           ServiceInstance.find(:guid => service_instance.guid).should be_nil
@@ -323,7 +401,7 @@ module VCAP::CloudController
 
         it "deletes the service instance with the given guid" do
           expect {
-            delete "v2/service_instances/#{service_instance.guid}", {}, admin_headers
+            delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
           }.to change(ServiceInstance, :count).by(-1)
           last_response.status.should == 204
           ServiceInstance.find(:guid => service_instance.guid).should be_nil

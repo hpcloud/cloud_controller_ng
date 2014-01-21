@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module VCAP::CloudController; end
 
 require "sequel_plugins/vcap_validations"
@@ -14,9 +12,9 @@ module Sequel::Plugins::VcapUserGroup
   module ClassMethods
     def define_user_group(name, opts = {})
       opts = opts.merge(
-        :class => "VCAP::CloudController::User",
-        :join_table => "#{table_name}_#{name}",
-        :right_key => :user_id
+        class: "VCAP::CloudController::User",
+        join_table: "#{table_name}_#{name}",
+        right_key: :user_id
       )
 
       many_to_many(name, opts)
@@ -55,7 +53,7 @@ module Sequel::Plugins::VcapUserVisibility
     end
 
     def full_dataset_filter
-      Sequel.~({:id => nil})
+      {}
     end
   end
 end
@@ -79,8 +77,6 @@ Sequel::Model.plugin :typecast_on_load,
                      :name, :label, :provider, :description, :host
 
 require "vcap/sequel_add_association_dependencies_monkeypatch"
-require "vcap/delayed_job_guid_monkeypatch"
-require "vcap/delayed_job_postgres_monkeypatch"
 
 require File.expand_path("../../../app/access/base_access.rb", __FILE__)
 Dir[File.expand_path("../../../app/access/**/*.rb", __FILE__)].each do |file|

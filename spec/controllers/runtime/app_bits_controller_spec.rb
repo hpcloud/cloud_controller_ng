@@ -1,9 +1,9 @@
 require "spec_helper"
 
 module VCAP::CloudController
-  describe VCAP::CloudController::AppBitsController, type: :controller do
+  describe AppBitsController, type: :controller do
     describe "PUT /v2/app/:id/bits" do
-      let(:app_obj) { App.make :droplet_hash => nil, :package_state => "PENDING" }
+      let(:app_obj) { AppFactory.make :droplet_hash => nil, :package_state => "PENDING" }
 
       let(:tmpdir) { Dir.mktmpdir }
       after { FileUtils.rm_rf(tmpdir) }
@@ -28,6 +28,11 @@ module VCAP::CloudController
           last_response.status.should == 201
         end
 
+        it "returns valid JSON" do
+          make_request
+          expect{ JSON.parse(last_response.body) }.not_to raise_error
+        end
+
         it "updates package hash" do
           expect {
             make_request
@@ -39,6 +44,11 @@ module VCAP::CloudController
         it "returns 400" do
           make_request
           last_response.status.should == 400
+        end
+
+        it "returns valid JSON" do
+          make_request
+          expect{ JSON.parse(last_response.body) }.not_to raise_error
         end
 
         it "does not update package hash" do
@@ -72,8 +82,7 @@ module VCAP::CloudController
         end
 
         context "with at least one resource and no application" do
-          include_context "with valid resource in resource pool"
-          let(:req_body) { {:resources => JSON.dump([valid_resource])} }
+          let(:req_body) { {:resources => JSON.dump([{"fn" => "lol", "sha1" => "abc", "size" => 2048}])} }
           it_succeeds_to_upload
         end
 
@@ -139,12 +148,13 @@ module VCAP::CloudController
             Delayed::Job.count
           }.by(1)
 
+          response_body = JSON.parse(last_response.body, :symbolize_keys => true)
           job = Delayed::Job.last
           expect(job.handler).to include(app_obj.guid)
           expect(job.queue).to eq("cc-api_z1-99")
           expect(job.guid).not_to be_nil
           expect(last_response.status).to eq 201
-          expect(last_response.body).to eq({
+          expect(response_body).to eq({
             :metadata => {
               :guid => job.guid,
               :created_at => job.created_at.iso8601,
@@ -154,15 +164,15 @@ module VCAP::CloudController
               :guid => job.guid,
               :status => "queued"
             }
-          }.to_json)
+          })
         end
       end
     end
 
     describe "GET /v2/app/:id/download" do
       let(:tmpdir) { Dir.mktmpdir }
-      let(:app_obj) { App.make }
-      let(:app_obj_without_pkg) { App.make }
+      let(:app_obj) { AppFactory.make }
+      let(:app_obj_without_pkg) { AppFactory.make }
       let(:user) { make_user_for_space(app_obj.space) }
       let(:developer) { make_developer_for_space(app_obj.space) }
       let(:developer2) { make_developer_for_space(app_obj_without_pkg.space) }
@@ -172,25 +182,52 @@ module VCAP::CloudController
         tmpdir = Dir.mktmpdir
         zipname = File.join(tmpdir, "test.zip")
         create_zip(zipname, 10, 1024)
-        AppBitsPackerJob.new(app_obj.guid, zipname, []).perform
+        Jobs::Runtime::AppBitsPacker.new(app_obj.guid, zipname, []).perform
         FileUtils.rm_rf(tmpdir)
       end
 
       context "when app is local" do
+        let(:workspace) { Dir.mktmpdir }
+        let(:blobstore_config) do
+          {
+            :packages => {
+              :fog_connection => {
+                :provider => "Local",
+                :local_root => Dir.mktmpdir("packages", workspace)
+              },
+              :app_package_directory_key => "cc-packages",
+            },
+            :resource_pool => {
+              :resource_directory_key => "cc-resources",
+              :fog_connection => {
+                :provider => "Local",
+                :local_root => Dir.mktmpdir("resourse_pool", workspace)
+              }
+            },
+          }
+        end
+
         before do
-          AppPackage.blobstore.stub(:local?) { true }
-          AppPackage.stub(:package_uri) { |guid| "droplets/#{guid}" }
+          Fog.unmock!
+          @old_config = config
+          config_override(blobstore_config)
+          guid = app_obj.guid
+          tmpdir = Dir.mktmpdir
+          zipname = File.join(tmpdir, "test.zip")
+          create_zip(zipname, 10, 1024)
+          Jobs::Runtime::AppBitsPacker.new(guid, zipname, []).perform
+        end
+
+        after do
+          config_override(@old_config)
         end
 
         context "when using nginx" do
           it "redirects to correct nginx URL" do
             get "/v2/apps/#{app_obj.guid}/download", {}, headers_for(developer)
             last_response.status.should == 200
-            last_response.headers.should include(
-              {
-                "X-Accel-Redirect" => "droplets/#{app_obj.guid}"
-              }
-            )
+            app_bit_path = last_response.headers.fetch("X-Accel-Redirect")
+            File.exists?(File.join(workspace, app_bit_path))
           end
         end
       end
@@ -200,10 +237,12 @@ module VCAP::CloudController
           get "/v2/apps/#{app_obj_without_pkg.guid}/download", {}, headers_for(developer2)
           last_response.status.should == 404
         end
+
         it "should return 302 for valid packages" do
           get "/v2/apps/#{app_obj.guid}/download", {}, headers_for(developer)
           last_response.status.should == 302
         end
+
         it "should return 404 for non-existent apps" do
           get "/v2/apps/abcd/download", {}, headers_for(developer)
           last_response.status.should == 404

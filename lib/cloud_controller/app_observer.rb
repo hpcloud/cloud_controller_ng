@@ -1,5 +1,5 @@
-require "vcap/stager/client"
 require "cloud_controller/multi_response_message_bus_request"
+require "models/runtime/droplet_uploader"
 
 module VCAP::CloudController
   module AppObserver
@@ -13,16 +13,10 @@ module VCAP::CloudController
       end
 
       def deleted(app)
-        DeaClient.stop(app)
+        AppStopper.new(@message_bus).stop(app)
 
-        if app.package_hash
-          delete_package(app)
-        end
-
-        if app.staged?
-          delete_droplet(app)
-          delete_buildpack_cache(app)
-        end
+        delete_package(app) if app.package_hash
+        delete_buildpack_cache(app) if app.staged?
       end
 
       def updated(app)
@@ -43,49 +37,18 @@ module VCAP::CloudController
 
       private
 
-      def delete_droplet(app)
-        droplet_blobstore.delete(droplet_key(app))
-        droplet_blobstore.delete(old_droplet_key(app))
-      rescue Errno::EISDIR => e
-        # XXX: make logger.error work here
-        puts "ERROR -- Error deleting droplet: #{e}\n#{e.backtrace}"
-        true
-      #rescue Errno::ENOTEMPTY => e
-      #  logger.warn("Failed to delete droplet: #{e}\n#{e.backtrace}")
-      #  true
-      #rescue StandardError => e
-      #  # NotFound errors do not share a common superclass so we have to determine it by name
-      #  # A github issue for fog will be created.
-      #  if e.class.name.split('::').last.eql?("NotFound")
-      #    logger.warn("Failed to delete droplet: #{e}\n#{e.backtrace}")
-      #    true
-      #  else
-      #    # None-NotFound errors will be raised again
-      #    raise e
-      #  end
-      end
-
       def delete_buildpack_cache(app)
-        buildpack_cache_blobstore.delete(app.guid)
+        delete_job = Jobs::Runtime::BlobstoreDelete.new(app.guid, :buildpack_cache_blobstore)
+        Delayed::Job.enqueue(delete_job, queue: "cc-generic")
       end
 
       def delete_package(app)
-        package_blobstore.delete(app.guid)
+        delete_job = Jobs::Runtime::BlobstoreDelete.new(app.guid, :package_blobstore)
+        Delayed::Job.enqueue(delete_job, queue: "cc-generic")
       end
-
-      def_delegators :dependency_locator, :buildpack_cache_blobstore,
-                     :package_blobstore, :droplet_blobstore
 
       def dependency_locator
         CloudController::DependencyLocator.instance
-      end
-
-      def droplet_key(app)
-        File.join(app.guid, app.droplet_hash)
-      end
-
-      def old_droplet_key(app)
-        app.guid
       end
 
       def stage_app(app, &completion_callback)
@@ -93,7 +56,11 @@ module VCAP::CloudController
           raise Errors::AppPackageInvalid, "The app package hash is empty"
         end
 
-        task = AppStagerTask.new(@config, @message_bus, app, @stager_pool)
+        if app.buildpack.custom? && !App.custom_buildpacks_enabled?
+          raise Errors::CustomBuildpacksDisabled
+        end
+
+        task = AppStagerTask.new(@config, @message_bus, app, @stager_pool, dependency_locator.blobstore_url_generator)
         task.stage(&completion_callback)
       end
 
@@ -120,10 +87,8 @@ module VCAP::CloudController
 
       def react_to_instances_change(app, delta)
         if app.started?
-          stage_if_needed(app) do |staging_result|
-            DeaClient.change_running_instances(app, delta)
-            broadcast_app_updated(app)
-          end
+          DeaClient.change_running_instances(app, delta)
+          broadcast_app_updated(app)
         end
       end
 

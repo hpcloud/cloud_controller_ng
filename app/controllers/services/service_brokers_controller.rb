@@ -9,7 +9,8 @@ module VCAP::CloudController
     class ServiceBrokerMessage < VCAP::RestAPI::Message
       optional :name,       String
       optional :broker_url, String
-      optional :token,      String
+      optional :auth_username,   String
+      optional :auth_password,   String
 
       def self.extract(json)
         decode(json).extract
@@ -17,16 +18,6 @@ module VCAP::CloudController
     end
 
     get '/v2/service_brokers', :enumerate
-    post '/v2/service_brokers', :create
-    put '/v2/service_brokers/:guid', :update
-    delete '/v2/service_brokers/:guid', :delete
-
-    # poor man's before filter
-    def dispatch(op, *args)
-      require_admin
-      super
-    end
-
     def enumerate
       headers = {}
       brokers = ServiceBroker.filter(build_filter)
@@ -35,6 +26,7 @@ module VCAP::CloudController
       [HTTP::OK, headers, body.to_json]
     end
 
+    post '/v2/service_brokers', :create
     def create
       params = ServiceBrokerMessage.extract(body)
       broker = ServiceBroker.new(params)
@@ -50,6 +42,7 @@ module VCAP::CloudController
       [HTTP::CREATED, headers, body]
     end
 
+    put '/v2/service_brokers/:guid', :update
     def update(guid)
       params = ServiceBrokerMessage.extract(body)
       broker = ServiceBroker.find(guid: guid)
@@ -67,6 +60,7 @@ module VCAP::CloudController
       [HTTP::OK, {}, body]
     end
 
+    delete '/v2/service_brokers/:guid', :delete
     def delete(guid)
       broker = ServiceBroker.find(:guid => guid)
       return HTTP::NOT_FOUND unless broker
@@ -88,8 +82,8 @@ module VCAP::CloudController
 
     private
 
-    def require_admin
-      raise NotAuthenticated unless user
+    def check_authentication(op)
+      super
       raise NotAuthorized unless roles.admin?
     end
 
@@ -122,18 +116,14 @@ module VCAP::CloudController
       errors = registration.errors
       broker = registration.broker
 
-      if errors.on(:broker_api) && errors.on(:broker_api).include?(:authentication_failed)
-        Errors::ServiceBrokerApiAuthenticationFailed.new(broker.broker_url)
-      elsif errors.on(:broker_api) && errors.on(:broker_api).include?(:unreachable)
-        Errors::ServiceBrokerApiUnreachable.new(broker.broker_url)
-      elsif errors.on(:broker_api) && errors.on(:broker_api).include?(:timeout)
-        Errors::ServiceBrokerApiTimeout.new(broker.broker_url)
+      if errors.on(:broker_url) && errors.on(:broker_url).include?(:url)
+        Errors::ServiceBrokerUrlInvalid.new(broker.broker_url)
       elsif errors.on(:broker_url) && errors.on(:broker_url).include?(:unique)
         Errors::ServiceBrokerUrlTaken.new(broker.broker_url)
       elsif errors.on(:name) && errors.on(:name).include?(:unique)
         Errors::ServiceBrokerNameTaken.new(broker.name)
-      elsif errors.on(:catalog) && errors.on(:catalog).include?(:malformed)
-        Errors::ServiceBrokerResponseMalformed.new
+      elsif errors.on(:services)
+        Errors::ServiceBrokerInvalid.new(errors.on(:services))
       else
         Errors::ServiceBrokerInvalid.new(errors.full_messages)
       end

@@ -1,3 +1,5 @@
+require "repositories/runtime/app_event_repository"
+
 module VCAP::CloudController
   class << self
     attr_accessor :dea_respondent
@@ -32,7 +34,8 @@ module VCAP::CloudController
       app = App[:guid => app_guid]
 
       if app && crashed_app?(decoded_message)
-        Event.create_app_exit_event(app, decoded_message)
+        app_event_repository = Repositories::Runtime::AppEventRepository.new
+        app_event_repository.create_app_exit_event(app, decoded_message)
 
         AppEvent.create(
           app_id: app.id,

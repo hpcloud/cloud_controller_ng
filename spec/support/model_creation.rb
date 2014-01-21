@@ -7,7 +7,7 @@ module ModelCreation
   end
 
   def make_domain_for_org(org)
-    VCAP::CloudController::Domain.make(:owning_organization => org)
+    VCAP::CloudController::PrivateDomain.make(:owning_organization => org)
   end
 
   def make_user_for_space(space)
@@ -32,18 +32,18 @@ module ModelCreation
     domain
   end
 
-  def make_manager_for_org(org, space)
+  def make_manager_for_org(org)
     user = make_user_for_org(org)
     org.add_manager(user)
     user
   end
 
   def make_app_for_service_instance(service_instance)
-    VCAP::CloudController::App.make(:space => service_instance.space)
+    VCAP::CloudController::AppFactory.make(:space => service_instance.space)
   end
 
   def make_service_binding_for_service_instance(service_instance)
-    app = VCAP::CloudController::App.make(:space => service_instance.space)
+    app = VCAP::CloudController::AppFactory.make(:space => service_instance.space)
     app.space = service_instance.space
     VCAP::CloudController::ServiceBinding.make(
       :app => app,

@@ -1,8 +1,6 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module ModelHelpers
   shared_examples "serialization" do |opts|
-    before(:all) do
+    before do
       @obj = described_class.make
     end
 

@@ -1,9 +1,8 @@
 require 'services/api'
 
 module VCAP::CloudController
-  rest_controller :ServiceInstances do
+  class ServiceInstancesController < RestController::ModelController
     model_class_name :ManagedServiceInstance # Must do this to be backwards compatible with actions other than enumerate
-
     define_attributes do
       attribute :name,  String
       to_one    :space
@@ -42,8 +41,12 @@ module VCAP::CloudController
         end
       elsif service_plan_errors
         Errors::ServiceInstanceServicePlanNotAllowed.new
-      elsif service_instance_name_errors && service_instance_name_errors.include?(:max_length)
-        Errors::ServiceInstanceNameTooLong.new
+      elsif service_instance_name_errors
+        if service_instance_name_errors.include?(:max_length)
+          Errors::ServiceInstanceNameTooLong.new
+        else
+          Errors::ServiceInstanceNameInvalid.new(attributes['name'])
+        end
       else
         Errors::ServiceInstanceInvalid.new(e.errors.full_messages)
       end
@@ -54,7 +57,6 @@ module VCAP::CloudController
     end
 
     post "/v2/service_instances", :create
-
     def create
       json_msg = self.class::CreateMessage.decode(body)
 
@@ -78,14 +80,24 @@ module VCAP::CloudController
       service_instance = ManagedServiceInstance.new(request_attrs)
       validate_access(:create, service_instance, user, roles)
 
+      unless service_instance.valid?
+        raise Sequel::ValidationFailed.new(service_instance)
+      end
+
       client = service_instance.client
       client.provision(service_instance)
 
       begin
         service_instance.save
-      rescue
-        client.deprovision(service_instance)
-        raise
+      rescue => e
+        begin
+          # this needs to go into a retry queue
+          client.deprovision(service_instance)
+        rescue => deprovision_e
+          logger.error "Unable to deprovision #{service_instance}: #{deprovision_e}"
+        end
+
+        raise e
       end
 
       [ HTTP::CREATED,
@@ -95,43 +107,19 @@ module VCAP::CloudController
     end
 
     get "/v2/service_instances/:guid", :read
-
     def read(guid)
-      logger.debug "cc.read", :model => :ServiceInstance, :guid => guid
+      logger.debug "cc.read", model: :ServiceInstance, guid: guid
 
-      obj = ServiceInstance.find(:guid => guid)
-
-      if obj
-        validate_access(:read, obj, user, roles)
-      else
-        raise self.class.not_found_exception.new(guid)
-      end
-
-      serialization.render_json(self.class, obj, @opts)
+      service_instance = find_guid_and_validate_access(:read, guid, ServiceInstance)
+      serialization.render_json(self.class, service_instance, @opts)
     end
 
     delete "/v2/service_instances/:guid", :delete
-
     def delete(guid)
-      logger.debug "cc.delete", :guid => guid
-
-      obj = ServiceInstance.find(:guid => guid)
-
-      if obj
-        validate_access(:delete, obj, user, roles)
-      else
-        raise self.class.not_found_exception.new(guid)
-      end
-
-      raise_if_has_associations!(obj) if v2_api? && params["recursive"] != "true"
-
-      before_destroy(obj)
-
-      obj.destroy
-
-      after_destroy(obj)
-
-      [ HTTP::NO_CONTENT, nil ]
+      do_delete(find_guid_and_validate_access(:delete, guid, ServiceInstance))
     end
+
+    define_messages
+    define_routes
   end
 end

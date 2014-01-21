@@ -2,8 +2,6 @@ require "spec_helper"
 
 module VCAP::CloudController
   describe EventsController, type: :controller do
-    before { reset_database }
-
     let(:admin_user) { User.make :admin => true }
 
     describe "GET /v2/events" do
@@ -179,10 +177,14 @@ module VCAP::CloudController
       end
 
       it "paginates the results" do
-        get "/v2/events?q=timestamp%3E#{(base_timestamp + 50).utc.iso8601}", {}, admin_headers
+        start_time = (base_timestamp + 50).utc
+        end_time = (base_timestamp + 1000).utc
+
+        get "/v2/events?q=timestamp%3E=#{start_time.iso8601}%3Btimestamp%3C=#{end_time.iso8601}", {}, admin_headers
+
         decoded_response["total_pages"].should == 2
         decoded_response["prev_url"].should be_nil
-        decoded_response["next_url"].should == "/v2/events?q=timestamp>#{(base_timestamp + 50).utc.iso8601}&page=2&results-per-page=50"
+        decoded_response["next_url"].should == "/v2/events?page=2&q=timestamp%3E=#{start_time.iso8601}%3Btimestamp%3C=#{end_time.iso8601}&results-per-page=50"
       end
     end
 
@@ -207,8 +209,8 @@ module VCAP::CloudController
         it "should return events for matching all the types" do
           get "/v2/events?q=type%20IN%20audit.app.update,app.crash", {}, admin_headers
           decoded_response["total_results"].should == 2
-          decoded_response["resources"][0]["metadata"]["guid"].should == update_event.guid
-          decoded_response["resources"][1]["metadata"]["guid"].should == crash_event.guid
+          filtered_event_guids = decoded_response["resources"].map{ |resource| resource["metadata"]["guid"] }
+          filtered_event_guids.should =~ [ update_event.guid, crash_event.guid ]
         end
       end
 
@@ -308,6 +310,18 @@ module VCAP::CloudController
         decoded_response["total_results"].should == 2
         decoded_response["resources"][0]["metadata"]["guid"].should == event1.guid
         decoded_response["resources"][1]["metadata"]["guid"].should == event2.guid
+      end
+    end
+
+    describe "GET /v2/events/ filtering by actee_id" do
+      let(:actee_guid) { Sham.guid }
+      let!(:event1) { Event.make actee: actee_guid }
+
+      it "returns events with the specified actee_id" do
+        get "/v2/events?q=actee:#{actee_guid}", {}, admin_headers
+        expect(last_response.status).to eq 200
+        expect(decoded_response["total_results"]).to eq(1)
+        expect(decoded_response["resources"][0]["metadata"]["guid"]).to eq(event1.guid)
       end
     end
   end

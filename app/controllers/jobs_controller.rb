@@ -1,15 +1,14 @@
 require 'presenters/api/job_presenter'
 
 module VCAP::CloudController
-  rest_controller :Jobs do
-    disable_default_routes
+  class JobsController < RestController::ModelController
+    allow_unauthenticated_access
     path_base "jobs"
 
+    get "#{path_guid}", :read
     def read(guid)
-      job = Delayed::Job.find_by_guid(guid)
+      job = Delayed::Job[:guid => guid]
       JobPresenter.new(job).to_json
     end
-
-    get "#{path_guid}", :read
   end
 end
