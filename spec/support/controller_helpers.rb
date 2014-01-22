@@ -48,9 +48,6 @@ module ControllerHelpers
       headers["HTTP_AUTHORIZATION"] = "bearer #{user_token}"
     end
 
-    # FIXME: what is the story here?
-    # headers["HTTP_PROXY_USER"]    = proxy_user.id if proxy_user
-
     headers["HTTP_X_FORWARDED_PROTO"] = "https" if opts[:https]
     headers
   end
@@ -60,7 +57,11 @@ module ControllerHelpers
   end
 
   def decoded_response(options={})
-    Yajl::Parser.parse(last_response.body, options)
+    parse(last_response.body, options)
+  end
+
+  def parse(json, options={})
+    Yajl::Parser.parse(json, options)
   end
 
   def metadata

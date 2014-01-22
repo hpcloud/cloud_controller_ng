@@ -1,5 +1,5 @@
 module VCAP::CloudController
-  rest_controller :Services do
+  class ServicesController < RestController::ModelController
     define_attributes do
       attribute :label,             String
       attribute :description,       String
@@ -11,7 +11,7 @@ module VCAP::CloudController
       attribute :active,            Message::Boolean, :default => false
       attribute :bindable,          Message::Boolean, :default => true
       attribute :extra,             String, :default => nil
-      attribute :unique_id,         String, :default => nil, :exclude_in => [:update]
+      attribute :unique_id,         String, :default => nil
       attribute :tags,              [String], :default => []
       attribute :requires,          [String], :default => []
 
@@ -32,6 +32,10 @@ module VCAP::CloudController
     end
 
     query_parameters :active, :label
+    
+    def self.default_order_by
+      :label
+    end
 
     def self.translate_validation_exception(e, attributes)
       label_provider_errors = e.errors.on([:label, :provider])
@@ -41,5 +45,12 @@ module VCAP::CloudController
         Errors::ServiceInvalid.new(e.errors.full_messages)
       end
     end
+
+    def delete(guid)
+      do_delete(find_guid_and_validate_access(:delete, guid))
+    end
+
+    define_messages
+    define_routes
   end
 end

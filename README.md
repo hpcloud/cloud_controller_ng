@@ -53,15 +53,32 @@ By default `rspec` will run test suite with sqlite3 in-memory database;
 however, you can specify connection string via `DB_CONNECTION` environment
 variable to test against postgres and mysql. Examples:
 
-    DB_CONNECTION="postgres://postgres@localhost:5432/ccng" rspec
+    DB_CONNECTION="postgres://postgres@localhost:5432" rspec
     DB_CONNECTION="mysql2://root:password@localhost:3306/ccng" rspec
 
 Travis currently runs 3 build jobs against sqlite, postgres, and mysql.
 
+### Running tests on a single file
+
+The development team typically will run the specs to a single file as (e.g.)
+
+    bundle exec rspec spec/controllers/runtime/users_controller_spec.rb
+
+### Running all the tests
+
+There are a very large number of tests in Cloud Controller, so the development team typically uses [parallel_rspec](https://github.com/grosser/parallel_tests):
+
+    bundle exec parallel_rspec spec -s integration
+
+It is important to remember to use `-s integration` to force all the integration specs to run in the same process.
+Without it, you will see failures due to two tests trying to start NATS on the same port at the same time, for instance.
+
 ## API documentation
 
-You can generate the API documentation by running `bin/document_api`. You can then use the
-`cf curl` command to interact with the API.
+To genenerate the API documentation
+
+    bundle exec rspec spec/api/ --format RspecApiDocumentation::ApiFormatter
+    open doc/api/index.html
 
 ## Logs
 

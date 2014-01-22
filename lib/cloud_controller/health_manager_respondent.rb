@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 require "steno"
 
 require File.expand_path("../dea/dea_client", __FILE__)
@@ -57,7 +55,7 @@ module VCAP::CloudController
       current_running = running[app.version] || 0
       return unless current_running < app.instances
 
-      dea_client.start_instances_with_message(app, indices)
+      dea_client.start_instances(app, indices)
     end
 
     def process_stop(payload)
@@ -78,7 +76,7 @@ module VCAP::CloudController
       if !app
         stop_runaway_app(app_id)
       elsif stop_instances?(app, instances, running)
-        dea_client.stop_instances(app, instances.keys)
+        dea_client.stop_instances(app_id, instances.keys)
       end
     end
 

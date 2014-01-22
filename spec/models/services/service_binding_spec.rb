@@ -2,17 +2,21 @@ require "spec_helper"
 
 module VCAP::CloudController
   describe VCAP::CloudController::ServiceBinding, :services, type: :model do
+    before do
+      client = double('broker client', unbind: nil, deprovision: nil)
+      Service.any_instance.stub(:client).and_return(client)
+    end
+
     it_behaves_like "a CloudController model", {
       :required_attributes => [:service_instance, :app],
       :db_required_attributes => [:service_instance_id, :app_id, :credentials],
       :unique_attributes => [ [:app, :service_instance] ],
-      :create_attribute => lambda { |name|
-        @space ||= Space.make
+      :create_attribute => lambda { |name, service_binding|
         case name.to_sym
           when :app
-            App.make(:space => @space)
+            AppFactory.make(:space => service_binding.space)
           when :service_instance
-            ManagedServiceInstance.make(:space => @space)
+            ManagedServiceInstance.make(:space => service_binding.space)
         end
       },
       :create_attribute_reset => lambda { @space = nil },
@@ -20,7 +24,7 @@ module VCAP::CloudController
         :app => {
           :delete_ok => true,
           :create_for => lambda { |service_binding|
-            App.make(:space => service_binding.space)
+            AppFactory.make(:space => service_binding.space)
           }
         },
         :service_instance => {
@@ -43,14 +47,24 @@ module VCAP::CloudController
       let(:binding) { ServiceBinding.make }
       it "unbinds at the broker" do
         binding.client.should_receive(:unbind)
-        binding.destroy
+        binding.destroy(savepoint: true)
+      end
+
+      context 'when unbind fails' do
+        before { binding.client.stub(:unbind).and_raise }
+
+        it 'raises an error and rolls back' do
+          expect {
+            binding.destroy(savepoint: true)
+          }.to raise_error
+
+          expect(binding).to be_exists
+        end
       end
     end
 
     it_behaves_like "a model with an encrypted attribute" do
       let(:service_instance) { ManagedServiceInstance.make }
-
-      after { service_instance.destroy }
 
       def new_model
         ServiceBinding.make(
@@ -66,7 +80,7 @@ module VCAP::CloudController
       before do
         # since we don't set them, these will have different app spaces
         @service_instance = ManagedServiceInstance.make
-        @app = App.make
+        @app = AppFactory.make
         @service_binding = ServiceBinding.make
       end
 
@@ -84,6 +98,57 @@ module VCAP::CloudController
           service_binding.service_instance = @service_instance
           service_binding.save
         }.to raise_error ServiceBinding::InvalidAppAndServiceRelation
+      end
+    end
+
+    describe "logging service bindings" do
+      let(:service) { Service.make }
+      let(:service_plan) { ServicePlan.make(:service => service) }
+      let(:service_instance) do
+        ManagedServiceInstance.make(
+          :service_plan => service_plan,
+          :name => "not a syslog drain instance"
+        )
+      end
+
+      context "service that does not require syslog_drain" do
+        let(:service) { Service.make(:requires => []) }
+
+        it "should not allow a non syslog_drain with a syslog drain url" do
+          expect {
+            service_binding = ServiceBinding.make(:service_instance => service_instance)
+            service_binding.syslog_drain_url = "http://this.is.a.mean.url.com"
+            service_binding.save
+          }.to raise_error(ServiceBinding::InvalidLoggingServiceBinding, "Service is not advertised as a logging service. Please contact the service provider.")
+        end
+
+        it "should allow a non syslog_drain with a nil syslog drain url" do
+          expect {
+            service_binding = ServiceBinding.make(:service_instance => service_instance)
+            service_binding.syslog_drain_url = nil
+            service_binding.save
+          }.not_to raise_error
+        end
+
+        it "should allow a non syslog_drain with an empty syslog drain url" do
+          expect {
+            service_binding = ServiceBinding.make(:service_instance => service_instance)
+            service_binding.syslog_drain_url = ""
+            service_binding.save
+          }.not_to raise_error
+        end
+      end
+
+      context "service that does require a syslog_drain" do
+        let(:service) { Service.make(:requires => ["syslog_drain"]) }
+
+        it "should allow a syslog_drain with a syslog drain url" do
+          expect {
+            service_binding = ServiceBinding.make(:service_instance => service_instance)
+            service_binding.syslog_drain_url = "http://syslogurl.com"
+            service_binding.save
+          }.not_to raise_error
+        end
       end
     end
 
@@ -107,21 +172,11 @@ module VCAP::CloudController
           :credentials => {:password => "foo"}
         )
       end
-
-      context "when the service is unbindable" do
-        let(:service) { Service.make(bindable: false) }
-
-        it "raises an UnbindableService" do
-          expect {
-            ServiceBinding.make(:service_instance => service_instance)
-          }.to raise_error(Errors::UnbindableService)
-        end
-      end
     end
 
     describe "restaging" do
       let(:app) do
-        app = App.make
+        app = AppFactory.make
         app.state = "STARTED"
         app.instances = 1
         fake_app_staging(app)
@@ -142,7 +197,7 @@ module VCAP::CloudController
         fake_app_staging(app)
         app.needs_staging?.should be_false
 
-        binding.destroy
+        binding.destroy(savepoint: true)
         app.refresh
         app.needs_staging?.should be_true
       end

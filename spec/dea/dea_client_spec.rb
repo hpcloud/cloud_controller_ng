@@ -2,25 +2,28 @@ require "spec_helper"
 
 module VCAP::CloudController
   describe VCAP::CloudController::DeaClient do
-    include RSpec::Mocks::ExampleMethods # for double
 
     let(:message_bus) { CfMessageBus::MockMessageBus.new }
     let(:dea_pool) { double(:dea_pool) }
     let(:app) do
-      app = App.make
-      NUM_SVC_INSTANCES.times do
-        instance = ManagedServiceInstance.make(:space => app.space)
-        binding = ServiceBinding.make(
-          :app => app,
-          :service_instance => instance
-        )
-        app.add_service_binding(binding)
+      app = AppFactory.make.tap do |app|
+        NUM_SVC_INSTANCES.times do
+          instance = ManagedServiceInstance.make(:space => app.space)
+          binding = ServiceBinding.make(
+            :app => app,
+            :service_instance => instance
+          )
+          app.add_service_binding(binding)
+        end
       end
-      app
+    end
+
+    let(:blobstore_url_generator) do
+      double("blobstore_url_generator", :droplet_download_url => "app_uri")
     end
 
     before do
-      DeaClient.configure(config, message_bus, dea_pool)
+      DeaClient.configure(config, message_bus, dea_pool, blobstore_url_generator)
     end
 
     describe ".run" do
@@ -35,15 +38,18 @@ module VCAP::CloudController
 
       it "should return a serialized dea message" do
         res = DeaClient.start_app_message(app)
+        expect(res[:executableUri]).to eq("app_uri")
         res.should be_kind_of(Hash)
-        res[:droplet].should == app.guid
-        res[:services].should be_kind_of(Array)
-        res[:services].count.should == NUM_SVC_INSTANCES
-        res[:services].first.should be_kind_of(Hash)
-        res[:limits].should be_kind_of(Hash)
-        res[:env].should be_kind_of(Array)
-        res[:console].should == false
-        res[:start_command].should be_nil
+
+        expect(res[:droplet]).to eq(app.guid)
+        expect(res[:services]).to be_kind_of(Array)
+        expect(res[:services].count).to eq NUM_SVC_INSTANCES
+        expect(res[:services].first).to be_kind_of(Hash)
+        expect(res[:limits]).to be_kind_of(Hash)
+        expect(res[:env]).to be_kind_of(Array)
+        expect(res[:console]).to eq false
+        expect(res[:start_command]).to be_nil
+        expect(res[:health_check_timeout]).to be_nil
       end
 
       context "with an app enabled for console support" do
@@ -69,6 +75,14 @@ module VCAP::CloudController
           res[:start_command].should == "custom start command"
         end
       end
+      
+      context "with an app enabled for custom health check timeout value" do
+        it "should enable health check timeout in the start message" do
+          app.update(:health_check_timeout => 82)
+          res = DeaClient.start_app_message(app)
+          expect(res[:health_check_timeout]).to eq(82)
+        end
+      end
     end
 
     describe "update_uris" do
@@ -85,27 +99,51 @@ module VCAP::CloudController
           hash_including(
             # XXX: change this to actual URLs from user once we do it
             :uris => kind_of(Array),
+            :version => app.version
           )
         )
         DeaClient.update_uris(app)
       end
     end
 
-    describe "start_instances_with_message" do
+    describe "start_instances" do
       it "should send a start messages to deas with message override" do
-        app.instances = 2
+        app.instances = 3
 
-        dea_pool.should_receive(:find_dea).and_return("dea_123")
-        dea_pool.should_receive(:mark_app_started).with(dea_id: "dea_123", app_id: app.guid)
+        dea_pool.should_receive(:find_dea).twice.and_return("dea_123")
+        dea_pool.should_receive(:mark_app_started).twice.with(dea_id: "dea_123", app_id: app.guid)
         message_bus.should_receive(:publish).with(
           "dea.dea_123.start",
           hash_including(
-            :foo   => "bar",
+            :index => 1,
+          )
+        ).ordered
+
+        message_bus.should_receive(:publish).with(
+          "dea.dea_123.start",
+          hash_including(
+            :index => 2,
+          )
+        ).ordered
+
+        DeaClient.start_instances(app, [1, 2])
+      end
+    end
+
+    describe "start_instance_at_index" do
+      it "should send a start messages to deas with message override" do
+        app.instances = 2
+
+        dea_pool.should_receive(:find_dea).once.and_return("dea_123")
+        dea_pool.should_receive(:mark_app_started).once.with(dea_id: "dea_123", app_id: app.guid)
+        message_bus.should_receive(:publish).with(
+          "dea.dea_123.start",
+          hash_including(
             :index => 1,
           )
         )
 
-        DeaClient.start_instances_with_message(app, [1], :foo => "bar")
+        DeaClient.start_instance_at_index(app, 1)
       end
     end
 
@@ -134,13 +172,27 @@ module VCAP::CloudController
 
       it "sends a dea start message that includes cc_partition" do
         config_override(:cc_partition => "ngFTW")
-        DeaClient.configure(config, message_bus, dea_pool)
+        DeaClient.configure(config, message_bus, dea_pool, blobstore_url_generator)
 
         app.instances = 1
         dea_pool.should_receive(:find_dea).and_return("abc")
         dea_pool.should_receive(:mark_app_started).with(dea_id: "abc", app_id: app.guid)
         message_bus.should_receive(:publish).with("dea.abc.start", hash_including(:cc_partition => "ngFTW"))
 
+        DeaClient.start(app)
+      end
+
+      it "includes memory in find_dea request" do
+        app.instances = 1
+        app.memory = 512
+        dea_pool.should_receive(:find_dea).with(include(mem: 512))
+        DeaClient.start(app)
+      end
+
+      it "includes disk in find_dea request" do
+        app.instances = 1
+        app.disk_quota = 13
+        dea_pool.should_receive(:find_dea).with(include(disk: 13))
         DeaClient.start(app)
       end
     end
@@ -166,14 +218,25 @@ module VCAP::CloudController
         message_bus.should_receive(:publish).with(
           "dea.stop",
           hash_including(
-            :droplet   => app.guid,
-            :instances   => ["a", "b"]
+            droplet: app.guid,
+            instances: ["a", "b"]
           )
         ) do |_, payload|
-          payload.should_not include(:version)
+          expect(payload).to_not include(:version)
         end
 
-        DeaClient.stop_instances(app, ["a", "b"])
+        DeaClient.stop_instances(app.guid, ["a", "b"])
+      end
+
+      it "should support single instance" do
+        message_bus.should_receive(:publish).with(
+          "dea.stop",
+          hash_including(droplet: app.guid, instances: ["a"])
+        ) do |_, payload|
+          expect(payload).to_not include(:version)
+        end
+
+        DeaClient.stop_instances(app.guid, "a")
       end
     end
 
@@ -261,7 +324,7 @@ module VCAP::CloudController
         path = "test"
 
         expect {
-          DeaClient.get_file_uri_for_instance(app, path, instance)
+          DeaClient.get_file_uri_for_active_instance_by_index(app, path, instance)
         }.to raise_error Errors::FileError, "File error: Request failed for app: #{app.name} path: #{path} as the app is in stopped state."
       end
 
@@ -272,7 +335,7 @@ module VCAP::CloudController
         path = "test"
 
         expect {
-          DeaClient.get_file_uri_for_instance(app, path, instance)
+          DeaClient.get_file_uri_for_active_instance_by_index(app, path, instance)
         }.to raise_error { |error|
           error.should be_an_instance_of Errors::FileError
 
@@ -293,7 +356,7 @@ module VCAP::CloudController
 
         search_options = {
           :indices => [instance],
-          :states => [:STARTING, :RUNNING, :CRASHED],
+          :states => DeaClient::ACTIVE_APP_STATES,
           :version => app.version,
           :path => "test",
           :droplet => app.guid
@@ -307,7 +370,7 @@ module VCAP::CloudController
 
         message_bus.respond_to_synchronous_request("dea.find.droplet", [instance_found])
 
-        result = DeaClient.get_file_uri_for_instance(app, path, instance)
+        result = DeaClient.get_file_uri_for_active_instance_by_index(app, path, instance)
         result.file_uri_v1.should == "http://1.2.3.4/staged/test"
         result.file_uri_v2.should be_nil
         result.credentials.should == ["username", "password"]
@@ -324,7 +387,7 @@ module VCAP::CloudController
 
         search_options = {
           :indices => [instance],
-          :states => [:STARTING, :RUNNING, :CRASHED],
+          :states => DeaClient::ACTIVE_APP_STATES,
           :version => app.version,
           :path => "test",
           :droplet => app.guid
@@ -339,7 +402,7 @@ module VCAP::CloudController
 
         message_bus.respond_to_synchronous_request("dea.find.droplet", [instance_found])
 
-        info = DeaClient.get_file_uri_for_instance(app, path, instance)
+        info = DeaClient.get_file_uri_for_active_instance_by_index(app, path, instance)
         info.file_uri_v2.should == "file_uri_v2"
         info.file_uri_v1.should == "http://1.2.3.4/staged/test"
         info.credentials.should == ["username", "password"]
@@ -359,7 +422,7 @@ module VCAP::CloudController
 
         search_options = {
           :indices => [instance],
-          :states => [:STARTING, :RUNNING, :CRASHED],
+          :states => DeaClient::ACTIVE_APP_STATES,
           :version => app.version,
           :path => "test",
           :droplet => app.guid
@@ -368,7 +431,7 @@ module VCAP::CloudController
         message_bus.respond_to_synchronous_request("dea.find.droplet", [])
 
         expect {
-          DeaClient.get_file_uri_for_instance(app, path, instance)
+          DeaClient.get_file_uri_for_active_instance_by_index(app, path, instance)
         }.to raise_error Errors::FileError, msg
 
         expect(message_bus).to have_requested_synchronous_messages("dea.find.droplet", search_options, {timeout: 2})
@@ -387,7 +450,7 @@ module VCAP::CloudController
         msg << " path: #{path} as the app is in stopped state."
 
         expect {
-          DeaClient.get_file_uri_for_instance_id(app, path, instance_id)
+          DeaClient.get_file_uri_by_instance_guid(app, path, instance_id)
         }.to raise_error Errors::FileError, msg
       end
 
@@ -413,7 +476,7 @@ module VCAP::CloudController
 
         message_bus.respond_to_synchronous_request("dea.find.droplet", [instance_found])
 
-        result = DeaClient.get_file_uri_for_instance_id(app, path, instance_id)
+        result = DeaClient.get_file_uri_by_instance_guid(app, path, instance_id)
         result.file_uri_v1.should == "http://1.2.3.4/staged/test"
         result.file_uri_v2.should be_nil
         result.credentials.should == ["username", "password"]
@@ -444,7 +507,7 @@ module VCAP::CloudController
 
         message_bus.respond_to_synchronous_request("dea.find.droplet", [instance_found])
 
-        info = DeaClient.get_file_uri_for_instance_id(app, path, instance_id)
+        info = DeaClient.get_file_uri_by_instance_guid(app, path, instance_id)
         info.file_uri_v2.should == "file_uri_v2"
         info.file_uri_v1.should == "http://1.2.3.4/staged/test"
         info.credentials.should == ["username", "password"]
@@ -469,7 +532,7 @@ module VCAP::CloudController
           with(app, search_options).and_return(nil)
 
         expect {
-          DeaClient.get_file_uri_for_instance_id(app, path, instance_id)
+          DeaClient.get_file_uri_by_instance_guid(app, path, instance_id)
         }.to raise_error { |error|
           error.should be_an_instance_of Errors::FileError
 
@@ -721,19 +784,12 @@ module VCAP::CloudController
         app.instances = 3
         app.should_receive(:stopped?).and_return(false)
 
-        search_options = {
-          :state => :FLAPPING,
-          :version => app.version,
-        }
-
-        flapping_instances = {
-          "indices" => [
+        flapping_instances = [
             { "index" => 0, "since" => 1 },
-          ],
-        }
+          ]
 
-        health_manager_client.should_receive(:find_status).
-          with(app, search_options).and_return(flapping_instances)
+        health_manager_client.should_receive(:find_flapping_indices).
+          with(app).and_return(flapping_instances)
 
         search_options = {
           :states => [:STARTING, :RUNNING],
@@ -793,13 +849,8 @@ module VCAP::CloudController
         app.instances = 2
         app.should_receive(:stopped?).and_return(false)
 
-        search_options = {
-          :state => :FLAPPING,
-          :version => app.version,
-        }
-
-        health_manager_client.should_receive(:find_status).
-          with(app, search_options)
+        health_manager_client.should_receive(:find_flapping_indices).
+          with(app).and_return([])
 
         search_options = {
           :states => [:STARTING, :RUNNING],
@@ -848,13 +899,8 @@ module VCAP::CloudController
         app.instances = 2
         app.should_receive(:stopped?).and_return(false)
 
-        search_options = {
-          :state => :FLAPPING,
-          :version => app.version,
-        }
-
-        health_manager_client.should_receive(:find_status).
-          with(app, search_options)
+        health_manager_client.should_receive(:find_flapping_indices).
+          with(app).and_return([])
 
         search_options = {
           :states => [:STARTING, :RUNNING],

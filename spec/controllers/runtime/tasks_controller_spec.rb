@@ -2,11 +2,9 @@ require "spec_helper"
 
 module VCAP::CloudController
   describe TasksController, type: :controller do
-    before { reset_database }
-
     describe "POST /v2/tasks" do
       context "when an app is given" do
-        let!(:some_app) { App.make :guid => "some-app-guid" }
+        let!(:some_app) { AppFactory.make :guid => "some-app-guid" }
 
         context "and the app exists" do
           it "returns 201 Created" do
@@ -48,7 +46,7 @@ module VCAP::CloudController
         end
 
         context "and the app is not found" do
-          before { some_app.destroy }
+          before { some_app.destroy(savepoint: true) }
 
           it "returns HTTP status 400" do
             post "/v2/tasks",
@@ -98,8 +96,8 @@ module VCAP::CloudController
         @space_a.add_developer(@user_a)
         @space_b.add_developer(@user_b)
 
-        @app_a = App.make :space => @space_a
-        @app_b = App.make :space => @space_b
+        @app_a = AppFactory.make :space => @space_a
+        @app_b = AppFactory.make :space => @space_b
 
         @task_a = Task.make :app => @app_a
         @task_b = Task.make :app => @app_b
@@ -180,7 +178,7 @@ module VCAP::CloudController
         @space.add_developer(@space_developer)
         @space.add_auditor(@space_auditor)
 
-        @app = App.make :space => @space
+        @app = AppFactory.make :space => @space
         @task = Task.make :app => @app
       end
 
@@ -260,9 +258,8 @@ module VCAP::CloudController
 
     describe "PUT /v2/tasks/:guid" do
       context "when tasks endpoint is disabled" do
-        before do
-          config_override(:tasks_disabled => true)
-        end
+        before { config_override(:tasks_disabled => true) }
+
         it "returns 404" do
           put "/v2/tasks/some-app-guid", '{"app_guid":"some-app-guid"}', json_headers(admin_headers)
 

@@ -1,10 +1,11 @@
 require 'cloud_controller/rest_controller'
 
 module VCAP::CloudController
-  rest_controller :UserProvidedServiceInstances do
+  class UserProvidedServiceInstancesController < RestController::ModelController
     define_attributes do
       attribute :name, String
-      attribute :credentials, Hash
+      attribute :credentials, Hash, :default => {}
+      attribute :syslog_drain_url, String, :default => ""
 
       to_one :space
       to_many :service_bindings
@@ -18,5 +19,12 @@ module VCAP::CloudController
         Errors::ServiceInstanceInvalid.new(e.errors.full_messages)
       end
     end
+
+    def delete(guid)
+      do_delete(find_guid_and_validate_access(:delete, guid))
+    end
+
+    define_messages
+    define_routes
   end
 end

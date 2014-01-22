@@ -1,4 +1,4 @@
-# Copyright (c) 2009-2012 VMware, Inc.
+require 'addressable/uri'
 
 module VCAP::CloudController::RestController
 
@@ -28,8 +28,8 @@ module VCAP::CloudController::RestController
     # expand inline in a relationship.
     #
     # @return [String] Json encoding pagination of the dataset.
-    def self.render_json(controller, ds, path, opts)
-      self.new(controller, ds, path, opts).render_json
+    def self.render_json(controller, ds, path, opts, request_params = {})
+      self.new(controller, ds, path, opts, request_params).render_json
     end
 
     # Create a paginator.
@@ -54,10 +54,10 @@ module VCAP::CloudController::RestController
     #
     # @option opts [Integer] :max_inline Maximum number of objects to
     # expand inline in a relationship.
-    def initialize(controller, ds, path, opts)
+    def initialize(controller, ds, path, opts, request_params = {})
       page       = opts[:page] || 1
       page_size  = opts[:results_per_page] || 50
-      criteria = opts[:order_by] || :id
+      criteria = order_by(opts, controller, ds)
 
       @paginated = ds.order_by(criteria).extension(:pagination).paginate(page, page_size)
       @serialization = opts[:serialization] || ObjectSerialization
@@ -65,6 +65,21 @@ module VCAP::CloudController::RestController
       @controller = controller
       @path = path
       @opts = opts
+      @request_params = request_params
+    end
+
+    # Determines the column to order the paged dataset by.
+    #
+    # @returns [Symbol] The name of the column to order by.
+    def order_by(opts, controller, ds)
+
+      requested_order_by = opts[:order_by] ? opts[:order_by].to_sym : nil
+
+      if requested_order_by && ds.columns.include?(requested_order_by)
+        return requested_order_by
+      else
+        return controller.default_order_by
+      end
     end
 
     # Pagination
@@ -72,7 +87,7 @@ module VCAP::CloudController::RestController
     # @return [String] Json encoding pagination of the dataset.
     def render_json
 
-      parents, children = resources
+      parents, relations = resources
 
       res = {
         :total_results => @paginated.pagination_record_count,
@@ -82,11 +97,11 @@ module VCAP::CloudController::RestController
         :resources     => parents,
       }
 
-      if children
-        res[:children] = children
+      if relations
+        res[:relations] = relations
       end
 
-      Yajl::Encoder.encode(res, :pretty => true)
+      Yajl::Encoder.encode(res, :pretty => @opts[:pretty] == 1 ? true : ObjectSerialization.pretty_default)
     end
 
     private
@@ -94,14 +109,14 @@ module VCAP::CloudController::RestController
     def resources
 
       parents = []
-      children = @opts[:segregate_children] == 1 ? {} : nil
+      relations = @opts[:orphan_relations] == 1 ? {} : nil
 
       @paginated.all.map do |m|
-        hash = @serialization.to_hash(@controller, m, @opts, 0, [], children)
+        hash = @serialization.to_hash(@controller, m, @opts, 0, [], relations)
         parents.push(hash)
       end
 
-      return parents, children
+      return parents, relations
     end
 
     def prev_page_url
@@ -113,12 +128,26 @@ module VCAP::CloudController::RestController
     end
 
     def url(page)
-      res = "#{@path}?"
-      if @opts[:inline_relations_depth]
-        res += "inline-relations-depth=#{@opts[:inline_relations_depth]}&"
+      params = {
+        'page' => page,
+        'results-per-page' => @paginated.page_size
+      }
+      params['inline-relations-depth'] = @opts[:inline_relations_depth] if @opts[:inline_relations_depth]
+      params['q'] = @opts[:q] if @opts[:q]
+      @controller.preserve_query_parameters.each do |preseved_param|
+        params[preseved_param] = @request_params[preseved_param] if @request_params[preseved_param]
       end
-      res += "q=#{@opts[:q]}&" if @opts[:q]
-      res += "page=#{page}&results-per-page=#{@paginated.page_size}"
+
+      if @opts[:orphan_relations]
+        params['orphan_relations'] = @opts[:orphan_relations]
+      end
+
+      params['order-by'] = @opts[:order_by] if @opts[:order_by]
+      params['pretty'] = @opts[:pretty] if @opts[:pretty]
+
+      uri = Addressable::URI.parse(@path)
+      uri.query_values = params
+      uri.normalize.request_uri
     end
   end
 end

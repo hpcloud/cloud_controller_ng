@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module VCAP::CloudController::RestController
 
   # The base class for all api endpoints.
@@ -57,15 +55,16 @@ module VCAP::CloudController::RestController
     # @return [Hash] the parsed parameter hash
     def parse_params(params)
       logger.debug2 "parse_params: #{params}"
-      # FIXME: replace with URI parse on the query string.
       # Sinatra squshes duplicate query parms into a single entry rather
       # than an array (which we might have for q)
       res = {}
       [ [ "inline-relations-depth", Integer ],
-        [ "segregate-children",     Integer ],
+        [ "orphan-relations",       Integer ],
+        [ "pretty",                 Integer ],
         [ "page",                   Integer ],
         [ "results-per-page",       Integer ],
-        [ "q",                      String  ]
+        [ "q",                      String  ],
+        [ "order-by",               String  ],
       ].each do |key, klass|
         val = params[key]
         res[key.underscore.to_sym] = Object.send(klass.name, val) if val
@@ -94,10 +93,11 @@ module VCAP::CloudController::RestController
     # @return [Object] Returns an array of [http response code, Header hash,
     # body string], or just a body string.
     def dispatch(op, *args)
-      logger.debug2 "dispatch: #{op}"
-      check_authentication
+      logger.debug2 "cc.dispatch", endpoint: op, args: args
+      check_authentication(op)
       send(op, *args)
     rescue Sequel::ValidationFailed => e
+      logger.error "Validation failed: #{Hashify.exception(e)}"
       raise self.class.translate_validation_exception(e, request_attrs)
     rescue Sequel::DatabaseError => e
       raise self.class.translate_and_log_exception(logger, e)
@@ -106,11 +106,6 @@ module VCAP::CloudController::RestController
       raise MessageParseError.new(e)
     rescue VCAP::CloudController::InvalidRelation => e
       raise VCAP::Errors::InvalidRelation.new(e)
-    rescue VCAP::Errors::Error => e
-      raise
-    rescue => e
-      logger.error(["An unhandled exception has occurred #{e.class} - #{e.message}:"].concat(e.backtrace).join("\\n"))
-      raise Errors::ServerError
     end
 
     # Fetch the current active user.  May be nil
@@ -136,10 +131,10 @@ module VCAP::CloudController::RestController
       @sinatra.headers[name] = value
     end
 
-    def check_authentication
+    def check_authentication(op)
       # The logic here is a bit oddly ordered, but it supports the
       # legacy calls setting a user, but not providing a token.
-      return if self.class.allow_unauthenticated_access?
+      return if self.class.allow_unauthenticated_access?(op)
       return if VCAP::CloudController::SecurityContext.current_user
       return if VCAP::CloudController::SecurityContext.admin?
 
@@ -151,7 +146,15 @@ module VCAP::CloudController::RestController
     end
 
     def v2_api?
-      env["PATH_INFO"] =~ /#{ROUTE_PREFIX}/i
+      env["PATH_INFO"] =~ /^#{ROUTE_PREFIX}/
+    end
+
+    def recursive?
+      params["recursive"] == "true"
+    end
+
+    def async?
+      params["async"] == "true"
     end
 
     # hook called before +create+
@@ -168,14 +171,6 @@ module VCAP::CloudController::RestController
 
     # hook called after +update+, +add_related+ or +remove_related+
     def after_update(obj)
-    end
-
-    # hook called before +destroy+
-    def before_destroy(obj)
-    end
-
-    # hook called after +destroy+
-    def after_destroy(obj)
     end
 
     attr_reader :config, :logger, :env, :params, :body, :request_attrs
@@ -218,32 +213,53 @@ module VCAP::CloudController::RestController
       # @return [Set] If called with no arguments, returns the list
       # of query parameters.
       def query_parameters(*args)
-        if args.empty?
-          @query_parameters ||= Set.new
-        else
-          @query_parameters ||= Set.new
-          @query_parameters |= Set.new(args.map { |a| a.to_s })
+        @query_parameters ||= Set.new
+        @query_parameters |= Set.new(args.map { |a| a.to_s }) unless args.empty?
+        @query_parameters
+      end
+
+      # Query params that will be preserved in next and prev urls while doing enum
+      #
+      # @param [Array] args One or more param keys that will be preserved in next
+      # and prev urls
+      #
+      # @return [Set] If called with no arguments, returns the list
+      # of preserve query parameters.
+      def preserve_query_parameters(*args)
+        @perserved_query_params ||= Set.new
+        @perserved_query_params |= args.map { |a| a.to_s } unless args.empty?
+        @perserved_query_params
+      end
+
+      def deprecated_endpoint(path)
+        controller.after "#{path}*" do
+          headers["X-Cf-Warning"] ||= "Endpoint deprecated"
         end
       end
 
-      # Disable the generation of default routes
-      def disable_default_routes
-        @disable_default_routes = true
+      def allow_unauthenticated_access(options={})
+        if options[:only]
+          @allow_unauthenticated_access_ops = Array(options[:only])
+        else
+          @allow_unauthenticated_access_to_all_ops = true
+        end
       end
 
-      def allow_unauthenticated_access
-        @allow_unauthenticated_access = true
+      def authenticate_basic_auth(path, &block)
+        controller.before path do
+          auth = Rack::Auth::Basic::Request.new(env)
+          unless auth.provided? && auth.basic? && auth.credentials == block.call
+            raise Errors::NotAuthorized
+          end
+        end
       end
 
-      def allow_unauthenticated_access?
-        @allow_unauthenticated_access
-      end
-
-      # Returns true if the cc framework should generate default routes for an
-      # api endpoint.  If this is false, the api is expected to generate
-      # its own routes.
-      def default_routes?
-        !@disable_default_routes
+      def allow_unauthenticated_access?(op)
+        if @allow_unauthenticated_access_ops
+           @allow_unauthenticated_access_ops.include?(op)
+        else
+          @allow_unauthenticated_access_to_all_ops
+        end
       end
 
       def translate_and_log_exception(logger, e)

@@ -9,16 +9,21 @@ module VCAP::CloudController
       end
 
       def create_seed_quota_definitions(config)
-        return if QuotaDefinition.count > 0
-        config[:quota_definitions].each do |k, v|
-          QuotaDefinition.update_or_create(:name => k.to_s) do |r|
-            r.update_from_hash(v)
+        config[:quota_definitions].each do |name, values|
+          quota = QuotaDefinition.find(:name => name.to_s)
+
+          if quota
+            quota.set(values)
+            if quota.modified?
+              Steno.logger("cc.seeds").warn("seeds.quota-collision", name: name, values: values)
+            end
+          else
+            QuotaDefinition.create(values.merge(:name => name.to_s))
           end
         end
       end
 
-      def create_seed_stacks(config)
-        return if Stack.count > 0
+      def create_seed_stacks(_)
         Stack.populate
       end
 
@@ -28,20 +33,47 @@ module VCAP::CloudController
         # then the 'system domain' feature is unused.
         return unless config[:system_domain_organization]
 
-        quota_definition = QuotaDefinition.find(:name => "paid")
-
+        quota_definition = QuotaDefinition.default
         unless quota_definition
-          raise ArgumentError, "Missing 'paid' quota definition in config file"
+          raise ArgumentError, "Missing default quota definition in config file"
         end
 
-        Organization.find_or_create(:name => config[:system_domain_organization]) do |org|
-          org.quota_definition = quota_definition
+        org = Organization.find(:name => config[:system_domain_organization])
+        if org
+          org.set(quota_definition: quota_definition)
+          if org.modified?
+            Steno.logger("cc.seeds").warn("seeds.system-domain-organization.collision", existing_quota_name: org.refresh.quota_definition.name)
+          end
+          org
+        else
+          Organization.create(:name => config[:system_domain_organization], quota_definition: quota_definition)
         end
       end
 
       def create_seed_domains(config, system_org)
-        return if Domain.count > 0
-        Domain.populate_from_config(config, system_org)
+        config[:app_domains].each do |domain|
+          shared_domain = SharedDomain.find_or_create(domain)
+
+          if domain == config[:system_domain]
+            shared_domain.save
+          end
+        end
+
+        unless config[:app_domains].include?(config[:system_domain])
+          raise 'The organization that owns the system domain cannot be nil' unless system_org
+
+          domain = Domain.find(:name => config[:system_domain])
+          desired_attrs = { owning_organization: system_org }
+
+          if domain
+            domain.set(desired_attrs)
+            if domain.modified?
+              Steno.logger("cc.seeds").warn("seeds.system-domain.collision", organization: domain.owning_organization)
+            end
+          else
+            Domain.create(desired_attrs.merge(:name => config[:system_domain]))
+          end
+        end
       end
     end
   end

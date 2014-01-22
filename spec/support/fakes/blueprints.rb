@@ -1,33 +1,29 @@
-# Copyright (c) 2009-2012 VMware, Inc.
+require "securerandom"
+require_relative "app_factory"
 
 Sham.define do
   email               { |index| "email-#{index}@somedomain.com" }
-  password            { |index| "password-#{index}" }
-  crypted_password    { |index| "crypted_password-#{index}" }
   name                { |index| "name-#{index}" }
   label               { |index| "label-#{index}" }
-  password            { |index| "token-#{index}" }
   token               { |index| "token-#{index}" }
+  auth_username       { |index| "auth_username-#{index}" }
+  auth_password       { |index| "auth_password-#{index}" }
   provider            { |index| "provider-#{index}" }
   url                 { |index| "https://foo.com/url-#{index}" }
   type                { |index| "type-#{index}" }
   description         { |index| "desc-#{index}" }
   long_description    { |index| "long description-#{index} over 255 characters #{"-"*255}"}
   version             { |index| "version-#{index}" }
-  service_credentials { |index|
-    { "creds-key-#{index}" => "creds-val-#{index}" }
-  }
-  binding_options     { |index|
-    {"binding-options-#{index}" => "value-#{index}"}
-  }
+  service_credentials { |index| { "creds-key-#{index}" => "creds-val-#{index}" } }
+  binding_options     { |index| { "binding-options-#{index}" => "value-#{index}" } }
   uaa_id              { |index| "uaa-id-#{index}" }
   domain              { |index| "domain-#{index}.com" }
   host                { |index| "host-#{index}" }
-  guid                { |index| "guid-#{index}" }
+  guid                { |_| "guid-#{SecureRandom.uuid}" }
   extra               { |index| "extra-#{index}"}
   instance_index      { |index| index }
   unique_id           { |index| "unique-id-#{index}" }
-  status              { |_| ["active", "suspended", "cancelled"].sample(1).first }
+  status              { |_| %w[active suspended cancelled].sample(1).first }
 end
 
 module VCAP::CloudController
@@ -41,31 +37,25 @@ module VCAP::CloudController
     status            { "active" }
   end
 
-  Domain.blueprint do
+  PrivateDomain.blueprint do
     name                { Sham.domain }
-    wildcard            { false }
     owning_organization { Organization.make }
+  end
+
+  SharedDomain.blueprint do
+    name                { Sham.domain }
   end
 
   Route.blueprint do
     space             { Space.make }
 
     domain do
-      d = Domain.make(
+      PrivateDomain.make(
         :owning_organization => space.organization,
-        :wildcard => true
       )
-      space.add_domain(d)
-      d
     end
 
-    host do
-      if domain && domain.wildcard
-        Sham.host
-      else
-        ""
-      end
-    end
+    host { Sham.host }
   end
 
   Space.blueprint do
@@ -94,6 +84,13 @@ module VCAP::CloudController
       Sham.description
     end
     bindable          { true }
+    active            { true }
+  end
+
+  ServiceInstance.blueprint do
+    name        { Sham.name }
+    credentials { Sham.service_credentials }
+    space       { Space.make }
   end
 
   ManagedServiceInstance.blueprint do
@@ -108,6 +105,7 @@ module VCAP::CloudController
   UserProvidedServiceInstance.blueprint do
     name              { Sham.name }
     credentials       { Sham.service_credentials }
+    syslog_drain_url  { Sham.url }
     space             { Space.make }
     is_gateway_service { false }
   end
@@ -117,23 +115,27 @@ module VCAP::CloudController
     description       { Sham.description }
   end
 
+  # if you want to create an app with droplet, use AppFactory.make
+  # This is because the lack of factory hooks in Machinist.
   App.blueprint do
     name              { Sham.name }
     space             { Space.make }
     stack             { Stack.make }
-    droplet_hash      { Sham.guid }
+    instances         { 0 }
   end
 
   ServiceBinding.blueprint do
     credentials       { Sham.service_credentials }
     service_instance  { ManagedServiceInstance.make }
-    app               { App.make(:space => service_instance.space) }
+    app               { AppFactory.make(:space => service_instance.space) }
+    syslog_drain_url  { nil }
   end
 
   ServiceBroker.blueprint do
     name              { Sham.name }
     broker_url        { Sham.url }
-    token             { Sham.token }
+    auth_username     { Sham.auth_username }
+    auth_password     { Sham.auth_password }
   end
 
   ServicePlan.blueprint do
@@ -142,6 +144,7 @@ module VCAP::CloudController
     description       { Sham.description }
     service           { Service.make }
     unique_id         { [service.provider, service.label, name].join("_") }
+    active            { true }
   end
 
   ServicePlanVisibility.blueprint do
@@ -191,7 +194,7 @@ module VCAP::CloudController
   end
 
   AppEvent.blueprint do
-    app               { App.make }
+    app               { AppFactory.make }
     instance_guid     { Sham.guid }
     instance_index    { Sham.instance_index }
     exit_status       { Random.rand(256) }
@@ -200,7 +203,7 @@ module VCAP::CloudController
   end
 
   Task.blueprint do
-    app         { App.make }
+    app         { AppFactory.make }
   end
 
   ServiceCreateEvent.blueprint do
@@ -229,7 +232,8 @@ module VCAP::CloudController
     name { Sham.name }
     non_basic_services_allowed { true }
     total_services { 60 }
-    memory_limit { 20480 } # 20 GB
+    total_routes { 1_000 }
+    memory_limit { 20_480 } # 20 GB
     trial_db_allowed { false }
     allow_sudo { false }
   end
@@ -237,6 +241,17 @@ module VCAP::CloudController
   Buildpack.blueprint do
     name { Sham.name }
     key { Sham.guid }
-    priority { 0 }
+    position { 0 }
+  end
+
+  AppUsageEvent.blueprint do
+    state { "STARTED" }
+    instance_count { 1 }
+    memory_in_mb_per_instance { 564 }
+    app_guid { Sham.guid }
+    app_name { Sham.name }
+    org_guid { Sham.guid }
+    space_guid { Sham.guid }
+    space_name { Sham.name }
   end
 end

@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 require "vcap/component"
 require "vcap/ring_buffer"
 require "vcap/rest_api"
@@ -11,33 +9,32 @@ require "steno"
 module Sinatra
   module VCAP
     module Helpers
-      # Generate an http body from a vcap rest api style exception
-      #
-      # @param [VCAP::RestAPI::Error] The exception used to generate
-      # an http body.
-      def body_from_vcap_exception(exception)
-        error_payload                = {}
-        error_payload["code"]        = exception.error_code
-        error_payload["description"] = exception.message
-        body Yajl::Encoder.encode(error_payload).concat("\n")
-      end
-
-      # Test if an exception matches the vcap api style exception.
-      #
-      # @param [Exception] The exception to check.
-      #
-      # @return [Bool] True if the provided exception can be formatted
-      # like a vcap rest api style exception.
-      def is_vcap_error?(exception)
-        exception.respond_to?(:error_code) && exception.respond_to?(:message)
-      end
-
       def varz
         ::VCAP::Component.varz[:vcap_sinatra]
       end
 
       def in_test_mode?
         ENV["CC_TEST"]
+      end
+
+      def error_payload(exception)
+        payload = {
+          'code' => 10001,
+          'description' => exception.message,
+          'error_code' => "CF-#{Hashify.demodulize(exception.class)}"
+        }
+
+        if exception.respond_to?(:error_code)
+          payload['code'] = exception.error_code
+        end
+
+        if exception.respond_to?(:to_h)
+          payload.merge!(exception.to_h)
+        else
+          payload.merge!(Hashify.exception(exception))
+        end
+
+        payload
       end
     end
 
@@ -62,32 +59,38 @@ module Sinatra
         # We don't really have a class to attach a member variable to, so we have to
         # use the env to flag this.
         unless request.env["vcap_exception_body_set"]
-          body_from_vcap_exception(::VCAP::Errors::NotFound.new)
+          body Yajl::Encoder.encode(error_payload(::VCAP::Errors::NotFound.new))
         end
       end
 
       app.error do
         exception = request.env["sinatra.error"]
-        if is_vcap_error?(exception)
-          logger.debug("Request failed with response code: " +
-                       "#{exception.response_code} error code: " +
-                       "#{exception.error_code} error: #{exception.message}")
-          status(exception.response_code)
-          request.env["vcap_exception_body_set"] = true
-          body_from_vcap_exception(exception)
-        else
-          raise exception if in_test_mode?
 
-          msg = ["#{exception.class} - #{exception.message}"]
-          msg[0] = msg[0] + ":"
-          msg.concat(exception.backtrace)
-          logger.error(msg.join("\n"))
-          ::VCAP::Component.varz.synchronize do
-            varz[:recent_errors] << msg
-          end
-          body_from_vcap_exception(::VCAP::Errors::ServerError.new)
-          status(500)
+        raise exception if in_test_mode? && !exception.respond_to?(:error_code)
+
+        response_code = exception.respond_to?(:response_code) ? exception.response_code : 500
+        status(response_code)
+
+        payload_hash = error_payload(exception)
+
+        if response_code >= 400 && response_code <= 499
+          logger.info("Request failed: #{response_code}: #{payload_hash}")
+        else
+          logger.error("Request failed: #{response_code}: #{payload_hash}")
         end
+
+        # Temporarily remove this key pending security review
+        payload_hash.delete('source')
+
+        payload = Yajl::Encoder.encode(payload_hash)
+
+        ::VCAP::Component.varz.synchronize do
+          varz[:recent_errors] << payload
+        end
+
+        request.env["vcap_exception_body_set"] = true
+
+        body payload.concat("\n")
       end
     end
 

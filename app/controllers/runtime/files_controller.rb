@@ -2,15 +2,15 @@ require "httpclient"
 require "uri"
 
 module VCAP::CloudController
-  rest_controller :Files do
-    disable_default_routes
+  class FilesController < RestController::ModelController
     path_base "apps"
     model_class_name :App
 
-    def files(guid, search_param, path = nil)
-
-      opts = { "allow_redirect" => true }.merge(params)
+    get "#{path_guid}/instances/:instance_id/files", :files
+    def files(guid, search_param, path = nil, opts = {})
+      opts = { "allow_redirect" => true }.merge(opts)
       app = find_guid_and_validate_access(:read, guid)
+
       info = get_file_uri_for_search_param(app, path, search_param)
 
       headers = {}
@@ -39,6 +39,7 @@ module VCAP::CloudController
       [http_response.status, http_response.body]
     end
 
+    get "#{path_guid}/instances/:instance_id/files/*", :files
     def http_get(uri, headers, username, password)
       client = HTTPClient.new
       client.set_auth(nil, username, password) if username && password
@@ -66,9 +67,9 @@ module VCAP::CloudController
       # send a +.
       if match = search_param.match(/^[+]?([0-9]+)$/)
         instance = match.captures[0].to_i
-        DeaClient.get_file_uri_for_instance(app, path, instance)
+        DeaClient.get_file_uri_for_active_instance_by_index(app, path, instance)
       elsif search_param.match(/^[0-9a-zA-z]+$/)
-        DeaClient.get_file_uri_for_instance_id(app, path, search_param)
+        DeaClient.get_file_uri_by_instance_guid(app, path, search_param)
       else
         msg = "Request failed for app: #{app.name}, path: #{path || '/'}"
         msg << " as the search_param: #{search_param} is invalid."
@@ -76,8 +77,5 @@ module VCAP::CloudController
         raise Errors::FileError.new(msg)
       end
     end
-
-    get "#{path_guid}/instances/:instance_id/files", :files
-    get "#{path_guid}/instances/:instance_id/files/*", :files
   end
 end

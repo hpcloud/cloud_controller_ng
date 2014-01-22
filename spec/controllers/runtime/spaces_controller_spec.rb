@@ -10,12 +10,10 @@ module VCAP::CloudController
     include_examples "creating and updating", path: "/v2/spaces", model: Space, required_attributes: %w(name organization_guid), unique_attributes: %w(name organization_guid)
     include_examples "deleting a valid object", path: "/v2/spaces", model: Space,
       one_to_many_collection_ids: {
-        :apps => lambda { |space| App.make(:space => space) },
-        :service_instances => lambda { |space| ManagedServiceInstance.make(:space => space) }
-      },
-      one_to_many_collection_ids_without_url: {
-        :routes => lambda { |space| Route.make(:space => space) },
-        :default_users => lambda { |space|
+        apps: lambda { |space| AppFactory.make(:space => space) },
+        service_instances: lambda { |space| ManagedServiceInstance.make(:space => space) },
+        routes: lambda { |space| Route.make(:space => space) },
+        default_users: lambda { |space|
           user = VCAP::CloudController::User.make
           space.organization.add_user(user)
           space.add_developer(user)
@@ -24,10 +22,10 @@ module VCAP::CloudController
           user.save
           user
         }
-      }
+      }, excluded: [:default_users]
     include_examples "collection operations", path: "/v2/spaces", model: Space,
       one_to_many_collection_ids: {
-        apps: lambda { |space| App.make(space: space) },
+        apps: lambda { |space| AppFactory.make(space: space) },
         service_instances: lambda { |space| ManagedServiceInstance.make(space: space) }
       },
       one_to_many_collection_ids_without_url: {
@@ -46,8 +44,7 @@ module VCAP::CloudController
       many_to_many_collection_ids: {
         developers: lambda { |space| make_user_for_space(space) },
         managers: lambda { |space| make_user_for_space(space) },
-        auditors: lambda { |space| make_user_for_space(space) },
-        domains: lambda { |space| make_domain_for_space(space) }
+        auditors: lambda { |space| make_user_for_space(space) }
       }
 
 
@@ -153,6 +150,26 @@ module VCAP::CloudController
       end
     end
 
+    describe 'GET /v2/spaces/:guid/domains' do
+      let(:space) { Space.make }
+      let(:manager) { make_manager_for_org(space.organization) }
+
+      before do
+        @private_domain = PrivateDomain.make(owning_organization: space.organization)
+        @shared_domain = SharedDomain.make
+      end
+
+      it "should return the domains associated with the owning organization for allowed users" do
+        get "/v2/spaces/#{space.guid}/domains", {}, headers_for(manager)
+        expect(last_response.status).to eq(200)
+        resources = decoded_response.fetch("resources")
+        expect(resources).to have(2).items
+
+        guids = resources.map { |x| x["metadata"]["guid"] }
+        expect(guids).to match_array([@shared_domain.guid, @private_domain.guid])
+      end
+    end
+
     describe 'GET /v2/spaces/:guid/service_instances' do
       let(:space) { Space.make }
       let(:developer) { make_developer_for_space(space) }
@@ -186,7 +203,7 @@ module VCAP::CloudController
             guids.should include(user_provided_service_instance.guid, managed_service_instance.guid)
           end
 
-          it 'includes service_plan_url for managed service instaces' do
+          it 'includes service_plan_url for managed service instances' do
             get "/v2/spaces/#{space.guid}/service_instances", {return_user_provided_service_instances: true}, headers_for(developer)
             service_instances_response = decoded_response.fetch('resources')
             managed_service_instance_response = service_instances_response.detect {|si|
@@ -205,7 +222,7 @@ module VCAP::CloudController
             guids.should =~ [managed_service_instance.guid]
           end
 
-          it 'includes service_plan_url for managed service instaces' do
+          it 'includes service_plan_url for managed service instances' do
             get "/v2/spaces/#{space.guid}/service_instances", '', headers_for(developer)
             service_instances_response = decoded_response.fetch('resources')
             managed_service_instance_response = service_instances_response.detect {|si|
@@ -395,8 +412,10 @@ module VCAP::CloudController
       end
     end
 
+    let(:organization_one) { Organization.make }
+    let(:space_one) { Space.make(organization: organization_one) }
+
     describe 'GET', '/v2/spaces/:guid/services' do
-      let(:organization_one) { Organization.make }
       let(:organization_two) { Organization.make }
       let(:space_one) { Space.make(organization: organization_one) }
       let(:space_two) { Space.make(organization: organization_two)}
@@ -405,9 +424,7 @@ module VCAP::CloudController
         headers_for(user)
       end
 
-      before(:each) do
-        reset_database
-
+      before do
         user.add_organization(organization_two)
         space_two.add_developer(user)
       end
@@ -418,20 +435,43 @@ module VCAP::CloudController
 
       context 'with an offering that has private plans' do
         before(:each) do
-          @service = Service.make(:active => true).tap { |svc| ServicePlan.make(:service => svc, public: false) }
+          @service = Service.make(:active => true)
+          @service_plan = ServicePlan.make(:service => @service, public: false)
           ServicePlanVisibility.make(service_plan: @service.service_plans.first, organization: organization_one)
         end
 
-        it 'should remove the offering when the org does not have access to the plan' do
+        it "should remove the offering when the org does not have access to any of the service's plans" do
           get "/v2/spaces/#{space_two.guid}/services", {}, headers
           last_response.should be_ok
           decoded_guids.should_not include(@service.guid)
         end
 
-        it 'should return the offering when the org has access to the plan' do
+        it "should return the offering when the org has access to one of the service's plans" do
           get "/v2/spaces/#{space_one.guid}/services", {}, headers
           last_response.should be_ok
           decoded_guids.should include(@service.guid)
+        end
+
+        it 'should include plans that are visible to the org' do
+          get "/v2/spaces/#{space_one.guid}/services?inline-relations-depth=1", {}, headers
+
+          last_response.should be_ok
+          service = decoded_response.fetch('resources').fetch(0)
+          service_plans = service.fetch('entity').fetch('service_plans')
+          service_plans.length.should == 1
+          service_plans.first.fetch('metadata').fetch('guid').should == @service_plan.guid
+        end
+
+        it 'should exclude plans that are not visible to the org' do
+          public_service_plan = ServicePlan.make(service: @service, public: true)
+
+          get "/v2/spaces/#{space_two.guid}/services?inline-relations-depth=1", {}, headers
+
+          last_response.should be_ok
+          service = decoded_response.fetch('resources').fetch(0)
+          service_plans = service.fetch('entity').fetch('service_plans')
+          service_plans.length.should == 1
+          service_plans.first.fetch('metadata').fetch('guid').should == public_service_plan.guid
         end
       end
 
@@ -454,6 +494,68 @@ module VCAP::CloudController
           get "/v2/spaces/#{space_one.guid}/services?q=active:f", {}, headers
           last_response.should be_ok
           decoded_guids.should =~ @inactive.map(&:guid)
+        end
+      end
+    end
+
+    describe "audit events" do
+      let(:organization) { Organization.make }
+      describe "audit.space.create" do
+        it "is logged when creating a space" do
+          request_body = {organization_guid: organization.guid, name: "space_name"}.to_json
+          post "/v2/spaces", request_body, json_headers(admin_headers)
+
+          last_response.status.should == 201
+
+          new_space_guid = decoded_response['metadata']['guid']
+          event = Event.find(:type => "audit.space.create", :actee => new_space_guid)
+          expect(event).not_to be_nil
+          expect(event.metadata["request"]).to eq("organization_guid" => organization.guid, "name" => "space_name")
+        end
+      end
+
+      it "logs audit.space.update when updating a space" do
+        space = Space.make
+        request_body = {name: "new_space_name"}.to_json
+        put "/v2/spaces/#{space.guid}", request_body, json_headers(admin_headers)
+
+        last_response.status.should == 201
+
+        space_guid = decoded_response['metadata']['guid']
+        event = Event.find(:type => "audit.space.update", :actee => space_guid)
+        expect(event).not_to be_nil
+        expect(event.metadata["request"]).to eq("name" => "new_space_name")
+      end
+
+      it "logs audit.space.delete-request when deleting a space" do
+        space = Space.make
+        organization_guid = space.organization.guid
+        space_guid = space.guid
+        delete "/v2/spaces/#{space_guid}", "", json_headers(admin_headers)
+
+        last_response.status.should == 204
+
+        event = Event.find(:type => "audit.space.delete-request", :actee => space_guid)
+        expect(event).not_to be_nil
+        expect(event.metadata["request"]).to eq("recursive" => false)
+        expect(event.space_guid).to eq(space_guid)
+        expect(event.organization_guid).to eq(organization_guid)
+      end
+    end
+
+    describe "Deprecated endpoints" do
+      let!(:domain) { SharedDomain.make }
+      describe "DELETE /v2/spaces/:guid/domains/:shared_domain" do
+        it "should pretends that it deleted a domain" do
+          delete "/v2/spaces/#{space_one.guid}/domains/#{domain.guid}"
+          expect(last_response).to be_a_deprecated_response
+        end
+      end
+
+      describe "GET /v2/organizations/:guid/domains/:guid" do
+        it "should be deprecated" do
+          get "/v2/spaces/#{space_one.guid}/domains/#{domain.guid}"
+          expect(last_response).to be_a_deprecated_response
         end
       end
     end

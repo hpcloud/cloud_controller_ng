@@ -1,10 +1,8 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module ControllerHelpers
   shared_examples "reading a valid object" do |opts|
     describe "reading a valid object" do
       describe "GET #{opts[:path]}/:id" do
-        before(:all) do
+        before do
           @obj = opts[:model].make
           get "#{opts[:path]}/#{@obj.guid}", {}, json_headers(admin_headers)
         end

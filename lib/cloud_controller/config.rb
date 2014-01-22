@@ -22,6 +22,14 @@ module VCAP::CloudController
         # Not creating default org-- done by first user setup (disabled in 67a488b98c)
         #:system_domain_organization => enum(String, NilClass),
         :app_domains => [ String ],
+        :app_events => {
+          :cutoff_age_in_days => Fixnum
+        },
+        :app_usage_events => {
+          :cutoff_age_in_days => Fixnum
+        },
+        :default_app_memory => Fixnum,
+        :maximum_health_check_timeout => Fixnum,
 
         optional(:allow_debug) => bool,
 
@@ -41,13 +49,11 @@ module VCAP::CloudController
           optional(:syslog)   => String,      # Name to associate with syslog messages (should start with 'vcap.')
         },
 
-        :message_bus_uri              => String,     # Currently a NATS uri of the form nats://<user>:<pass>@<host>:<port>
+        :message_bus_servers   => [String],   # A list of NATS uris of the form nats://<user>:<pass>@<host>:<port>
         :pid_filename          => String,     # Pid filename to use
 
         optional(:directories) => {
           optional(:tmpdir)    => String,
-          optional(:droplets)  => String,
-          optional(:staging_manifests) => String,
         },
 
         optional(:stacks_file) => String,
@@ -74,7 +80,6 @@ module VCAP::CloudController
 
         :cc_partition => String,
 
-        # TODO: use new defaults to set these defaults
         optional(:default_account_capacity) => {
           :memory   => Fixnum,   #:default => 2048,
           :app_uris => Fixnum, #:default => 4,
@@ -82,7 +87,6 @@ module VCAP::CloudController
           :apps     => Fixnum, #:default => 20
         },
 
-        # TODO: use new defaults to set these defaults
         optional(:admin_account_capacity) => {
           :memory   => Fixnum,   #:default => 2048,
           :app_uris => Fixnum, #:default => 4,
@@ -106,34 +110,19 @@ module VCAP::CloudController
           optional(:maximum_size) => Integer,
           optional(:minimum_size) => Integer,
           optional(:resource_directory_key) => String,
-          :fog_connection => {
-            :provider => String,
-            optional(:aws_access_key_id) => String,
-            optional(:aws_secret_access_key) => String,
-            optional(:local_root) => String
-          }
+          :fog_connection => Hash
         },
 
         :packages => {
           optional(:max_droplet_size) => Integer,
           optional(:app_package_directory_key) => String,
-          :fog_connection => {
-            :provider => String,
-            optional(:aws_access_key_id) => String,
-            optional(:aws_secret_access_key) => String,
-            optional(:local_root) => String
-          }
+          :fog_connection => Hash
         },
 
         :droplets => {
           optional(:max_droplet_size) => Integer,
           optional(:droplet_directory_key) => String,
-          :fog_connection => {
-            :provider => String,
-            optional(:aws_access_key_id) => String,
-            optional(:aws_secret_access_key) => String,
-            optional(:local_root) => String
-          }
+          :fog_connection => Hash
         },
 
         :db_encryption_key => String,
@@ -142,7 +131,17 @@ module VCAP::CloudController
           :guid => String,
         },
 
-        optional(:tasks_disabled) => bool
+        optional(:tasks_disabled) => bool,
+
+        optional(:hm9000_noop) => bool,
+        optional(:flapping_crash_count_threshold) => Integer,
+
+        optional(:varz_port) => Integer,
+        optional(:varz_user) => String,
+        optional(:varz_password) => String,
+        optional(:varz_update_user_count_period_in_seconds) => Float,
+        optional(:disable_custom_buildpacks) => bool,
+        optional(:broker_client_timeout_seconds) => Integer
       }
     end
 
@@ -165,40 +164,41 @@ module VCAP::CloudController
 
       attr_reader :config, :message_bus
 
-      def configure(config)
+      def configure_components(config)
         @config = config
 
         # TODO:Stackato: Re-enable config watcher
         config_watch(config)
 
-        Config.db_encryption_key = config[:db_encryption_key]
+        Encryptor.db_encryption_key = config[:db_encryption_key]
         AccountCapacity.configure(config)
-        ResourcePool.instance =
-          ResourcePool.new(config)
-        AppPackage.configure(config)
-
-        StagingsController.configure(config)
+        ResourcePool.instance = ResourcePool.new(config)
 
         QuotaDefinition.configure(config)
         Stack.configure(config[:stacks_file])
         ServicePlan.configure(config[:trial_db])
+        App.configure(!config[:disable_custom_buildpacks])
 
         run_initializers(config)
       end
 
-      def configure_message_bus(message_bus)
+      def configure_components_depending_on_message_bus(message_bus)
         @message_bus = message_bus
-
         stager_pool = StagerPool.new(@config, message_bus)
 
         AppObserver.configure(@config, message_bus, stager_pool)
 
         dea_pool = DeaPool.new(message_bus)
-
-        DeaClient.configure(@config, message_bus, dea_pool)
+        blobstore_url_generator = CloudController::DependencyLocator.instance.blobstore_url_generator
+        DeaClient.configure(@config, message_bus, dea_pool, blobstore_url_generator)
 
         LegacyBulk.configure(@config, message_bus)
       end
+
+      def config_dir
+        @config_dir ||= File.expand_path("../../../config", __FILE__)
+      end
+
 
       def run_initializers(config)
         return if @initialized
@@ -211,19 +211,10 @@ module VCAP::CloudController
         @initialized = true
       end
 
-      attr_accessor :db_encryption_key
-
-      def config_dir
-        @config_dir ||= File.expand_path("../../../config", __FILE__)
-      end
-
       private
-
       def merge_defaults(config)
         config[:stacks_file] ||= File.join(config_dir, "stacks.yml")
-
         config[:directories] ||= {}
-        config[:directories][:staging_manifests] ||= File.join(config_dir, "frameworks")
         config
       end
 

@@ -9,7 +9,7 @@ module VCAP::CloudController
       :one_to_zero_or_more => {
         :apps              => {
           :delete_ok => true,
-          :create_for => lambda { |stack| App.make(:stack => stack) }
+          :create_for => lambda { |stack| AppFactory.make(:stack => stack) }
         },
       },
     }
@@ -46,7 +46,7 @@ module VCAP::CloudController
       end
     end
 
-    describe ".populate_from_file" do
+    describe ".populate" do
       context "when config was not set" do
         before { described_class.configure(nil) }
 
@@ -60,21 +60,47 @@ module VCAP::CloudController
       context "when config was set" do
         let(:file) { File.join(fixture_path, "config/stacks.yml") }
 
-        before do
-          reset_database
-          described_class.configure(file)
-        end
+        before { described_class.configure(file) }
 
-        it "loads stacks" do
-          described_class.populate
-          cider = described_class.find(:name => "cider")
-          cider.should be_valid
-        end
+        context "when there are no stacks" do
+          before { Stack.dataset.delete }
 
-        it "populates descriptions about loaded stacks" do
-          described_class.populate
-          cider = described_class.find(:name => "cider")
-          cider.description.should == "cider-description"
+          it "creates them all" do
+            described_class.populate
+
+            cider = described_class.find(:name => "cider")
+            expect(cider.description).to eq("cider-description")
+
+            default_stack = described_class.find(:name => "default-stack-name")
+            expect(default_stack.description).to eq("default-stack-description")
+          end
+
+          context "when there are existing stacks" do
+            before do
+              Stack.dataset.delete
+              Stack.populate
+            end
+
+            it "should not create duplicates" do
+              expect { Stack.populate }.not_to change { Stack.count }
+            end
+
+            context "and the config file would change an existing stack" do
+              it "should warn" do
+                cider = Stack.find(name: "cider")
+                cider.description = "cider-description has changed"
+                cider.save
+
+
+                mock_logger = double
+                Steno.stub(:logger).and_return(mock_logger)
+
+                mock_logger.should_receive(:warn).with("stack.populate.collision", "name" => "cider", "description" => "cider-description")
+
+                Stack.populate
+              end
+            end
+          end
         end
       end
     end
@@ -94,7 +120,7 @@ module VCAP::CloudController
       end
 
       context "when config was set" do
-        before { reset_database }
+        before { Stack.dataset.destroy }
 
         context "when stack is found with default name" do
           before { Stack.make(:name => "default-stack-name") }
@@ -118,23 +144,8 @@ module VCAP::CloudController
       let(:stack) { Stack.make }
 
       it "destroys the apps" do
-        app = App.make(:stack => stack)
-        expect { stack.destroy }.to change { App.where(:id => app.id).count }.by(-1)
-      end
-    end
-
-    describe "filter deleted apps" do
-      let(:stack) { Stack.make }
-
-      context "when deleted apps exist in the space" do
-        it "should not return the deleted app" do
-          deleted_app = App.make(:stack => stack)
-          deleted_app.soft_delete
-
-          non_deleted_app = App.make(:stack => stack)
-
-          stack.apps.should == [non_deleted_app]
-        end
+        app = AppFactory.make(:stack => stack)
+        expect { stack.destroy(savepoint: true) }.to change { App.where(:id => app.id).count }.by(-1)
       end
     end
   end

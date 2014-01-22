@@ -2,7 +2,6 @@
 
 module VCAP::CloudController
   rest_controller :StackatoAppStoreController do
-    disable_default_routes
     path_base "appstore"
     model_class_name :App
 

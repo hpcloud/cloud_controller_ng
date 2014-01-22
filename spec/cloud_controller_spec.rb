@@ -22,8 +22,6 @@ describe VCAP::CloudController::Controller do
       described_class.new(config, token_decoder)
     end
 
-    # TODO: Remove /hello/sync route from cloud_controller.rb,
-    # and use something more appropriate here.
     def make_request
       get "/hello/sync", {}, {"HTTP_AUTHORIZATION" => "bearer token"}
     end
@@ -34,7 +32,7 @@ describe VCAP::CloudController::Controller do
           make_request
         }.to change { user_count }.by(1)
 
-        VCAP::CloudController::User.order(:id).last.tap do |u|
+        VCAP::CloudController::User.last.tap do |u|
           expect(u.guid).to eq(user_id)
           expect(u.admin).to be_true
           expect(u.active).to be_true
@@ -109,7 +107,6 @@ describe VCAP::CloudController::Controller do
           before { config[:bootstrap_admin_email] = email }
 
           context "when there are 0 users in the ccdb" do
-            before { reset_database }
             it_creates_and_sets_admin_user
             it_sets_token_info
           end
@@ -125,7 +122,6 @@ describe VCAP::CloudController::Controller do
           before { config[:bootstrap_admin_email] = "some-other-bootstrap-email" }
 
           context "when there are 0 users in the ccdb" do
-            before { reset_database }
             it_creates_and_sets_non_admin_user
             it_sets_token_info
           end
@@ -139,7 +135,10 @@ describe VCAP::CloudController::Controller do
       end
 
       context "when scope includes cc admin scope" do
-        before { token_info["scope"] = [VCAP::CloudController::Roles::CLOUD_CONTROLLER_ADMIN_SCOPE] }
+        before do
+          VCAP::CloudController::User.make
+          token_info["scope"] = [VCAP::CloudController::Roles::CLOUD_CONTROLLER_ADMIN_SCOPE]
+        end
         it_creates_and_sets_admin_user
         it_sets_token_info
       end
@@ -189,20 +188,6 @@ describe VCAP::CloudController::Controller do
           mock_logger.should_receive(:info).with(/^Token expired$/)
           make_request
         end
-      end
-
-      context "when an unknown exception is raised" do
-        let(:exception_class) { RuntimeError }
-        it 'should no rescue' do
-          expect { make_request }.to raise_error(RuntimeError)
-        end
-      end
-    end
-
-    describe "#after" do
-      it "closes ActiveRecord connection" do
-        ActiveRecord::Base.connection.should_receive(:close)
-        make_request
       end
     end
 

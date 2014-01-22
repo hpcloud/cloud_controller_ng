@@ -2,7 +2,7 @@ require "spec_helper"
 
 module VCAP::CloudController
   describe Task, type: :model do
-    let(:app) { App.make :name => "my app" }
+    let(:app) { AppFactory.make :name => "my app" }
     let(:message_bus) { Config.message_bus }
     let(:secure_token) { "42" }
 
@@ -82,7 +82,7 @@ module VCAP::CloudController
     describe "#update_from_json" do
       describe "updating app_guid" do
         context "with a valid app" do
-          let(:other_app) { App.make }
+          let(:other_app) { AppFactory.make }
 
           it "updates the relationship" do
             expect {
@@ -92,50 +92,24 @@ module VCAP::CloudController
             }.from(app).to(other_app)
           end
         end
-
-        context "with an invalid app" do
-          it "blows up" do
-            pending "doesn't currently blow up :("
-
-            expect {
-              subject.update_from_json(%Q|{"app_guid":"bad_app_guid"}|)
-            }.to raise_error
-          end
-        end
       end
     end
 
     describe "#after_commit" do
-      it "sends task.start with the URI for the app's droplet" do
-        StagingsController.stub(:droplet_download_uri).with(app) do
-          "https://some-download-uri"
-        end
-
-        task = Task.make :app => app
-
-        task.stub(:secure_token => "42")
-
-        message_bus.should have_published_with_message(
-          "task.start",
-          :task => task.guid,
-          :secure_token => task.secure_token,
-          :package => "https://some-download-uri")
+      it "sends task.start with the URI for the app's droplet", non_transactional: true do
+        CloudController::DependencyLocator.instance.task_client.should_receive(:start_task).with(instance_of(Task))
+        @task = Task.make :app => app
+        @task.stub(:secure_token => "42")
       end
     end
 
-    describe "#after_destroy_commit" do
-      it "sends task.start with the public key, the URI for the app's droplet" do
-        StagingsController.stub(:droplet_download_uri).with(app) do
-          "https://some-download-uri"
-        end
-
+    describe "#after_destroy_commit", non_transactional: true do
+      it "sends task.stop with the public key, the URI for the app's droplet" do
         task = Task.make :app => app
 
-        task.destroy
+        CloudController::DependencyLocator.instance.task_client.should_receive(:stop_task).with(task)
 
-        message_bus.should have_published_with_message(
-          "task.stop",
-          :task => task.guid)
+        task.destroy(savepoint: true)
       end
     end
   end

@@ -7,29 +7,33 @@ module VCAP::CloudController
     let(:guid) { Sham.guid }
 
     after { VCAP::Request.current_id = nil }
+
     before do
       VCAP::CloudController::SecurityContext.stub(:current_user_email) { email }
+
+      client = double('broker client', unbind: nil, deprovision: nil)
+      Service.any_instance.stub(:client).and_return(client)
     end
 
     it_behaves_like "a CloudController model", {
-      :required_attributes => [:name, :service_plan, :space],
-      :db_required_attributes => [:name, :credentials],
-      :unique_attributes => [ [:space, :name] ],
-      :custom_attributes_for_uniqueness_tests => ->{ {service_plan: ServicePlan.make} },
-      :stripped_string_attributes => :name,
-      :many_to_one => {
-        :service_plan => {
-          :create_for => lambda { |service_instance| ServicePlan.make },
+      required_attributes: [:name, :service_plan, :space],
+      db_required_attributes: [:name],
+      unique_attributes: [[:space, :name]],
+      custom_attributes_for_uniqueness_tests: -> { {service_plan: ServicePlan.make} },
+      stripped_string_attributes: :name,
+      many_to_one: {
+        service_plan: {
+          create_for: lambda { |service_instance| ServicePlan.make },
         },
-        :space => {
-          :delete_ok => true,
-          :create_for => lambda { |service_instance| Space.make },
+        space: {
+          delete_ok: true,
+          create_for: lambda { |service_instance| Space.make },
         }
       },
-      :one_to_zero_or_more => {
-        :service_bindings => {
-          :delete_ok => true,
-          :create_for => lambda { |service_instance|
+      one_to_zero_or_more: {
+        service_bindings: {
+          delete_ok: true,
+          create_for: lambda { |service_instance|
             make_service_binding_for_service_instance(service_instance)
           }
         }
@@ -46,10 +50,6 @@ module VCAP::CloudController
         instance = described_class.make
         instance.refresh.is_gateway_service.should == true
       end
-    end
-
-    it_behaves_like "a model with an encrypted attribute" do
-      let(:encrypted_attr) { :credentials }
     end
 
     describe "serialization" do
@@ -69,7 +69,17 @@ module VCAP::CloudController
       context "service deprovisioning" do
         it "should deprovision a service on destroy" do
           service_instance.client.should_receive(:deprovision).with(service_instance)
-          service_instance.destroy
+          service_instance.destroy(savepoint: true)
+        end
+      end
+
+      context "when deprovision fails" do
+        it "should raise and rollback" do
+          service_instance.client.stub(:deprovision).and_raise
+          expect {
+            service_instance.destroy(savepoint: true)
+          }.to raise_error
+          VCAP::CloudController::ManagedServiceInstance.find(id: service_instance.id).should be
         end
       end
     end
@@ -88,7 +98,7 @@ module VCAP::CloudController
           service_instance
           ServiceCreateEvent.should_not_receive(:create_from_service_instance)
           ServiceDeleteEvent.should_receive(:create_from_service_instance).with(service_instance)
-          service_instance.destroy
+          service_instance.destroy(savepoint: true)
         end
       end
     end
@@ -98,74 +108,25 @@ module VCAP::CloudController
       let(:service_plan) { ServicePlan.make(name: "Gold Plan", guid: "12763abc", service: service) }
       subject(:service_instance) { ManagedServiceInstance.make(service_plan: service_plan) }
 
-      it "returns detailed summary" do
-        service_instance.dashboard_url = "http://dashboard.example.com"
+      it 'returns detailed summary' do
+        service_instance.dashboard_url = 'http://dashboard.example.com'
 
         service_instance.as_summary_json.should == {
-          :guid => subject.guid,
-          :name => subject.name,
-          :bound_app_count => 0,
-          :dashboard_url => "http://dashboard.example.com",
-          :service_plan => {
-            :guid => "12763abc",
-            :name => "Gold Plan",
-            :service => {
-              :guid => "9876XZ",
-              :label => "YourSQL",
-              :provider => "Bill Gates",
-              :version => "1.2.3",
+          'guid' => subject.guid,
+          'name' => subject.name,
+          'bound_app_count' => 0,
+          'dashboard_url' => 'http://dashboard.example.com',
+          'service_plan' => {
+            'guid' => '12763abc',
+            'name' => 'Gold Plan',
+            'service' => {
+              'guid' => '9876XZ',
+              'label' => 'YourSQL',
+              'provider' => 'Bill Gates',
+              'version' => '1.2.3',
             }
           }
         }
-      end
-    end
-
-    describe "#service_gateway_client" do
-      let(:service) do
-        double(:service,
-               :url                => "https://fake.example.com/fake",
-               :service_auth_token => token,
-               :timeout            => 999999,
-        )
-      end
-      let(:plan) { double(:plan, :service => service) }
-
-      let(:token) { double("token", token: "le_token") }
-      let(:client) { double(:client) }
-      let(:instance) { VCAP::CloudController::ManagedServiceInstance.new }
-
-      it "sets the service_gateway_client correctly" do
-        VCAP::Services::Api::ServiceGatewayClient.should_receive(:new).
-          with("https://fake.example.com/fake", "le_token", 999999, anything).
-          and_return(client)
-
-        instance.service_gateway_client(plan).should == client
-      end
-
-      it "passes the current request id to the client" do
-        request_id = double(:request_id)
-        VCAP::Request.stub(:current_id).and_return(request_id)
-
-        VCAP::Services::Api::ServiceGatewayClient.should_receive(:new).
-          with(anything, anything, anything, request_id)
-
-        instance.service_gateway_client(plan)
-      end
-
-      it "caches the client for future requests" do
-        VCAP::Services::Api::ServiceGatewayClient.should_receive(:new).once.and_return(client)
-        instance.service_gateway_client(plan).should == client
-        instance.service_gateway_client.should == client
-      end
-
-      context "with missing service_auth_token" do
-        let(:token) { nil }
-
-        it "raises an error" do
-          expect {
-            VCAP::CloudController::ManagedServiceInstance.new.service_gateway_client(plan)
-          }.to raise_error(VCAP::CloudController::ManagedServiceInstance::InvalidServiceBinding, /no service_auth_token/i)
-        end
       end
     end
 
@@ -183,10 +144,6 @@ module VCAP::CloudController
       end
 
       context "with a trial quota" do
-        before do
-          reset_database
-        end
-
         let(:trial_db_guid) { ServicePlan.trial_db_guid }
         let(:trial_db_plan) { ServicePlan.make(:unique_id => trial_db_guid) }
         let(:paid_db_plan) { ServicePlan.make(:unique_id => "aws_rds_mysql_cfinternal") }
@@ -200,30 +157,11 @@ module VCAP::CloudController
         let(:org) { Organization.make(:quota_definition => trial_quota) }
         let(:space) { Space.make(:organization => org) }
 
-        context "when the service instance is a trial db instance" do
-          def allocate_trial_db
-            ManagedServiceInstance.make(:space => space,
-                                                :service_plan => trial_db_plan)
-          end
-
-          it "raises an error if an db instance has already been allocated" do
-            allocate_trial_db.save(:validate => false)
-            space.refresh
-            expect do
-              allocate_trial_db
-            end.to raise_error(Sequel::ValidationFailed, /org trial_quota_exceeded/)
-          end
-
-          it "does not raise an error if a db instance has not already been allocated" do
-            expect { allocate_trial_db }.not_to raise_error
-          end
-        end
-
         context "when the service instance is not a trial db instance" do
           it "raises an error" do
-            expect do
-              ManagedServiceInstance.make(:space => space, :service_plan => paid_db_plan)
-            end.to raise_error(Sequel::ValidationFailed, /service_plan paid_services_not_allowed/)
+            expect {
+              ManagedServiceInstance.make(space: space, service_plan: paid_db_plan)
+            }.to raise_error(Sequel::ValidationFailed, /service_plan paid_services_not_allowed/)
           end
         end
       end
@@ -308,11 +246,11 @@ module VCAP::CloudController
     end
 
     describe "#destroy" do
-      subject { service_instance.destroy }
+      subject { service_instance.destroy(savepoint: true) }
 
       it "destroys the service bindings" do
         service_binding = ServiceBinding.make(
-          :app => App.make(:space => service_instance.space),
+          :app => AppFactory.make(:space => service_instance.space),
           :service_instance => service_instance
         )
         expect { subject }.to change { ServiceBinding.where(:id => service_binding.id).count }.by(-1)
@@ -321,7 +259,7 @@ module VCAP::CloudController
 
     describe "validations" do
       it "should not bind an app and a service instance from different app spaces" do
-        App.make(:space => service_instance.space)
+        AppFactory.make(:space => service_instance.space)
         service_binding = ServiceBinding.make
         expect {
           service_instance.add_service_binding(service_binding)
@@ -340,7 +278,7 @@ module VCAP::CloudController
 
       context "when there isn't a service auth token" do
         it "fails" do
-          subject.service_plan.service.service_auth_token.destroy
+          subject.service_plan.service.service_auth_token.destroy(savepoint: true)
           subject.refresh
           expect do
             subject.enum_snapshots
@@ -381,7 +319,7 @@ module VCAP::CloudController
 
       context "when there isn't a service auth token" do
         it "fails" do
-          subject.service_plan.service.service_auth_token.destroy
+          subject.service_plan.service.service_auth_token.destroy(savepoint: true)
           subject.refresh
           expect do
             subject.create_snapshot(name)

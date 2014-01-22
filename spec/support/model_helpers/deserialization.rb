@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module ModelHelpers
   shared_examples "deserialization" do |opts|
     context "with all required attributes" do
@@ -15,7 +13,7 @@ module ModelHelpers
           end
         end
 
-        obj.destroy
+        obj.destroy(savepoint: true)
 
         # used for things like password that we don't export
         opts[:extra_json_attributes].each do |attr|
@@ -38,7 +36,7 @@ module ModelHelpers
             instance.set_all(creation_opts)
           end
           hash = obj.to_hash
-          obj.destroy
+          obj.destroy(savepoint: true)
 
           # used for things like password that we don't export
           opts[:extra_json_attributes].each do |attr|

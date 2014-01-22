@@ -1,5 +1,3 @@
-require "delayed_job_active_record"
-
 module VCAP::CloudController
   class DB
     # Setup a Sequel connection pool
@@ -17,7 +15,7 @@ module VCAP::CloudController
     # acquire a connection before raising a PoolTimeoutError (default 5)
     #
     # @return [Sequel::Database]
-    def self.connect(logger, opts, active_record_db_opts)
+    def self.connect(opts, logger)
       connection_options = { :sql_mode => [:strict_trans_tables, :strict_all_tables, :no_zero_in_date] }
       [:max_connections, :pool_timeout].each do |key|
         connection_options[key] = opts[key] if opts[key]
@@ -39,8 +37,6 @@ module VCAP::CloudController
         require "vcap/sequel_sqlite_monkeypatch"
       end
 
-      active_record_connect(logger, active_record_db_opts[:database])
-
       if opts[:database_uri]
         db = Sequel.connect(opts[:database_uri], connection_options)
       else
@@ -50,7 +46,6 @@ module VCAP::CloudController
       db.sql_log_level = opts[:log_level] || :debug2
 
       if db.database_type == :mysql
-        # TODO: should be utf8_unicode_ci till story https://www.pivotaltracker.com/story/show/51039807
         Sequel::MySQL.default_collate = "utf8_bin"
       end
 
@@ -58,18 +53,30 @@ module VCAP::CloudController
       db
     end
 
-    def self.load_models
+    def self.load_models(db_config, logger)
+      connect(db_config, logger)
+      require "models/runtime/app_bits_package"
+      require "models/runtime/app_usage_event"
+      require "models/runtime/auto_detection_buildpack"
+      require "models/runtime/deleted_space"
       require "models/runtime/billing_event"
       require "models/runtime/organization_start_event"
       require "models/runtime/app_start_event"
       require "models/runtime/app_stop_event"
       require "models/runtime/app_event"
       require "models/runtime/app"
+      require "models/runtime/droplet"
       require "models/runtime/buildpack"
       require "models/runtime/domain"
+      require "models/runtime/shared_domain"
+      require "models/runtime/private_domain"
       require "models/runtime/event"
+      require "models/runtime/git_based_buildpack"
       require "models/runtime/organization"
+      require "models/runtime/organization_routes"
       require "models/runtime/quota_definition"
+      require "models/runtime/quota_constraints/max_routes_policy"
+      require "models/runtime/quota_constraints/max_service_instances_policy"
       require "models/runtime/route"
       require "models/runtime/task"
       require "models/runtime/space"
@@ -85,6 +92,7 @@ module VCAP::CloudController
       require "models/services/service_broker"
       require "models/services/service_broker/v1"
       require "models/services/service_broker/v1/client"
+      require "models/services/service_broker/v1/http_client"
       require "models/services/service_broker/v2"
       require "models/services/service_broker/v2/client"
       require "models/services/service_broker/v2/http_client"
@@ -98,19 +106,8 @@ module VCAP::CloudController
       require "models/services/service_delete_event"
 
       require "models/job"
-    end
 
-    def self.apply_migrations(db, opts = {})
-      Sequel.extension :migration
-      require "vcap/sequel_case_insensitive_string_monkeypatch"
-      migrations_dir = File.expand_path("../../../db", __FILE__)
-      sequel_migrations = File.join(migrations_dir, "migrations")
-      Sequel::Migrator.run(db, sequel_migrations, opts)
-
-      active_record_migrations = File.join(migrations_dir, "ar_migrations")
-
-      ActiveRecord::Migration.verbose = false
-      ActiveRecord::Migrator.migrate(active_record_migrations, nil)
+      require "delayed_job_sequel"
     end
 
     private
@@ -135,31 +132,6 @@ such as:
 EOF
         exit 1
       end
-    end
-
-    def self.active_record_connect(logger, database_uri)
-      return ActiveRecord::Base.connection if ActiveRecord::Base.connected?
-
-      if database_uri =~ /^sqlite/
-        options = {
-          adapter: "sqlite3",
-          database: database_uri.gsub(%r{^sqlite://}, '')
-        }
-      else
-        uri = URI.parse(database_uri)
-        options = {
-          username: uri.user,
-          password: uri.password,
-          host: uri.host,
-          port: uri.port,
-          adapter: (database_uri =~ /^postgres/) ? "postgresql" : uri.scheme,
-          database: uri.path[1..-1]
-        }
-      end
-
-      ActiveRecord::Base.establish_connection(options)
-      ActiveRecord::Base.logger = logger
-      ActiveRecord::Base.connection
     end
 
     def self.validate_version_string(min_version, version)
@@ -199,7 +171,7 @@ end
 # I wanted to add an index to all the Timestamps so that
 # we can enumerate by :created_at.
 #
-# TODO: decide on a better way of mixing this in to whatever
+# decide on a better way of mixing this in to whatever
 # context Sequel.migration is running in so that we can call
 # the migration methods.
 module VCAP
@@ -234,14 +206,14 @@ module VCAP
       fk_name = "#{join_table_short}_#{name_short}_fk".to_sym
       fk_user = "#{join_table_short}_user_fk".to_sym
       table = name.pluralize.to_sym
-    
+
       migration.create_table(join_table) do
         Integer id_attr, :null => false
         foreign_key [id_attr], table, :name => fk_name
-    
+
         Integer :user_id, :null => false
         foreign_key [:user_id], :users, :name => fk_user
-    
+
         index [id_attr, :user_id], :unique => true, :name => idx_name
       end
     end

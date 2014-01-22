@@ -1,8 +1,6 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module ModelHelpers
   shared_examples "timestamps" do |opts|
-    before(:all) do
+    before do
       @obj = described_class.make
       @created_at = @obj.created_at
       @obj.updated_at.should be_nil

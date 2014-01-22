@@ -1,101 +1,55 @@
 module VCAP::CloudController
-  rest_controller :Buildpacks do
-    model_class_name :Buildpack
-
+  class BuildpacksController < RestController::ModelController
     define_attributes do
       attribute :name, String
-      attribute :key,  String, :exclude_in => [:create, :update]
-      attribute :priority, Integer, :default => 0
+      attribute :position, Integer, default: 0
+      attribute :enabled, Message::Boolean, default: true
     end
 
     query_parameters :name
 
     def self.translate_validation_exception(e, attributes)
-      buildpack_errors = e.errors.on([:name])
+      buildpack_errors = e.errors.on(:name)
       if buildpack_errors && buildpack_errors.include?(:unique)
         Errors::BuildpackNameTaken.new("#{attributes["name"]}")
       else
-        Errors::BuildpackNameTaken.new(e.errors.full_messages)
+        Errors::BuildpackInvalid.new(e.errors.full_messages)
       end
     end
 
-    def after_destroy(buildpack)
-      return unless buildpack.key
-      file = buildpack_blobstore.file(buildpack.key)
-      file.destroy if file
+    def delete(guid)
+      buildpack = find_guid_and_validate_access(:delete, guid)
+      response = do_delete(buildpack)
+      delete_buildpack_in_blobstore(buildpack.key)
+      response
     end
 
-    protected
+    def update(guid)
+      obj = find_for_update(guid)
+      model.update(obj, @request_attrs)
 
-    attr_reader :buildpack_blobstore, :upload_handler
-
-    def inject_dependencies(dependencies)
-      @buildpack_blobstore = dependencies[:buildpack_blobstore]
-      @upload_handler = dependencies[:upload_handler]
-    end
-
-    def upload_bits(guid)
-      buildpack = find_guid_and_validate_access(:read_bits, guid)
-      file_struct = upload_handler.uploaded_file(params, "buildpack")
-      uploaded_filename = upload_handler.uploaded_filename(params, "buildpack")
-
-      raise Errors::BuildpackBitsUploadInvalid, "only zip files allowed" unless File.extname(uploaded_filename) == ".zip"
-
-      sha1 = Digest::SHA1.file(file_struct.path).hexdigest
-
-      return [HTTP::CONFLICT, nil] if sha1 == buildpack.key
-
-      buildpack_blobstore.cp_from_local(file_struct.path, sha1)
-
-      old_buildpack_key = buildpack.key
-      model.db.transaction do
-        buildpack.lock!
-        buildpack.update_from_hash(key: sha1)
-      end
-
-      buildpack_blobstore.delete(old_buildpack_key) if old_buildpack_key
-
-      [HTTP::CREATED, serialization.render_json(self.class, buildpack, @opts)]
-    end
-
-
-    def download_bits(guid)
-      obj = find_guid_and_validate_access(:read_bits, guid)
-      if @buildpack_blobstore.local?
-        f = buildpack_blobstore.file(obj.key)
-        raise self.class.not_found_exception.new(guid) unless f
-        # hack to get the local path to the file
-        return send_file f.send(:path)
-      else
-        bits_uri = "#{bits_uri(obj.key)}"
-        return [HTTP::FOUND, {"Location" => bits_uri}, nil]
-      end
+      [HTTP::CREATED, serialization.render_json(self.class, obj, @opts)]
     end
 
     private
 
-    def bits_uri(key)
-      f = buildpack_blobstore.file(key)
-      return nil unless f
+    attr_reader :buildpack_blobstore
 
-      # unfortunately fog doesn't have a unified interface for non-public
-      # urls
-      if f.respond_to?(:url)
-        f.url(Time.now + 3600)
-      else
-        f.public_url
-      end
+    def delete_buildpack_in_blobstore(blobstore_key)
+      return unless blobstore_key
+      blobstore_delete = Jobs::Runtime::BlobstoreDelete.new(blobstore_key, :buildpack_blobstore)
+      Delayed::Job.enqueue(blobstore_delete, queue: "cc-generic")
     end
 
-    def compute_file_extension(filename)
-      filename.end_with?('.tar.gz') ? '.tar.gz' : File.extname(filename)
+    def inject_dependencies(dependencies)
+      @buildpack_blobstore = dependencies[:buildpack_blobstore]
     end
 
     def self.not_found_exception_name
       "NotFound"
     end
 
-    post "#{path}/:guid/bits", :upload_bits
-    get "#{path}/:guid/download", :download_bits
+    define_messages
+    define_routes
   end
 end

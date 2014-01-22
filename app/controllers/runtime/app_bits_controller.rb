@@ -1,27 +1,26 @@
 require "cloud_controller/upload_handler"
-require "jobs/runtime/app_bits_packer_job"
 require "presenters/api/job_presenter"
 
 module VCAP::CloudController
-  rest_controller :AppBits do
-    disable_default_routes
+  class AppBitsController < RestController::ModelController
     path_base "apps"
     model_class_name :App
 
+    put "#{path_guid}/bits", :upload
     def upload(guid)
       app = find_guid_and_validate_access(:update, guid)
 
       raise Errors::AppBitsUploadInvalid, "missing :resources" unless params["resources"]
 
-      uploaded_zip_of_files_not_in_blobstore = UploadHandler.new(config).uploaded_file(params, "application")
-      app_bits_packer_job = AppBitsPackerJob.new(guid, uploaded_zip_of_files_not_in_blobstore.try(:path), json_param("resources"))
+      uploaded_zip_of_files_not_in_blobstore_path = CloudController::DependencyLocator.instance.upload_handler.uploaded_file(params, "application")
+      app_bits_packer_job = Jobs::Runtime::AppBitsPacker.new(guid, uploaded_zip_of_files_not_in_blobstore_path, json_param("resources"))
 
-      if params["async"] == "true"
-        job = Delayed::Job.enqueue(app_bits_packer_job, queue: "cc-#{config[:name]}-#{config[:index]}")
+      if async?
+        job = Delayed::Job.enqueue(app_bits_packer_job, queue: LocalQueue.new(config))
         [HTTP::CREATED, JobPresenter.new(job).to_json]
       else
         app_bits_packer_job.perform
-        HTTP::CREATED
+        [HTTP::CREATED, "{}"]
       end
 
       name = app[:name]
@@ -38,10 +37,11 @@ module VCAP::CloudController
       raise
     end
 
+    get "#{path_guid}/download", :download
     def download(guid)
       find_guid_and_validate_access(:read, guid)
-
-      package_uri = AppPackage.package_uri(guid)
+      blobstore = CloudController::DependencyLocator.instance.package_blobstore
+      package_uri = blobstore.download_uri(guid)
 
       logger.debug "guid: #{guid} package_uri: #{package_uri}"
 
@@ -51,9 +51,9 @@ module VCAP::CloudController
         raise Errors::AppPackageNotFound.new(guid)
       end
 
-      if AppPackage.blobstore.local?
+      if blobstore.local?
         if config[:nginx][:use_nginx]
-          return [200, { "X-Accel-Redirect" => "#{package_uri}" }, ""]
+          return [HTTP::OK, { "X-Accel-Redirect" => "#{package_uri}" }, ""]
         else
           return send_file package_path, :filename => File.basename("#{path}.zip")
         end
@@ -61,6 +61,8 @@ module VCAP::CloudController
         return [HTTP::FOUND, {"Location" => package_uri}, nil]
       end
     end
+
+    private
 
     def json_param(name)
       raw = params[name]

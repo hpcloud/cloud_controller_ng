@@ -6,7 +6,6 @@ require "controllers/stackato/stackato_user_creation"
 module VCAP::CloudController
   rest_controller :StackatoSetup do
     allow_unauthenticated_access
-    disable_default_routes
     include StackatoUserCreation
     do_define_attributes true
     define_messages

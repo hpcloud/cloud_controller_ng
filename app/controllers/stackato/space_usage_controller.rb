@@ -4,7 +4,6 @@ require "cloud_controller/stackato/droplet_accountability"
 
 module VCAP::CloudController
   rest_controller :StackatoSpaceUsage do
-    disable_default_routes
     path_base "spaces"
     model_class_name :Space
 

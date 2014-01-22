@@ -24,8 +24,7 @@ module VCAP::CloudController
       :events => lambda { |app|
         AppEvent.make(:app => app)
       }
-    },
-      one_to_many_collection_ids_without_url: {}
+    }, :excluded => [ :events ]
 
     include_examples "collection operations", path: "/v2/apps", model: App,
       one_to_many_collection_ids: {
@@ -40,18 +39,19 @@ module VCAP::CloudController
       },
       many_to_many_collection_ids: {
         routes: lambda { |app|
-          domain = Domain.make(owning_organization: app.space.organization)
-          app.space.organization.add_domain(domain)
-          app.space.add_domain(domain)
+          domain = PrivateDomain.make(owning_organization: app.space.organization)
           Route.make(domain: domain, space: app.space)
         }
       }
 
+    let(:app_event_repository) { CloudController::DependencyLocator.instance.app_event_repository }
+
     describe "create app" do
       let(:space_guid) { Space.make.guid.to_s }
       let(:initial_hash) do
-        { :name => "maria",
-          :space_guid => space_guid
+        {
+          name: "maria",
+          space_guid: space_guid
         }
       end
 
@@ -79,6 +79,31 @@ module VCAP::CloudController
           create_app
           last_response.status.should == 400
           last_response.body.should match /invalid amount of memory/
+        end
+      end
+
+      context "when default memory is configured" do
+        let (:default_memory) { 200 }
+
+        before do
+          config_override({ :default_app_memory => default_memory })
+        end
+
+        it "uses the configured default when no memory is specified" do
+          create_app
+          decoded_response["entity"]["memory"].should == default_memory
+        end
+      end
+
+      context "when instances is less than 0" do
+        before do
+          initial_hash[:instances] = -1
+        end
+
+        it "responds invalid arguments" do
+          create_app
+          last_response.status.should == 400
+          last_response.body.should match /instances less than 0/
         end
       end
 
@@ -113,26 +138,70 @@ module VCAP::CloudController
         end
       end
 
-      it "records a app.create event" do
-        create_app
+      describe "events" do
+        it "records app create" do
+          expected_attrs = AppsController::CreateMessage.decode(initial_hash.to_json).extract(stringify_keys: true)
 
-        last_response.status.should == 201
+          allow(app_event_repository).to receive(:record_app_create)
 
-        new_app_guid = decoded_response['metadata']['guid']
-        event = Event.find(:type => "audit.app.create", :actee => new_app_guid)
+          create_app
 
-        expect(event).to be
-        expect(event.actor).to eq(admin_user.guid)
+          expect(app_event_repository).to have_received(:record_app_create).with(App.last, admin_user, expected_attrs)
+        end
+      end
+
+      context "buildpacks" do
+        it "accepts the buildpack in git formats" do
+          initial_hash[:buildpack] = "git://user@public.example.com"
+          create_app
+          expect(last_response.status).to eql 201
+        end
+
+        it "accepts a buildpack name uploaded by an admin before" do
+          admin_buildpack = VCAP::CloudController::Buildpack.make
+          initial_hash[:buildpack] = admin_buildpack.name
+          create_app
+          expect(last_response.status).to eql 201
+        end
+
+        it "reject invalid buildpack url " do
+          initial_hash[:buildpack] = "not-a-git-repo"
+          create_app
+          expect(last_response.status).to eql 400
+          expect(decoded_response["description"]).to match /is not valid public git url or a known buildpack name/
+        end
       end
     end
 
     describe "update app" do
       let(:update_hash) { {} }
 
-      let(:app_obj) { App.make(:detected_buildpack => 'buildpack-name') }
+      let(:app_obj) { AppFactory.make(:detected_buildpack => "buildpack-name") }
 
       def update_app
         put "/v2/apps/#{app_obj.guid}", Yajl::Encoder.encode(update_hash), json_headers(admin_headers)
+      end
+
+      describe "update app health_check_timeout" do
+        context "when health_check_timeout value is provided" do
+          let(:update_hash) { {"health_check_timeout" => 80} }
+
+          it "should set to provided value" do
+            update_app
+            app_obj.refresh
+            app_obj.health_check_timeout.should == 80
+            last_response.status.should == 201
+          end
+        end
+
+        context "when health_check_timeout value is not provided" do
+          let(:update_hash) { {} }
+
+          it "should not return error" do
+            update_app
+            last_response.status.should == 201
+          end
+        end
       end
 
       describe "update app debug" do
@@ -151,7 +220,7 @@ module VCAP::CloudController
         end
 
         context "change debug" do
-          let(:app_obj) { App.make(:debug => "run") }
+          let(:app_obj) { AppFactory.make(:debug => "run") }
 
           let(:update_hash) do
             {"debug" => "suspend"}
@@ -166,7 +235,7 @@ module VCAP::CloudController
         end
 
         context "reset debug" do
-          let(:app_obj) { App.make(:debug => "run") }
+          let(:app_obj) { AppFactory.make(:debug => "run") }
 
           let(:update_hash) do
             {"debug" => "none"}
@@ -181,7 +250,7 @@ module VCAP::CloudController
         end
 
         context "passing in nil" do
-          let(:app_obj) { App.make(:debug => "run") }
+          let(:app_obj) { AppFactory.make(:debug => "run") }
 
           let(:update_hash) do
             {"debug" => nil}
@@ -221,31 +290,52 @@ module VCAP::CloudController
         end
       end
 
-      context "when the app is already deleted" do
-        before { app_obj.soft_delete }
+      context "when package_state is provided" do
+        before { update_hash[:package_state] = 'FAILED' }
 
-        it "should raise error" do
+        it "ignores the attribute" do
           update_app
 
-          last_response.status.should == 404
+          last_response.status.should == 201
+
+          app_obj.reload
+          expect(app_obj.package_state).to_not be == 'FAILED'
+          expect(parse(last_response.body)["entity"]).not_to include("package_state" => "FAILED")
         end
       end
 
       describe "events" do
-        before { update_hash[:instances] = 2 }
+        let(:update_hash) { {instances: 2, foo: "foo_value"} }
 
-        it "registers an app.start event" do
-          update_app
+        context "when the update succeeds" do
+          it "records app update with whitelisted attributes" do
+            allow(app_event_repository).to receive(:record_app_update)
 
-          event = Event.find(:type => "audit.app.update", :actee => app_obj.guid)
-          expect(event).to be
-          expect(event.actor).to eq(admin_user.guid)
+            update_app
+
+            expect(app_event_repository).to have_received(:record_app_update) do |recorded_app, recorded_user, recorded_hash|
+              expect(recorded_app.guid).to eq(app_obj.guid)
+              expect(recorded_app.instances).to eq(2)
+              expect(recorded_user).to eq(admin_user)
+              expect(recorded_hash).to eq({"instances" => 2})
+            end
+          end
+        end
+
+        context "when the update fails" do
+          before { App.any_instance.stub(:update_from_hash).and_raise("Error saving") }
+
+          it "does not record app update" do
+            expect(app_event_repository).not_to receive(:record_app_update)
+
+            expect { update_app }.to raise_error
+          end
         end
       end
     end
 
     describe "read an app" do
-      let(:app_obj) { App.make(:detected_buildpack => "buildpack-name") }
+      let(:app_obj) { AppFactory.make(:detected_buildpack => "buildpack-name") }
       let(:decoded_response) { Yajl::Parser.parse(last_response.body) }
 
       def get_app
@@ -258,22 +348,21 @@ module VCAP::CloudController
         decoded_response["entity"]["detected_buildpack"].should eq("buildpack-name")
       end
 
-      context "when the app is already deleted" do
-        let(:app_obj) { App.make(:detected_buildpack => "buildpack-name") }
+      it "should return the package state" do
+        get_app
+        last_response.status.should == 200
+        expect(parse(last_response.body)["entity"]).to have_key("package_state")
+      end
 
-        before do
-          app_obj.soft_delete
-        end
-
-        it "should raise error" do
-          get_app
-          last_response.status.should == 404
-        end
+      it "should return system_env_json" do
+        get_app
+        last_response.status.should == 200
+        expect(parse(last_response.body)["entity"]).to have_key("system_env_json")
       end
     end
 
     describe "delete an app" do
-      let(:app_obj) { App.make }
+      let(:app_obj) { AppFactory.make }
 
       let(:decoded_response) { Yajl::Parser.parse(last_response.body) }
 
@@ -282,7 +371,7 @@ module VCAP::CloudController
       end
 
       context "when the app is not deleted" do
-        let(:app_obj) { App.make }
+        let(:app_obj) { AppFactory.make }
 
         it "should delete the app" do
           delete_app
@@ -290,34 +379,8 @@ module VCAP::CloudController
         end
       end
 
-      context "when the app is already deleted" do
-        let(:app_obj) { App.make }
-
-        before do
-          app_obj.soft_delete
-        end
-
-        it "should raise error" do
-          delete_app
-          last_response.status.should == 404
-        end
-      end
-
       context "when the app is running" do
-        let(:app_obj) { App.make :state => "STARTED", :package_hash => "abc" }
-
-        it "tells the DEAs to stop it" do
-          called = false
-          DeaClient.should_receive(:stop) do |app|
-            app.guid.should == app_obj.guid
-            called = true
-          end
-
-          delete_app
-
-          called.should be_true
-        end
-
+        let(:app_obj) { AppFactory.make :state => "STARTED", :package_hash => "abc" }
         it "registers a billing stop event" do
           called = false
           AppStopEvent.should_receive(:create_from_app) do |app|
@@ -348,23 +411,18 @@ module VCAP::CloudController
           delete_app_recursively
           last_response.status.should == 204
 
-          App.deleted[:id => app_obj.id].deleted_at.should_not be_nil
-          App.deleted[:id => app_obj.id].not_deleted.should be_nil
-          AppEvent.find(:id => app_event.id).should_not be_nil
+          App.find(id: app_obj.id).should be_nil
+          AppEvent.find(:id => app_event.id).should be_nil
         end
       end
 
-      context "non recursive deletion with app events" do
-        let!(:app_event) { AppEvent.make(:app => app_obj) }
-
+      context "non recursive deletion" do
         context "with other empty associations" do
-          it "should soft delete the app and NOT delete the app event" do
+          it "should destroy the app" do
             delete_app
 
             last_response.status.should == 204
-            App.deleted[:id => app_obj.id].deleted_at.should_not be_nil
-            App.deleted[:id => app_obj.id].not_deleted.should be_nil
-            AppEvent.find(:id => app_event.id).should_not be_nil
+            App.find(id: app_obj.id).should be_nil
           end
         end
 
@@ -378,21 +436,37 @@ module VCAP::CloudController
             last_response.status.should == 400
             decoded_response["description"].should =~ /service_bindings/i
           end
+
+          it "should succeed on a recursive delete" do
+            delete "/v2/apps/#{app_obj.guid}?recursive=true", {}, json_headers(admin_headers)
+
+            last_response.status.should == 204
+          end
         end
 
       end
 
-      it "records an app.deleted event" do
-        delete_app
-        last_response.status.should == 204
-        event = Event.find(:type => "audit.app.delete", :actee => app_obj.guid)
-        expect(event).to be
-        expect(event.actor).to eq(admin_user.guid)
+      describe "events" do
+        it "records an app delete-request" do
+          allow(app_event_repository).to receive(:record_app_delete_request)
+
+          delete_app
+
+          expect(app_event_repository).to have_received(:record_app_delete_request).with(app_obj, admin_user, false)
+        end
+
+        it "records the recursive query parameter when recursive"  do
+          allow(app_event_repository).to receive(:record_app_delete_request)
+
+          delete "/v2/apps/#{app_obj.guid}?recursive=true", {}, json_headers(admin_headers)
+
+          expect(app_event_repository).to have_received(:record_app_delete_request).with(app_obj, admin_user, true)
+        end
       end
     end
 
     describe "validations" do
-      let(:app_obj)   { App.make }
+      let(:app_obj)   { AppFactory.make }
       let(:decoded_response) { Yajl::Parser.parse(last_response.body) }
 
       describe "env" do
@@ -424,7 +498,7 @@ module VCAP::CloudController
     end
 
     describe "command" do
-      let(:app_obj)   { App.make }
+      let(:app_obj)   { AppFactory.make }
       let(:decoded_response) { Yajl::Parser.parse(last_response.body) }
 
       it "should have no command entry in the metadata if not provided" do
@@ -440,12 +514,40 @@ module VCAP::CloudController
         decoded_response["entity"]["command"].should == "foobar"
         decoded_response["entity"]["metadata"].should be_nil
       end
+
+      it "can be cleared if a request arrives asking command to be an empty string" do
+        app_obj.command = "echo hi"
+        app_obj.save
+        put "/v2/apps/#{app_obj.guid}", Yajl::Encoder.encode(:command => ""), json_headers(admin_headers)
+        last_response.status.should == 201
+        decoded_response["entity"]["command"].should be_nil
+        decoded_response["entity"]["metadata"].should be_nil
+      end
+    end
+
+    describe "health_check_timeout" do
+      let(:app_obj)   { AppFactory.make }
+      let(:decoded_response) { Yajl::Parser.parse(last_response.body) }
+
+      it "should have no health_check_timeout entry in the metadata if not provided" do
+        get "/v2/apps/#{app_obj.guid}", {}, json_headers(admin_headers)
+        last_response.status.should == 200
+        decoded_response["entity"]["health_check_timeout"].should be_nil
+        decoded_response["entity"]["metadata"].should be_nil
+      end
+
+      it "should set the health_check_timeout on the app metadata if provided" do
+        put "/v2/apps/#{app_obj.guid}", Yajl::Encoder.encode(:health_check_timeout => 100), json_headers(admin_headers)
+        last_response.status.should == 201
+        decoded_response["entity"]["health_check_timeout"].should == 100
+        decoded_response["entity"]["metadata"].should be_nil
+      end
     end
 
     describe "staging" do
-      context "when app will be staged" do
+      context "when app will be staged", non_transactional: true do
         let(:app_obj) do
-          App.make(:package_hash => "abc", :state => "STOPPED",
+          AppFactory.make(:package_hash => "abc", :state => "STOPPED",
                            :droplet_hash => nil, :package_state => "PENDING",
                            :instances => 1)
         end
@@ -473,7 +575,7 @@ module VCAP::CloudController
       end
 
       context "when app will not be staged" do
-        let(:app_obj) { App.make(:state => "STOPPED") }
+        let(:app_obj) { AppFactory.make(:state => "STOPPED") }
 
         it "does not add X-App-Staging-Log" do
           put "/v2/apps/#{app_obj.guid}", Yajl::Encoder.encode({}), json_headers(admin_headers)
@@ -486,20 +588,14 @@ module VCAP::CloudController
     describe "on route change" do
       let(:space) { Space.make }
       let(:domain) do
-        space.add_domain(
-          :name => "jesse.cloud",
-          :wildcard => true,
-          :owning_organization => space.organization,
-        )
+        PrivateDomain.make(name: "jesse.cloud", owning_organization: space.organization)
       end
 
-      before :each do
-        reset_database
-
+      before do
         user = make_developer_for_space(space)
         # keeping the headers here so that it doesn't reset the global config...
         @headers_for_user = headers_for(user)
-        @app = App.make(
+        @app = AppFactory.make(
           :space => space,
           :state => "STARTED",
           :package_hash => "abc",
@@ -564,8 +660,8 @@ module VCAP::CloudController
       include_context "permissions"
 
       before do
-        @obj_a = App.make(:space => @space_a)
-        @obj_b = App.make(:space => @space_b)
+        @obj_a = AppFactory.make(:space => @space_a)
+        @obj_b = AppFactory.make(:space => @space_b)
       end
 
       let(:creation_req_for_a) do

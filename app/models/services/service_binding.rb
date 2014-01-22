@@ -1,6 +1,7 @@
 module VCAP::CloudController
   class ServiceBinding < Sequel::Model
     class InvalidAppAndServiceRelation < StandardError; end
+    class InvalidLoggingServiceBinding < StandardError; end
 
     many_to_one :app
     many_to_one :service_instance
@@ -8,14 +9,15 @@ module VCAP::CloudController
     default_order_by  :id
 
     export_attributes :app_guid, :service_instance_guid, :credentials,
-                      :binding_options, :gateway_data, :gateway_name
+                      :binding_options, :gateway_data, :gateway_name, :syslog_drain_url
 
     import_attributes :app_guid, :service_instance_guid, :credentials,
-                      :binding_options, :gateway_data
+                      :binding_options, :gateway_data, :syslog_drain_url
 
     alias_attribute :broker_provided_id, :gateway_name
 
-    delegate :client, to: :service_instance
+    delegate :client, :service, :service_plan,
+      to: :service_instance
 
     plugin :after_initialize
 
@@ -24,8 +26,16 @@ module VCAP::CloudController
       validates_presence :service_instance
       validates_unique [:app_id, :service_instance_id]
 
-      # TODO: make this a standard validation
+      validate_logging_service_binding if service_instance.respond_to?(:service_plan)
+
       validate_app_and_service_instance(app, service_instance)
+    end
+
+    def validate_logging_service_binding
+      unless syslog_drain_url.nil? || syslog_drain_url.empty? ||
+          service_instance.service_plan.service.requires.include?("syslog_drain")
+        raise InvalidLoggingServiceBinding.new("Service is not advertised as a logging service. Please contact the service provider.")
+      end
     end
 
     def validate_app_and_service_instance(app, service_instance)
@@ -37,13 +47,24 @@ module VCAP::CloudController
       end
     end
 
-    def space
-      service_instance.space
+    def bind!
+      client.bind(self)
+
+      begin
+        save
+      rescue => e
+        begin
+          client.unbind(self)
+        rescue => unbind_e
+          logger.error "Unable to unbind #{self}: #{unbind_e}"
+        end
+
+        raise e
+      end
     end
 
-    def before_create
-      super
-      raise VCAP::Errors::UnbindableService unless service_instance.bindable?
+    def space
+      service_instance.space
     end
 
     def after_create
@@ -60,12 +81,7 @@ module VCAP::CloudController
     end
 
     def before_destroy
-      # TODO: transactionally move this into a queue, remove rescue
-      begin
-        client.unbind(self)
-      rescue => e
-        logger.error "unbind failed #{e}"
-      end
+      client.unbind(self)
 
       mark_app_for_restaging
     end

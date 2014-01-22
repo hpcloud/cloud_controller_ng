@@ -23,28 +23,29 @@ require "allowy/rspec"
 require "pry"
 require "posix/spawn"
 
+require "rspec_api_documentation"
+
 module VCAP::CloudController
+  MAX_LOG_FILE_SIZE_IN_BYTES = 100_000_000
   class SpecEnvironment
     def initialize
       ENV["CC_TEST"] = "true"
       FileUtils.mkdir_p(artifacts_dir)
 
-      # ignore the race when we run specs in parallel
-      begin
-        File.unlink(log_filename)
-      rescue Errno::ENOENT
+      if File.exist?(log_filename) && File.size(log_filename) > MAX_LOG_FILE_SIZE_IN_BYTES
+        FileUtils.rm_f(log_filename)
       end
 
       Steno.init(Steno::Config.new(
-        :default_log_level => "debug",
-        :sinks => [Steno::Sink::IO.for_file(log_filename)]
+        default_log_level: "info",
+        sinks: [Steno::Sink::IO.for_file(log_filename)]
       ))
 
+      reset_database
+      VCAP::CloudController::DB.load_models(config.fetch(:db), db_logger)
       VCAP::CloudController::Config.run_initializers(config)
 
-      reset_database
-
-      VCAP::CloudController::DB.load_models
+      VCAP::CloudController::Seeds.create_seed_quota_definitions(config)
     end
 
     def spec_dir
@@ -70,20 +71,24 @@ module VCAP::CloudController
         drop_table_unsafely(table)
       end
 
-      VCAP::CloudController::DB.apply_migrations(db)
+      DBMigrator.new(db).apply_migrations
+    end
+
+    def reset_database_with_seeds
+      reset_database
+      VCAP::CloudController::Seeds.create_seed_quota_definitions(config)
+    end
+
+    def db_connection_string
+      if ENV["DB_CONNECTION"]
+        "#{ENV["DB_CONNECTION"]}/cc_test_#{ENV["TEST_ENV_NUMBER"]}"
+      else
+        "sqlite:///tmp/cc_test#{ENV["TEST_ENV_NUMBER"]}.db"
+      end
     end
 
     def db
-      Thread.current[:db] ||= begin
-        db_connection = ENV["DB_CONNECTION"] || "sqlite:///tmp/cc_test#{ENV["TEST_ENV_NUMBER"]}.db"
-        ar_db_connection = ENV["AR_DB_CONNECTION"] || "sqlite:///tmp/cc_test#{ENV["TEST_ENV_NUMBER"]}.db"
-
-        VCAP::CloudController::DB.connect(
-          db_logger,
-          { log_level: "debug2", database_uri: "#{db_connection}" },
-          database: "#{ar_db_connection}"
-        )
-      end
+      Thread.current[:db] ||= VCAP::CloudController::DB.connect(config.fetch(:db), db_logger)
     end
 
     def db_logger
@@ -126,6 +131,12 @@ module VCAP::CloudController
             :aws_secret_access_key => "fake_secret_access_key",
           },
         },
+
+        :db => {
+          :log_level => "debug",
+          :database => db_connection_string,
+          :pool_timeout => 10
+        }
       )
 
       config_hash.merge!(config_override || {})
@@ -174,11 +185,6 @@ module VCAP::CloudController::SpecHelper
     $spec_env.db
   end
 
-  def reset_database
-    $spec_env.reset_database
-    VCAP::CloudController::Seeds.create_seed_quota_definitions(config)
-  end
-
   # Note that this method is mixed into each example, and so the instance
   # variable we created here gets cleared automatically after each example
   def config_override(hash)
@@ -202,16 +208,11 @@ module VCAP::CloudController::SpecHelper
   end
 
   def configure_components(config)
-    VCAP::CloudController::Config.db_encryption_key = "some-key"
-
     # DO NOT override the message bus, use the same mock that's set the first time
     message_bus = VCAP::CloudController::Config.message_bus || CfMessageBus::MockMessageBus.new
 
-    # FIXME: this is better suited for a before-each stub so that we can unstub it in examples
-    VCAP::CloudController::ManagedServiceInstance.gateway_client_class = VCAP::Services::Api::ServiceGatewayClientFake
-
-    VCAP::CloudController::Config.configure(config)
-    VCAP::CloudController::Config.configure_message_bus(message_bus)
+    VCAP::CloudController::Config.configure_components(config)
+    VCAP::CloudController::Config.configure_components_depending_on_message_bus(message_bus)
     # reset the dependency locator
     CloudController::DependencyLocator.instance.send(:initialize)
 
@@ -505,6 +506,7 @@ module VCAP::CloudController::SpecHelper
 
   shared_context "with valid resource in resource pool" do
     let(:valid_resource) do
+      pending("Deprecated")
       file = Tempfile.new("mytemp")
       file.write("A" * 1024)
       file.close
@@ -548,25 +550,71 @@ RSpec.configure do |rspec_config|
   rspec_config.include Rack::Test::Methods
   rspec_config.include VCAP::CloudController
   rspec_config.include VCAP::CloudController::SpecHelper
+  rspec_config.include VCAP::CloudController::BrokerApiHelper
   rspec_config.include ModelCreation
   rspec_config.extend ModelCreation
   rspec_config.include ServicesHelpers, services: true
   rspec_config.include ModelHelpers
+  rspec_config.include TempFileCreator
+
+  rspec_config.after do |example|
+    example.delete_created_temp_files
+  end
 
   rspec_config.include ControllerHelpers, type: :controller, :example_group => {
     :file_path => rspec_config.escaped_path(%w[spec controllers])
   }
 
-  rspec_config.before(:all) do
+  rspec_config.include ControllerHelpers, type: :api, :example_group => {
+    :file_path => rspec_config.escaped_path(%w[spec api])
+  }
+
+  rspec_config.include ApiDsl, type: :api, :example_group => {
+    :file_path => rspec_config.escaped_path(%w[spec api])
+  }
+
+  rspec_config.before :all do
     VCAP::CloudController::SecurityContext.clear
-    configure
+    @old_before_all_config = configure
+    RspecApiDocumentation.configure do |c|
+      c.format = [:html, :json]
+      c.api_name = "Cloud Foundry API"
+      c.template_path = "spec/api/templates"
+      c.curl_host = "https://api.[your-domain.com]"
+      c.app = Struct.new(:config) do
+        # generate app() method for rack::test to use
+        include ::ControllerHelpers
+      end.new(config).app
+    end
+  end
+
+  rspec_config.after :all do
+    config_override(@old_before_all_config)
   end
 
   rspec_config.before :each do
-    # We need to stub out this because it's in an after_destroy_commit hook
-    # Is event emitter our salvation?
-    #VCAP::CloudController::AppObserver.stub(:delete_droplet)
-    VCAP::CloudController::AppPackage.stub(:delete_package)
+    Fog::Mock.reset
+    Sequel::Deprecation.output = StringIO.new
+    Sequel::Deprecation.backtrace_filter = 5
+  end
+
+  rspec_config.after :each do
+    expect(Sequel::Deprecation.output.string).to eq ''
+    Sequel::Deprecation.output.close unless Sequel::Deprecation.output.closed?
+  end
+
+  rspec_config.around :each do |example|
+    if example.metadata.to_s.include? "non_transactional"
+      begin
+        example.run
+      ensure
+        $spec_env.reset_database_with_seeds
+      end
+    else
+      Sequel::Model.db.transaction(rollback: :always, savepoint: true) do
+        example.run
+      end
+    end
   end
 
   rspec_config.fail_fast = ENV["RSPEC_FAIL_FAST"] ? true : false
@@ -578,7 +626,6 @@ end
 # default. Breaks the tests (deliberately) unless we order by id
 # explicitly. In sqlite, the default ordering, although not guaranteed,
 # is de facto by id. In postgres the order is random unless specified.
-
 class VCAP::CloudController::App
   set_dataset dataset.order(:guid)
 end

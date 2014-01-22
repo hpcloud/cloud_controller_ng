@@ -1,9 +1,9 @@
 module VCAP::CloudController
-  rest_controller :OrganizationSummaries do
-    disable_default_routes
+  class OrganizationSummariesController < RestController::ModelController
     path_base "organizations"
     model_class_name :Organization
 
+    get "#{path_guid}/summary", :summary
     def summary(guid)
       org = find_guid_and_validate_access(:read, guid)
 
@@ -37,7 +37,5 @@ module VCAP::CloudController
         end
       )
     end
-
-    get "#{path_guid}/summary", :summary
   end
 end

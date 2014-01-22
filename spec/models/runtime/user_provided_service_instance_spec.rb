@@ -1,6 +1,8 @@
 require "spec_helper"
 
 describe VCAP::CloudController::UserProvidedServiceInstance, type: :model do
+  let(:service_instance) { VCAP::CloudController::UserProvidedServiceInstance.make }
+
   it_behaves_like "a model with an encrypted attribute" do
     def new_model
       described_class.create(
@@ -18,29 +20,22 @@ describe VCAP::CloudController::UserProvidedServiceInstance, type: :model do
       instance = described_class.create(
         name: 'awesome-service',
         space: VCAP::CloudController::Space.make,
-        credentials: {"foo" => "bar"}
+        credentials: {"foo" => "bar"},
       )
       instance.refresh.is_gateway_service.should be_false
     end
   end
 
   it_behaves_like "a CloudController model", {
-    :required_attributes => [:name, :space, :credentials],
-    :stripped_string_attributes => :name,
+    :required_attributes => [:name, :space],
+    :stripped_string_attributes => [:name, :syslog_drain_url],
     many_to_one: {
       space: {
         delete_ok: true,
         create_for: proc { VCAP::CloudController::Space.make },
       },
     },
-  } do
-    before(:all) do
-      # encrypted attributes with changing keys, duh
-      described_class.dataset.destroy
-    end
-  end
-
-  let(:service_instance) { VCAP::CloudController::UserProvidedServiceInstance.make }
+  }
 
   describe "serialization" do
     it "includes its type" do
@@ -48,30 +43,15 @@ describe VCAP::CloudController::UserProvidedServiceInstance, type: :model do
     end
   end
 
-  describe "#as_summary_json" do
-    it "contains name and guid" do
-      instance = described_class.new(guid: "ABCDEFG12", name: "Random-Number-Service")
-      instance.as_summary_json.should == {
-        "guid" => "ABCDEFG12",
-        "name" => "Random-Number-Service",
-      }
-    end
-  end
-
   describe "validations" do
     it "should not bind an app and a service instance from different app spaces" do
       service_instance = described_class.make
-      VCAP::CloudController::App.make(:space => service_instance.space)
+      VCAP::CloudController::AppFactory.make(:space => service_instance.space)
       service_binding = VCAP::CloudController::ServiceBinding.make
       expect {
         service_instance.add_service_binding(service_binding)
       }.to raise_error VCAP::CloudController::ServiceInstance::InvalidServiceBinding
     end
-  end
-
-  describe "#bindable?" do
-    let(:service_instance) { described_class.make }
-    specify { service_instance.should be_bindable }
   end
 
   describe "#tags" do

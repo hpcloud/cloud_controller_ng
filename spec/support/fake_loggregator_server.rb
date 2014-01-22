@@ -18,7 +18,8 @@ class FakeLoggregatorServer
       while true
         begin
           stuff = @sock.recv(65536)
-          messages << LogMessage.decode(stuff)
+          envelope = LogEnvelope.decode(stuff)
+          messages << envelope.log_message
         rescue Beefcake::Message::WrongTypeError, Beefcake::Message::RequiredFieldNotSetError,  Beefcake::Message::InvalidValueError => e
           puts "ERROR"
           puts e
@@ -28,15 +29,8 @@ class FakeLoggregatorServer
     end
   end
 
-  def stop(number_expected_messages)
-    max_tries = 0
-    while messages.length < number_expected_messages
-      sleep 0.2
-      max_tries += 1
-      break if max_tries > 10
-    end
+  def stop
     @sock.close
-
     Thread.kill(@thread)
   end
 end

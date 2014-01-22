@@ -1,8 +1,11 @@
 require "cloud_controller/app_observer"
+require_relative "buildpack"
 
 module VCAP::CloudController
   class App < Sequel::Model
     plugin :serialization
+
+    APP_NAME_REGEX = /\A[[:alnum:][:punct:][:print:]]+\Z/.freeze
 
     class InvalidRouteRelation < InvalidRelation
       def to_s
@@ -16,32 +19,28 @@ module VCAP::CloudController
     class AlreadyDeletedError < StandardError;
     end
 
-    dataset_module do
-      def existing
-        filter(not_deleted: true)
+    class ApplicationMissing < RuntimeError
+    end
+
+    class << self
+      def configure(custom_buildpacks_enabled)
+        @custom_buildpacks_enabled = custom_buildpacks_enabled
       end
 
-      def deleted
-        unfiltered.filter(not_deleted: nil)
-      end
-
-      def with_deleted
-        unfiltered
+      def custom_buildpacks_enabled?
+        @custom_buildpacks_enabled
       end
     end
 
-    set_dataset(existing)
-
+    one_to_many :droplets
     one_to_many :service_bindings, :after_remove => :after_remove_binding
     one_to_many :events, :class => VCAP::CloudController::AppEvent
-
+    many_to_one :admin_buildpack, class: VCAP::CloudController::Buildpack
     many_to_one :space
     many_to_one :stack
+    many_to_many :routes, before_add: :validate_route, after_add: :mark_routes_changed, after_remove: :mark_routes_changed
 
-    many_to_many :routes, :before_add => :validate_route, :after_add => :mark_routes_changed, :after_remove => :mark_routes_changed
-
-    add_association_dependencies :routes => :nullify,
-      :service_bindings => :destroy, :events => :destroy
+    add_association_dependencies routes: :nullify, service_bindings: :destroy, events: :delete, droplets: :destroy
 
     default_order_by :name
 
@@ -49,13 +48,14 @@ module VCAP::CloudController
       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
       :environment_json, :memory, :instances, :disk_quota,
       :state, :version, :command, :console, :debug,
-      :staging_task_id, :distribution_zone
+      :staging_task_id, :package_state, :health_check_timeout, :system_env_json,
+      :distribution_zone
 
     import_attributes :name, :production,
       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
       :environment_json, :memory, :instances, :disk_quota,
       :state, :command, :console, :debug,
-      :staging_task_id, :service_binding_guids, :route_guids,
+      :staging_task_id, :service_binding_guids, :route_guids, :health_check_timeout,
       :distribution_zone
 
     strip_attributes :name
@@ -65,22 +65,13 @@ module VCAP::CloudController
     APP_STATES = %w[STOPPED STARTED].map(&:freeze).freeze
     PACKAGE_STATES = %w[PENDING STAGED FAILED].map(&:freeze).freeze
 
-    AUDITABLE_FIELDS = [:encrypted_environment_json, :instances, :memory, :state, :name]
-    CENSORED_FIELDS = [:encrypted_environment_json]
+    CENSORED_FIELDS = [:encrypted_environment_json, :command, :environment_json]
 
     CENSORED_MESSAGE = "PRIVATE DATA HIDDEN".freeze
 
-    def auditable_changes
-      previous_changes.slice(*AUDITABLE_FIELDS).tap do |changes|
-        CENSORED_FIELDS.each do |censored|
-          changes[censored] = [CENSORED_MESSAGE] * 2 if changes.has_key?(censored)
-        end
-      end
-    end
-
-    def auditable_values
-      values.slice(*AUDITABLE_FIELDS).tap do |changes|
-        CENSORED_FIELDS.each do |censored|
+    def self.audit_hash(request_attrs)
+      request_attrs.dup.tap do |changes|
+        CENSORED_FIELDS.map(&:to_s).each do |censored|
           changes[censored] = CENSORED_MESSAGE if changes.has_key?(censored)
         end
       end
@@ -95,28 +86,47 @@ module VCAP::CloudController
 
     alias :kill_after_multiple_restarts? :kill_after_multiple_restarts
 
+    def validate_buildpack_name_or_git_url
+      bp = buildpack
+
+      unless bp.valid?
+        bp.errors.each do |err|
+          errors.add(:buildpack, err)
+        end
+      end
+    end
+
+    def validate_buildpack_is_not_custom
+      return unless column_changed?(:buildpack)
+
+      if buildpack.custom?
+        errors.add(:buildpack, "custom buildpacks are disabled")
+      end
+    end
+
     def validate
       validates_presence :name
       validates_app_name :name
       validates_presence :space
-      validates_unique [:space_id, :name], :where => proc { |ds, obj, cols| ds.filter(:not_deleted => true, :space_id => obj.space_id, :name => obj.name) }
+      validates_unique [:space_id, :name]
+      validates_format APP_NAME_REGEX, :name
 
-      validates_git_url :buildpack
+      validate_buildpack_name_or_git_url
+      validate_buildpack_is_not_custom unless self.class.custom_buildpacks_enabled?
 
       validates_includes PACKAGE_STATES, :package_state, :allow_missing => true
       validates_includes APP_STATES, :state, :allow_missing => true
 
       validate_environment
       validate_metadata
-
-      if state == "STARTED" || total_requested_memory > total_existing_memory
-        check_memory_quota
-      end
+      check_memory_quota
+      validate_instances
+      validate_health_check_timeout
     end
 
     def before_create
       super
-      self.version = SecureRandom.uuid unless self.version
+      set_new_version
     end
 
     def before_save
@@ -128,24 +138,46 @@ module VCAP::CloudController
       super
 
       self.stack ||= Stack.default
+      self.memory ||= Config.config[:default_app_memory]
 
-      # The reason this is only done on a state change is that we really only
-      # care about the state when we transitioned from stopped to running.  The
-      # current semantics of changing memory or bindings is that they don't
-      # take effect until after the app is restarted.  This allows clients to
-      # batch a bunch of changes without having their app bounce.  If we were
-      # to change the version on every metadata change, the hm would cause them
-      # to get restarted prematurely.
-      #
-      # The dirty check on version allows a higher level to set the version.
-      # We might start populating this with the vcap request guid of an api
-      # request.
-      if (column_changed?(:state) || column_changed?(:memory)) && started?
-        self.version = SecureRandom.uuid if !column_changed?(:version)
-      end
+      set_new_version if version_needs_to_be_updated?
 
       AppStopEvent.create_from_app(self) if generate_stop_event?
       AppStartEvent.create_from_app(self) if generate_start_event?
+    end
+
+    def after_save
+      create_app_usage_event
+      super
+    end
+
+    def create_app_usage_event
+      return unless app_usage_changed?
+      AppUsageEvent.create(state: state,
+                           instance_count: instances,
+                           memory_in_mb_per_instance: memory,
+                           app_guid: guid,
+                           app_name: name,
+                           org_guid: space.organization_guid,
+                           space_guid: space_guid,
+                           space_name: space.name,
+      )
+    end
+
+    def version_needs_to_be_updated?
+      # change version if:
+      #
+      # * transitioning to STARTED
+      # * memory is changed
+      # * routes are changed
+      #
+      # this is to indicate that the running state of an application has changed,
+      # and that the system should converge on this new version.
+      (column_changed?(:state) || column_changed?(:memory)) && started?
+    end
+
+    def set_new_version
+      self.version = SecureRandom.uuid
     end
 
     def generate_start_event?
@@ -179,9 +211,16 @@ module VCAP::CloudController
         column_changed?(:instances))
     end
 
+    def before_destroy
+      lock!
+      self.state = "STOPPED"
+      super
+    end
+
     def after_destroy
       StackatoAppDrains.delete_all self
-      AppStopEvent.create_from_app(self) unless stopped? || has_stop_event_for_latest_run?
+      AppStopEvent.create_from_app(self) unless initial_value(:state) == "STOPPED" || has_stop_event_for_latest_run?
+      create_app_usage_event
     end
 
     def after_destroy_commit
@@ -191,7 +230,7 @@ module VCAP::CloudController
 
     def command=(cmd)
       self.metadata ||= {}
-      self.metadata["command"] = cmd
+      self.metadata["command"] = (cmd.nil? || cmd.empty?) ? nil : cmd
     end
 
     def command
@@ -237,6 +276,10 @@ module VCAP::CloudController
           encrypted_environment_json, salt))
     end
 
+    def system_env_json
+      vcap_services
+    end
+
     def validate_environment
       return if environment_json.nil?
       unless environment_json.kind_of?(Hash)
@@ -259,39 +302,54 @@ module VCAP::CloudController
     end
 
     def validate_route(route)
-      unless (route && space &&
-        route.domain_dataset.filter(:spaces => [space]).count == 1 &&
-        route.space_id == space.id)
-        raise InvalidRouteRelation.new(route.guid)
-      end
-    end
+      objection = InvalidRouteRelation.new(route.guid)
 
-    def total_requested_memory
-      default_instances = db_schema[:instances][:default].to_i
-      num_instances = instances ? instances : default_instances
-      requested_memory * num_instances
-    end
+      raise objection if route.nil?
+      raise objection if space.nil?
+      raise objection if route.space_id != space.id
 
-    def total_existing_memory
-      return 0 if new?
-      app_from_db = self.class.find(:guid => guid)
-      app_from_db[:memory] * app_from_db[:instances]
+      raise objection unless route.domain.usable_by_organization?(space.organization)
     end
 
     def additional_memory_requested
-      requested = total_requested_memory
-      return requested if new?
-      existing = total_existing_memory
-      additional_memory = requested - existing
-      return additional_memory if additional_memory > 0
-      0
+
+      total_requested_memory = requested_memory * requested_instances
+
+      return total_requested_memory if new?
+
+      app_from_db = self.class.find(:guid => guid)
+      if app_from_db.nil?
+        self.class.logger.fatal("app.find.missing", :guid => guid, :self => self.inspect)
+        raise ApplicationMissing, "Attempting to check memory quota. Should have been able to find app with guid #{guid}"
+      end
+      total_existing_memory = app_from_db[:memory] * app_from_db[:instances]
+      total_requested_memory - total_existing_memory
     end
 
     def check_memory_quota
       errors.add(:memory, :zero_or_less) unless requested_memory > 0
-
       if space && (space.organization.memory_remaining < additional_memory_requested)
-        errors.add(:memory, :quota_exceeded)
+        errors.add(:memory, :quota_exceeded) if (new? || !being_stopped?)
+      end
+    end
+
+    def requested_instances
+      default_instances = db_schema[:instances][:default].to_i
+      instances ? instances : default_instances
+    end
+
+    def validate_instances
+      if (requested_instances < 0)
+        errors.add(:instances, :less_than_zero)
+      end
+    end
+
+    def validate_health_check_timeout
+      return unless health_check_timeout
+      errors.add(:health_check_timeout, :less_than_zero) unless health_check_timeout >= 0
+
+      if health_check_timeout > VCAP::CloudController::Config.config[:maximum_health_check_timeout]
+        errors.add(:health_check_timeout, :maximum_exceeded)
       end
     end
 
@@ -307,11 +365,6 @@ module VCAP::CloudController
     # do so with the _ prefixed private method like we do here.
     def _remove_service_binding(binding)
       binding.destroy
-    end
-
-    # When hard-deleting apps through spaces, we need to include soft-deleted apps
-    def _delete_dataset
-      self.class.with_deleted.filter(:id => id)
     end
 
     def self.user_visibility_filter(user)
@@ -347,80 +400,6 @@ module VCAP::CloudController
       self.state == "STOPPED"
     end
 
-    def deleted?
-      !self.not_deleted
-    end
-
-    def nullifyable_association_names
-      @nullifyable_association_names ||= model.association_dependencies_hash.select do |association, action|
-        action == :nullify
-      end.keys
-    end
-
-    def has_deletable_associations?
-      deletable_association_names.each do |association|
-        data = send(association)
-        return true unless data.nil? || data.empty?
-      end
-
-      false
-    end
-
-    # We do NOT delete app events for audit reasons.
-    def deletable_association?(association)
-      association != :events
-    end
-
-    def deletable_association_names
-      @deletable_association_names ||= model.association_dependencies_hash.select do |association, action|
-        action == :destroy && deletable_association?(association)
-      end.keys
-    end
-
-    def cleanup_deletable_associations
-      deletable_association_names.each do |association|
-        data = send(association)
-        data = [data] unless data.kind_of?(Array)
-        data.each do |associated_obj|
-          associated_obj.destroy
-        end
-      end
-    end
-
-    def cleanup_nullifyable_associations
-      nullifyable_association_names.each do |association|
-        data = send(association)
-        if data.kind_of?(Array)
-          data.each do |associated_obj|
-            associated_obj.remove_app(self) if associated_obj.respond_to?(:remove_app)
-          end
-        else
-          data.app = nil
-        end
-      end
-    end
-
-    def cleanup_associations
-      cleanup_deletable_associations
-      cleanup_nullifyable_associations
-    end
-
-    def soft_delete
-      raise AlreadyDeletedError, "App: #{self} was already soft deleted on: #{deleted_at}" if deleted_at
-
-      model.db.transaction do
-        lock!
-        cleanup_associations
-        self.deleted_at = Time.now
-        self.not_deleted = nil
-        save
-
-        after_destroy
-      end
-
-      AppObserver.deleted(self)
-    end
-
     def uris
       routes.map(&:fqdn)
     end
@@ -441,6 +420,28 @@ module VCAP::CloudController
       save if opts[:save]
     end
 
+    def buildpack
+      if admin_buildpack
+        return admin_buildpack
+      elsif super
+        return GitBasedBuildpack.new(super)
+      end
+
+      AutoDetectionBuildpack.new
+    end
+
+    def buildpack=(buildpack)
+      admin_buildpack = Buildpack.find(name: buildpack.to_s)
+      if admin_buildpack
+        self.admin_buildpack = admin_buildpack
+        super(nil)
+        return
+      else
+        self.admin_buildpack = nil
+        super(buildpack)
+      end
+    end
+
     def package_hash=(hash)
       super(hash)
       mark_for_restaging if column_changed?(:package_hash)
@@ -452,8 +453,22 @@ module VCAP::CloudController
     end
 
     def droplet_hash=(hash)
-      self.package_state = "STAGED" if hash
+      if hash
+        self.package_state = "STAGED"
+      end
       super(hash)
+    end
+
+    def add_new_droplet(hash)
+      self.droplet_hash = hash
+      add_droplet(droplet_hash: hash)
+      self.save
+    end
+
+    def current_droplet
+      return nil unless droplet_hash
+      self.droplets_dataset.filter(droplet_hash: droplet_hash).first ||
+        Droplet.new(app: self, droplet_hash: self.droplet_hash)
     end
 
     def running_instances
@@ -481,22 +496,57 @@ module VCAP::CloudController
 
     private
 
+    WHITELIST_SERVICE_KEYS = %W[name label tags plan credentials].freeze
+    def service_binding_json (binding)
+      vcap_service = {}
+      WHITELIST_SERVICE_KEYS.each do |key|
+        vcap_service[key] = binding[key.to_sym] if binding[key.to_sym]
+      end
+      vcap_service
+    end
+
+    def vcap_services
+      services_hash = {}
+      self.service_bindings.each do |sb|
+        binding = ServiceBindingPresenter.new(sb).to_hash
+        service = service_binding_json(binding)
+        services_hash[binding[:label]] ||= []
+        services_hash[binding[:label]] << service
+      end
+      {"VCAP_SERVICES" => services_hash}
+    end
+
     def health_manager_client
       CloudController::DependencyLocator.instance.health_manager_client
     end
 
     def requested_memory
-      default_memory = db_schema[:memory][:default].to_i
+      default_memory = VCAP::CloudController::Config.config[:default_app_memory]
       memory ? memory : default_memory
     end
 
     def mark_routes_changed(_)
       @routes_changed = true
+
+      set_new_version
+      save
     end
 
     def generate_salt
       self.salt ||= VCAP::CloudController::Encryptor.generate_salt.freeze
     end
 
+    def app_usage_changed?
+      previously_started = initial_value(:state) == 'STARTED'
+      return true if previously_started != started?
+      return true if started? && footprint_changed?
+      false
+    end
+
+    class << self
+      def logger
+        @logger ||= Steno.logger("cc.models.app")
+      end
+    end
   end
 end

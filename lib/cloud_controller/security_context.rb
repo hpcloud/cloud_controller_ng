@@ -1,5 +1,3 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module VCAP::CloudController
   module SecurityContext
     def self.clear
@@ -14,6 +12,10 @@ module VCAP::CloudController
 
     def self.current_user
       Thread.current[:vcap_user]
+    end
+
+    def self.admin_or_system?
+      admin? || current_user.nil?
     end
 
     def self.admin?

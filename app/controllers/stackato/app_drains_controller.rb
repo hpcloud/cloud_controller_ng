@@ -4,7 +4,6 @@ require "cloud_controller/stackato/app_drains"
 
 module VCAP::CloudController
   rest_controller :StackatoAppDrains do
-    disable_default_routes
     path_base "apps"
     model_class_name :App
 

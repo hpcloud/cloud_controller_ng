@@ -48,17 +48,6 @@ module VCAP::CloudController
       end
     end
 
-    class << self
-      def gateway_client_class
-        @gateway_client_class || VCAP::Services::Api::ServiceGatewayClient
-      end
-
-      def gateway_client_class=(klass)
-        raise ArgumentError, "gateway_client_class must not be nil" unless klass
-        @gateway_client_class = klass
-      end
-    end
-
     many_to_one :service_plan
 
     default_order_by  :id
@@ -78,6 +67,8 @@ module VCAP::CloudController
 
     delegate :client, to: :service_plan
 
+    add_association_dependencies :service_bindings => :destroy
+
     def validate
       super
       validates_presence :service_plan
@@ -92,12 +83,7 @@ module VCAP::CloudController
     def after_destroy
       super
 
-      # TODO: transactionally move this into a queue, remove the rescue
-      begin
-        client.deprovision(self)
-      rescue => e
-        logger.error "deprovision failed #{e}"
-      end
+      client.deprovision(self)
 
       ServiceDeleteEvent.create_from_service_instance(self)
     end
@@ -108,22 +94,19 @@ module VCAP::CloudController
     end
 
     def as_summary_json
-      {
-        :guid => guid,
-        :name => name,
-        :bound_app_count => service_bindings_dataset.count,
-        :dashboard_url => dashboard_url,
-        :service_plan => {
-          :guid => service_plan.guid,
-          :name => service_plan.name,
-          :service => {
-            :guid => service.guid,
-            :label => service.label,
-            :provider => service.provider,
-            :version => service.version,
+      super.merge(
+        'dashboard_url' => dashboard_url,
+        'service_plan' => {
+          'guid' => service_plan.guid,
+          'name' => service_plan.name,
+          'service' => {
+            'guid' => service.guid,
+            'label' => service.label,
+            'provider' => service.provider,
+            'version' => service.version,
           }
         }
-      }
+      )
     end
 
     def check_quota
@@ -133,10 +116,7 @@ module VCAP::CloudController
           return
         end
 
-        quota_errors = space.organization.check_quota?(service_plan)
-        unless quota_errors.empty?
-          errors.add(quota_errors[:type], quota_errors[:name])
-        end
+        MaxServiceInstancePolicy.new(organization, self).check_quota
       end
     end
 
@@ -155,19 +135,6 @@ module VCAP::CloudController
       VCAP::Services::Api::SynchronousHttpRequest
     end
 
-    def service_gateway_client(plan = service_plan)
-      @client ||= begin
-        raise InvalidServiceBinding.new("no service_auth_token") unless plan.service.service_auth_token
-
-        self.class.gateway_client_class.new(
-          plan.service.url,
-          plan.service.service_auth_token.token,
-          plan.service.timeout,
-          VCAP::Request.current_id,
-        )
-      end
-    end
-
     def service
       service_plan.service
     end
@@ -178,34 +145,6 @@ module VCAP::CloudController
 
     def enum_snapshots
       NGServiceGatewayClient.new(service, gateway_name).enum_snapshots
-    end
-
-    def snapshot_details(sid)
-      service_gateway_client.snapshot_details(:service_id => gateway_name, :snapshot_id => sid)
-    end
-
-    def rollback_snapshot(sid)
-      service_gateway_client.rollback_snapshot(:service_id => gateway_name, :snapshot_id => sid)
-    end
-
-    def delete_snapshot(sid)
-      service_gateway_client.delete_snapshot(:service_id => gateway_name, :snapshot_id => sid)
-    end
-
-    def serialized_url(sid)
-      service_gateway_client.serialized_url(:service_id => gateway_name, :snapshot_id => sid)
-    end
-
-    def create_serialized_url(sid)
-      service_gateway_client.create_serialized_url(:service_id => gateway_name, :snapshot_id => sid)
-    end
-
-    def import_from_url(req)
-      service_gateway_client.import_from_url(:service_id => gateway_name, :msg => req)
-    end
-
-    def job_info(job_id)
-      service_gateway_client.job_info(:service_id => gateway_name, :job_id => job_id)
     end
 
     def logger

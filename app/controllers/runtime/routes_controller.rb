@@ -1,5 +1,5 @@
 module VCAP::CloudController
-  rest_controller :Routes do
+  class RoutesController < RestController::ModelController
     define_attributes do
       attribute :host, String, :default => ""
       to_one    :domain
@@ -9,6 +9,10 @@ module VCAP::CloudController
 
     query_parameters :host, :domain_guid
 
+    def self.default_order_by
+      :host
+    end 
+
     def self.translate_validation_exception(e, attributes)
       name_errors = e.errors.on([:host, :domain_id])
       if name_errors && name_errors.include?(:unique)
@@ -17,5 +21,12 @@ module VCAP::CloudController
         Errors::RouteInvalid.new(e.errors.full_messages)
       end
     end
+
+    def delete(guid)
+      do_delete(find_guid_and_validate_access(:delete, guid))
+    end
+
+    define_messages
+    define_routes
   end
 end

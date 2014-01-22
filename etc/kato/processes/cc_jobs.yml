@@ -1,0 +1,4 @@
+---
+name: cc_jobs
+roles:
+  - controller

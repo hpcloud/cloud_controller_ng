@@ -1,19 +1,14 @@
-# Copyright (c) 2009-2012 VMware, Inc.
-
 module VCAP::CloudController::RestController
   # Serialize objects according in the format required by the vcap
   # rest api.
-  #
-  # TODO: migrate this to be like messages and routes in that
-  # it is included and mixed in rather than having the controller
-  # passed into it?
-  #
-  # FIXME: add authz checks to attribures and inlined relations
 
   module ObjectSerialization
-    PRETTY_DEFAULT = true
     MAX_INLINE_DEFAULT = 50
     INLINE_RELATIONS_DEFAULT = 0
+
+    def self.pretty_default
+      !(ENV["RACK_ENV"] == "production")
+    end
 
     # Render an object to json, using export and security properties
     # set by its controller.
@@ -23,8 +18,8 @@ module VCAP::CloudController::RestController
     #
     # @param [Sequel::Model] obj Object to encode.
     #
-    # @option opts [Boolean] :pretty Controlls pretty formating of the encoded
-    # json.  Defaults to true.
+    # @option opts [Integer] :pretty Controlls pretty formating of the encoded
+    # json.  Defaults to false in production.
     #
     # @option opts [Integer] :inline_relations_depth Depth to recursively
     # exapend relationships in addition to providing the URLs.
@@ -34,9 +29,8 @@ module VCAP::CloudController::RestController
     #
     # @return [String] Json encoding of the object.
     def self.render_json(controller, obj, opts = {})
-      opts[:pretty] = PRETTY_DEFAULT unless opts.has_key?(:pretty)
       Yajl::Encoder.encode(to_hash(controller, obj, opts),
-                           :pretty => opts[:pretty])
+                           :pretty => opts[:pretty] == 1 ? true : pretty_default)
     end
 
     # Render an object as a hash, using export and security properties
@@ -58,38 +52,41 @@ module VCAP::CloudController::RestController
     # @param [Array] parents The recursion stack of classes that
     # we have expanded through.
     #
-    # @param [Hash] children The hash to append inlined relationships to, or null
-    # to use the the old behaviour of inlining children against their parents (with potential duplicates).
+    # @param [Hash] relations The hash to append inlined relationships to, or null
+    # to use the the old behaviour of inlining relations against their parents (with potential duplicates).
     #
     # @return [Hash] Hash encoding of the object.
-    def self.to_hash(controller, obj, opts, depth=0, parents=[], children=nil)
+    def self.to_hash(controller, obj, opts, depth=0, parents=[], relations=nil)
 
-      rel_hash = relations_hash(controller, obj, opts, depth, parents, children)
+      rel_hash = relations_hash(controller, obj, opts, depth, parents, relations)
       entity_hash = obj.to_hash.merge(rel_hash)
 
       metadata_hash = {
         "guid" => obj.guid,
         "url" => controller.url_for_guid(obj.guid),
         "created_at" => obj.created_at,
-        "updated_at" => obj.updated_at
       }
+
+      if obj.respond_to?(:updated_at)
+        metadata_hash["updated_at"] = obj.updated_at
+      end
 
       {"metadata" => metadata_hash, "entity" => entity_hash}
     end
 
-    def self.relations_hash(controller, obj, opts, depth, parents, children)
+    def self.relations_hash(controller, obj, opts, depth, parents, relations)
       inline_relations_depth = opts[:inline_relations_depth] || INLINE_RELATIONS_DEFAULT
       max_number_of_associated_objects_to_inline = opts[:max_inline] || MAX_INLINE_DEFAULT
 
       {}.tap do |res|
         parents.push(controller)
-        res.merge!(serialize_relationships(controller.to_one_relationships, controller, depth, obj, opts, parents, inline_relations_depth, children))
-        res.merge!(serialize_relationships(controller.to_many_relationships, controller, depth, obj, opts, parents, inline_relations_depth, children, max_number_of_associated_objects_to_inline))
+        res.merge!(serialize_relationships(controller.to_one_relationships, controller, depth, obj, opts, parents, inline_relations_depth, relations))
+        res.merge!(serialize_relationships(controller.to_many_relationships, controller, depth, obj, opts, parents, inline_relations_depth, relations, max_number_of_associated_objects_to_inline))
         parents.pop
       end
     end
 
-    def self.serialize_relationships(relationships, controller, depth, obj, opts, parents, inline_relations_depth, children, max_number_of_associated_objects_to_inline= nil)
+    def self.serialize_relationships(relationships, controller, depth, obj, opts, parents, inline_relations_depth, relations, max_number_of_associated_objects_to_inline= nil)
       response = {}
       (relationships || {}).each do |association_name, association|
 
@@ -111,23 +108,24 @@ module VCAP::CloudController::RestController
           if association.is_a?(ControllerDSL::ToOneAttribute)
             associated_model_instance = associated_model_instances.first
             if associated_model_instance
-              if children == nil
+              if relations == nil
                 response[association_name.to_s] = to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents)
-              elsif !children[associated_model_instance.guid]
-                children[associated_model_instance.guid] = to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents, children)
+              elsif !relations[associated_model_instance.guid]
+                relations[associated_model_instance.guid] = to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents, relations)
               end
             end
           else
             if associated_model_instances.count <= max_number_of_associated_objects_to_inline
-              if children == nil
+              if relations == nil
                 response[association_name.to_s] = associated_model_instances.map do |associated_model_instance|
                   to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents)
                 end
               else
-                associated_model_instances.map do |associated_model_instance|
-                  if !children[associated_model_instance.guid]
-                    children[associated_model_instance.guid] = to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents, children)
+                response[association_name.to_s] = associated_model_instances.map do |associated_model_instance|
+                  if !relations[associated_model_instance.guid]
+                    relations[associated_model_instance.guid] = to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents, relations)
                   end
+                  associated_model_instance.guid
                 end
               end
             end

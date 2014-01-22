@@ -4,7 +4,6 @@ require "cloud_controller/stackato/droplet_accountability"
 
 module VCAP::CloudController
   rest_controller :StackatoAppUsage do
-    disable_default_routes
     path_base "apps"
     model_class_name :App
 

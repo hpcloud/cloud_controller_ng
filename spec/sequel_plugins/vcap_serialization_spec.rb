@@ -1,9 +1,8 @@
 require "spec_helper"
+require "securerandom"
 
-describe "Sequel::Plugins::VcapSerialization" do
+describe "Sequel::Plugins::VcapSerialization", non_transactional: true do
   before do
-    reset_database
-
     db.create_table :test do
       primary_key :id
 
@@ -81,6 +80,15 @@ describe "Sequel::Plugins::VcapSerialization" do
       @c.export_attributes :val2
       r = @c.create :val1 => 1, :val2 => 10
       expected_json = Yajl::Encoder.encode :val2 => 10
+      r.to_json.should == expected_json
+    end
+
+    it "should serialize Nil Objects to nil" do
+      @c.export_attributes :val1, :val2
+      r = @c.create :val1 => 1, :val2 => 123
+      a_nil_object = double("A nil object", nil_object?: true)
+      r.stub(:val2).and_return(a_nil_object)
+      expected_json = Yajl::Encoder.encode :val1 => 1, :val2 => nil
       r.to_json.should == expected_json
     end
   end

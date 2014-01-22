@@ -14,10 +14,6 @@ module VCAP::CloudController
         VCAP::Services::Api::ServiceOfferingRequest.new(defaults.merge(attrs))
       end
 
-      before do
-        reset_database
-      end
-
       describe "POST services/v1/offerings" do
         let(:path) { "services/v1/offerings" }
 
@@ -258,13 +254,11 @@ module VCAP::CloudController
 
         it "should return not found for unknown label services" do
           get "services/v1/offerings/xxx", {}, auth_header
-          # FIXME: should this be 404?
           last_response.status.should == 403
         end
 
         it "should return not found for unknown provider services" do
           get "services/v1/offerings/foobar-version/xxx", {}, auth_header
-          # FIXME: should this be 404?
           last_response.status.should == 403
         end
 
@@ -480,13 +474,11 @@ module VCAP::CloudController
 
         it "should return not found for unknown label services" do
           delete "/services/v1/offerings/xxx", {}, auth_header
-          # FIXME: should really be 404, but upstream gateways don't seem to care
           last_response.status.should == 403
         end
 
         it "should return not found for unknown provider services" do
           delete "/services/v1/offerings/foobar-version/xxx", {}, auth_header
-          # FIXME: should really be 404, but upstream gateways don't seem to care
           last_response.status.should == 403
         end
 
