@@ -333,6 +333,11 @@ module VCAP::CloudController
       end
     end
 
+    def total_existing_memory
+      app_from_db = self.class.find(:guid => guid)
+      app_from_db[:memory] * app_from_db[:instances]
+    end
+
     def requested_instances
       default_instances = db_schema[:instances][:default].to_i
       instances ? instances : default_instances
