@@ -37,6 +37,10 @@ module VCAP::CloudController
       }
 
       zones.each_pair do |zone_name, zone_deas|
+        if zone_deas.size == 0
+          next
+        end
+
         if search_filter.nil?
           ret_data[:resources].push(format_zone(zone_name, zone_deas))
         elsif search_filter.include?('*') && zone_name.start_with?(search_filter.chomp('*'))

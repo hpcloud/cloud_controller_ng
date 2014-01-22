@@ -28,6 +28,10 @@ class DeaAdvertisement
     stats["placement_properties"]
   end
 
+  def dea_ip
+    stats["ip"]
+  end
+
   def expired?
     (Time.now.to_i - @updated_at.to_i) > ADVERTISEMENT_EXPIRATION
   end

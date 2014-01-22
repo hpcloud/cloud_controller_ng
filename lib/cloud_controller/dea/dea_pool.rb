@@ -55,20 +55,18 @@ module VCAP::CloudController
     end
 
     def get_dea_zones
-      zones = {}
+      zones = {
+          'default' => []
+      }
       @dea_advertisements.each do |ad|
         if ad.dea_zone
           if zones[ad.dea_zone].nil?
             zones[ad.dea_zone] = []
           end
 
-          zones[ad.dea_zone].push ad.dea_id
+          zones[ad.dea_zone].push ad.dea_ip
         else
-          if zones['default'].nil?
-            zones['default'] = []
-          end
-
-          zones['default'].push ad.dea_id
+          zones['default'].push ad.dea_ip
         end
       end
 
