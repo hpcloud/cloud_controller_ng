@@ -37,6 +37,7 @@ module VCAP::CloudController
       }
 
       zones.each_pair do |zone_name, zone_deas|
+        # Cull empty zones
         if zone_deas.size == 0
           next
         end
