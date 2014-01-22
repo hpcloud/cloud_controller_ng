@@ -62,6 +62,10 @@ module VCAP::CloudController
         @dea_pool.register_subscriptions
       end
 
+      def dea_zones
+        @dea_pool.get_dea_zones
+      end
+
       def stop(app)
         app_stopper.publish_stop(:droplet => app.guid)
       end
