@@ -19,7 +19,7 @@ module VCAP::CloudController
       attribute  :debug,               String,     :default => nil
       attribute  :health_check_timeout, Integer,   :default => nil
 
-      attribute  :distribution_zone,   String,     :default => nil
+      attribute  :distribution_zone,   String,     :default => "default"
 
       attribute  :buildpack,           String, :default => nil
       attribute  :detected_buildpack,  String, :exclude_in => [:create, :update]
