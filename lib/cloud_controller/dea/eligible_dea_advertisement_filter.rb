@@ -12,6 +12,12 @@ class EligibleDeaAdvertisementFilter
     self
   end
 
+  def only_from_zone(req_zone)
+    req_zone = "default" unless (req_zone && (req_zone != ""))
+    @filtered_advertisements.select! { |ad| ad.zone == req_zone }
+    self
+  end
+
   def only_meets_needs(mem, stack)
     @filtered_advertisements.select! { |ad| ad.meets_needs?(mem, stack) }
     self
