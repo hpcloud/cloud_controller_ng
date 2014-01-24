@@ -2,7 +2,7 @@ require "uaa/token_issuer"
 require "uaa/scim"
 require_relative 'stackato_user_creation'
 module VCAP::CloudController
-  rest_controller :StackatoUsers do
+  class StackatoUsersController < RestController::ModelController
     include StackatoUserCreation
     path_base('stackato/users')
 
@@ -20,7 +20,7 @@ module VCAP::CloudController
       query_json = params["q"] || ''
       query = QueryUserMessage.decode(query_json)
       attributes_to_request = query.attributes
-      guids_to_request = [];
+      guids_to_request = []
 
       if user.admin?
         # Admins can get info on all users without restrictions
@@ -114,5 +114,8 @@ module VCAP::CloudController
       required :guids,      [String]
 
     end
+
+    define_messages
+    define_standard_routes
   end
 end
