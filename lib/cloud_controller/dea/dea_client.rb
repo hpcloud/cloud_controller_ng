@@ -180,7 +180,7 @@ module VCAP::CloudController
           dea_pool.mark_app_started(dea_id: dea_id, app_id: app.guid)
         else
           logger.error "dea-client.no-resources-available", message: message
-          Logyard.report_event "NORESOURCES", "No DEA available satisfying mem #{app.memory}M and stack #{app.stack.name}", nil, {
+          Logyard.report_event "NORESOURCES", "No DEA available satisfying mem #{app.memory}M, stack #{app.stack.name}, and zone #{app.distribution_zone}", nil, {
             :name => app.name,
             :guid => app.guid,
             :space_guid => app.space_guid,

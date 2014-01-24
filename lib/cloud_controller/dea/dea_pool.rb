@@ -56,14 +56,25 @@ module VCAP::CloudController
           'default' => []
       }
       @dea_advertisements.each do |ad|
-        if ad.dea_zone
-          if zones[ad.dea_zone].nil?
-            zones[ad.dea_zone] = []
+        if ad.zone
+          if zones[ad.zone].nil?
+            zones[ad.zone] = []
           end
 
-          zones[ad.dea_zone].push ad.dea_ip
+          zones[ad.zone].push ad.dea_ip
         else
           zones['default'].push ad.dea_ip
+        end
+
+        if ad.zones
+          ad.zones.each do |zone|
+            if zones[zone].nil?
+              zones[zone] = []
+            end
+
+            next if zones[zone].include? ad.dea_ip
+            zones[zone].push ad.dea_ip
+          end
         end
       end
 
