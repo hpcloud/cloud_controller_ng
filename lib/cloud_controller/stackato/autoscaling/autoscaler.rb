@@ -52,7 +52,7 @@ class AutoScaler
       missing_keys = []
 
       required_keys.each do |k|
-        if not @config[k]
+        if not @config.has_key?(k)
           missing_keys.push k
         end
       end
