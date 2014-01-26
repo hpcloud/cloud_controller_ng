@@ -24,6 +24,14 @@ class Advertisement
     end
   end
 
+  def dea_zones
+    if stats["placement_properties"] && stats["placement_properties"]["zones"]
+      stats["placement_properties"]["zones"]
+    else
+      nil
+    end
+  end
+
   def dea_ip
     stats["ip"]
   end
