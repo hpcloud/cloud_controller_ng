@@ -4,30 +4,8 @@ require 'stackato/kato_shell'
 module VCAP::CloudController
   class StackatoReportController < RestController::Base
     allow_unauthenticated_access
-    
-    def redis_key_for_token(token)
-      "cc:report_controller:token:#{token}"
-    end
 
-    def add_token(token)
-      raise Errors::NotAuthorized unless roles.admin?
-      period = 60
-      logger.info "Adding token #{token} expiring after #{period} seconds"
-      EphemeralRedisClient.redis do |r|
-        r.set redis_key_for_token(token), "empty"
-        r.expire redis_key_for_token(token), period
-      end
-    end
-
-    def get_report(token)
-      EphemeralRedisClient.redis do |r|
-        data = r.get redis_key_for_token(token)
-        if data.nil?
-          raise Errors::StackatoCreateReportFailed.new("Invalid or expired token")
-        end
-        r.del redis_key_for_token(token)
-      end
-      
+    def send_report
       begin
         report_file = KatoShell.report
       rescue Exception => e
@@ -45,9 +23,45 @@ module VCAP::CloudController
           :filename => report_filename
       )
     end
+    
+    def redis_key_for_token(token)
+      "cc:report_controller:token:#{token}"
+    end
 
+    def add_token(token)
+      raise Errors::NotAuthorized unless roles.admin?
+      period = 60
+      logger.info "Adding token #{token} expiring after #{period} seconds"
+      EphemeralRedisClient.redis do |r|
+        r.set redis_key_for_token(token), "empty"
+        r.expire redis_key_for_token(token), period
+      end
+    end
+
+    def get_report_with_token_auth(token)
+
+      EphemeralRedisClient.redis do |r|
+        data = r.get redis_key_for_token(token)
+        if data.nil?
+          raise Errors::StackatoCreateReportFailed.new("Invalid or expired token")
+        end
+        r.del redis_key_for_token(token)
+      end
+      
+      send_report
+    end
+
+    def get_report_with_standard_auth
+
+      if !VCAP::CloudController::SecurityContext.current_user
+        raise Errors::NotAuthorized
+      end
+
+      send_report
+    end
+
+    get '/v2/stackato/report',  :get_report_with_standard_auth
     put '/v2/stackato/report/token/:token', :add_token
-    get '/v2/stackato/report/file/:token',  :get_report
-
+    get '/v2/stackato/report/file/:token',  :get_report_with_token_auth
   end
 end
