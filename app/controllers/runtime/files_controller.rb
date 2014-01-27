@@ -8,7 +8,7 @@ module VCAP::CloudController
 
     get "#{path_guid}/instances/:instance_id/files", :files
     def files(guid, search_param, path = nil, opts = {})
-      opts = { "allow_redirect" => true }.merge(opts)
+      opts = { "allow_redirect" => true }.merge(params)
       app = find_guid_and_validate_access(:read, guid)
 
       info = get_file_uri_for_search_param(app, path, search_param)
