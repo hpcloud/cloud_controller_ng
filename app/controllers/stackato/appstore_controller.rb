@@ -35,6 +35,7 @@ module VCAP::CloudController
         :Space => params["space_guid"],
         :Url => params["url"],
         :Buildpack => params["buildpack"],
+        :Zone => params["zone"],
         :Token => auth_token_header,
         :VcsUrl => params["from"],
         :VcsRef => params["commit"],
