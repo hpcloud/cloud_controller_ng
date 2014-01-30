@@ -62,8 +62,6 @@ module VCAP::CloudController
           end
 
           zones[ad.zone].push ad.dea_ip
-        else
-          zones['default'].push ad.dea_ip
         end
 
         if ad.zones
