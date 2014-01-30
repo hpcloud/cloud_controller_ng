@@ -56,7 +56,7 @@ module VCAP::CloudController
           'default' => []
       }
       @dea_advertisements.each do |ad|
-        if ad.zone
+        if (ad.zone && (ad.zones == ["default"])) # ad.zone was passed but ad.zones was not configured
           if zones[ad.zone].nil?
             zones[ad.zone] = []
           end
