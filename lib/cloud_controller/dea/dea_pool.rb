@@ -43,7 +43,6 @@ module VCAP::CloudController
                        only_with_disk(criteria[:disk] || 0).
                        only_meets_needs(criteria[:mem], criteria[:stack]).
                        only_from_zone(criteria[:zone]).
-                       dc_with_fewest_instances_of_app.
                        only_fewest_instances_of_app.
                        upper_half_by_memory.
                        sample
