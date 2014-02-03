@@ -245,3 +245,8 @@
   name: StackatoZoneDoesNotExist
   http_code: 404
   message: "Distribution zone %s does not exist."
+
+149:
+  name: StackatoComponentNotFound
+  http_code: 400
+  message: "Component not foubd: %s"
