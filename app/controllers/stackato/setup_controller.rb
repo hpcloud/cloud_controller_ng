@@ -13,6 +13,5 @@ module VCAP::CloudController
     def setup
       create_core(:is_first_user_setup => true)
     end; post "/v2/stackato/firstuser", :setup
-
   end
 end

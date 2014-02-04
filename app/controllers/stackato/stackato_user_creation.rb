@@ -121,6 +121,12 @@ module VCAP::CloudController
       end
       org.add_user(@new_user)
 
+      # create the first space, if specified
+      first_space_name = request_attrs["space_name"]
+      if first_space_name
+        space = Space.create_from_hash({:name => first_space_name, :organization_guid => org.guid, :manager_guids => [@new_user.guid]})
+      end
+
       logger.info("SETUP: storing the license key in config")
       Kato::Config.set("cluster", "license", "type: microcloud")
     end
@@ -210,6 +216,7 @@ module VCAP::CloudController
             attribute :admin, VCAP::RestAPI::Message::Boolean, :default => false
             if firstuser
               attribute :org_name, String
+              attribute :space_name, String
             end
           end
         end

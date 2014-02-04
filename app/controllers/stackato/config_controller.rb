@@ -52,6 +52,8 @@ module VCAP::CloudController
     end
     put "/v2/stackato/config/components/:component_name", :update_component_config
 
+    ## TODO Api call to update specific config value
+
     # Return whitelisted fields in any vcap configuration
     # Only cloud_controller.yml supported for now.
     def get_config
