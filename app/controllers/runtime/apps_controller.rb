@@ -23,6 +23,12 @@ module VCAP::CloudController
       attribute  :description,         String,     :default => ""
       attribute  :sso_enabled,         Message::Boolean, :default => false
 
+      # Fields for autoscaling
+      attribute  :min_cpu_threshold,   Integer,    :default => nil
+      attribute  :max_cpu_threshold,   Integer,    :default => nil
+      attribute  :min_instances,       Integer,    :default => nil
+      attribute  :max_instances,       Integer,    :default => nil
+
       attribute  :buildpack,           String, :default => nil
       attribute  :detected_buildpack,  String, :exclude_in => [:create, :update]
 

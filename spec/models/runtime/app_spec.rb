@@ -675,6 +675,44 @@ module VCAP::CloudController
           end
         end
       end
+      describe "application scaling" do
+        before(:each) do
+          let(:app) { AppFactory.make }
+        end
+        it "should allow sane settings" do
+          app.min_cpu_threshold = 10
+          app.max_cpu_threshold = 50
+          app.min_instances = 1
+          app.max_instances = 10
+          app.should be_valid
+        end
+        it "should not allow negative min_cpu_threshold" do
+          app.min_cpu_threshold = -10
+          app.should_not be_valid
+        end
+        it "should not allow negative max_cpu_threshold" do
+          app.max_cpu_threshold = -10
+          app.should_not be_valid
+        end
+        it "should not allow too-small max_cpu_threshold" do
+          app.min_cpu_threshold = 10
+          app.max_cpu_threshold = 9
+          app.should_not be_valid
+        end
+        it "should not allow negative min_instances" do
+          app.max_instances = -10
+          app.should_not be_valid
+        end
+        it "should not allow negative max_instances" do
+          app.max_instances = -10
+          app.should_not be_valid
+        end
+        it "should not allow too-small max_instances" do
+          app.min_instances = 10
+          app.max_instances = 9
+          app.should_not be_valid
+        end
+      end
 
       describe "metadata" do
         let(:app) { AppFactory.make }

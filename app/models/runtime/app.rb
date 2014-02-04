@@ -50,7 +50,8 @@ module VCAP::CloudController
       :state, :version, :command, :console, :debug,
       :staging_task_id, :package_state, :health_check_timeout, :system_env_json,
       :distribution_zone,
-      :description, :sso_enabled
+      :description, :sso_enabled,
+      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances
 
     import_attributes :name, :production,
       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
@@ -58,7 +59,8 @@ module VCAP::CloudController
       :state, :command, :console, :debug,
       :staging_task_id, :service_binding_guids, :route_guids, :health_check_timeout,
       :distribution_zone,
-      :description, :sso_enabled
+      :description, :sso_enabled,
+      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances
 
     strip_attributes :name
 
@@ -359,6 +361,31 @@ module VCAP::CloudController
       if health_check_timeout > VCAP::CloudController::Config.config[:maximum_health_check_timeout]
         errors.add(:health_check_timeout, :maximum_exceeded)
       end
+    end
+    
+    def validate_autoscaling_settings
+      attribute  :min_cpu_threshold,   Integer,    :default => nil
+      attribute  :max_cpu_threshold,   Integer,    :default => nil
+      attribute  :min_instances,       Integer,    :default => nil
+      attribute  :max_instances,       Integer,    :default => nil
+      
+      #XXX: How are non-numeric values handled? (We don't care about floating pt)
+      errors.add(:min_cpu_threshold, :invalid_value) \
+        if !min_cpu_threshold.empty? && (min_cpu_threshold < 0 ||
+                                         min_cpu_threshold > 100)
+        
+      errors.add(:max_cpu_threshold, :invalid_value) \
+        if !max_cpu_threshold.empty? && (max_cpu_threshold < 0 ||
+                                         max_cpu_threshold > 100 ||
+                                         max_cpu_threshold < min_cpu_threshold)
+        
+      errors.add(:min_instances, :less_than_zero) \
+        if !min_instances.empty? && min_instances < 0
+        
+      errors.add(:max_instances, :invalid_value) \
+        if !max_instances.empty? && (max_instances < 0 ||
+                                     max_instances > 100 ||
+                                     max_instances < min_instances)
     end
 
     # We need to overide this ourselves because we are really doing a
