@@ -21,6 +21,7 @@ module VCAP::CloudController
 
       attribute  :distribution_zone,   String,     :default => "default"
       attribute  :description,         String,     :default => ""
+      attribute  :sso_enabled,         Message::Boolean, :default => false
 
       attribute  :buildpack,           String, :default => nil
       attribute  :detected_buildpack,  String, :exclude_in => [:create, :update]

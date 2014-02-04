@@ -50,7 +50,7 @@ module VCAP::CloudController
       :state, :version, :command, :console, :debug,
       :staging_task_id, :package_state, :health_check_timeout, :system_env_json,
       :distribution_zone,
-      :description
+      :description, :sso_enabled
 
     import_attributes :name, :production,
       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
@@ -58,7 +58,7 @@ module VCAP::CloudController
       :state, :command, :console, :debug,
       :staging_task_id, :service_binding_guids, :route_guids, :health_check_timeout,
       :distribution_zone,
-      :description
+      :description, :sso_enabled
 
     strip_attributes :name
 
