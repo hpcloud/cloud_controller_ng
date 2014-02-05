@@ -17,6 +17,10 @@ class DeaAdvertisement < Advertisement
     stats.fetch("placement_properties", {}).fetch("zones", ["default"])
   end
 
+  def availability_zone
+    stats.fetch("placement_properties", {}).fetch("availability_zone", "default")
+  end
+
   def zone
     stats.fetch("placement_properties", {}).fetch("zone", "default")
   end
