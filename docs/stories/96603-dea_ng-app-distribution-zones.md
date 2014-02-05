@@ -1,14 +1,14 @@
 ## Improved DEA app allocation
 
-*Distribution zone* is a new concept allowing DEAs to be grouped. In the code, this is purely a flag on the DEA, but in a deployment this could be used to mark DEAs intended for particular app deployment environments (dev/stage/prod), DEAs having particular hardware characteristics, etc..
+*Placement zone* is a new concept allowing DEAs to be grouped. In the code, this is purely a flag on the DEA, but in a deployment this could be used to mark DEAs intended for particular app deployment environments (dev/stage/prod), DEAs having particular hardware characteristics, etc..
 
-DEAs now have a `placement_properties/zones` key in their config in which they can specify their distribution zones - there is a helper kato command to do so:
+DEAs now have a `placement_properties/zones` key in their config in which they can specify their placement zones - there is a helper kato command to do so:
 
-$ kato node zones add <zone>
-$ kato node zones list
-$ kato node zones remove <zone>
+$ kato node placementzones add <zone>
+$ kato node placementzones list
+$ kato node placementzones remove <zone>
 
-When deploying an app instance to a distribution zone, the Cloud Controller chooses a DEA to receive the instance prioritizing the DEA that is running the fewest instances of the app already. This maintains an even distribution of instances of any one app across the DEAs in the distribution zone.
+When deploying an app instance to a placement zone, the Cloud Controller chooses a DEA to receive the instance prioritizing the DEA that is running the fewest instances of the app already. This maintains an even distribution of instances of any one app across the DEAs in the placement zone.
 
 By default, apps will be deployed into the 'default' zone. Similarly, DEAs that don't register a zone or those that advertise the 'default' zone will accept apps from this zone. This maintains backwards compatibility, so DEAs without zones support will accept 'default' apps. 
 
