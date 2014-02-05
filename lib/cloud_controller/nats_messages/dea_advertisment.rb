@@ -17,8 +17,8 @@ class DeaAdvertisement < Advertisement
     stats.fetch("placement_properties", {}).fetch("zones", ["default"])
   end
 
-  def datacenter
-    stats.fetch("placement_properties", {}).fetch("datacenter", "default")
+  def availability_zone
+    stats.fetch("placement_properties", {}).fetch("availability_zone", "default")
   end
 
   def zone

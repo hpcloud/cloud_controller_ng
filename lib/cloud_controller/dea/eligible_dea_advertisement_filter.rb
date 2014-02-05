@@ -47,14 +47,14 @@ class EligibleDeaAdvertisementFilter
     @filtered_advertisements.sample
   end
 
-  def dc_with_fewest_instances_of_app
-    dcs = {}
+  def az_with_fewest_instances_of_app
+    azs = {}
     @filtered_advertisements.each do |filtered_ad|
-      dcs[filtered_ad.datacenter] ||= 0
-      dcs[filtered_ad.datacenter] += filtered_ad.num_instances_of(@app_id)
+      azs[filtered_ad.availability_zone] ||= 0
+      azs[filtered_ad.availability_zone] += filtered_ad.num_instances_of(@app_id)
     end
-    minimum_instance_count = @filtered_advertisements.map { |ad| dcs[ad.datacenter] }.min
-    @filtered_advertisements.select! { |ad| dcs[ad.datacenter] == minimum_instance_count }
+    minimum_instance_count = @filtered_advertisements.map { |ad| azs[ad.availability_zone] }.min
+    @filtered_advertisements.select! { |ad| azs[ad.availability_zone] == minimum_instance_count }
     self
   end
 end
