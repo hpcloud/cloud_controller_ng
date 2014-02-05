@@ -324,6 +324,7 @@ module VCAP::CloudController
           :debug => app.debug,
           :start_command => app.command,
           :health_check_timeout => app.health_check_timeout,
+          :sso_enabled => app.sso_enabled
         }
       end
 
