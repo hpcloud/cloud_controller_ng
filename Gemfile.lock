@@ -8,11 +8,12 @@ GIT
 
 GIT
   remote: https://github.com/ActiveState/cf-message-bus.git
-  revision: dbc2fc6e71b70980d6d4559b39ed9451449140eb
+  revision: cb951d204beeb028dd98e36f087d2464d5059762
+  branch: bug-102665
   specs:
-    cf-message-bus (0.0.5)
+    cf-message-bus (0.2.0)
       eventmachine (~> 1.0.0)
-      nats (= 0.4.26)
+      nats (>= 0.5.0.beta.12, < 0.6)
       vcap-concurrency
       vcap-concurrency
       yajl-ruby
@@ -37,7 +38,7 @@ GIT
 PATH
   remote: ../common
   specs:
-    vcap_common (2.2.1)
+    vcap_common (3.0.0)
       addressable (~> 2.2)
       em-http-request (~> 1.0)
       eventmachine
@@ -45,11 +46,12 @@ PATH
       membrane (~> 0.0.2)
       mime-types
       multipart-post
-      nats (~> 0.4.24)
+      nats (>= 0.5.0.beta.12, < 0.6)
       posix-spawn (~> 0.3.6)
       squash_ruby
       steno
       thin
+      uuidtools
       vmstat (~> 2.0)
       yajl-ruby
 
@@ -195,11 +197,11 @@ GEM
     multipart-post (1.2.0)
     mustache (0.99.4)
     mysql2 (0.3.14)
-    nats (0.4.26)
-      daemons (>= 1.1.5)
-      eventmachine (>= 0.12.10)
-      json_pure (>= 1.7.3)
-      thin (>= 1.4.1)
+    nats (0.5.0.beta.12)
+      daemons (>= 1.1.9)
+      eventmachine (>= 1.0.3)
+      json_pure (>= 1.8.0)
+      thin (>= 1.5.0)
     net-scp (1.1.2)
       net-ssh (>= 2.6.5)
     net-ssh (2.7.0)
@@ -309,6 +311,7 @@ GEM
     unf (0.1.3)
       unf_ext
     unf_ext (0.0.6)
+    uuidtools (2.1.4)
     virtus (1.0.0)
       axiom-types (~> 0.0.5)
       coercible (~> 0.2)
@@ -337,7 +340,7 @@ DEPENDENCIES
   beefcake (= 0.3.7)
   builder (= 3.0.4)
   celluloid (= 0.15.2)
-  cf-message-bus (= 0.0.5)!
+  cf-message-bus (= 0.2.0)!
   cf-uaa-lib (= 2.0.0)!
   ci_reporter (= 1.9.0)
   clockwork
@@ -397,7 +400,7 @@ DEPENDENCIES
   multipart-post (= 1.2.0)
   mustache (= 0.99.4)
   mysql2 (= 0.3.14)
-  nats (= 0.4.26)
+  nats (= 0.5.0.beta.12)
   net-scp (= 1.1.2)
   net-ssh (= 2.7.0)
   nokogiri (= 1.6.0)
@@ -449,7 +452,7 @@ DEPENDENCIES
   tzinfo (= 0.3.38)
   unf (= 0.1.3)
   vcap-concurrency (= 0.1.0)!
-  vcap_common (= 2.2.1)!
+  vcap_common (= 3.0.0)!
   virtus (= 1.0.0)
   vmstat (= 2.0.0)
   webmock (= 1.16.0)

@@ -20,7 +20,7 @@ gem 'bcrypt-ruby'       ,    '3.1.2'
 gem 'beefcake'          ,    '0.3.7'
 gem 'builder'           ,    '3.0.4'
 gem 'celluloid'         ,   '0.15.2', :groups => [:test]
-gem 'cf-message-bus'    ,    '0.0.5', :git => "https://github.com/ActiveState/cf-message-bus.git"
+gem 'cf-message-bus'    ,    '0.2.0', :git => "https://github.com/ActiveState/cf-message-bus.git", :branch => 'bug-102665'
 gem 'cf-uaa-lib'        ,    '2.0.0', :github => "ActiveState/cf-uaa-lib", :ref => "3026895da933a7b1102735db96568c007b4c9148"
 gem 'ci_reporter'       ,    '1.9.0'
 gem "clockwork", require: false
@@ -80,7 +80,7 @@ gem 'multi_xml'         ,    '0.5.5'
 gem 'multipart-post'    ,    '1.2.0'
 gem 'mustache'          ,   '0.99.4'
 gem 'mysql2'            ,   '0.3.14', :groups => [:db]
-gem 'nats'              ,   '0.4.26'
+gem 'nats'              ,   '0.5.0.beta.12'
 gem 'net-scp'           ,    '1.1.2'
 gem 'net-ssh'           ,    '2.7.0'
 gem 'nokogiri'          ,    '1.6.0'
@@ -132,7 +132,7 @@ gem 'trollop'           ,      '2.0'
 gem 'tzinfo'            ,   '0.3.38'
 gem 'unf'               ,    '0.1.3'
 gem 'vcap-concurrency'  ,    '0.1.0', :git => "https://github.com/cloudfoundry/vcap-concurrency.git", :ref => "2a5b0179"
-gem 'vcap_common'       ,    '2.2.1', :path => '../common'
+gem 'vcap_common'       ,    '3.0.0', :path => '../common'
 gem 'virtus'            ,    '1.0.0'
 gem 'vmstat'            ,    '2.0.0'
 gem 'webmock'           ,   '1.16.0', :groups => [:test]
