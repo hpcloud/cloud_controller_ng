@@ -151,6 +151,18 @@ platform_config:
     # Specify the destination VM folder placement for the scaled VM if required
     # dest_folder: ''
 
+  CloudStack:
+
+    api_endpoint: https://<ip>:<port>/client/api
+    api_key: <key>
+    secret_key: <key>
+    zone_id: <id>
+    flavor_id: <id>
+    template_id: <id>
+    #disk_offering_id: <id>
+    #network_ids: []
+    #security_group_ids: []
+
 
 # Debug
 # #########
