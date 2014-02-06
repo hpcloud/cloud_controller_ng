@@ -46,6 +46,10 @@ module VCAP::CloudController
         0
       end
     end
+    
+    def update_autoscaling_fields(args)
+      message_bus.publish("health_manager.autoscaling_settings", args)
+    end
 
     private
 

@@ -126,6 +126,7 @@ module VCAP::CloudController
       validate_metadata
       check_memory_quota
       validate_instances
+      validate_autoscaling_settings
       validate_health_check_timeout
     end
 
@@ -364,26 +365,20 @@ module VCAP::CloudController
     end
     
     def validate_autoscaling_settings
-      attribute  :min_cpu_threshold,   Integer,    :default => nil
-      attribute  :max_cpu_threshold,   Integer,    :default => nil
-      attribute  :min_instances,       Integer,    :default => nil
-      attribute  :max_instances,       Integer,    :default => nil
-      
-      #XXX: How are non-numeric values handled? (We don't care about floating pt)
       errors.add(:min_cpu_threshold, :invalid_value) \
-        if !min_cpu_threshold.empty? && (min_cpu_threshold < 0 ||
+        if !min_cpu_threshold.nil? && (min_cpu_threshold < 0 ||
                                          min_cpu_threshold > 100)
         
       errors.add(:max_cpu_threshold, :invalid_value) \
-        if !max_cpu_threshold.empty? && (max_cpu_threshold < 0 ||
+        if !max_cpu_threshold.nil? && (max_cpu_threshold < 0 ||
                                          max_cpu_threshold > 100 ||
                                          max_cpu_threshold < min_cpu_threshold)
         
       errors.add(:min_instances, :less_than_zero) \
-        if !min_instances.empty? && min_instances < 0
+        if !min_instances.nil? && min_instances < 0
         
       errors.add(:max_instances, :invalid_value) \
-        if !max_instances.empty? && (max_instances < 0 ||
+        if !max_instances.nil? && (max_instances < 0 ||
                                      max_instances > 100 ||
                                      max_instances < min_instances)
     end

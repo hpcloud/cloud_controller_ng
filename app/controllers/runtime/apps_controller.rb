@@ -66,6 +66,7 @@ module VCAP::CloudController
 
     def inject_dependencies(dependencies)
       @app_event_repository = dependencies.fetch(:app_event_repository)
+      @health_manager_client = dependencies.fetch(:health_manager_client)
     end
 
     def delete(guid)
@@ -95,6 +96,7 @@ module VCAP::CloudController
     def after_create(app)
       record_app_create_value = @app_event_repository.record_app_create(app, SecurityContext.current_user, request_attrs)
       record_app_create_value if request_attrs
+      update_health_manager_for_autoscaling(app)
     end
 
     def after_update(app)
@@ -108,6 +110,13 @@ module VCAP::CloudController
       end
 
       @app_event_repository.record_app_update(app, SecurityContext.current_user, request_attrs)
+      update_health_manager_for_autoscaling(app)
+    end
+    
+    def update_health_manager_for_autoscaling(app)
+      hash = {}
+      [:min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances].each { |k| hash[k] = app.send(k) }
+      @health_manager_client.update_autoscaling_fields(hash)
     end
 
     define_messages

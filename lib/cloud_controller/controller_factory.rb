@@ -39,7 +39,9 @@ module CloudController
             config: @config,
           }
         when "AppsController"
-          { app_event_repository: dependency_locator.app_event_repository }
+          { app_event_repository: dependency_locator.app_event_repository,
+            health_manager_client: dependency_locator.health_manager_client,
+          }
         when "SpacesController"
           { space_event_repository: dependency_locator.space_event_repository }
         else
