@@ -111,6 +111,21 @@ module VCAP::CloudController
         end
       end
 
+      describe "#az_with_fewest_instances_of_app" do
+        it "splits app instances evenly among DEAs in different AZs" do
+          subject.process_advertise_message(dea_advertise_msg.merge( "availability_zone" => "az1",
+            "id" => "other-dea-id",
+            "app_id_to_count" => { 
+                "app-id" => 1
+            }
+          ))
+
+          subject.process_advertise_message(dea_advertise_msg.merge( "availability_zone" => "az1" )
+          subject.process_advertise_message(dea_advertise_msg.merge( "availability_zone" => "az2", "id" => "dea-in-other-az" )
+          subject.find_dea(mem: 256, stack: "stack", app_id: "app-id").should == "dea-in-other-az"
+        end
+      end
+
       describe "#only_in_zone_with_fewest_instances" do
         context "when all the DEAs are in the same zone" do
           it "finds the DEA within the default zone" do
