@@ -29,6 +29,8 @@ module VCAP::CloudController
           delta = changes[:instances][1] - changes[:instances][0]
           react_to_instances_change(app, delta)
         end
+        #TODO: EP: Move call to update_health_manager_for_autoscaling from
+        # apps_controller:after_update to here
       end
 
       def run

@@ -28,6 +28,12 @@ module VCAP::CloudController
       message_bus.subscribe("health.start", :queue => "cc") do |decoded_msg|
         process_start(decoded_msg)
       end
+
+      message_bus.subscribe("health_manager.adjust_instances", :queue => "cc") do |decoded_msg|
+        apps_controller = VCAP::CloudController::AppsController.new(config, logger, {}, {}, decoded_msg)
+        app_guid = decoded_msg.delete(:guid)
+        apps_controller.update(app_guid, decoded_msg)
+      end
     end
 
     def process_start(payload)
