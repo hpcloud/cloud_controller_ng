@@ -120,8 +120,8 @@ module VCAP::CloudController
             }
           ))
 
-          subject.process_advertise_message(dea_advertise_msg.merge( "availability_zone" => "az1" )
-          subject.process_advertise_message(dea_advertise_msg.merge( "availability_zone" => "az2", "id" => "dea-in-other-az" )
+          subject.process_advertise_message(dea_advertise_msg.merge( "availability_zone" => "az1" ))
+          subject.process_advertise_message(dea_advertise_msg.merge( "availability_zone" => "az2", "id" => "dea-in-other-az" ))
           subject.find_dea(mem: 256, stack: "stack", app_id: "app-id").should == "dea-in-other-az"
         end
       end
