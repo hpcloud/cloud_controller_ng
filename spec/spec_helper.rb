@@ -24,6 +24,8 @@ require "pry"
 require "posix/spawn"
 
 require "rspec_api_documentation"
+require "kato/config"
+require "kato/util"
 
 module VCAP::CloudController
   MAX_LOG_FILE_SIZE_IN_BYTES = 100_000_000
@@ -102,42 +104,15 @@ module VCAP::CloudController
     end
 
     def config(config_override={})
-      config_file = File.expand_path("../../config/cloud_controller.yml", __FILE__)
-      config_hash = VCAP::CloudController::Config.from_file(config_file)
+      config_hash = ::Kato::Config.get("cloud_controller_ng").symbolize_keys
 
-      config_hash.merge!(
-        :nginx => {:use_nginx => true},
-        :resource_pool => {
-          :resource_directory_key => "spec-cc-resources",
-          :fog_connection => {
-            :provider => "AWS",
-            :aws_access_key_id => "fake_aws_key_id",
-            :aws_secret_access_key => "fake_secret_access_key",
-          },
-        },
-        :packages => {
-          :app_package_directory_key => "cc-packages",
-          :fog_connection => {
-            :provider => "AWS",
-            :aws_access_key_id => "fake_aws_key_id",
-            :aws_secret_access_key => "fake_secret_access_key",
-          },
-        },
-        :droplets => {
-          :droplet_directory_key => "cc-droplets",
-          :fog_connection => {
-            :provider => "AWS",
-            :aws_access_key_id => "fake_aws_key_id",
-            :aws_secret_access_key => "fake_secret_access_key",
-          },
-        },
-
+      config_override = {
         :db => {
           :log_level => "debug",
           :database => db_connection_string,
           :pool_timeout => 10
         }
-      )
+      }
 
       config_hash.merge!(config_override || {})
 
