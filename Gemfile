@@ -20,7 +20,7 @@ gem 'bcrypt-ruby'       ,    '3.1.2'
 gem 'beefcake'          ,    '0.3.7'
 gem 'builder'           ,    '3.0.4'
 gem 'celluloid'         ,   '0.15.2', :groups => [:test]
-gem 'cf-message-bus'    ,    '0.0.5', :git => "https://github.com/ActiveState/cf-message-bus.git"
+gem 'cf-message-bus'    ,    '0.0.5', :git => "https://github.com/ActiveState/cf-message-bus.git", :ref => "dbc2fc6e71b70980d6d4559b39ed9451449140eb"
 gem 'cf-uaa-lib'        ,    '2.0.0', :github => "ActiveState/cf-uaa-lib", :ref => "3026895da933a7b1102735db96568c007b4c9148"
 gem 'ci_reporter'       ,    '1.9.0'
 gem 'cloudfront-signer' ,    '2.1.1'
