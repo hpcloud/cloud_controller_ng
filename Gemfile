@@ -101,6 +101,7 @@ gem 'rbvmomi'           ,    '1.6.0'
 gem 'redis'             ,    '3.0.6'
 gem 'rfc822'            ,    '0.1.4'
 gem 'rspec'             ,   '2.14.1', :groups => [:default, :test]
+gem 'rspec_api_documentation'
 gem 'rspec-core'        ,   '2.14.7', :groups => [:default, :test]
 gem 'rspec-expectations',   '2.14.4', :groups => [:default, :test]
 gem 'rspec-mocks'       ,   '2.14.4', :groups => [:default, :test]
