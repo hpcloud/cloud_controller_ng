@@ -160,6 +160,7 @@ module VCAP::CloudController
     end
 
     def self.update_stats_for_droplet(droplet_id)
+      @update_stats_callback ||= method(:update_stats_for_droplet_instance).to_proc
       instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
       logger.debug2 "Stats update for droplet droplet_id:#{droplet_id} instances=#{instance_ids}"
       instance_ids.each do |instance_id|
@@ -170,10 +171,7 @@ module VCAP::CloudController
         }
         logger.debug2 "Request dea.find.droplet for droplet_id:#{droplet_id} instance_id:#{instance_id} request:#{request}"
         # timeout this request in 30 secs
-        message_bus.request("dea.find.droplet", request, :timeout => 30) do |droplet_instance|
-          logger.debug2 "Response dea.find.droplet for droplet_id:#{droplet_id} instance_id:#{instance_id} instance:#{droplet_instance}"
-          update_stats_for_droplet_instance(droplet_instance)
-        end
+        message_bus.request("dea.find.droplet", request, {:timeout => 30, :result_count => 1}, &@update_stats_callback)
       end
     end
 
