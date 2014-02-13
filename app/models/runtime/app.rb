@@ -5,7 +5,7 @@ module VCAP::CloudController
   class App < Sequel::Model
     plugin :serialization
 
-    APP_NAME_REGEX = /\A[[:alnum:][:punct:][:print:]]+\Z/.freeze
+    APP_NAME_REGEX = /\A[[:print:]]+\Z/.freeze
 
     class InvalidRouteRelation < InvalidRelation
       def to_s
@@ -369,18 +369,21 @@ module VCAP::CloudController
         if !min_cpu_threshold.nil? && (min_cpu_threshold < 0 ||
                                          min_cpu_threshold > 100)
         
-      errors.add(:max_cpu_threshold, :invalid_value) \
-        if !max_cpu_threshold.nil? && (max_cpu_threshold < 0 ||
-                                         max_cpu_threshold > 100 ||
-                                         max_cpu_threshold < min_cpu_threshold)
+      if (!max_cpu_threshold.nil? &&
+          (max_cpu_threshold < 0 ||
+           max_cpu_threshold > 100 ||
+           (!min_cpu_threshold.nil? && max_cpu_threshold < min_cpu_threshold)))
+        errors.add(:max_cpu_threshold, :invalid_value)
+      end
         
       errors.add(:min_instances, :less_than_zero) \
-        if !min_instances.nil? && min_instances < 0
+        if !min_instances.nil? && min_instances < 1
         
-      errors.add(:max_instances, :invalid_value) \
-        if !max_instances.nil? && (max_instances < 0 ||
-                                     max_instances > 100 ||
-                                     max_instances < min_instances)
+      if (!max_instances.nil? &&
+          (max_instances < 1 ||
+           (!min_instances.nil? && max_instances < min_instances)))
+        errors.add(:max_instances, :invalid_value)
+      end
     end
 
     # We need to overide this ourselves because we are really doing a
