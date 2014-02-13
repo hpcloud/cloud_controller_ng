@@ -369,20 +369,26 @@ module VCAP::CloudController
         if !min_cpu_threshold.nil? && (min_cpu_threshold < 0 ||
                                          min_cpu_threshold > 100)
         
-      if (!max_cpu_threshold.nil? &&
-          (max_cpu_threshold < 0 ||
-           max_cpu_threshold > 100 ||
-           (!min_cpu_threshold.nil? && max_cpu_threshold < min_cpu_threshold)))
-        errors.add(:max_cpu_threshold, :invalid_value)
+      errors.add(:max_cpu_threshold, :invalid_value) \
+        if !max_cpu_threshold.nil? && (max_cpu_threshold < 0 ||
+                                       max_cpu_threshold > 100)
+        
+      if (!min_cpu_threshold.nil? &&
+          !max_cpu_threshold.nil? &&
+          max_cpu_threshold < min_cpu_threshold)
+        errors.add(:max_cpu_threshold, "< min_cpu_threshold".to_sym)
       end
         
       errors.add(:min_instances, :less_than_zero) \
         if !min_instances.nil? && min_instances < 1
         
-      if (!max_instances.nil? &&
-          (max_instances < 1 ||
-           (!min_instances.nil? && max_instances < min_instances)))
-        errors.add(:max_instances, :invalid_value)
+      errors.add(:max_instances, :less_than_zero) \
+        if !max_instances.nil? && max_instances < 1
+        
+      if (!min_instances.nil? &&
+          !max_instances.nil? &&
+          max_instances < min_instances)
+        errors.add(:max_instances, "< min_instances".to_sym)
       end
     end
 
