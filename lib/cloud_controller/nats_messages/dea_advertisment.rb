@@ -5,6 +5,10 @@ class DeaAdvertisement < Advertisement
     stats["id"]
   end
 
+  def dea_ip
+    stats["ip"]
+  end
+
   def increment_instance_count(app_id)
     stats["app_id_to_count"][app_id] = num_instances_of(app_id) + 1
   end
