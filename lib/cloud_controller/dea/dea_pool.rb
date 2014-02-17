@@ -80,6 +80,24 @@ module VCAP::CloudController
       zones
     end
 
+    def get_dea_availability_zones
+      zones = {
+          'default' => []
+      }
+
+      @dea_advertisements.each do |ad|
+        if ad.availability_zone
+          if zones[ad.availability_zone].nil?
+            zones[ad.availability_zone] = []
+          end
+
+          zones[ad.availability_zone].push ad.dea_ip
+        end
+      end
+
+      zones
+    end
+
     def mark_app_started(opts)
       dea_id = opts[:dea_id]
       app_id = opts[:app_id]
