@@ -19,6 +19,16 @@ GIT
       yajl-ruby
 
 GIT
+  remote: https://github.com/cloudfoundry/cf-registrar.git
+  revision: fb7d89608eb78e3fa7174ec30f64cc60ce9735e2
+  specs:
+    cf-registrar (1.0.0)
+      cf-message-bus
+      eventmachine (~> 1.0.0)
+      steno
+      vcap-concurrency
+
+GIT
   remote: https://github.com/cloudfoundry/stager-client.git
   revision: 04c2aee9ceed39571d47704a42a70beb472503b9
   ref: 04c2aee9
@@ -341,6 +351,7 @@ DEPENDENCIES
   builder (= 3.0.4)
   celluloid (= 0.15.2)
   cf-message-bus (= 0.2.0)!
+  cf-registrar (= 1.0.0)!
   cf-uaa-lib (= 2.0.0)!
   ci_reporter (= 1.9.0)
   clockwork

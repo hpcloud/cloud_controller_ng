@@ -47,7 +47,7 @@ module VCAP::CloudController
       VCAP::CloudController::DB.load_models(config.fetch(:db), db_logger)
       VCAP::CloudController::Config.run_initializers(config)
 
-      VCAP::CloudController::Seeds.create_seed_quota_definitions(config)
+      #VCAP::CloudController::Seeds.create_seed_quota_definitions(config)
     end
 
     def spec_dir
@@ -104,12 +104,38 @@ module VCAP::CloudController
     end
 
     def config(config_override={})
-      config_hash = ::Kato::Config.get("cloud_controller_ng").symbolize_keys
+      fetched_config = ::Kato::Config.get("cloud_controller_ng") || {}
+      config_hash = fetched_config.symbolize_keys
 
       config_override = {
+        :nginx => {:use_nginx => true},
+        :resource_pool => {
+          :resource_directory_key => "spec-cc-resources",
+          :fog_connection => {
+            :provider => "AWS",
+            :aws_access_key_id => "fake_aws_key_id",
+            :aws_secret_access_key => "fake_secret_access_key",
+          },
+        },
+        :packages => {
+          :app_package_directory_key => "cc-packages",
+          :fog_connection => {
+            :provider => "AWS",
+            :aws_access_key_id => "fake_aws_key_id",
+            :aws_secret_access_key => "fake_secret_access_key",
+          },
+        },
+        :droplets => {
+          :droplet_directory_key => "cc-droplets",
+          :fog_connection => {
+            :provider => "AWS",
+            :aws_access_key_id => "fake_aws_key_id",
+            :aws_secret_access_key => "fake_secret_access_key",
+          },
+        },
         :db => {
           :log_level => "debug",
-          :database => db_connection_string,
+          :database_uri => db_connection_string,
           :pool_timeout => 10
         }
       }
