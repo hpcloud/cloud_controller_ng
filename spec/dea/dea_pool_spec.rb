@@ -113,15 +113,15 @@ module VCAP::CloudController
 
       describe "#az_with_fewest_instances_of_app" do
         it "splits app instances evenly among DEAs in different AZs" do
-          subject.process_advertise_message(dea_advertise_msg.merge( "availability_zone" => "az1",
+          subject.process_advertise_message(dea_advertise_msg.merge( "placement_properties" => { "availability_zone" => "az1" },
             "id" => "other-dea-id",
             "app_id_to_count" => { 
                 "app-id" => 1
             }
           ))
 
-          subject.process_advertise_message(dea_advertise_msg.merge( "availability_zone" => "az1" ))
-          subject.process_advertise_message(dea_advertise_msg.merge( "availability_zone" => "az2", "id" => "dea-in-other-az" ))
+          subject.process_advertise_message(dea_advertise_msg.merge( "placement_properties" => { "availability_zone" => "az1" } ))
+          subject.process_advertise_message(dea_advertise_msg.merge( "placement_properties" => { "availability_zone" => "az2" }, "id" => "dea-in-other-az" ))
           subject.find_dea(mem: 256, stack: "stack", app_id: "app-id").should == "dea-in-other-az"
         end
       end
@@ -194,13 +194,6 @@ module VCAP::CloudController
             subject.process_advertise_message(dea_in_default_zone_with_2_instances_and_512m_memory)
             subject.process_advertise_message(dea_in_user_defined_zone_with_3_instances_and_1024m_memory)
             subject.find_dea(mem: 768, stack: "stack", app_id: "app-id").should == "dea-id5"
-          end
-
-          it "picks DEA in zone with fewest instances even if other zones have more filtered DEAs" do
-            subject.process_advertise_message(dea_in_default_zone_with_2_instances_and_128m_memory)
-            subject.process_advertise_message(dea_in_default_zone_with_1_instance_and_512m_memory)
-            subject.process_advertise_message(dea_in_user_defined_zone_with_2_instances_and_1024m_memory)
-            subject.find_dea(mem: 256, stack: "stack", app_id: "app-id").should == "dea-id6"
           end
         end
       end

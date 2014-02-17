@@ -103,36 +103,19 @@ module VCAP::CloudController
       @db_logger
     end
 
+    def kato_config
+      config_yaml = `kato config get cloud_controller_ng --yaml`.strip
+      if config_yaml != ""
+        return YAML.load(config_yaml)
+      else
+        return {}
+      end
+    end
+
     def config(config_override={})
-      fetched_config = ::Kato::Config.get("cloud_controller_ng") || {}
-      config_hash = fetched_config.symbolize_keys
+      config_hash = ::Kato::Util.symbolize_keys(kato_config)
 
       config_override = {
-        :nginx => {:use_nginx => true},
-        :resource_pool => {
-          :resource_directory_key => "spec-cc-resources",
-          :fog_connection => {
-            :provider => "AWS",
-            :aws_access_key_id => "fake_aws_key_id",
-            :aws_secret_access_key => "fake_secret_access_key",
-          },
-        },
-        :packages => {
-          :app_package_directory_key => "cc-packages",
-          :fog_connection => {
-            :provider => "AWS",
-            :aws_access_key_id => "fake_aws_key_id",
-            :aws_secret_access_key => "fake_secret_access_key",
-          },
-        },
-        :droplets => {
-          :droplet_directory_key => "cc-droplets",
-          :fog_connection => {
-            :provider => "AWS",
-            :aws_access_key_id => "fake_aws_key_id",
-            :aws_secret_access_key => "fake_secret_access_key",
-          },
-        },
         :db => {
           :log_level => "debug",
           :database_uri => db_connection_string,
@@ -189,6 +172,7 @@ module VCAP::CloudController::SpecHelper
   # Note that this method is mixed into each example, and so the instance
   # variable we created here gets cleared automatically after each example
   def config_override(hash)
+    hash ||= {}
     @config_override ||= {}
     @config_override.update(hash)
 
