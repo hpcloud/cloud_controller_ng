@@ -676,9 +676,8 @@ module VCAP::CloudController
         end
       end
       describe "application scaling" do
-        before(:each) do
-          let(:app) { AppFactory.make }
-        end
+        let(:app) { AppFactory.make }
+
         it "should allow sane settings" do
           app.min_cpu_threshold = 10
           app.max_cpu_threshold = 50
