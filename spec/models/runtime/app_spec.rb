@@ -713,6 +713,23 @@ module VCAP::CloudController
         end
       end
 
+      describe "application description" do
+        let(:app) { AppFactory.make }
+
+        it "should allow being set" do
+          app.description = "my sane description"
+          app.should be_valid
+        end
+        it "should allow an empty value" do
+          app.description = ""
+          app.should be_valid
+        end
+        it "should not allow a nil value" do
+          app.description = nil
+          app.should_not be_valid
+        end
+      end
+
       describe "metadata" do
         let(:app) { AppFactory.make }
 
