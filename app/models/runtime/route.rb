@@ -151,6 +151,10 @@ module VCAP::CloudController
       end
     end
 
+    def client_id
+      [fqdn, guid].join('-')
+    end
+
     private
 
     def logger
@@ -188,10 +192,6 @@ module VCAP::CloudController
       unless MaxRoutesPolicy.new(space.organization).allow_more_routes?(1)
         errors.add(:organization, :total_routes_exceeded)
       end
-    end
-
-    def client_id
-      [fqdn, guid].join('-')
     end
 
     def scim_api

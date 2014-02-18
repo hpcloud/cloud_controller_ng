@@ -303,32 +303,39 @@ module VCAP::CloudController
 
       def start_app_message(app)
         {
-          :droplet => app.guid,
-          :space_guid => app.space_guid,
-          :name => app.name,
-          :uris => app.uris,
-          :prod => app.production,
-          :sha1 => app.droplet_hash,
-          :executableFile => "deprecated",
-          :executableUri => @blobstore_url_generator.droplet_download_url(app),
-          :version => app.version,
-          :services => app.service_bindings.map do |sb|
+          droplet: app.guid,
+          space_guid: app.space_guid,
+          name: app.name,
+          uris: app.uris,
+          prod: app.production,
+          sha1: app.droplet_hash,
+          executableFile: "deprecated",
+          executableUri: @blobstore_url_generator.droplet_download_url(app),
+          version: app.version,
+          services: app.service_bindings.map do |sb|
             ServiceBindingPresenter.new(sb).to_hash
           end,
-          :limits => {
-            :mem => app.memory,
-            :disk => app.disk_quota,
-            :fds => app.file_descriptors,
-            :allow_sudo => app.allow_sudo?
+          limits: {
+            mem: app.memory,
+            disk: app.disk_quota,
+            fds: app.file_descriptors,
+            allow_sudo: app.allow_sudo?
           },
-          :allowed_repos => config[:allowed_repos],
-          :cc_partition => config[:cc_partition],
-          :env => (app.environment_json || {}).map {|k,v| "#{k}=#{v}"},
-          :console => app.console,
-          :debug => app.debug,
-          :start_command => app.command,
-          :health_check_timeout => app.health_check_timeout,
-          :sso_enabled => app.sso_enabled
+          allowed_repos: config[:allowed_repos],
+          cc_partition: config[:cc_partition],
+          env: (app.environment_json || {}).map {|k,v| "#{k}=#{v}"},
+          console: app.console,
+          debug: app.debug,
+          start_command: app.command,
+          health_check_timeout: app.health_check_timeout,
+          sso_enabled: app.sso_enabled,
+          sso_credentials: app.routes.collect do |route|
+                    {
+                      fqdn: route.fqdn,
+                      client_id: route.client_id,
+                      client_secret: route.client_secret
+                    }
+                  end,
         }
       end
 
