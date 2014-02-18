@@ -112,7 +112,7 @@ module VCAP::CloudController
       validates_presence :name
       validates_app_name :name
       validates_presence :space
-      validates_max_length 2048, :description
+      validates_max_length 2048, :description, :allow_missing=>true
       validates_unique [:space_id, :name]
       validates_format APP_NAME_REGEX, :name
 
