@@ -25,6 +25,12 @@ INSTDIR=$(DESTDIR)$(prefix)$(DIRNAME)
 
 PG_CONF_DIR=$(DESTDIR)/etc/postgresql/9.1/cloud_controller_ng
 
+NPM_INSTALL_ARGS=--production
+
+ifdef PKG_NPM_REGISTRY
+    NPM_INSTALL_ARGS := $(addprefix --registry $(PKG_NPM_REGISTRY) , $(NPM_INSTALL_ARGS))
+endif
+
 RSYNC_EXCLUDE=--exclude=/.git* --exclude=/Makefile --exclude=/.stackato-pkg --exclude=/debian --exclude=/etc --exclude=/spec
 
 all:
@@ -39,6 +45,8 @@ install:
 	# Custom Postgresql Server Configuration
 	mkdir -p $(PG_CONF_DIR) && \
 	cp -fp $(INSTDIR)/config/postgresql/*.conf $(PG_CONF_DIR)/
+
+	cd $(INSTDIR)/stackato/upload-server && npm install $(NPM_INSTALL_ARGS) .
 
 	chown -R stackato.stackato $(HOMEDIR)
 

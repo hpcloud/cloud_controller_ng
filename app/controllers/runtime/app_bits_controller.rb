@@ -53,7 +53,7 @@ module VCAP::CloudController
       end
 
       if blobstore.local?
-        if config[:nginx][:use_nginx]
+        if config[:nginx][:use_nginx] || config[:stackato_upload_handler][:enabled]
           return [HTTP::OK, { "X-Accel-Redirect" => "#{package_uri}" }, ""]
         else
           return send_file package_path, :filename => File.basename("#{path}.zip")

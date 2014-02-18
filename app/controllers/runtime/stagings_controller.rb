@@ -36,7 +36,7 @@ module VCAP::CloudController
         raise AppPackageNotFound.new(guid)
       end
 
-      if config[:nginx][:use_nginx]
+      if config[:nginx][:use_nginx] || config[:stackato_upload_handler][:enabled]
         url = package_blobstore.download_uri(guid)
         logger.debug "nginx redirect #{url}"
         [200, {"X-Accel-Redirect" => url}, ""]
@@ -122,7 +122,7 @@ module VCAP::CloudController
 
       logger.debug "guid: #{app.guid} #{name} #{blob_path} #{url}"
 
-      if config[:nginx][:use_nginx]
+      if config[:nginx][:use_nginx] || config[:stackato_upload_handler][:enabled]
         logger.debug "nginx redirect #{url}"
         [200, {"X-Accel-Redirect" => url}, ""]
       else
@@ -133,7 +133,7 @@ module VCAP::CloudController
 
     def upload_path
       @upload_path ||=
-        if get_from_hash_tree(config, :nginx, :use_nginx)
+        if get_from_hash_tree(config, :nginx, :use_nginx) || get_from_hash_tree(config, :stackato_upload_handler, :enabled)
           safe_path = Pathname.new(params["droplet_path"]).cleanpath.to_s
           # value is hardcoded into the nginx config for now. No real need to
           # expose this node local upload op.

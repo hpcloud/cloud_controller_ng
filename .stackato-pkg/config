@@ -28,11 +28,11 @@ gem_sqlite_deps="libsqlite3-dev"
 gem_pg_deps="libpq-dev"
 
 PKG_DEPENDS="stackato-rubies, stackato-redis, postgresql, postgresql-contrib, \
-stackato-nginx, \
+stackato-nodejs, \
 stackato-kato-core-ng-$KATO_GEM_VERSION (=auto), \
 steno-codec-text, \
 librrd-dev, \
 $gem_nokogiri_deps, $gem_mysql_deps, $gem_sqlite_deps, $gem_pg_deps"
 
-PKG_BUILD_DEPENDS="build-essential"
+PKG_BUILD_DEPENDS="build-essential, stackato-nodejs"
 PKG_WARNING="No repo tag.  Setting static version"

@@ -10,7 +10,7 @@ class UploadHandler
   end
 
   def uploaded_file(params, resource_name)
-    if using_nginx?
+    if using_nginx? || using_stackato_upload_handler?
       # Attempt to fall back to Rack to deal with the situation where a file was
       # uploaded via PUT and nginx couldn't handle it, bug #101009
       nginx_uploaded_file(params, resource_name) || rack_temporary_file(params, resource_name)
@@ -23,6 +23,10 @@ class UploadHandler
 
   def using_nginx?
     config[:nginx][:use_nginx]
+  end
+
+  def using_stackato_upload_handler?
+    config[:stackato_upload_handler][:enabled]
   end
 
   def nginx_uploaded_file(params, resource_name)

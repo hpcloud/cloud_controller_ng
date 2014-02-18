@@ -11,6 +11,7 @@ module VCAP::CloudController
     define_schema do
       {
         :port => Integer,
+        :instance_socket => String,
         :info => {
           :name            => String,
           :build           => String,
@@ -100,8 +101,11 @@ module VCAP::CloudController
         optional(:local_route) => String,     # If set, use this to determine the IP address that is returned in discovery messages
 
         :nginx => {
-          :use_nginx  => bool,
-          :instance_socket => String,
+          :use_nginx => bool
+        },
+
+        :stackato_upload_handler => {
+          :enabled => bool
         },
 
         :quota_definitions => Hash,

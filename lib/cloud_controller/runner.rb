@@ -203,9 +203,9 @@ module VCAP::CloudController
     end
 
     def start_thin_server(app, config)
-      if @config[:nginx][:use_nginx]
+      if @config[:nginx][:use_nginx] || @config[:stackato_upload_handler][:enabled]
         @thin_server = Thin::Server.new(
-            config[:nginx][:instance_socket],
+            config[:instance_socket],
             :signals => false
         )
       else

@@ -1,0 +1,5 @@
+# Installed by package stackato-cloud-controller-ng
+---
+name: cc_upload_server
+roles:
+  - controller

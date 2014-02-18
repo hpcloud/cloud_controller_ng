@@ -1,0 +1,11 @@
+
+[program:cc_upload_server]
+environment=NODE_ENV=production
+command=/usr/bin/node /s/code/cloud_controller_ng/stackato/upload-server/server.js
+user=stackato
+priority=1
+redirect_stderr=true
+stdout_logfile=/s/logs/cloud_controller_upload_server.log
+stdout_logfile_maxbytes=1MB
+stdout_logfile_backups=3
+autostart=false
