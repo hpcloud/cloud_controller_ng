@@ -150,6 +150,8 @@ module VCAP::CloudController
 
       AppStopEvent.create_from_app(self) if generate_stop_event?
       AppStartEvent.create_from_app(self) if generate_start_event?
+
+      adjust_route_sso_clients if sso_updated?
     end
 
     def after_save
@@ -168,6 +170,22 @@ module VCAP::CloudController
                            space_guid: space_guid,
                            space_name: space.name,
       )
+    end
+
+    def sso_updated?
+      column_changed?(:sso_enabled)
+    end
+
+    def adjust_route_sso_clients
+      routes.each do |route|
+        # if we're turning SSO on, or any other app that maps this route
+        # has SSO on, make sure oauth client is registered
+        if sso_enabled || route.apps.reject{|a|a.guid == guid}.any?{|a|a.sso_enabled}
+          route.register_oauth_client
+        else
+          route.delete_oauth_client
+        end
+      end
     end
 
     def version_needs_to_be_updated?
@@ -315,6 +333,13 @@ module VCAP::CloudController
       raise objection if route.space_id != space.id
 
       raise objection unless route.domain.usable_by_organization?(space.organization)
+
+      if sso_enabled
+        logger.debug "Registering outh client for route #{route.inspect}"
+        route.register_oauth_client
+        
+      end
+      
     end
 
     def additional_memory_requested
@@ -580,6 +605,10 @@ module VCAP::CloudController
       return true if previously_started != started?
       return true if started? && footprint_changed?
       false
+    end
+
+    def logger
+      self.class.logger
     end
 
     class << self

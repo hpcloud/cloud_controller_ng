@@ -18,6 +18,11 @@ module VCAP::CloudController
     export_attributes :host, :domain_guid, :space_guid
     import_attributes :host, :domain_guid, :space_guid, :app_guids
 
+    def before_destroy
+      super
+      delete_oauth_client
+    end
+
     def fqdn
       host.empty? ? domain.name : "#{host}.#{domain.name}"
     end
@@ -85,6 +90,8 @@ module VCAP::CloudController
       unless domain.usable_by_organization?(space.organization)
         raise InvalidDomainRelation.new(domain.guid)
       end
+
+      register_oauth_client if app.sso_enabled
     end
 
     def self.user_visibility_filter(user)
@@ -103,7 +110,52 @@ module VCAP::CloudController
       {:space => spaces}
     end
 
+    def register_oauth_client
+      return if !client_secret.blank?
+      self.class.db.transaction do
+        self.client_secret = SecureRandom.base64(48)
+        self.save
+        client_info = {
+          client_id: client_id,
+          scope: %W{scim.me},
+          client_secret: client_secret,
+          authorized_grant_types: %W{authorization_code},
+          authorities: %W{uaa.none},
+          redirect_uri: sso_redirect_uri
+        }
+        begin 
+          oauth_client = scim_api.add :client, client_info
+          logger.debug "Response from client registration: #{oauth_client.inspect}"
+        rescue Exception => e
+          logger.debug e.inspect
+          raise e
+        end          
+      end
+    end
+
+    def delete_oauth_client
+      return if client_secret.nil?
+      self.class.db.transaction do
+        self.client_secret = nil
+        save
+        begin 
+          scim_api.delete :client, client_id
+        rescue Exception => e
+          if e.kind_of? CF::UAA::NotFound
+            # ok, client already gone
+            return
+          end
+          logger.debug e.inspect
+          raise e
+        end
+      end
+    end
+
     private
+
+    def logger
+      @logger ||= Steno.logger("cc.models.route")
+    end
 
     def around_destroy
       loaded_apps = apps
@@ -137,5 +189,26 @@ module VCAP::CloudController
         errors.add(:organization, :total_routes_exceeded)
       end
     end
+
+    def client_id
+      [fqdn, guid].join('-')
+    end
+
+    def scim_api
+      return @scim_api if @scim_api
+      target = Kato::Config.get("cloud_controller_ng", 'uaa/url')
+      secret = Kato::Config.get("cloud_controller_ng", 'aok/client_secret')
+      token_issuer =
+        CF::UAA::TokenIssuer.new(target, 'cloud_controller', secret)
+      token = token_issuer.client_credentials_grant
+      @scim_api = CF::UAA::Scim.new(target, token.auth_header)
+      return @scim_api
+    end
+
+    def sso_redirect_uri
+      ['https:/', fqdn, 'sso-callback'].join('/')
+    end
+
+
   end
 end
