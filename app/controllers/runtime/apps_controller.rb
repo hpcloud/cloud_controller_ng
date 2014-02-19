@@ -90,6 +90,23 @@ module VCAP::CloudController
 
       [ HTTP::NO_CONTENT, nil ]
     end
+    
+    def update_instances(app_guid, payload)
+      @request_attrs = payload
+      
+      obj = find_guid_and_validate_access(:update, app_guid)
+      # No need to validate access since this came from the health_manager responder.
+      # There shouldn't be a route to this method.
+      ####obj = model.find(guid: app_guid)
+      before_update(obj)
+
+      model.db.transaction(savepoint: true) do
+        obj.lock!
+        obj.update_from_hash(payload)
+      end
+
+      after_update(obj)
+    end
 
     private
 
@@ -114,9 +131,10 @@ module VCAP::CloudController
     end
     
     def update_health_manager_for_autoscaling(app)
-      hash = {}
-      [:min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances].each { |k| hash[k] = app.send(k) }
-      @health_manager_client.update_autoscaling_fields(hash)
+      changes = {}
+      [:min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances].each { |k| changes[k] = app.send(k) }
+      changes[:react] = false
+      @health_manager_client.update_autoscaling_fields(changes)
     end
 
     define_messages

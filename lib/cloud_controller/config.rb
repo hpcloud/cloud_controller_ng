@@ -1,6 +1,7 @@
 require "steno"
 require "vcap/config"
 require "cloud_controller/account_capacity"
+require "cloud_controller/health_manager_client"
 require "uri"
 require 'kato/config'
 
@@ -186,7 +187,8 @@ module VCAP::CloudController
         @message_bus = message_bus
         stager_pool = StagerPool.new(@config, message_bus)
 
-        AppObserver.configure(@config, message_bus, stager_pool)
+        health_manager_client = HealthManagerClient.new(message_bus)
+        AppObserver.configure(@config, message_bus, stager_pool, health_manager_client)
 
         dea_pool = DeaPool.new(message_bus)
         blobstore_url_generator = CloudController::DependencyLocator.instance.blobstore_url_generator

@@ -30,9 +30,18 @@ module VCAP::CloudController
       end
 
       message_bus.subscribe("health_manager.adjust_instances", :queue => "cc") do |decoded_msg|
-        apps_controller = VCAP::CloudController::AppsController.new(config, logger, {}, {}, decoded_msg)
-        app_guid = decoded_msg.delete(:guid)
-        apps_controller.update(app_guid, decoded_msg)
+        begin
+          decoded_msg = decoded_msg.symbolize_keys
+          # And convert any [before, after] in decoded_msg to after
+          decoded_msg.each {|k, v| decoded_msg[k] = v[1] if v.kind_of?(Array) && v.size == 2 }
+          # Pull in the guts from the AppsController that does this stuff.
+          factory = CloudController::ControllerFactory.new({}, logger, {}, decoded_msg, {})
+          controller = factory.create_controller(VCAP::CloudController::AppsController)
+          app_guid = decoded_msg.delete(:guid)
+          controller.update_instances(app_guid, decoded_msg)
+        rescue => e
+          logger.debug("error responding to health_manager.adjust_instances: Error: #{e.message}\n#{e.backtrace.join("\n")}\n")
+        end
       end
     end
 
