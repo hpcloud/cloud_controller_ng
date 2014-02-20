@@ -14,7 +14,8 @@ class BackgroundJobEnvironment
           :servers => @config[:message_bus_servers],
           :logger => Steno.logger("cc.message_bus")).go
         no_op_staging_pool = Object.new
-        VCAP::CloudController::AppObserver.configure(@config, message_bus, no_op_staging_pool)
+        health_manager_client = VCAP::CloudController::HealthManagerClient.new(message_bus)
+        VCAP::CloudController::AppObserver.configure(@config, message_bus, no_op_staging_pool, health_manager_client)
       end
     end
   end
