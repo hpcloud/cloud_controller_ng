@@ -41,10 +41,19 @@ module VCAP::CloudController
       Yajl::Encoder.encode(resource)
     end
 
+    def verify_ssl(store)
+      if store.has_key?("verify_ssl") && store["verify_ssl"]
+        OpenSSL::SSL::VERIFY_PEER | OpenSSL::SSL::VERIFY_FAIL_IF_NO_PEER_CERT
+      else
+        OpenSSL::SSL::VERIFY_NONE
+      end
+    end
+
     def construct_resource(store_name, store, fetch_content, proxy_config)
       entity = {
         :content_url => store["content_url"],
-        :enabled => store["enabled"]
+        :enabled => store["enabled"],
+        :verify_ssl => store["verify_ssl"]
       }
       if fetch_content
         begin
@@ -58,6 +67,7 @@ module VCAP::CloudController
           else
             http_client = HTTPClient.new
           end
+          http_client.ssl_config.verify_mode = verify_ssl(store)
           content = http_client.get_content(store["content_url"])
           # XXX:TODO:Stackato: Replace with YAML.safe_load (https://github.com/tenderlove/psych/issues/119)
           store_content = YAML.load(content)
@@ -80,7 +90,7 @@ module VCAP::CloudController
           :url => store_url(store_name)
         },
         :entity => entity
-      }      
+      }
     end
 
     def store_url(store_name)
@@ -96,18 +106,21 @@ module VCAP::CloudController
       raise Errors::NotAuthorized unless roles.admin?
       new_store = Yajl::Parser.parse(body)
       store_config = load_store_config
+      new_store["verify_ssl"] = new_store["verify_ssl"] || true # XXX expose in web UI
       validate_store_name(new_store["name"])
       validate_store_content_url(new_store["content_url"])
       validate_store_enabled(new_store["enabled"])
+      validate_store_verify_ssl(new_store["verify_ssl"])
       validate_store_not_exists(store_config["stores"], new_store["name"])
-      save_store(new_store["name"], new_store["content_url"], new_store["enabled"])
+      save_store(new_store["name"], new_store["content_url"], new_store["enabled"], new_store["verify_ssl"])
 
       proxy_config = store_config["proxy"]
       new_resource = construct_resource(
         new_store["name"],
         {
           "content_url" => new_store["content_url"],
-          "enabled" => new_store["enabled"]
+          "enabled" => new_store["enabled"],
+          "verify_ssl" => new_store["verify_ssl"]
         },
         fetch_store_content?, proxy_config
       )
@@ -135,7 +148,11 @@ module VCAP::CloudController
         validate_store_enabled(updates["enabled"])
         store["enabled"] = updates["enabled"]
       end
-      save_store(store_name, store["content_url"], store["enabled"])
+      if updates.has_key? "verify_ssl"
+        validate_store_verify_ssl(updates["verify_ssl"])
+        store["verify_ssl"] = updates["verify_ssl"]
+      end
+      save_store(store_name, store["content_url"], store["enabled"], store["verify_ssl"])
 
       # Return the updated store resource
       get(store_name)
@@ -177,6 +194,12 @@ module VCAP::CloudController
       end
     end
 
+    def validate_store_verify_ssl(enabled)
+      unless [false, true].include? enabled
+        raise Errors::StackatoAppStoreValidSSLVerifyRequired.new
+      end
+    end
+
     def validate_store_not_exists(existing_stores, store_name)
       if existing_stores[store_name]
         raise Errors::StackatoAppStoreExists.new(store_name)
@@ -189,10 +212,11 @@ module VCAP::CloudController
       end
     end
 
-    def save_store(store_name, content_url, enabled)
+    def save_store(store_name, content_url, enabled, verify_ssl)
       Kato::Config.set("cloud_controller_ng", "app_store/stores/#{store_name}", {
         :content_url => content_url,
-        :enabled => enabled
+        :enabled => enabled,
+        :verify_ssl => verify_ssl
       })
     end
 
