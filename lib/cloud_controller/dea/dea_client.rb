@@ -14,7 +14,7 @@ module VCAP::CloudController
     end
 
     def publish_stop(args)
-      logger.debug "sending 'dea.stop' with '#{args}'"
+      logger.debug "QQQ: sending 'dea.stop' with '#{args}'"
       message_bus.publish("dea.stop", args)
     end
 
@@ -160,9 +160,11 @@ module VCAP::CloudController
       def change_running_instances(app, delta)
         if delta > 0
           range = (app.instances - delta...app.instances)
+          logger.debug("QQQ: change_running_instances: start: range: #{range}")
           start_instances_in_range(app, range)
         elsif delta < 0
           range = (app.instances...app.instances - delta)
+          logger.debug("QQQ: change_running_instances: stop: range: #{range}")
           stop_indices(app, range.to_a)
         end
       end
@@ -302,6 +304,8 @@ module VCAP::CloudController
       end
 
       def start_app_message(app)
+        #logger.debug("***** QQQ: start_app_message: #{app}")
+        #logger.debug("   called from #{caller[0..-1].join("\n")}")
         {
           droplet: app.guid,
           space_guid: app.space_guid,
@@ -336,7 +340,24 @@ module VCAP::CloudController
                       client_secret: route.client_secret
                     }
                   end,
+          min_cpu_threshold: app.min_cpu_threshold,
+          max_cpu_threshold: app.max_cpu_threshold,
+          min_instances: app.min_instances,
+          max_instances: app.max_instances,
         }
+      end
+    
+      def update_autoscaling_fields(app)
+        logger.debug(">> update_autoscaling_fields for app:#{app}")
+        begin
+          changes = {appid: app.guid}
+          [:min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances].each { |k| changes[k] = app.send(k) }
+          changes[:react] = false
+          health_manager_client.update_autoscaling_fields(changes)
+        rescue => e
+          logger.debug("QQQ: Failed to update_autoscaling_fields: #{e.message}\n#{e.backtrace.join("\n")}")
+        end
+        logger.debug("<< update_autoscaling_fields for app:#{app}, changes:#{changes}")
       end
 
       private
@@ -352,6 +373,7 @@ module VCAP::CloudController
 
       # @return [FileUriResult]
       def get_file_uri(app, path, options)
+        logger.debug("QQQ: *** get_file_uri: app:#{app} name:#{app.name}, path: #{path}, options:#{options}")
         if app.stopped?
           msg = "Request failed for app: #{app.name} path: #{path || '/'} "
           msg << "as the app is in stopped state."

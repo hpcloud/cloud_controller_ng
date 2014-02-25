@@ -19,28 +19,44 @@ module VCAP::CloudController
         delete_package(app) if app.package_hash
         delete_buildpack_cache(app) if app.staged?
       end
+      
+      def logger
+        @logger ||= Steno.logger("cc.app_observer")
+      end
 
       def updated(app)
         changes = app.previous_changes
+        logger.debug("QQQ: changes: #{changes}, app:#{app}")
+        logger.debug("app id.... #{app.id rescue 'no app.id'}")
+        logger.debug("app guid.... #{app.guid rescue 'no app.guid'}")
+        logger.debug("app name.... #{app.name rescue 'no app.name'}")
+        logger.debug("app instances.... #{app.instances rescue 'no app.instances'}")
         return unless changes
+        #raise Exception.new("QQQ: How did we get here?")
 
         if changes.has_key?(:state)
           react_to_state_change(app)
         elsif changes.has_key?(:instances)
           delta = changes[:instances][1] - changes[:instances][0]
+          logger.debug("QQQ: instances delta: #{delta}")
           react_to_instances_change(app, delta)
         elsif (changes.keys & [:min_instances, :max_instances,
                               :min_cpu_threshold, :max_cpu_threshold]).size > 0
+          logger.debug("QQQ!! : Go update something....")
           # First, see if we need to change the instances based on current #
           # of instances
           if changes.has_key?(:min_instances) && (targetValue = changes[:min_instances][1]) > app.instances
+            logger.debug("QQQ: min_instances set: react with delta #{targetValue - app.instances}")
             delta = targetValue - app.instances
+            logger.debug("QQQ: min higher than current instance count, delta: #{delta}")  
             app.instances = targetValue
             app.save
             react_to_instances_change(app, delta)
             changes[:react] = false
           elsif changes.has_key?(:max_instances) && (targetValue = changes[:max_instances][1]) < app.instances
+            logger.debug("QQQ: max_instances set: react with delta #{targetValue - app.instances}")
             delta = targetValue - app.instances
+            logger.debug("QQQ: max < current instance count, delta: #{delta}") 
             app.instances = targetValue
             app.save
             react_to_instances_change(app, delta)
@@ -49,10 +65,13 @@ module VCAP::CloudController
             changes[:react] = true
           end
           if @health_manager_client
+            logger.debug("QQQ: just update the health manager")
             changes.delete(:updated_at)
             # Health manager calls app.guid app[:appid]
             changes[:appid] = app.guid
             @health_manager_client.update_autoscaling_fields(changes)
+          else
+            logger.debug("QQQ: No @health_manager_client")
           end
         end
         #TODO: EP: Move call to update_health_manager_for_autoscaling from

@@ -91,48 +91,87 @@ module VCAP::CloudController
       [ HTTP::NO_CONTENT, nil ]
     end
     
-    def update_instances(app_guid, payload)
+    def adjust_instances(app_guid, payload)
+      logger.debug(">> adjust_instances.update(app_guid:#{app_guid}, payload:#{payload})")
+      
+      instances = payload[:instances]
+      if instances && instances.kind_of?(Array) && instances.size == 2
+        before_count = instances[0]
+        payload[:instances] = after_count = instances[1]
+      end
+      
       @request_attrs = payload
       
-      obj = find_guid_and_validate_access(:update, app_guid)
+      #obj = find_guid_and_validate_access(:update, app_guid)
       # No need to validate access since this came from the health_manager responder.
       # There shouldn't be a route to this method.
-      ####obj = model.find(guid: app_guid)
-      before_update(obj)
+      app = model.find(guid: app_guid)
+      if payload[:instances]
+        logger.debug("  payload[:instances]: #{payload[:instances]}, app.instances:#{app.instances}")
+        # Look at the direction we're supposed to go in, and bail out if we're
+        # already there
+        if before_count < after_count
+          if app.instances >= after_count
+            logger.debug("<< No need to add instances")
+            return
+          end
+        elsif before_count > after_count
+          if app.instances <= after_count
+            logger.debug("<< No need to remove instances")
+            return
+          end
+        elsif app.instances == after_count
+          logger.debug("<< before_count == after_count == app.instances, nothing to do")
+          return
+        end
+      end
+      before_update(app)
 
       model.db.transaction(savepoint: true) do
-        obj.lock!
-        obj.update_from_hash(payload)
+        app.lock!
+        logger.debug("QQQ: adjust_instances update: app:#{app}")
+        app.update_from_hash(payload)
+      end
+      if app.dea_update_pending?
+        logger.debug("qqq: -DeaClient.update_uris(app)")
+        DeaClient.update_uris(app)
       end
 
-      after_update(obj)
+      logger.debug("<< adjust_instances.update(app_guid:#{app_guid}, payload:#{payload})")
     end
 
     private
 
     def after_create(app)
+      logger.debug("qqq: >> after_create: app: instances: #{app.instances rescue 'no app.instances'}")
       record_app_create_value = @app_event_repository.record_app_create(app, SecurityContext.current_user, request_attrs)
       record_app_create_value if request_attrs
       update_health_manager_for_autoscaling(app)
+      logger.debug("qqq: << after_create: app: instances: #{app.instances rescue 'no app.instances'}")
     end
 
     def after_update(app)
+      logger.debug("qqq: >> after_update: app: instances: #{app.instances rescue 'no app.instances'}")
       stager_response = app.last_stager_response
       if stager_response && stager_response.streaming_log_url
         set_header("X-App-Staging-Log", stager_response.streaming_log_url)
       end
+      logger.debug("qqq: 2: after_update: app: instances: #{app.instances rescue 'no app.instances'}")
 
       if app.dea_update_pending?
+        logger.debug("qqq: -DeaClient.update_uris(app)")
         DeaClient.update_uris(app)
       end
 
       @app_event_repository.record_app_update(app, SecurityContext.current_user, request_attrs)
       update_health_manager_for_autoscaling(app)
+      logger.debug("qqq: 2: after_update: app: instances: #{app.instances rescue 'no app.instances'}")
     end
     
     def update_health_manager_for_autoscaling(app)
       changes = {}
       [:min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances].each { |k| changes[k] = app.send(k) }
+      changes[:appid] = app.guid
       changes[:react] = false
       @health_manager_client.update_autoscaling_fields(changes)
     end

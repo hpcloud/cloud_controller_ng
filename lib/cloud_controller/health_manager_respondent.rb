@@ -30,23 +30,17 @@ module VCAP::CloudController
       end
 
       message_bus.subscribe("health_manager.adjust_instances", :queue => "cc") do |decoded_msg|
-        begin
-          decoded_msg = decoded_msg.symbolize_keys
-          # And convert any [before, after] in decoded_msg to after
-          decoded_msg.each {|k, v| decoded_msg[k] = v[1] if v.kind_of?(Array) && v.size == 2 }
-          # Pull in the guts from the AppsController that does this stuff.
-          factory = CloudController::ControllerFactory.new({}, logger, {}, decoded_msg, {})
-          controller = factory.create_controller(VCAP::CloudController::AppsController)
-          app_guid = decoded_msg.delete(:guid)
-          controller.update_instances(app_guid, decoded_msg)
-        rescue => e
-          logger.debug("error responding to health_manager.adjust_instances: Error: #{e.message}\n#{e.backtrace.join("\n")}\n")
-        end
+        adjust_instances(decoded_msg)
+      end
+      
+      message_bus.subscribe("health_manager.request_autoscaling_settings", :queue => "cc") do |decoded_msg|
+        process_request_autoscaling_settings(decoded_msg)
       end
     end
-
+    
     def process_start(payload)
       begin
+        logger.debug("QQQ process_start(payload:#{payload})")
         app_id = payload.fetch("droplet")
         indices = payload.fetch("indices")
         version = payload.fetch("version")
@@ -75,6 +69,7 @@ module VCAP::CloudController
 
     def process_stop(payload)
       begin
+        logger.debug("QQQ process_stop(payload:#{payload})")
         app_id = payload.fetch("droplet")
         instances = payload.fetch("instances")
         running = payload.fetch("running")
@@ -93,6 +88,35 @@ module VCAP::CloudController
       elsif stop_instances?(app, instances, running)
         dea_client.stop_instances(app_id, instances.keys)
       end
+    end
+
+    def adjust_instances(decoded_msg)
+      logger.debug("QQQ: >> health_manager.adjust_instances: #{decoded_msg}")
+      begin
+        decoded_msg = decoded_msg.symbolize_keys
+        logger.debug("QQQ: Fixed decoded_msg: #{decoded_msg}")
+        factory = CloudController::ControllerFactory.new({}, logger, {}, decoded_msg, {})
+        controller = factory.create_controller(VCAP::CloudController::AppsController)
+        app_guid = decoded_msg.delete(:guid)
+        controller.adjust_instances(app_guid, decoded_msg)
+        logger.debug("+ apps_controller.update(app_guid:#{app_guid}, decoded_msg:#{decoded_msg})")
+      rescue => e
+        logger.debug("QQQ: *** : error updating by hand: health_manager.adjust_instances: Error: #{e.message}\n#{e.backtrace.join("\n")}\n")
+      end
+      logger.debug("QQQ: << health_manager.adjust_instances")
+    end
+      
+    def process_request_autoscaling_settings(decoded_msg)
+      logger.debug("QQQ: >> process_request_autoscaling_settings: #{decoded_msg}")
+      decoded_msg = decoded_msg.symbolize_keys
+      app = App[:guid => decoded_msg[:guid]]
+      if !app
+        logger.debug("QQQ: process_request_autoscaling_settings: no guid in #{decoded_msg}")
+        return
+      end
+      return if !app
+      dea_client.update_autoscaling_fields(app)
+      logger.debug("QQQ: << process_request_autoscaling_settings: #{decoded_msg}")
     end
 
     def stop_app(app)
