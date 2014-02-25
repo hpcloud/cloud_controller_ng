@@ -1,3 +1,5 @@
+require "kato/config"
+
 module VCAP::CloudController::RestController
 
   # The base class for all api endpoints.
@@ -162,8 +164,13 @@ module VCAP::CloudController::RestController
       params["async"] == "true"
     end
 
+    def check_maintenance_mode
+      raise Errors::StackatoMaintenanceModeEnabled unless !Kato::Config.get("cloud_controller_ng", "maintenance_mode")
+    end
+
     # hook called before +create+
     def before_create
+      check_maintenance_mode
     end
 
     # hook called after +create+
@@ -172,6 +179,7 @@ module VCAP::CloudController::RestController
 
     # hook called before +update+, +add_related+ or +remove_related+
     def before_update(obj)
+      check_maintenance_mode
     end
 
     # hook called after +update+, +add_related+ or +remove_related+

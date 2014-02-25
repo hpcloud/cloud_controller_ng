@@ -41,7 +41,7 @@ module VCAP::CloudController
 
     def put_component(node_id, component_name)
       raise Errors::NotAuthorized unless roles.admin?
-
+      check_maintenance_mode
       action = params["action"]
 
       if not ["start", "stop", "restart"].include? action

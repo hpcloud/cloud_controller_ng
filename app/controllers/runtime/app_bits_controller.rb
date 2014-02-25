@@ -8,6 +8,7 @@ module VCAP::CloudController
 
     put "#{path_guid}/bits", :upload
     def upload(guid)
+      check_maintenance_mode
       app = find_guid_and_validate_access(:update, guid)
 
       raise Errors::AppBitsUploadInvalid, "missing :resources" unless params["resources"]

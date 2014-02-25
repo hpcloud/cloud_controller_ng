@@ -27,6 +27,7 @@ module VCAP::CloudController
       if user
         info[:user] = user.guid
         info[:stackato][:cc_nginx] = cc_nginx
+        info[:maintenance_mode] = @config[:maintenance_mode]
       end
 
       Yajl::Encoder.encode(info)

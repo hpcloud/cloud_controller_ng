@@ -52,13 +52,6 @@ module VCAP::CloudController::RestController
     # @param [String] guid The GUID of the object to update.
     def update(guid)
       obj = find_for_update(guid)
-
-      logger.debug("QQQ: model_controller update: obj:#{obj}, request_attrs:#{request_attrs}")
-      begin
-        logger.debug("Looks like an app: name: #{obj.name}, instance count: #{obj.instances}")
-      rescue
-        logger.debug("Can't say anything about obj...: #{$!}")
-      end
       before_update(obj)
 
       model.db.transaction(savepoint: true) do
@@ -85,8 +78,8 @@ module VCAP::CloudController::RestController
     end
 
     def do_delete(obj)
+      check_maintenance_mode
       raise_if_has_associations!(obj) if v2_api? && !recursive?
-
       model_deletion_job = Jobs::Runtime::ModelDeletion.new(obj.class, obj.guid)
 
       if async?

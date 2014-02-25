@@ -70,6 +70,8 @@ module VCAP::CloudController
     end
 
     def delete(guid)
+
+      check_maintenance_mode
       app = find_guid_and_validate_access(:delete, guid)
 
       if !recursive? && app.service_bindings.present?

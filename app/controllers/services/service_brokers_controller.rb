@@ -62,6 +62,7 @@ module VCAP::CloudController
 
     delete '/v2/service_brokers/:guid', :delete
     def delete(guid)
+      check_maintenance_mode
       broker = ServiceBroker.find(:guid => guid)
       return HTTP::NOT_FOUND unless broker
       broker.destroy

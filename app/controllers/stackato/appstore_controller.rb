@@ -6,6 +6,7 @@ module VCAP::CloudController
     model_class_name :App
 
     def app_create
+      check_maintenance_mode
       body_params = Yajl::Parser.parse(body)
       ensure_params(body_params, ["space_guid", "app_name"])
       validate_app_name(body_params["app_name"])
@@ -22,6 +23,7 @@ module VCAP::CloudController
     end
 
     def app_deploy(app_guid)
+      check_maintenance_mode
       body_params = Yajl::Parser.parse(body)
       params = set_app_deploy_defaults(body_params)
       ensure_params(params, ["app_name", "space_guid", "from"])

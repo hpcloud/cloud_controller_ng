@@ -11,7 +11,7 @@ module VCAP::CloudController
     def create
       raise Errors::NotAuthenticated unless user
       raise Errors::NotAuthorized unless roles.admin?
-
+      check_maintenance_mode
       create_core
     end
 
@@ -56,6 +56,7 @@ module VCAP::CloudController
     #
     # @param [String] guid The GUID of the object to update.
     def update(guid)
+      check_maintenance_mode
       obj = find_guid_and_validate_access(:update, guid)
 
       json_msg = self.class::UpdateMessage.decode(body)
@@ -86,7 +87,7 @@ module VCAP::CloudController
     end
 
     def delete(guid)
-
+      check_maintenance_mode
       obj = find_guid_and_validate_access(:delete, guid)
 
       model.db.transaction do

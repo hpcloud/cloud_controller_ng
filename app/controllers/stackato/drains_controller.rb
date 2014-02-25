@@ -66,6 +66,7 @@ module VCAP::CloudController
 
     def add
       raise Errors::NotAuthorized unless roles.admin?
+      check_maintenance_mode
       drain = Yajl::Parser.parse(body)
       unless drain["name"]
         raise Errors::StackatoDrainAddNameRequired.new
@@ -82,6 +83,7 @@ module VCAP::CloudController
 
     def delete(name)
       raise Errors::NotAuthorized unless roles.admin?
+      check_maintenance_mode
       logger.info("Deleting drain '#{name}'")
       response = Kato::Logyard.run_logyard_remote "delete", [name]
       Yajl::Encoder.encode(response)

@@ -14,8 +14,8 @@ module VCAP::CloudController
     end
 
     def create_app_drain(app_guid)
+      check_maintenance_mode
       app = find_guid_and_validate_access(:update, app_guid)
-
       max_drains_per_app = @config[:max_drains_per_app]
       if StackatoAppDrains.app_drains_count(app) >= max_drains_per_app
         raise Errors::StackatoAppDrainLimitReached.new(max_drains_per_app)
@@ -42,6 +42,7 @@ module VCAP::CloudController
     end
 
     def delete_app_drain(app_guid, drain_name)
+      check_maintenance_mode
       app = find_guid_and_validate_access(:update, app_guid)
       StackatoAppDrains.validate_name drain_name
       StackatoAppDrains.delete app, drain_name

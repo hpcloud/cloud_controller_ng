@@ -10,6 +10,7 @@ module VCAP::CloudController
 
     put "#{path_guid}/bits", :upload
     def upload(guid)
+      check_maintenance_mode
       buildpack = find_guid_and_validate_access(:read_bits, guid)
       uploaded_file = upload_handler.uploaded_file(params, "buildpack")
       uploaded_filename = upload_handler.uploaded_filename(params, "buildpack")

@@ -53,6 +53,7 @@ module VCAP::CloudController
 
       Yajl::Encoder.encode({
         :endpoint => endpoint,
+        :maintenance_mode => @config[:maintenance_mode],
         :mbusip => mbusip,
         :micro_cloud => is_micro_cloud,
         :restricted => restricted,

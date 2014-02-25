@@ -250,3 +250,8 @@
   name: StackatoComponentNotFound
   http_code: 400
   message: "Component not foubd: %s"
+
+150:
+  name: StackatoMaintenanceModeEnabled
+  http_code: 400
+  message: "Maintenance mode is enabled. The Cloud Controller is read-only."

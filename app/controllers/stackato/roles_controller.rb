@@ -78,6 +78,7 @@ module VCAP::CloudController
     #
     def update_node(node_id)
       raise Errors::NotAuthorized unless roles.admin?
+      check_maintenance_mode
       unless Kato::Config.get("node", node_id)
         raise Errors::StackatoNodeDoesNotExists.new(node_id)
       end

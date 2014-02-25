@@ -104,6 +104,7 @@ module VCAP::CloudController
 
     def add
       raise Errors::NotAuthorized unless roles.admin?
+      check_maintenance_mode
       new_store = Yajl::Parser.parse(body)
       store_config = load_store_config
       new_store["verify_ssl"] = new_store["verify_ssl"] || true # XXX expose in web UI
@@ -135,6 +136,7 @@ module VCAP::CloudController
 
     def update(store_name)
       raise Errors::NotAuthorized unless roles.admin?
+      check_maintenance_mode
       store_config = load_store_config
       validate_store_name(store_name)
       validate_store_exists(store_config["stores"], store_name)
@@ -160,7 +162,7 @@ module VCAP::CloudController
 
     def delete(store_name)
       raise Errors::NotAuthorized unless roles.admin?
-
+      check_maintenance_mode
       store_config = load_store_config
       validate_store_name(store_name)
       validate_store_exists(store_config["stores"], store_name)
