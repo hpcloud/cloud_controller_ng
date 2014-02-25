@@ -32,22 +32,7 @@ module VCAP::CloudController
       "app_start"
     end
     
-
-    def logger
-      
-    end
-
-    class << self
-      def logger
-        @logger ||= Steno.logger("cc.app.start.event")
-      end
-    end
-    def logger
-        self.class.logger
-    end
-
     def self.create_from_app(app)
-      logger.debug("QQQ: >> create_from_app(app:#{app})") #push
       return unless app.space.organization.billing_enabled?
       AppStartEvent.create(
         :timestamp => Time.now,

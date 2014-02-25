@@ -48,10 +48,6 @@ module VCAP::CloudController
     end
     
     def update_autoscaling_fields(args)
-      if args[:appid].nil? && args["appid"].nil?
-        logger.debug("QQQ !!! update_autoscaling_fields: args[:appid] is nil\ncalled from #{caller.join("\n")}")
-        return
-      end
       message_bus.publish("health_manager.autoscaling_settings", args)
     end
 

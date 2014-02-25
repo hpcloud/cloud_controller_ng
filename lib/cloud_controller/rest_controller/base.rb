@@ -97,12 +97,7 @@ module VCAP::CloudController::RestController
     def dispatch(op, *args)
       logger.debug2 "cc.dispatch", endpoint: op, args: args
       check_authentication(op)
-      begin
-        send(op, *args)
-      rescue
-        logger.debug("cc.dispatch failed: endpoint: #{op}, args: #{args}, error: #{$!}")
-        raise
-      end
+      send(op, *args)
     rescue Sequel::ValidationFailed => e
       logger.error "Validation failed: #{Hashify.exception(e)}"
       raise self.class.translate_validation_exception(e, request_attrs)

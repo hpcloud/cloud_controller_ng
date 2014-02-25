@@ -20,12 +20,6 @@ module VCAP::CloudController::RestController
       obj = nil
       model.db.transaction(savepoint: true) do
         obj = model.create_from_hash(request_attrs)
-        logger.debug("QQQ: model_controller create_from_hash: obj:#{obj}, request_attrs:#{request_attrs}")
-        begin
-          logger.debug("Looks like an app: name: #{obj.name}, instance count: #{obj.instances}")
-        rescue
-          logger.debug("Can't say anything about obj...: #{$!}")
-        end
         validate_access(:create, obj, user, roles)
       end
 
@@ -56,7 +50,6 @@ module VCAP::CloudController::RestController
 
       model.db.transaction(savepoint: true) do
         obj.lock!
-        logger.debug("QQQ: model_controller update: obj:#{obj}, request_attrs:#{request_attrs}")
         obj.update_from_hash(request_attrs)
       end
 
