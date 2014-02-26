@@ -3,19 +3,24 @@ $:.unshift(File.expand_path("../../../app", __FILE__))
 
 ENV["BUNDLE_GEMFILE"] ||= File.expand_path("../../../Gemfile", __FILE__)
 
-require "uaa/token_issuer"
-require "uaa/scim"
+require "pg"
 require "kato/config"
+require "kato/util"
 
-def scim_client
-  return @scim_client if @scim_client
-  external_domain = Kato::Config.get("cloud_controller_ng", 'external_domain')
-  target = "https://#{external_domain}/uaa"
-  secret = Kato::Config.get("cloud_controller_ng", 'aok/client_secret')
-  token_issuer = CF::UAA::TokenIssuer.new(target, 'cloud_controller', secret)
-  token = token_issuer.client_credentials_grant
-  @scim_client = CF::UAA::Scim.new(target, token.auth_header)
-  return @scim_client
+def connect_aok_pg
+  db_config = Kato::Util.symbolize_keys(Kato::Config.get("aok", "database_environment/production"))
+  ::PG.connect( :host => db_config[:host], :port => db_config[:port], :dbname => db_config[:database], :user => db_config[:user], :password => db_config[:password] )
+end
+
+def pull_user_from_aok(aok_connection, guid)
+  aok_connection.exec("select * from identities") do |result|
+    result.each do |row|
+      db_guid = parse_pg( row.values_at('guid') )
+      next unless guid == db_guid
+      name = parse_pg( row.values_at('username') )
+      return name
+    end
+  end
 end
 
 Sequel.migration do
@@ -25,11 +30,12 @@ Sequel.migration do
       add_index :username
     end
 
+    aok_conn = connect_aok_pg
+
     from(:users).where(:username => nil).each do |user|
       begin
         guid = user[:guid]
-        result = scim_client.get(:user, guid)
-        username = result["username"]
+        username = pull_user_from_aok(aok_conn, guid)
         from(:users).where(:guid => guid).update(:username => username)
         puts "Cached username for user with guid #{guid}: #{username}" 
       rescue CF::UAA::NotFound
