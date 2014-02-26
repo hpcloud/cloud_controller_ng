@@ -147,27 +147,7 @@ module VCAP::CloudController
       self.memory ||= Config.config[:default_app_memory]
       set_new_version if version_needs_to_be_updated?
 
-      puts "STATE: #{self.restart_required_state}"
-
-      # If the app is being stopped or started we can reset the restart_required field
-      if generate_stop_event? || generate_start_event?
-        self.restart_required = false
-        env_sha1 = Digest::SHA1.hexdigest "#{environment_json}"
-        self.restart_required_state = {"sso_enabled" => self.sso_enabled, "env_sha1" => env_sha1}
-      # If the app is started (and was already started) then we may need to set restart_required if certain properties are being updated
-      elsif started? && !being_started?
-        needs_restart = false
-        # A restart is required if env has changed, but only if it wasn't set back to it's original value since the last restart
-        if env_updated?
-          new_env_sha1 = Digest::SHA1.hexdigest "#{environment_json}"
-          needs_restart = true unless self.restart_required_state["env_sha1"] == new_env_sha1
-        end
-        # A restart is required if sso_enabled has changed, but only if it wasn't set back to it's original value since the last restart 
-        if sso_updated?
-          needs_restart = true unless self.restart_required_state["sso_enabled"] == self.sso_enabled
-        end
-        self.restart_required = needs_restart
-      end
+      update_requires_restart
 
       AppStopEvent.create_from_app(self) if generate_stop_event?
       AppStartEvent.create_from_app(self) if generate_start_event?
@@ -201,12 +181,40 @@ module VCAP::CloudController
       column_changed?(:encrypted_environment_json)
     end
 
+    def set_default_restart_required_state(initial=false)
+        env = initial ? initial_value(:environment_json) : self.environment_json
+        sso = initial ? initial_value(:sso_enabled) : self.sso_enabled
+        env_sha1 = Digest::SHA1.hexdigest "#{env}"
+        self.restart_required_state = {"sso_enabled" => sso, "env_sha1" => env_sha1}
+    end
+
     def restart_required_state=(state)
       self.restart_required_state_json = Yajl::Encoder.encode(state || {})
     end
 
     def restart_required_state
-     self.restart_required_state_json.to_s != '' ? Yajl::Parser.parse(self.restart_required_state_json) : {}
+     self.restart_required_state_json.to_s != '' ? Yajl::Parser.parse(self.restart_required_state_json) : set_default_restart_required_state(true) && restart_required_state
+    end
+
+    def update_requires_restart
+      # If the app is being stopped or started we can reset the restart_required field
+      if generate_stop_event? || generate_start_event?
+        self.restart_required = false
+        set_default_restart_required_state(false)
+      # If the app is started (and was already started) then we may need to set restart_required if certain properties are being updated
+      elsif started? && !being_started?
+        needs_restart = false
+        # A restart is required if env has changed, but only if it wasn't set back to it's original value since the last restart
+        if env_updated?
+          new_env_sha1 = Digest::SHA1.hexdigest "#{environment_json}"
+          needs_restart = true unless self.restart_required_state["env_sha1"] == new_env_sha1
+        end
+        # A restart is required if sso_enabled has changed, but only if it wasn't set back to it's original value since the last restart 
+        if sso_updated?
+          needs_restart = true unless self.restart_required_state["sso_enabled"] == self.sso_enabled
+        end
+        self.restart_required = needs_restart
+      end
     end
 
     def adjust_route_sso_clients
