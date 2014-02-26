@@ -1,4 +1,5 @@
 require "cloud_controller/app_observer"
+require 'digest/sha1'
 require_relative "buildpack"
 
 module VCAP::CloudController
@@ -50,7 +51,7 @@ module VCAP::CloudController
       :state, :version, :command, :console, :debug,
       :staging_task_id, :package_state, :health_check_timeout, :system_env_json,
       :distribution_zone,
-      :description, :sso_enabled,
+      :description, :sso_enabled, :restart_required,
       :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances
 
     import_attributes :name, :production,
@@ -140,13 +141,33 @@ module VCAP::CloudController
         raise VCAP::Errors::AppPackageInvalid.new(
           "bits have not been uploaded")
       end
-
       super
 
       self.stack ||= Stack.default
       self.memory ||= Config.config[:default_app_memory]
-
       set_new_version if version_needs_to_be_updated?
+
+      puts "STATE: #{self.restart_required_state}"
+
+      # If the app is being stopped or started we can reset the restart_required field
+      if generate_stop_event? || generate_start_event?
+        self.restart_required = false
+        env_sha1 = Digest::SHA1.hexdigest "#{environment_json}"
+        self.restart_required_state = {"sso_enabled" => self.sso_enabled, "env_sha1" => env_sha1}
+      # If the app is started (and was already started) then we may need to set restart_required if certain properties are being updated
+      elsif started? && !being_started?
+        needs_restart = false
+        # A restart is required if env has changed, but only if it wasn't set back to it's original value since the last restart
+        if env_updated?
+          new_env_sha1 = Digest::SHA1.hexdigest "#{environment_json}"
+          needs_restart = true unless self.restart_required_state["env_sha1"] == new_env_sha1
+        end
+        # A restart is required if sso_enabled has changed, but only if it wasn't set back to it's original value since the last restart 
+        if sso_updated?
+          needs_restart = true unless self.restart_required_state["sso_enabled"] == self.sso_enabled
+        end
+        self.restart_required = needs_restart
+      end
 
       AppStopEvent.create_from_app(self) if generate_stop_event?
       AppStartEvent.create_from_app(self) if generate_start_event?
@@ -174,6 +195,18 @@ module VCAP::CloudController
 
     def sso_updated?
       column_changed?(:sso_enabled)
+    end
+
+    def env_updated?
+      column_changed?(:encrypted_environment_json)
+    end
+
+    def restart_required_state=(state)
+      self.restart_required_state_json = Yajl::Encoder.encode(state || {})
+    end
+
+    def restart_required_state
+     self.restart_required_state_json.to_s != '' ? Yajl::Parser.parse(self.restart_required_state_json) : {}
     end
 
     def adjust_route_sso_clients
@@ -223,6 +256,10 @@ module VCAP::CloudController
 
     def being_stopped?
       column_changed?(:state) && stopped?
+    end
+
+    def being_started?
+      column_changed?(:state) && started?
     end
 
     def has_stop_event_for_latest_run?
@@ -337,9 +374,7 @@ module VCAP::CloudController
       if sso_enabled
         logger.debug "Registering outh client for route #{route.inspect}"
         route.register_oauth_client
-        
       end
-      
     end
 
     def additional_memory_requested

@@ -253,5 +253,5 @@
 
 150:
   name: StackatoMaintenanceModeEnabled
-  http_code: 400
+  http_code: 503
   message: "Maintenance mode is enabled. The Cloud Controller is read-only."

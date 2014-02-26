@@ -38,7 +38,7 @@ module VCAP::CloudController
       to_many    :events
     end
 
-    query_parameters :name, :space_guid, :organization_guid
+    query_parameters :name, :space_guid, :organization_guid, :restart_required
 
     def self.default_order_by
       :name
