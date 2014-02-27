@@ -6,6 +6,7 @@
 
 var Log = require('log'),
     Package = require('./package'),
+    Path = require('path'),
     ClusterMaster = require('cluster-master');
 
 /* Logger for the cluster master */
@@ -44,7 +45,7 @@ var handleWorkerMessage = function (msg) {
 /* Worker process manager */
 ClusterMaster({
     env: workerEnv,
-    exec: 'worker.js',
+    exec: Path.join(__dirname, 'worker.js'),
     onMessage: handleWorkerMessage,
     repl: false,
     debug: false,
