@@ -70,6 +70,10 @@ module VCAP::CloudController
         @dea_pool.get_dea_availability_zones
       end
 
+      def active_deas
+        @dea_pool.get_active_deas
+      end
+
       def stop(app)
         app_stopper.publish_stop(:droplet => app.guid)
       end

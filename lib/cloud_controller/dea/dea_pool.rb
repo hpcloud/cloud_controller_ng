@@ -105,6 +105,11 @@ module VCAP::CloudController
       @dea_advertisements.find { |ad| ad.dea_id == dea_id }.increment_instance_count(app_id)
     end
 
+    def get_active_deas
+      prune_stale_deas
+      @dea_advertisements.dup
+    end 
+
     private
 
     attr_reader :message_bus

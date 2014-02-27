@@ -64,6 +64,35 @@ module VCAP::CloudController
       end
     end
 
+    def self.get_all_dea_stats
+      all_dea_stats = []
+      DeaClient.active_deas.each do | dea |
+        stats = self.get_dea_stats(dea.dea_id)
+        stats[:dea_id] = dea.dea_id
+        stats[:dea_ip] = dea.dea_ip
+        stats[:total_available] = dea.available_memory
+        all_dea_stats << stats
+      end
+      all_dea_stats
+    end
+
+    def self.get_dea_stats(dea_id)
+      mb = 1024 * 1024
+      dea_stats = {:total_allocated => 0, :total_used => 0}
+      keys = redis { |r| r.keys("dea:#{dea_id}:instances:*") } #TODO may want to look at maintaining a set
+      if !keys.nil? && keys.length > 0
+        instances_on_dea = redis { |r| r.mget(keys || []) }
+        instances_on_dea.each do |instance|
+          if !instance.nil?
+            instance_data = instance.split(':') 
+            dea_stats[:total_used] += instance_data[0].to_i / mb
+            dea_stats[:total_allocated] += instance_data[1].to_i / mb
+          end
+        end
+      end
+      dea_stats
+    end
+
     def self.get_app_stats(app)
 
       logger.debug2("Getting droplet stats for app.guid:#{app.guid}")
@@ -160,7 +189,6 @@ module VCAP::CloudController
     end
 
     def self.update_stats_for_droplet(droplet_id)
-      @update_stats_callback ||= method(:update_stats_for_droplet_instance).to_proc
       instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
       logger.debug2 "Stats update for droplet droplet_id:#{droplet_id} instances=#{instance_ids}"
       instance_ids.each do |instance_id|
@@ -171,7 +199,9 @@ module VCAP::CloudController
         }
         logger.debug2 "Request dea.find.droplet for droplet_id:#{droplet_id} instance_id:#{instance_id} request:#{request}"
         # timeout this request in 30 secs
-        message_bus.request("dea.find.droplet", request, {:timeout => 30, :result_count => 1}, &@update_stats_callback)
+        message_bus.request("dea.find.droplet", request, {:timeout => 30, :result_count => 1}) do |response|
+          update_stats_for_droplet_instance(response)
+        end
       end
     end
 
@@ -243,6 +273,7 @@ module VCAP::CloudController
 
       logger.debug2 "Processing droplet instance #{droplet_instance.inspect}"
 
+      dea_id = droplet_instance["dea"]
       droplet_id = droplet_instance["droplet"]
       instance_id = droplet_instance["instance"]
       stats = droplet_instance["stats"]
@@ -251,9 +282,21 @@ module VCAP::CloudController
 
       uptime = stats.delete("uptime")
       usage = stats.delete("usage")
+      mem = usage["mem"]
+      mem_quota = stats["mem_quota"]
 
       return unless usage
 
+      # Save the instances stats against the dea for dea driven memory reporting
+      dea_instance_key  = "dea:#{dea_id}:instances:#{instance_id}"
+      redis { |r| r.set(dea_instance_key, "#{mem}:#{mem_quota}" )}
+      redis { |r| r.expire(
+          dea_instance_key,
+          STATS_UPDATES_EXPIRY
+        )
+      }
+
+      # Save the instyance stats against the droplet for app driven reporting
       redis { |r| r.hmset(
           "droplet:#{droplet_id}:instance:#{instance_id}",
           "stats",  Yajl::Encoder.encode(stats),
