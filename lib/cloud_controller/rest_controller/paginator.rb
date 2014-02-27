@@ -54,12 +54,17 @@ module VCAP::CloudController::RestController
     #
     # @option opts [Integer] :max_inline Maximum number of objects to
     # expand inline in a relationship.
+    #
+    # @option opts [String] :order_by Column to order results by
+    #
+    # @option opts [String] :order The order to sort results in; either "asc"
+    # (ascending) or "desc" (descending).  Defaults to "asc".
     def initialize(controller, ds, path, opts, request_params = {})
       page       = opts[:page] || 1
       page_size  = opts[:results_per_page] || 50
       criteria = order_by(opts, controller, ds)
 
-      @paginated = ds.order_by(criteria).extension(:pagination).paginate(page, page_size)
+      @paginated = ds.order_by(*criteria).extension(:pagination).paginate(page, page_size)
       @serialization = opts[:serialization] || ObjectSerialization
 
       @controller = controller
@@ -75,11 +80,15 @@ module VCAP::CloudController::RestController
 
       requested_order_by = opts[:order_by] ? opts[:order_by].to_sym : nil
 
+      order_by = [controller.default_order_by]
+
       if requested_order_by && ds.columns.include?(requested_order_by)
-        return requested_order_by
-      else
-        return controller.default_order_by
+        order = Sequel.method(opts[:order] == 'desc' ? :desc : :asc)
+        order_by.insert 0, order.call(requested_order_by)
       end
+
+      return order_by
+
     end
 
     # Pagination
