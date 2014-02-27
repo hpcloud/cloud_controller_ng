@@ -21,6 +21,8 @@ def pull_user_from_aok(aok_connection, guid)
       return name
     end
   end
+
+  return nil
 end
 
 Sequel.migration do
@@ -36,10 +38,12 @@ Sequel.migration do
       begin
         guid = user[:guid]
         username = pull_user_from_aok(aok_conn, guid)
-        from(:users).where(:guid => guid).update(:username => username)
-        puts "Cached username for user with guid #{guid}: #{username}" 
-      rescue CF::UAA::NotFound
-        puts "User with guid #{user[:guid]} doesn't exist in AOK. Skipping."
+        if username
+          from(:users).where(:guid => guid).update(:username => username)
+          puts "Cached username for user with guid #{guid}: #{username}" 
+        else
+          puts "User with guid #{user[:guid]} doesn't exist in AOK. Skipping."
+        end
       end
     end
   end
