@@ -9,7 +9,7 @@ require "kato/util"
 
 def connect_aok_pg
   db_config = Kato::Util.symbolize_keys(Kato::Config.get("aok", "database_environment/production"))
-  ::PG.connect( :host => db_config[:host], :port => db_config[:port], :dbname => db_config[:database], :user => db_config[:user], :password => db_config[:password] )
+  ::PG.connect( :host => db_config[:host], :port => db_config[:port], :dbname => db_config[:database], :user => db_config[:username], :password => db_config[:password] )
 end
 
 def pull_user_from_aok(aok_connection, guid)
