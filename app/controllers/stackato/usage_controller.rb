@@ -39,11 +39,19 @@ module VCAP::CloudController
       raise Errors::NotAuthorized unless roles.admin?
 
       deas = StackatoDropletAccountability.get_all_dea_stats
+      cluster = map_cluster_usage(deas)
       stats = {
         :placement_zones => map_zone_usage(deas, DeaClient.dea_zones), # memory usage broken down by placement zones
         :availability_zones => map_zone_usage(deas, DeaClient.dea_availability_zones), # memory usage broken down by availability zones
-        :cluster => map_cluster_usage(deas), # memory usage summarized across the cluster
-        :deas => deas # memory usage broken down by dea
+        :cluster => cluster, # memory usage summarized across the cluster
+        :deas => deas, # memory usage broken down by dea,
+        # Stay compatible with the old /usage api by setting the :usage and :allocated properties
+        :usage => {
+          :mem => cluster[:total_used]
+        },
+        :allocated => {
+          :mem => cluster[:total_allocated]
+        }
       }
 
       Yajl::Encoder.encode(stats)

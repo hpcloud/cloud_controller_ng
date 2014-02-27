@@ -24,15 +24,27 @@ module VCAP::CloudController
 
     default_order_by  :name
 
-    export_attributes :name, :organization_guid
+    export_attributes :name, :organization_guid, :is_default
 
     import_attributes :name, :organization_guid, :developer_guids,
-                      :manager_guids, :auditor_guids
+                      :manager_guids, :auditor_guids, :is_default
 
     strip_attributes  :name
 
     def in_organization?(user)
       organization && organization.users.include?(user)
+    end
+
+    def before_save
+      if column_changed?(:is_default)
+        raise Errors::NotAuthorized unless roles.admin?
+      end
+    end
+
+    def after_save
+      if column_changed?(:is_default)
+        Space.join(:quota_definitions, :id => :quota_definition_id).sum(:memory_limit)
+      end
     end
 
     def validate
