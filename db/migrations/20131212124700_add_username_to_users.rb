@@ -32,9 +32,10 @@ Sequel.migration do
       add_index :username
     end
 
-    aok_conn = connect_aok_pg
+    aok_conn = nil
 
     from(:users).where(:username => nil).each do |user|
+      aok_conn ||= connect_aok_pg
       begin
         guid = user[:guid]
         username = pull_user_from_aok(aok_conn, guid)
