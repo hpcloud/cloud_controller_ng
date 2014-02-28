@@ -13,7 +13,7 @@ def connect_aok_pg
 end
 
 def pull_user_from_aok(aok_connection, guid)
-  aok_connection.exec("select * from identities") do |result|
+  aok_connection.exec("select * from identities where guid=$1", [guid]) do |result|
     result.each do |row|
       db_guid = parse_pg( row.values_at('guid') )
       next unless guid == db_guid
