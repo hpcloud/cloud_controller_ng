@@ -55,11 +55,22 @@ module VCAP::CloudController
 
       if uaa_id
         user = User.find(:guid => uaa_id.to_s)
-        user ||= User.create(guid: token_information['user_id'], admin: current_user_admin?(token_information), active: true)
+        if user.nil?
+          User.db.transaction do
+            user = User.create(guid: token_information['user_id'], admin: current_user_admin?(token_information), active: true)
+            default_org = Organization.where(:is_default => true).first
+            if default_org
+              default_org.add_user(user)
+              default_space = Space.where(:is_default => true).first
+              if default_space
+                default_space.add_developer(user)
+              end
+            end
+          end
+        end
       end
 
       VCAP::CloudController::SecurityContext.set(user, token_information)
-
       validate_scheme(user, VCAP::CloudController::SecurityContext.admin?)
     end
 
