@@ -45,12 +45,12 @@ module VCAP::CloudController
         :availability_zones => map_zone_usage(deas, DeaClient.dea_availability_zones), # memory usage broken down by availability zones
         :cluster => cluster, # memory usage summarized across the cluster
         :deas => deas, # memory usage broken down by dea,
-        # Stay compatible with the old /usage api by setting the :usage and :allocated properties
+        # Stay compatible with the old /v2/usage api by setting the :usage and :allocated properties
         :usage => {
-          :mem => cluster[:total_used]
+          :mem => cluster[:total_used] * 1024 # old api expects KB
         },
         :allocated => {
-          :mem => cluster[:total_allocated]
+          :mem => cluster[:total_allocated] * 1024 # old api expects KB
         }
       }
 

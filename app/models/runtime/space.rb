@@ -37,13 +37,10 @@ module VCAP::CloudController
 
     def before_save
       if column_changed?(:is_default)
-        raise Errors::NotAuthorized unless roles.admin?
-      end
-    end
-
-    def after_save
-      if column_changed?(:is_default)
-        Space.join(:quota_definitions, :id => :quota_definition_id).sum(:memory_limit)
+        raise Errors::NotAuthorized unless VCAP::CloudController::SecurityContext.admin?
+        if self.is_default
+          Space.where(:is_default => true).update(:is_default => false)
+        end
       end
     end
 

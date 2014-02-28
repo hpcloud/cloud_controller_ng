@@ -30,11 +30,11 @@ module VCAP::CloudController
 
     default_order_by  :name
 
-    export_attributes :name, :billing_enabled, :quota_definition_guid, :status
+    export_attributes :name, :billing_enabled, :quota_definition_guid, :status, :is_default
     import_attributes :name, :billing_enabled,
                       :user_guids, :manager_guids, :billing_manager_guids,
                       :auditor_guids, :private_domain_guids, :quota_definition_guid,
-                      :status, :domain_guids
+                      :status, :domain_guids, :is_default
 
 
     def self.user_visibility_filter(user)
@@ -54,6 +54,14 @@ module VCAP::CloudController
       super
       if column_changed?(:billing_enabled) && billing_enabled?
         @is_billing_enabled = true
+      end
+
+      if column_changed?(:is_default)
+        raise Errors::NotAuthorized unless VCAP::CloudController::SecurityContext.admin?
+        if self.is_default
+          Organization.where(:is_default => true).update(:is_default => false)
+          # Organization.update(:is_default => true).where(:id => self.id)
+        end
       end
     end
 
