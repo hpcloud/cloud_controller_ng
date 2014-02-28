@@ -10,7 +10,7 @@ module VCAP::CloudController
       attribute  :allow_sudo,                 Message::Boolean, :default => false
     end
 
-    query_parameters :name
+    query_parameters :name, :allow_sudo
 
     def self.default_order_by
       :name
