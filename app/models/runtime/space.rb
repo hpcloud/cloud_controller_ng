@@ -38,7 +38,15 @@ module VCAP::CloudController
     def before_save
       if column_changed?(:is_default)
         raise Errors::NotAuthorized unless VCAP::CloudController::SecurityContext.admin?
+        # if this space is being made the default we need to 1) remove default from all other spaces and 2) ensure the default org is the org that owns this space
         if self.is_default
+          # ensure the owning org becomes the new default (if it isn't already)
+          default_org = Organization.where(:is_default => true).first
+          if default_org && default_org.guid != self.organization_guid
+            default_org.update(:is_default => false)
+          end
+          Organization.where(:guid => self.organization_guid).update(:is_default => true)
+          # remove default from all other spaces
           Space.where(:is_default => true).update(:is_default => false)
         end
       end

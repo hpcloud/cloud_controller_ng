@@ -58,9 +58,20 @@ module VCAP::CloudController
 
       if column_changed?(:is_default)
         raise Errors::NotAuthorized unless VCAP::CloudController::SecurityContext.admin?
+        # if this org is being made the default we need to 1) remove default from other orgs and 2) ensure the default space belong to this org
         if self.is_default
+          # remove default space if it doesn't belong to this org
+          default_space = Space.where(:is_default => true).first
+          if default_space
+            if default_space.organization_guid != self.guid
+              default_space.update(:is_default => false)
+            end
+          end
+          # remove default from all other orgs
           Organization.where(:is_default => true).update(:is_default => false)
-          # Organization.update(:is_default => true).where(:id => self.id)
+        # if this org was the default, but is no longer, then we need to ensure the default space is removed as well
+        else
+          Space.where(:is_default => true).update(:is_default => false)
         end
       end
     end
