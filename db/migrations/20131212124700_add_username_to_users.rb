@@ -12,6 +12,14 @@ def connect_aok_pg
   ::PG.connect( :host => db_config[:host], :port => db_config[:port], :dbname => db_config[:database], :user => db_config[:username], :password => db_config[:password] )
 end
 
+def parse_pg values
+ if values.is_a? Array
+   return values.first
+ else
+   return values
+ end
+end
+
 def pull_user_from_aok(aok_connection, guid)
   aok_connection.exec("select * from identities where guid=$1", [guid]) do |result|
     result.each do |row|
