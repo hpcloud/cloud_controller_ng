@@ -249,7 +249,7 @@
 149:
   name: StackatoComponentNotFound
   http_code: 400
-  message: "Component not foubd: %s"
+  message: "Component not found: %s"
 
 150:
   name: StackatoMaintenanceModeEnabled
