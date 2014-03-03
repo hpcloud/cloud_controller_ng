@@ -344,12 +344,14 @@ module VCAP::CloudController
           max_cpu_threshold: app.max_cpu_threshold,
           min_instances: app.min_instances,
           max_instances: app.max_instances,
+          autoscale_enabled: app.autoscale_enabled,
         }
       end
     
       def update_autoscaling_fields(app)
         changes = {appid: app.guid, react: false}
-        [:min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances].each { |k| changes[k] = app.send(k) }
+        [:min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+         :autoscale_enabled].each { |k| changes[k] = app.send(k) }
         health_manager_client.update_autoscaling_fields(changes)
       end
 

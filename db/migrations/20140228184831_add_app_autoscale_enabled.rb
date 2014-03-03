@@ -1,7 +1,7 @@
-class AddAppAutoscalingEnabled < ActiveRecord::Migration
+Sequel.migration do
   change do
     alter_table :apps do
-      add_column :autoscaling_enabled, :boolean, :default => false
+      add_column :autoscale_enabled, :boolean, :default => false
     end
   end
 end

@@ -296,7 +296,7 @@ module VCAP::CloudController
         )
       }
 
-      # Save the instyance stats against the droplet for app driven reporting
+      # Save the instance stats against the droplet for app driven reporting
       redis { |r| r.hmset(
           "droplet:#{droplet_id}:instance:#{instance_id}",
           "stats",  Yajl::Encoder.encode(stats),

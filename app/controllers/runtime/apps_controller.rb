@@ -28,6 +28,7 @@ module VCAP::CloudController
       attribute  :max_cpu_threshold,   Integer,    :default => nil
       attribute  :min_instances,       Integer,    :default => nil
       attribute  :max_instances,       Integer,    :default => nil
+      attribute  :autoscale_enabled,   Message::Boolean,    :default => false
 
       attribute  :buildpack,           String, :default => nil
       attribute  :detected_buildpack,  String, :exclude_in => [:create, :update]
@@ -155,7 +156,8 @@ module VCAP::CloudController
     
     def update_health_manager_for_autoscaling(app)
       changes = {}
-      [:min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances].each { |k| changes[k] = app.send(k) }
+      [:min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+       :autoscale_enabled].each { |k| changes[k] = app.send(k) }
       changes[:appid] = app.guid
       changes[:react] = false
       @health_manager_client.update_autoscaling_fields(changes)

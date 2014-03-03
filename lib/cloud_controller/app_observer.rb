@@ -34,32 +34,13 @@ module VCAP::CloudController
           delta = changes[:instances][1] - changes[:instances][0]
           react_to_instances_change(app, delta)
         elsif (changes.keys & [:min_instances, :max_instances,
-                              :min_cpu_threshold, :max_cpu_threshold]).size > 0
-          # First, see if we need to change the instances based on current #
-          # of instances
-          if changes.has_key?(:min_instances) && (targetValue = changes[:min_instances][1]) > app.instances
-            delta = targetValue - app.instances
-            logger.debug("min_instances set: react with delta #{delta}")
-            app.instances = targetValue
-            app.save
-            react_to_instances_change(app, delta)
-            changes[:react] = false
-          elsif changes.has_key?(:max_instances) && (targetValue = changes[:max_instances][1]) < app.instances
-            delta = targetValue - app.instances
-            logger.debug("max_instances set: react with delta #{delta}")
-            app.instances = targetValue
-            app.save
-            react_to_instances_change(app, delta)
-            changes[:react] = false
-          else
-            changes[:react] = true
-          end
-          if @health_manager_client
-            changes.delete(:updated_at)
-            # Health manager calls app.guid app[:appid]
-            changes[:appid] = app.guid
-            @health_manager_client.update_autoscaling_fields(changes)
-          end
+                              :min_cpu_threshold, :max_cpu_threshold,
+                              :autoscale_enabled]).size > 0 && @health_manager_client
+          changes.delete(:updated_at)
+          changes[:react] = true
+          # Health manager refers to "app.guid" as "app[:appid]"
+          changes[:appid] = app.guid
+          @health_manager_client.update_autoscaling_fields(changes)
         end
       end
 
