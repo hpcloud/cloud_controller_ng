@@ -79,16 +79,13 @@ module VCAP::CloudController::RestController
     def order_by(opts, controller, ds)
 
       requested_order_by = opts[:order_by] ? opts[:order_by].to_sym : nil
+      order_by = requested_order_by && ds.columns.include?(requested_order_by) ? requested_order_by : controller.default_order_by
 
-      order_by = [controller.default_order_by]
-
-      if requested_order_by && ds.columns.include?(requested_order_by)
-        order = Sequel.method(opts[:order] == 'desc' ? :desc : :asc)
-        order_by.insert 0, order.call(requested_order_by)
+      if opts[:order] && opts[:order] == 'desc'
+        order_by = Sequel.desc(order_by)
       end
 
-      return order_by
-
+      order_by
     end
 
     # Pagination
