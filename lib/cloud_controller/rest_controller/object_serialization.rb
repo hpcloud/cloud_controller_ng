@@ -77,18 +77,22 @@ module VCAP::CloudController::RestController
     def self.relations_hash(controller, obj, opts, depth, parents, relations)
       inline_relations_depth = opts[:inline_relations_depth] || INLINE_RELATIONS_DEFAULT
       max_number_of_associated_objects_to_inline = opts[:max_inline] || MAX_INLINE_DEFAULT
+      relationships_to_exclude = opts[:exclude_relations] ? opts[:exclude_relations].split(',') : []
 
       {}.tap do |res|
         parents.push(controller)
-        res.merge!(serialize_relationships(controller.to_one_relationships, controller, depth, obj, opts, parents, inline_relations_depth, relations))
-        res.merge!(serialize_relationships(controller.to_many_relationships, controller, depth, obj, opts, parents, inline_relations_depth, relations, max_number_of_associated_objects_to_inline))
+        res.merge!(serialize_relationships(controller.to_one_relationships, relationships_to_exclude, controller, depth, obj, opts, parents, inline_relations_depth, relations))
+        res.merge!(serialize_relationships(controller.to_many_relationships, relationships_to_exclude, controller, depth, obj, opts, parents, inline_relations_depth, relations, max_number_of_associated_objects_to_inline))
         parents.pop
       end
     end
 
-    def self.serialize_relationships(relationships, controller, depth, obj, opts, parents, inline_relations_depth, relations, max_number_of_associated_objects_to_inline= nil)
+    def self.serialize_relationships(relationships, relationships_to_exclude, controller, depth, obj, opts, parents, inline_relations_depth, relations, max_number_of_associated_objects_to_inline= nil)
       response = {}
       (relationships || {}).each do |association_name, association|
+
+        # Allow clients to exclude specific relationships if they're not interested in them
+        next unless !relationships_to_exclude.include?(association_name.to_s)
 
         associated_model = get_associated_model_klazz_for(obj, association_name)
         next unless associated_model

@@ -62,12 +62,13 @@ module VCAP::CloudController::RestController
       res = {}
       [ [ "inline-relations-depth", Integer ],
         [ "orphan-relations",       Integer ],
+        [ "exclude-relations",      String  ],
         [ "pretty",                 Integer ],
         [ "page",                   Integer ],
         [ "results-per-page",       Integer ],
         [ "q",                      String  ],
         [ "order-by",               String  ],
-        [ "order",                  String  ], # "asc" (default) / "desc"
+        [ "order",                  String  ] # "asc" (default) / "desc"
       ].each do |key, klass|
         val = params[key]
         res[key.underscore.to_sym] = Object.send(klass.name, val) if val

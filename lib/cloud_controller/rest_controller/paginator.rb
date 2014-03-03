@@ -144,12 +144,11 @@ module VCAP::CloudController::RestController
         params[preseved_param] = @request_params[preseved_param] if @request_params[preseved_param]
       end
 
-      if @opts[:orphan_relations]
-        params['orphan_relations'] = @opts[:orphan_relations]
-      end
-
+      params['orphan_relations'] = @opts[:orphan_relations] if @opts[:orphan_relations]
+      params['order'] = @opts[:order] if @opts[:order]
       params['order-by'] = @opts[:order_by] if @opts[:order_by]
       params['pretty'] = @opts[:pretty] if @opts[:pretty]
+      params['exclude-relations'] = @opts[:exclude_relations] if @opts[:exclude_relations]
 
       uri = Addressable::URI.parse(@path)
       uri.query_values = params
