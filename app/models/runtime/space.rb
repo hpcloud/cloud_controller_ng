@@ -32,15 +32,32 @@ module VCAP::CloudController
 
     default_order_by  :name
 
-    export_attributes :name, :organization_guid
+    export_attributes :name, :organization_guid, :is_default
 
     import_attributes :name, :organization_guid, :developer_guids,
-                      :manager_guids, :auditor_guids, :domain_guids
+                      :manager_guids, :auditor_guids, :domain_guids, :is_default
 
     strip_attributes  :name
 
     def in_organization?(user)
       organization && organization.users.include?(user)
+    end
+
+    def before_save
+      if column_changed?(:is_default)
+        raise Errors::NotAuthorized unless VCAP::CloudController::SecurityContext.admin?
+        # if this space is being made the default we need to 1) remove default from all other spaces and 2) ensure the default org is the org that owns this space
+        if self.is_default
+          # ensure the owning org becomes the new default (if it isn't already)
+          default_org = Organization.where(:is_default => true).first
+          if default_org && default_org.guid != self.organization_guid
+            default_org.update(:is_default => false)
+          end
+          Organization.where(:guid => self.organization_guid).update(:is_default => true)
+          # remove default from all other spaces
+          Space.where(:is_default => true).update(:is_default => false)
+        end
+      end
     end
 
     def before_create

@@ -2,6 +2,7 @@ module VCAP::CloudController
   rest_controller :Spaces do
     define_attributes do
       attribute  :name,            String
+      attribute  :is_default, Message::Boolean, :default => false
       to_one     :organization
       to_many    :developers
       to_many    :managers
