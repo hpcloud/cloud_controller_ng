@@ -93,7 +93,7 @@ module VCAP::CloudController::RestController
       (relationships || {}).each do |association_name, association|
 
         # Allow clients to exclude specific relationships if they're not interested in them
-        next unless !relationships_to_exclude.include?(association_name.to_s)
+        next if relationships_to_exclude.include?(association_name.to_s)
 
         # Allow clients to include only specific relationships that they're interested in
         next unless relationships_to_include.length == 0 || relationships_to_include.include?(association_name.to_s)
