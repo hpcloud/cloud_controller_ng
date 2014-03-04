@@ -149,6 +149,7 @@ module VCAP::CloudController::RestController
       params['order-by'] = @opts[:order_by] if @opts[:order_by]
       params['pretty'] = @opts[:pretty] if @opts[:pretty]
       params['exclude-relations'] = @opts[:exclude_relations] if @opts[:exclude_relations]
+      params['include-relations'] = @opts[:include_relations] if @opts[:include_relations]
 
       uri = Addressable::URI.parse(@path)
       uri.query_values = params

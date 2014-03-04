@@ -63,6 +63,7 @@ module VCAP::CloudController::RestController
       [ [ "inline-relations-depth", Integer ],
         [ "orphan-relations",       Integer ],
         [ "exclude-relations",      String  ],
+        [ "include-relations",      String  ],
         [ "pretty",                 Integer ],
         [ "page",                   Integer ],
         [ "results-per-page",       Integer ],
