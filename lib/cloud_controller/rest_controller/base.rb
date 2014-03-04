@@ -162,7 +162,7 @@ module VCAP::CloudController::RestController
     end
 
     def check_maintenance_mode
-      raise Errors::StackatoMaintenanceModeEnabled unless !Kato::Config.get("cloud_controller_ng", "maintenance_mode")
+      raise Errors::StackatoMaintenanceModeEnabled unless !Config.config[:maintenance_mode]
     end
 
     # hook called before +create+

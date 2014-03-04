@@ -27,7 +27,7 @@ module VCAP::CloudController
       if user
         info[:user] = user.guid
         info[:stackato][:cc_nginx] = cc_nginx
-        info[:maintenance_mode] = Kato::Config.get("cloud_controller_ng", "maintenance_mode")
+        info[:maintenance_mode] = Config.config[:maintenance_mode]
       end
 
       Yajl::Encoder.encode(info)
