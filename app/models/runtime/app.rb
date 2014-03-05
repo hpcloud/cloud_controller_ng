@@ -153,6 +153,7 @@ module VCAP::CloudController
       AppStartEvent.create_from_app(self) if generate_start_event?
 
       adjust_route_sso_clients if sso_updated?
+      adjust_instances if autoscale_enabled
     end
 
     def after_save
@@ -225,6 +226,19 @@ module VCAP::CloudController
           route.register_oauth_client
         else
           route.delete_oauth_client
+        end
+      end
+    end
+
+    def adjust_instances
+      # precondition: assert self.autoscale_enabled
+      if (changed_columns & [:instances, :min_instances, :max_instances]).size > 0
+        if self.instances < self.min_instances
+          logger.debug("Raising # instances from specified #{instances} to min_instances #{min_instances}")
+          self.instances = self.min_instances
+        elsif self.instances > self.max_instances
+          logger.debug("Lowering # instances from specified #{instances} to max_instances #{max_instances}")
+          self.instances = self.max_instances
         end
       end
     end
