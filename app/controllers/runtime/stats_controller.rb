@@ -8,9 +8,12 @@ module VCAP::CloudController
       app = find_guid_and_validate_access(:read, guid)
       stats = DeaClient.find_stats(app, opts)
 
-      stats.each do |instance_index, data|
-        data[:stats]["usage"]["mem"] =  data[:stats]["usage"]["mem"].to_i
-        data[:stats]["usage"]["disk"] =  data[:stats]["usage"]["disk"].to_i
+      stats.each_value do |data|
+        # When an instance is starting up this value might not yet exist
+        dsu = data[:stats]["usage"] rescue nil
+        if dsu
+          %w/mem disk/.each { |key| dsu[key] = dsu[key].to_i }
+        end
       end
 
       [HTTP::OK, Yajl::Encoder.encode(stats)]
