@@ -232,7 +232,8 @@ module VCAP::CloudController
 
     def adjust_instances
       # precondition: assert self.autoscale_enabled
-      if (changed_columns & [:instances, :min_instances, :max_instances]).size > 0
+      if (changed_columns & [:instances, :min_instances, :max_instances,
+                             :autoscale_enabled]).size > 0
         if self.instances < self.min_instances
           logger.debug("Raising # instances from specified #{instances} to min_instances #{min_instances}")
           self.instances = self.min_instances
