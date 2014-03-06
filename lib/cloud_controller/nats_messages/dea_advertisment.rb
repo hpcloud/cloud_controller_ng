@@ -28,4 +28,8 @@ class DeaAdvertisement < Advertisement
   def zone
     stats.fetch("placement_properties", {}).fetch("zone", "default")
   end
+
+  def physical_memory
+    stats["physical_memory"]
+  end
 end

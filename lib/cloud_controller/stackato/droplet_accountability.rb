@@ -71,6 +71,7 @@ module VCAP::CloudController
         stats[:dea_id] = dea.dea_id
         stats[:dea_ip] = dea.dea_ip
         stats[:total_available] = dea.available_memory
+        stats[:total_physical] = dea.physical_memory
         all_dea_stats << stats
       end
       all_dea_stats

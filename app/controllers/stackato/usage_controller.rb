@@ -8,7 +8,7 @@ module VCAP::CloudController
     def map_zone_usage(deas, zones)
       zones_breakdown = []
       zones.each do | zone_name, deas_in_zone |
-        zone = {:name => zone_name, :dea_ids => [], :total_allocated => 0, :total_used => 0, :total_available => 0}
+        zone = {:name => zone_name, :dea_ids => [], :total_allocated => 0, :total_used => 0, :total_available => 0, :total_physical => 0,}
         deas_in_zone.each do |dea_ip|
           dea_index = deas.find_index { |dea| dea[:dea_ip] == dea_ip }
           if !dea_index.nil?
@@ -17,6 +17,7 @@ module VCAP::CloudController
             zone[:total_allocated] += dea[:total_allocated]
             zone[:total_used] += dea[:total_used]
             zone[:total_available] += dea[:total_available]
+            zone[:total_physical] += dea[:total_physical]
           end
         end
         zones_breakdown << zone
@@ -25,11 +26,12 @@ module VCAP::CloudController
     end
 
     def map_cluster_usage(deas)
-      cluster = {:total_allocated => 0, :total_used => 0, :total_available => 0, :total_assigned => 0}
+      cluster = {:total_allocated => 0, :total_used => 0, :total_available => 0, :total_physical => 0, :total_assigned => 0}
       deas.each do |dea|
         cluster[:total_allocated] += dea[:total_allocated]
         cluster[:total_used] += dea[:total_used]
         cluster[:total_available] += dea[:total_available]
+        cluster[:total_physical] += dea[:total_physical]
       end
      cluster[:total_assigned] = Organization.join(:quota_definitions, :id => :quota_definition_id).sum(:memory_limit)
      cluster
