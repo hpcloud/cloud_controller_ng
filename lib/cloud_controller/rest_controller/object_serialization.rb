@@ -92,12 +92,6 @@ module VCAP::CloudController::RestController
       response = {}
       (relationships || {}).each do |association_name, association|
 
-        # Allow clients to exclude specific relationships if they're not interested in them
-        next if relationships_to_exclude.include?(association_name.to_s)
-
-        # Allow clients to include only specific relationships that they're interested in
-        next unless relationships_to_include.length == 0 || relationships_to_include.include?(association_name.to_s)
-
         associated_model = get_associated_model_klazz_for(obj, association_name)
         next unless associated_model
 
@@ -111,6 +105,12 @@ module VCAP::CloudController::RestController
           controller, associated_controller, obj, associated_model_instances, association)
 
         response["#{association_name}_url"] = associated_url if associated_url
+
+        # Allow clients to exclude specific relationships if they're not interested in them
+        next if relationships_to_exclude.include?(association_name.to_s)
+
+        # Allow clients to include only specific relationships that they're interested in
+        next unless relationships_to_include.length == 0 || relationships_to_include.include?(association_name.to_s)
 
         if depth < inline_relations_depth && !parents.include?(associated_controller)
           if association.is_a?(ControllerDSL::ToOneAttribute)
