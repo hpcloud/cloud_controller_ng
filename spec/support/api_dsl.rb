@@ -130,8 +130,13 @@ module ApiDsl
         request_parameter :q, query_parameter_description
       end
       request_parameter :page, "Page of results to fetch"
+      request_parameter :pretty, "Enable pretty-printing of responses"
       request_parameter :'results-per-page', "Number of results per page"
       request_parameter :'inline-relations-depth', "0 - don't inline any relations and return URLs.  Otherwise, inline to depth N.", deprecated: true
+      request_parameter :'exclude-relations', "Exclude the given relations from inlining."
+      request_parameter :'include-relations', "Include only the given relations during inlining."
+      request_parameter :order, "Result ordering, either 'asc' or 'desc'.  Defaults to ascending."
+      request_parameter :'ordery-by', "The column to order results by."
     end
 
     def request_parameter(name, description, options = {})
