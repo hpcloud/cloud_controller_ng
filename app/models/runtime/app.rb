@@ -237,7 +237,7 @@ module VCAP::CloudController
         if self.instances < self.min_instances
           logger.debug("Raising # instances from specified #{instances} to min_instances #{min_instances}")
           self.instances = self.min_instances
-        elsif self.instances > self.max_instances
+        elsif !self.max_instances.nil? && self.instances > self.max_instances
           logger.debug("Lowering # instances from specified #{instances} to max_instances #{max_instances}")
           self.instances = self.max_instances
         end
