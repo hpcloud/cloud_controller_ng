@@ -136,7 +136,7 @@ module ApiDsl
       request_parameter :'exclude-relations', "Exclude the given relations from inlining."
       request_parameter :'include-relations', "Include only the given relations during inlining."
       request_parameter :order, "Result ordering, either 'asc' or 'desc'.  Defaults to ascending."
-      request_parameter :'ordery-by', "The column to order results by."
+      request_parameter :'order-by', "The column to order results by."
     end
 
     def request_parameter(name, description, options = {})
