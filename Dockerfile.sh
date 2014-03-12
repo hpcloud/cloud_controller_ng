@@ -4,9 +4,12 @@ for DIR in `/bin/ls ext`; do
   ln -s `pwd`/ext/$DIR /s/code/
 done
 
+apt-get -qy update
+# Runtime dependency of the librrd gem.
+apt-get -qy install librrd4
+
 # Capture install history for later removal
 DPKG_LOG_LENGTH=`wc -l /var/log/dpkg.log`
-apt-get -qy update
 apt-get -qy install build-essential
 
 # For the librrd gem.
