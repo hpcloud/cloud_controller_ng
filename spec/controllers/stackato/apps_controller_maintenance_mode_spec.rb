@@ -5,6 +5,10 @@ module VCAP::CloudController
   describe VCAP::CloudController::AppsController, type: :controller do
     before { configure_stacks }
 
+    before(:all) do
+      post "/v2/stackato/config?name=cloud_controller_ng", Yajl::Encoder.encode({'maintenance_mode'=> true}), json_headers(admin_headers)
+    end
+
     describe "create app" do
       let(:space_guid) { Space.make.guid.to_s }
       let(:initial_hash) do
@@ -22,7 +26,9 @@ module VCAP::CloudController
 
       context "when in maintenance mode" do
         it "should fail when in maintenance mode" do
-          expect { create_app }.to raise_error(Errors::StackatoMaintenanceModeEnabled)
+          create_app
+          last_response.status.should eq(503)
+          last_response.body.should match(/Maintenance mode is enabled/)
         end
       end
     end
@@ -41,7 +47,9 @@ module VCAP::CloudController
           let(:update_hash) { {"health_check_timeout" => 80} }
 
           it "should set to provided value" do
-            expect { update_app }.to raise_error(Errors::StackatoMaintenanceModeEnabled)
+            update_app
+            last_response.status.should eq(503)
+            last_response.body.should match(/Maintenance mode is enabled/)
           end
         end
       end
@@ -53,7 +61,9 @@ module VCAP::CloudController
           end
 
           it "should work" do
-            expect { update_app }.to raise_error(Errors::StackatoMaintenanceModeEnabled)
+            update_app
+            last_response.status.should eq(503)
+            last_response.body.should match(/Maintenance mode is enabled/)
           end
 
         end
@@ -66,7 +76,9 @@ module VCAP::CloudController
           end
 
           it "should fail when in maintenance mode" do
-            expect { update_app }.to raise_error(Errors::StackatoMaintenanceModeEnabled)
+            update_app
+            last_response.status.should eq(503)
+            last_response.body.should match(/Maintenance mode is enabled/)
           end
         end
 
@@ -78,7 +90,9 @@ module VCAP::CloudController
           end
 
           it "should fail when in maintenance mode" do
-            expect { update_app }.to raise_error(Errors::StackatoMaintenanceModeEnabled)
+            update_app
+            last_response.status.should eq(503)
+            last_response.body.should match(/Maintenance mode is enabled/)
           end
         end
       end
@@ -93,12 +107,10 @@ module VCAP::CloudController
         delete "/v2/apps/#{app_obj.guid}", {}, json_headers(admin_headers)
       end
 
-      context "should fail" do
-        let(:app_obj) { AppFactory.make }
-
-        it "should delete the app" do
-          expect { delete_app }.to raise_error(Errors::StackatoMaintenanceModeEnabled)
-        end
+      it "should fail" do
+        delete_app
+        last_response.status.should eq(503)
+        last_response.body.should match(/Maintenance mode is enabled/)
       end
     end
 
@@ -111,18 +123,13 @@ module VCAP::CloudController
         end
 
         it "stages the app asynchronously" do
-          received_app = nil
-
-          AppObserver.should_receive(:stage_app) do |app|
-            received_app = app
-            AppStagerTask::Response.new({})
-          end
-          
           def stage_app
             put "/v2/apps/#{app_obj.guid}", Yajl::Encoder.encode(:state => "STARTED"), json_headers(admin_headers)
           end
 
-          expect { stage_app }.to raise_error(Errors::StackatoMaintenanceModeEnabled)
+          stage_app
+          last_response.status.should eq(503)
+          last_response.body.should match(/Maintenance mode is enabled/)
         end
       end
     end
@@ -153,10 +160,6 @@ module VCAP::CloudController
           :space => space,
         )
 
-        DeaClient.should_receive(:update_uris).with(an_instance_of(VCAP::CloudController::App)) do |app|
-          expect(app.uris).to include("app.jesse.cloud")
-        end
-        
         def add_route(route)
           put(
           @app_url,
@@ -166,7 +169,9 @@ module VCAP::CloudController
           json_headers(@headers_for_user)
           )
         end
-        expect { add_route(route) }.to raise_error(Errors::StackatoMaintenanceModeEnabled)
+        add_route(route)
+        last_response.status.should eq(503)
+        last_response.body.should match(/Maintenance mode is enabled/)
       end
     end
   end
