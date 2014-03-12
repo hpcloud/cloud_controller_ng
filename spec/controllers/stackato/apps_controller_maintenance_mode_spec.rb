@@ -4,51 +4,6 @@ require "stackato/spec_helper"
 module VCAP::CloudController
   describe VCAP::CloudController::AppsController, type: :controller do
     before { configure_stacks }
-    include_examples "uaa authenticated api", path: "/v2/apps"
-    include_examples "querying objects", path: "/v2/apps", model: App, queryable_attributes: %w(name)
-    include_examples "enumerating objects", path: "/v2/apps", model: App
-    include_examples "reading a valid object", path: "/v2/apps", model: App, basic_attributes: %w(name space_guid stack_guid)
-    include_examples "operations on an invalid object", path: "/v2/apps"
-    include_examples "creating and updating", path: "/v2/apps", model: App,
-                     required_attributes: %w(name space_guid),
-                     unique_attributes: %w(name space_guid)
-    include_examples "deleting a valid object", path: "/v2/apps", model: App, one_to_many_collection_ids: {
-      :service_bindings => lambda { |app|
-        service_instance = ManagedServiceInstance.make(
-          :space => app.space
-        )
-        ServiceBinding.make(
-          :app => app,
-          :service_instance => service_instance
-        )
-      },
-      :events => lambda { |app|
-        AppEvent.make(:app => app)
-      }
-    }, :excluded => [ :events ]
-
-    include_examples "collection operations", path: "/v2/apps", model: App,
-      one_to_many_collection_ids: {
-        service_bindings: lambda { |app|
-          service_instance = ManagedServiceInstance.make(space: app.space)
-          ServiceBinding.make(app: app, service_instance: service_instance)
-        }
-      },
-      many_to_one_collection_ids: {
-        space: lambda { |app| Space.make },
-        stack: lambda { |app| Stack.make },
-      },
-      many_to_many_collection_ids: {
-        routes: lambda { |app|
-          domain = PrivateDomain.make(owning_organization: app.space.organization)
-          Route.make(domain: domain, space: app.space)
-        }
-      }
-      before(:all) do
-        Kato::Config.set('cloud_controller_ng', '/maintenance_mode', true)
-      end
-
-    let(:app_event_repository) { CloudController::DependencyLocator.instance.app_event_repository }
 
     describe "create app" do
       let(:space_guid) { Space.make.guid.to_s }
