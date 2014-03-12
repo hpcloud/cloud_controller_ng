@@ -1,7 +1,11 @@
 # Forked from https://gist.github.com/jpetazzo/5494158
 
 # TODO
-* configure just as stackato.git:installer/** does.
+# * configure just as stackato.git:installer/** does.
+#   * stackato-build/recipes/postgresql.rb
+#   * /etc/postgresql/9.1/cloud_controller_ng/postgresql.conf
+#   * randomize password
+#   * create db during build time (not start time; in /start)
 
 FROM stackato/base
 
@@ -22,7 +26,7 @@ RUN	DEBIAN_FRONTEND=noninteractive apt-get install -qy postgresql-9.1 postgresql
 RUN	rm /usr/sbin/policy-rc.d
 
 ADD	start /
-# ADD  postgresql.conf /etc/postgresql/9.1/main/
+ADD  main /etc/postgresql/9.1/main/
 RUN	chmod +x /start
 
 CMD /start postgres

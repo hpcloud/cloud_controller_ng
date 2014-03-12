@@ -1,9 +1,9 @@
 # TODO:
-# * connect to nats, config_redis, postgres
+# * connect to nats, postgres
 # * connect to CF service gateways
 # * connect to HM
 # * proxy interface (nginx?)
-# * 
+# * how/when to run db:migrate?
 
 FROM stackato/kato-core
 
