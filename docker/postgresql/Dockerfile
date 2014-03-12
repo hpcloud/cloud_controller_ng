@@ -3,8 +3,7 @@
 # TODO
 # * configure just as stackato.git:installer/** does.
 #   * stackato-build/recipes/postgresql.rb
-#   * /etc/postgresql/9.1/cloud_controller_ng/postgresql.conf
-#   * randomize password
+#   * randomize password (and expose this feature to 'kato op ...')
 #   * create db during build time (not start time; in /start)
 
 FROM stackato/base
@@ -25,11 +24,11 @@ RUN	DEBIAN_FRONTEND=noninteractive apt-get install -qy postgresql-9.1 postgresql
 # Allow autostart again
 RUN	rm /usr/sbin/policy-rc.d
 
-ADD	start /
-ADD  main /etc/postgresql/9.1/main/
-RUN	chmod +x /start
+ADD  config/main /etc/postgresql/9.1/main/
+ADD	scripts /
+RUN	chmod +x /scripts/*
 
-CMD /start postgres
+CMD /scripts/postgresql-start.sh postgres
 
 EXPOSE 5432
 VOLUME ["/var/lib/postgresql/9.1/main"]
