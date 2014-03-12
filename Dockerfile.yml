@@ -1,0 +1,7 @@
+# Docker build configuration for cc; read by image factory.
+
+hooks:
+  pre-build:
+    - rm -rf ./spec/
+    - git clone -b $DOCKER_IMAGE_REPOS_BRANCH gitolite@gitolite.activestate.com:vcap-common ext/common
+    - git clone -b $DOCKER_IMAGE_REPOS_BRANCH http://git-mirrors.activestate.com/github.com/ActiveState/steno-codec-text.git ext/steno-codec-text
