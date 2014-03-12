@@ -103,8 +103,8 @@ module VCAP::CloudController
       @db_logger
     end
 
-    def kato_config
-      config_yaml = `kato config get cloud_controller_ng --yaml`.strip
+    def kato_config(component = "cloud_controller_ng")
+      config_yaml = `kato config get #{component} --yaml`.strip
       if config_yaml != ""
         return YAML.load(config_yaml)
       else
@@ -113,6 +113,9 @@ module VCAP::CloudController
     end
 
     def config(config_override={})
+      if config_override != {}
+        puts "WARNING: kato config_override ignored."
+      end
       config_hash = ::Kato::Util.symbolize_keys(kato_config)
 
       config_override = {
@@ -130,6 +133,11 @@ module VCAP::CloudController
       Fog.mock! unless (res_pool_connection_provider == "local" || packages_connection_provider == "local")
 
       config_hash
+    end
+
+    def aok_config
+      config_hash = ::Kato::Util.symbolize_keys(kato_config('aok'))
+      return config_hash
     end
 
     private
@@ -519,7 +527,8 @@ end
 module VCAP::CloudController::StackatoSpecHelper
   def self.kato_config_preload
     ::Kato::Config.set("cluster", "endpoint", "api.example.com", { :force => true })
-    ::Kato::Config.set("cloud_controller_ng", "app_uris/reserved_list", [])
+    ::Kato::Config.set("cloud_controller_ng", '/', $spec_env.config)
+    ::Kato::Config.set("aok", '/', $spec_env.aok_config)
   end
 end
 

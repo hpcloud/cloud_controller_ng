@@ -190,5 +190,25 @@ module VCAP::CloudController
         end
       end
     end
+
+    describe "default space" do
+      let(:space) { Space.make() }
+        it "not be the default space if not set" do
+          expect(space.is_default).to be_false
+          expect(space.organization.is_default).to be_false
+        end
+
+        it "to be the default space and update organization if set" do
+          space.is_default = true
+          expect(space.organization.is_default).to be_false
+          act_as_cf_admin do
+            space.save
+          end
+          space.organization.reload
+          expect(space.organization.is_default).to be_true
+          expect(space.is_default).to be_true
+        end
+
+    end
   end
 end
