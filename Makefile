@@ -84,4 +84,4 @@ endif
 # eg: make dev-push VM=y9ba
 dev-push:
 	rsync -rtv --exclude .stackato-pkg --exclude .git \
-		. stackato@stackato-${VM}.local:/s/code/cloud_controller_ng
+		. stackato@stackato-${VM}:/s/code/cloud_controller_ng
