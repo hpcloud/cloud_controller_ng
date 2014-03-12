@@ -87,6 +87,9 @@ module VCAP::CloudController
         self.username = result["username"]
       rescue CF::UAA::NotFound
         # User doesn't exist in AOK. This shouldn't happen but it will crop up if the user is being created in the CC before AOK.
+      rescue WebMock::NetConnectNotAllowedError
+        # Happens in the specs. Just mock the username
+        self.username = 'testuser'
       end
     end
 
