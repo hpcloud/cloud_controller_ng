@@ -6,7 +6,11 @@ module VCAP::CloudController
     before { configure_stacks }
 
     before(:all) do
-      post "/v2/stackato/config?name=cloud_controller_ng", Yajl::Encoder.encode({'maintenance_mode'=> true}), json_headers(admin_headers)
+      Kato::Config.set('cloud_controller_ng', '/maintenance_mode', true)
+    end
+
+    after(:all) do
+      Kato::Config.set('cloud_controller_ng', '/maintenance_mode', false)
     end
 
     describe "create app" do
