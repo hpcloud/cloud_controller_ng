@@ -7,7 +7,7 @@ GIT
       multi_json
 
 GIT
-  remote: https://github.com/ActiveState/cf-message-bus.git
+  remote: http://git-mirrors.activestate.com/github.com/ActiveState/cf-message-bus.git
   revision: cb951d204beeb028dd98e36f087d2464d5059762
   branch: bug-102665
   specs:
@@ -29,7 +29,7 @@ GIT
       vcap-concurrency
 
 GIT
-  remote: https://github.com/cloudfoundry/stager-client.git
+  remote: http://git-mirrors.activestate.com/github.com/cloudfoundry/stager-client.git
   revision: 04c2aee9ceed39571d47704a42a70beb472503b9
   ref: 04c2aee9
   specs:
@@ -39,7 +39,7 @@ GIT
       yajl-ruby
 
 GIT
-  remote: https://github.com/cloudfoundry/vcap-concurrency.git
+  remote: http://git-mirrors.activestate.com/github.com/cloudfoundry/vcap-concurrency.git
   revision: 2a5b0179642cb3d3e7f912a6453ec5731979d115
   ref: 2a5b0179
   specs:

@@ -20,7 +20,7 @@ gem 'bcrypt-ruby'       ,    '3.1.2'
 gem 'beefcake'          ,    '0.3.7'
 gem 'builder'           ,    '3.0.4'
 gem 'celluloid'         ,   '0.15.2', :groups => [:test]
-gem 'cf-message-bus'    ,    '0.2.0', :git => "https://github.com/ActiveState/cf-message-bus.git", :branch => 'bug-102665'
+gem 'cf-message-bus'    ,    '0.2.0', :git => "http://git-mirrors.activestate.com/github.com/ActiveState/cf-message-bus.git", :branch => 'bug-102665'
 gem 'cf-uaa-lib'        ,    '2.0.0', :github => "ActiveState/cf-uaa-lib", :ref => "3026895da933a7b1102735db96568c007b4c9148"
 gem 'cf-registrar',          '1.0.0', :git => "https://github.com/cloudfoundry/cf-registrar.git"
 gem 'ci_reporter'       ,    '1.9.0'
@@ -119,7 +119,7 @@ gem 'slop'              ,    '3.4.7', :groups => [:development, :test]
 gem 'sqlite3'           ,    '1.3.7', :groups => [:db, :default]
 gem 'squash_ruby'       ,    '1.2.3'
 gem 'stackato-kato'     ,    '3.0.0'
-gem 'stager-client'     ,    '0.0.2', :git => "https://github.com/cloudfoundry/stager-client.git", :ref => "04c2aee9"
+gem 'stager-client'     ,    '0.0.2', :git => "http://git-mirrors.activestate.com/github.com/cloudfoundry/stager-client.git", :ref => "04c2aee9"
 gem 'steno'             ,    '1.1.0'
 gem 'steno-codec-text'  ,      '0.1', :path => "../steno-codec-text"
 gem "talentbox-delayed_job_sequel" , '4.0.0'
@@ -132,7 +132,7 @@ gem 'timers'            ,    '1.1.0', :groups => [:test]
 gem 'trollop'           ,      '2.0'
 gem 'tzinfo'            ,   '0.3.38'
 gem 'unf'               ,    '0.1.3'
-gem 'vcap-concurrency'  ,    '0.1.0', :git => "https://github.com/cloudfoundry/vcap-concurrency.git", :ref => "2a5b0179"
+gem 'vcap-concurrency'  ,    '0.1.0', :git => "http://git-mirrors.activestate.com/github.com/cloudfoundry/vcap-concurrency.git", :ref => "2a5b0179"
 gem 'vcap_common'       ,    '3.0.0', :path => '../common'
 gem 'virtus'            ,    '1.0.0'
 gem 'vmstat'            ,    '2.0.0'
