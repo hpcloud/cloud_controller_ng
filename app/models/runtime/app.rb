@@ -153,7 +153,7 @@ module VCAP::CloudController
       AppStartEvent.create_from_app(self) if generate_start_event?
 
       adjust_route_sso_clients if sso_updated?
-      adjust_instances if autoscale_enabled
+      adjust_instances
     end
 
     def after_save
@@ -231,10 +231,31 @@ module VCAP::CloudController
     end
 
     def adjust_instances
-      # precondition: assert self.autoscale_enabled
-      if (changed_columns & [:instances, :min_instances, :max_instances,
-                             :autoscale_enabled]).size > 0
-        if self.instances < self.min_instances
+      # First ensure that if only one of :min_instances and :max_instances
+      # is specified, the requirement that min < max is maintained.
+      if (changed_columns & [:min_instances, :max_instances]).size == 1
+        if self.min_instances.nil? || self.max_instances.nil?
+          # Set the unset attribute to the same value as the set one
+          if changed_columns.include?(:min_instances)
+            self.max_instances = self.min_instances
+          else
+            self.min_instances = self.min_instances
+          end
+        elsif self.min_instances > self.max_instances
+          # Now complain if setting one breaks the requirement that min <= max
+          if changed_columns.include?(:min_instances)
+            raise VCAP::Errors::AppPackageInvalid.new("specified value of min_instances: #{self.min_instances} > current value of max_instances: #{self.max_instances}")
+          else
+            raise VCAP::Errors::AppPackageInvalid.new("specified value of max_instances: #{self.max_instances} > current value of min_instances: #{self.min_instances}")
+          end
+        end
+      end
+      # Now if we're switching into autoscale_enabled, make sure # instances
+      # falls between the min and max ranges.
+      if (autoscale_enabled &&
+          (changed_columns & [:instances, :min_instances, :max_instances,
+                              :autoscale_enabled]).size > 0)
+        if !self.min_instances.nil? && self.instances < self.min_instances
           logger.debug("Raising # instances from specified #{instances} to min_instances #{min_instances}")
           self.instances = self.min_instances
         elsif !self.max_instances.nil? && self.instances > self.max_instances
