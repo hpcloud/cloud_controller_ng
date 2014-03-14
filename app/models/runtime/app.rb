@@ -416,7 +416,7 @@ module VCAP::CloudController
       raise objection unless route.domain.usable_by_organization?(space.organization)
 
       if sso_enabled
-        logger.debug "Registering outh client for route #{route.inspect}"
+        logger.debug "Registering oauth client for route #{route.inspect}"
         route.register_oauth_client
       end
     end
