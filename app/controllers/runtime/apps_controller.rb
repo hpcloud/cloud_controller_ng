@@ -138,6 +138,15 @@ module VCAP::CloudController
       record_app_create_value = @app_event_repository.record_app_create(app, SecurityContext.current_user, request_attrs)
       record_app_create_value if request_attrs
       update_health_manager_for_autoscaling(app)
+
+      event = {
+        :user => SecurityContext.current_user,
+        :app => app,
+        :event => 'APP_CREATED',
+        :instance_index => -1,
+        :message => "Created app '#{app.name}'"
+      }
+      logger.info("TIMELINE #{event.to_json}")
     end
 
     def after_update(app)
@@ -152,6 +161,16 @@ module VCAP::CloudController
 
       @app_event_repository.record_app_update(app, SecurityContext.current_user, request_attrs)
       update_health_manager_for_autoscaling(app)
+
+      event = {
+        :user => SecurityContext.current_user,
+        :app => app,
+        :changes => app.auditable_changes,
+        :event => 'APP_UPDATED',
+        :instance_index => -1,
+        :message => "Updated app '#{app.name}' -- #{app.auditable_changes}"
+      }
+      logger.info("TIMELINE #{event.to_json}")
     end
     
     def update_health_manager_for_autoscaling(app)

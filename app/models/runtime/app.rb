@@ -158,6 +158,7 @@ module VCAP::CloudController
 
     def after_save
       create_app_usage_event
+      @changes = column_changes
       super
     end
 
@@ -172,6 +173,10 @@ module VCAP::CloudController
                            space_guid: space_guid,
                            space_name: space.name,
       )
+    end
+
+    def auditable_changes
+      @changes || {}
     end
 
     def sso_updated?
