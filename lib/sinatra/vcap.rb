@@ -36,6 +36,13 @@ module Sinatra
 
         payload
       end
+
+      def clean_error_payload(payload)
+        if ENV["RACK_ENV"] == "production"
+          payload.delete('source')
+          payload.delete('backtrace')
+        end
+      end
     end
 
     # Called when the caller registers the sinatra extension.  Sets up
@@ -59,7 +66,9 @@ module Sinatra
         # We don't really have a class to attach a member variable to, so we have to
         # use the env to flag this.
         unless request.env["vcap_exception_body_set"]
-          body Yajl::Encoder.encode(error_payload(::VCAP::Errors::NotFound.new))
+          payload_hash = error_payload(::VCAP::Errors::NotFound.new)
+          clean_error_payload(payload_hash)
+          body Yajl::Encoder.encode(payload_hash)
         end
       end
 
@@ -79,8 +88,7 @@ module Sinatra
           logger.error("Request failed: #{response_code}: #{payload_hash}")
         end
 
-        # Temporarily remove this key pending security review
-        payload_hash.delete('source')
+        clean_error_payload(payload_hash)
 
         payload = Yajl::Encoder.encode(payload_hash)
 
