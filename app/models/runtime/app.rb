@@ -416,7 +416,10 @@ module VCAP::CloudController
 
       raise objection if route.nil?
       raise objection if space.nil?
-      raise objection if route.space_id != space.id
+      if route.space_id != space.id
+        msg = "#{route.guid}: route host '#{route.host}' is already defined in space '#{Space[route.space_id].name}' and can't be added to space '#{Space[space.id].name}'"
+        raise InvalidRouteRelation.new(msg)
+      end
 
       raise objection unless route.domain.usable_by_organization?(space.organization)
 
