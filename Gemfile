@@ -139,3 +139,4 @@ gem 'vmstat'            ,    '2.0.0'
 gem 'webmock'           ,   '1.16.0', :groups => [:test]
 gem 'xmlparser'         ,  '0.7.2.1'
 gem 'yajl-ruby'         ,    '1.1.0'
+gem 'rubyzip'           , '~> 1.1.0'
