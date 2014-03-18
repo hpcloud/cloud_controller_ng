@@ -64,4 +64,4 @@ else
   gem 'stackato-kato', '~> 3.0.0'
 end
 gem 'redis', '~> 3.0.4'
-
+gem 'rubyzip', '~> 1.1.0'

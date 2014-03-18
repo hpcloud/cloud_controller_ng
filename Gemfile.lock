@@ -262,6 +262,7 @@ GEM
       webmock (>= 1.7.0)
     ruby-hmac (0.4.0)
     ruby-termios (0.9.6)
+    rubyzip (1.1.0)
     safe_yaml (0.9.7)
     sequel (3.48.0)
     simplecov (0.8.2)
@@ -438,6 +439,7 @@ DEPENDENCIES
   rspec_api_documentation
   ruby-hmac (= 0.4.0)
   ruby-termios (= 0.9.6)
+  rubyzip (= 1.1.0)
   safe_yaml (= 0.9.7)
   sequel (= 3.48.0)
   simplecov (= 0.8.2)
