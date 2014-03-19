@@ -6,8 +6,7 @@ require 'kato/config'
 class LocalAppBits
   PACKAGE_NAME = "package.zip".freeze
   UNCOMPRESSED_DIR = "uncompressed"
-  STAGING_MEMORY_LIMIT = (Kato::Config.get("dea_ng", "staging/memory_limit_mb") rescue 512) * 1024 * 1024
-
+  
   def self.from_compressed_bits(compressed_bits_path, tmp_dir, &block)
     if compressed_bits_path
       check_compressed_bits(compressed_bits_path)
@@ -35,10 +34,13 @@ class LocalAppBits
       return
     end
     total_size = 0
+    disk_limit_mb = Kato::Config.get("dea_ng", "staging/disk_limit_mb")
+    disk_limit = (disk_limit_mb.to_i rescue 0) * 1024 * 1024
+    raise VCAP::CloudController::Errors::StackatoNoConfigForComponent.new("dea_ng::/staging/disk_limit_mb") if disk_limit == 0
     zf.each do |entry|
       total_size += entry.size
-      if total_size > STAGING_MEMORY_LIMIT
-        raise VCAP::Errors::AppPackageInvalid, "Package may not be larger than #{STAGING_MEMORY_LIMIT} bytes"
+      if total_size > disk_limit
+        raise VCAP::Errors::AppPackageInvalid, "Package may not be larger than #{disk_limit} bytes"
       end
     end
   end
