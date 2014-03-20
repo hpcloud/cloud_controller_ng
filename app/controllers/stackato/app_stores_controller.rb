@@ -57,13 +57,15 @@ module VCAP::CloudController
       }
       if fetch_content
         begin
-          if proxy_config and proxy_config.has_key? "authorization"
+          if proxy_config
             proxy = "http://#{proxy_config["host"]}:#{proxy_config["port"]}"
             http_client = HTTPClient.new(proxy)
-            http_client.set_proxy_auth(
-              proxy_config["username"],
-              proxy_config["password"]
-            )
+            if proxy_config.has_key? "username"
+              http_client.set_proxy_auth(
+                proxy_config["username"],
+                proxy_config["password"]
+              )
+            end
           else
             http_client = HTTPClient.new
           end
