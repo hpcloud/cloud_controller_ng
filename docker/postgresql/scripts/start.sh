@@ -1,9 +1,7 @@
-#!/bin/bash
+#!/bin/bash -e
 # forked from https://gist.github.com/jpetazzo/5494158
 
-DATADIR=/var/lib/postgresql/9.1/main
-BINDIR=/usr/lib/postgresql/9.1/bin
-CONF=/etc/postgresql/9.1/main/postgresql.conf
+. /scripts/common.sh
 
 # test if DATADIR is existent
 if [ ! -d $DATADIR ]; then

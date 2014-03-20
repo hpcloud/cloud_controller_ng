@@ -28,7 +28,7 @@ ADD  config/main /etc/postgresql/9.1/main/
 ADD	scripts /
 RUN	chmod +x /scripts/*
 
-CMD /scripts/postgresql-start.sh postgres
+CMD /scripts/start.sh postgres
 
 EXPOSE 5432
 VOLUME ["/var/lib/postgresql/9.1/main"]
