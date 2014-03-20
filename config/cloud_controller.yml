@@ -85,6 +85,12 @@ bulk_api:
 staging:
   # Max duration for staging process
   max_staging_runtime: 480 # secs
+  # Check zipfiles for oversize files before unzipping them.
+  # This streams zipfiles, counting the bytes of each file, because
+  # zipfiles created without the zip64 extensions truncate the size field
+  # in the directory to the low 32 bits.
+  # https://bugs.activestate.com/show_bug.cgi?id=102802
+  check_zipfile_actual_contents_size: true
   auth:
     user: placeholder
     password: placeholder
