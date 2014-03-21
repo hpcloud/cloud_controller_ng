@@ -52,11 +52,7 @@ module VCAP::CloudController
     end
 
     def get_report_with_standard_auth
-
-      if !VCAP::CloudController::SecurityContext.current_user
-        raise Errors::NotAuthorized
-      end
-
+      raise Errors::NotAuthorized unless roles.admin?
       send_report
     end
 
