@@ -40,9 +40,16 @@ module VCAP::CloudController
     end
 
     def stage(&completion_callback)
-      @stager_id = @stager_pool.find_stager(@app.stack.name, @app.memory)
-      raise Errors::StagingError, "no available stagers for stack #{@app.stack.name} and mem #{@app.memory}" unless @stager_id
-
+      @stager_id = @stager_pool.find_stager(@app.stack.name, @app.memory, @app.distribution_zone)
+      if !@stager_id
+        parts = ["stack #{@app.stack.name}", "mem #{@app.memory}"]
+        if @app.distribution_zone && @app.distribution_zone != "default"
+          partString = parts.join(", ") + ", and zone #{@app.distribution_zone}"
+        else
+          partString = parts.join(" and ")
+        end
+        raise Errors::StagingError, "no available stagers for #{partString}" 
+      end
       subject = "staging.#{@stager_id}.start"
       @multi_message_bus_request = MultiResponseMessageBusRequest.new(@message_bus, subject)
       # The creation of upload handle only guarantees that this cloud controller

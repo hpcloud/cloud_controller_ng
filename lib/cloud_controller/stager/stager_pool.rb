@@ -24,13 +24,13 @@ module VCAP::CloudController
         @stager_advertisements << advertisement
       end
     end
-
-    def find_stager(stack, memory)
+  
+    def find_stager(stack, memory, zone="default")
       mutex.synchronize do
         validate_stack_availability(stack)
 
         prune_stale_advertisements
-        best_ad = top_5_stagers_for(memory, stack).sample
+        best_ad = top_5_stagers_for(memory, stack, zone).sample
         best_ad && best_ad.stager_id
       end
     end
@@ -42,9 +42,9 @@ module VCAP::CloudController
     end
 
     private
-    def top_5_stagers_for(memory, stack)
+    def top_5_stagers_for(memory, stack, zone)
       @stager_advertisements.select do |advertisement|
-        advertisement.meets_needs?(memory, stack)
+        advertisement.meets_needs?(memory, stack) && advertisement.accepts_zone?(zone)
       end.sort do |advertisement_a, advertisement_b|
         advertisement_a.available_memory <=> advertisement_b.available_memory
       end.last(5)

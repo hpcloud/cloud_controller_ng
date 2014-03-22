@@ -14,16 +14,7 @@ class EligibleDeaAdvertisementFilter
 
   def only_from_zone(req_zone)
     req_zone = "default" unless (req_zone && (req_zone != ""))
-
-    @filtered_advertisements.select! do |ad|
-      # if the ad.zones were manually configured, ignore the ad.zone
-      ad_zone = ad.zone
-      if(ad.zones != ["default"])
-        ad_zone = nil
-      end
-
-      (ad_zone == req_zone) || (ad.zones.include? req_zone)
-    end
+    @filtered_advertisements.select! { |ad| ad.accepts_zone?(req_zone) }
     self
   end
 
