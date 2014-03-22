@@ -17,16 +17,8 @@ class DeaAdvertisement < Advertisement
     stats["app_id_to_count"].fetch(app_id, 0)
   end
 
-  def zones
-    stats.fetch("placement_properties", {}).fetch("zones", ["default"])
-  end
-
   def availability_zone
     stats.fetch("placement_properties", {}).fetch("availability_zone", "default")
-  end
-
-  def zone
-    stats.fetch("placement_properties", {}).fetch("zone", "default")
   end
 
   def physical_memory

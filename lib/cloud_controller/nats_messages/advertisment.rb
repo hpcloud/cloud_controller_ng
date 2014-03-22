@@ -36,4 +36,19 @@ class Advertisement
     return true unless available_disk
     available_disk >= disk
   end
+
+  def zones
+    stats.fetch("placement_properties", {}).fetch("zones", ["default"])
+  end
+
+  def zone
+    stats.fetch("placement_properties", {}).fetch("zone", "default")
+  end
+  
+  def accepts_zone?(req_zone)
+    # if the ad.zones were manually configured, ignore the ad.zone
+    ad_zones = self.zones
+    ad_zone = (ad_zones != ["default"]) ? nil : self.zone
+    (ad_zone == req_zone) || (ad_zones.include? req_zone)
+  end
 end
