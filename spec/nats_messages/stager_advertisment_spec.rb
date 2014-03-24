@@ -7,6 +7,11 @@ describe StagerAdvertisement do
       "id" => "staging-id",
       "stacks" => ["stack-name"],
       "available_memory" => 1024,
+      "placement_properties" => {
+        "zone" => "default",
+        "zones" => ["default", "zone_cf"],
+        "availability_zone" => "default",
+      },
     }
   end
 
@@ -103,6 +108,30 @@ describe StagerAdvertisement do
     context "when the stager does not have the stack" do
       it "returns false" do
         expect(ad.has_stack?("not-a-stack-name")).to be_false
+      end
+    end
+  end
+
+  describe "#zone" do
+    context "when the stager does not have the placement properties" do
+      it "returns default zone" do
+        expect(ad.zone).to eq "default"
+      end
+    end
+
+    context "when the stager has empty placement properties" do
+      before{ message["placement_properties"] = {} }
+
+      it "returns default zone" do
+        expect(ad.zone).to eq "default"
+      end
+    end
+
+    context "when the stager has the placement properties with zone info" do
+      before{ message["placement_properties"] = { "zone" => "zone_cf" } }
+
+      it "returns the zone with name zone_cf" do
+        expect(ad.zone).to eq "zone_cf"
       end
     end
   end

@@ -11,7 +11,12 @@ describe DeaAdvertisement do
       "app_id_to_count" => {
         "app_id" => 2,
         "app_id_2" => 1
-      }
+      },
+      "placement_properties" => {
+        "zone" => "default",
+        "zones" => ["default"],
+        "availability_zone" => "default",
+      },
     }
   end
 

@@ -8,6 +8,11 @@ module VCAP::CloudController
           "id" => "staging-id",
           "stacks" => ["stack-name"],
           "available_memory" => 1024,
+          "placement_properties" => {
+            "zone" => "default",
+            "zones" => ["default", "zone_cf"],
+            "availability_zone" => "default",
+          },
       }
     end
 
@@ -17,7 +22,7 @@ module VCAP::CloudController
       it "finds advertised stagers" do
         subject.register_subscriptions
         message_bus.publish("staging.advertise", staging_advertise_msg)
-        subject.find_stager("stack-name", 0).should == "staging-id"
+        subject.find_stager("stack-name", 0, "default").should == "staging-id"
       end
     end
 
@@ -25,13 +30,13 @@ module VCAP::CloudController
       describe "stager availability" do
         it "raises if there are no stagers with that stack" do
           subject.process_advertise_message(staging_advertise_msg)
-          expect { subject.find_stager("unknown-stack-name", 0) }.to raise_error(Errors::StackNotFound)
+          expect { subject.find_stager("unknown-stack-name", 0, "default") }.to raise_error(Errors::StackNotFound)
         end
 
         it "only finds registered stagers" do
           expect { subject.find_stager("stack-name", 0) }.to raise_error(Errors::StackNotFound)
           subject.process_advertise_message(staging_advertise_msg)
-          subject.find_stager("stack-name", 0).should == "staging-id"
+          subject.find_stager("stack-name", 0, "default").should == "staging-id"
         end
       end
 
@@ -41,10 +46,10 @@ module VCAP::CloudController
             subject.process_advertise_message(staging_advertise_msg)
 
             Timecop.travel(10)
-            subject.find_stager("stack-name", 1024).should == "staging-id"
+            subject.find_stager("stack-name", 1024, "default").should == "staging-id"
 
             Timecop.travel(1)
-            subject.find_stager("stack-name", 1024).should be_nil
+            subject.find_stager("stack-name", 1024, "default").should be_nil
           end
         end
       end
@@ -52,8 +57,8 @@ module VCAP::CloudController
       describe "memory capacity" do
         it "only finds stagers that can satisfy memory request" do
           subject.process_advertise_message(staging_advertise_msg)
-          subject.find_stager("stack-name", 1025).should be_nil
-          subject.find_stager("stack-name", 1024).should == "staging-id"
+          subject.find_stager("stack-name", 1025, "default").should be_nil
+          subject.find_stager("stack-name", 1024, "default").should == "staging-id"
         end
 
         it "samples out of the top 5 stagers with enough memory" do
@@ -68,7 +73,7 @@ module VCAP::CloudController
           correct_stagers = (5..9).map { |i| "staging-id-#{i}" }
 
           10.times do
-            expect(correct_stagers).to include(subject.find_stager("stack-name", 1024))
+            expect(correct_stagers).to include(subject.find_stager("stack-name", 1024, "default"))
           end
         end
       end
@@ -76,8 +81,8 @@ module VCAP::CloudController
       describe "stack availability" do
         it "only finds deas that can satisfy stack request" do
           subject.process_advertise_message(staging_advertise_msg)
-          expect { subject.find_stager("unknown-stack-name", 0) }.to raise_error(Errors::StackNotFound)
-          subject.find_stager("stack-name", 0).should == "staging-id"
+          expect { subject.find_stager("unknown-stack-name", 0, "default") }.to raise_error(Errors::StackNotFound)
+          subject.find_stager("stack-name", 0, "default").should == "staging-id"
         end
       end
     end
