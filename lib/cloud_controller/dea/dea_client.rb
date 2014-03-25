@@ -1,6 +1,5 @@
 require "vcap/errors"
 require "logyard"
-
 module VCAP::CloudController
   class AppStopper
     attr_reader :message_bus
@@ -24,7 +23,9 @@ module VCAP::CloudController
   end
 
   module DeaClient
-    class FileUriResult < Struct.new(:file_uri_v1, :file_uri_v2, :credentials)
+    # define FileUriResult's base class only once; this file can be reloaded.
+    FileUriResultStruct ||= Struct.new(:file_uri_v1, :file_uri_v2, :credentials)
+    class FileUriResult < FileUriResultStruct
       def initialize(opts = {})
         if opts[:file_uri_v2]
           self.file_uri_v2 = opts[:file_uri_v2]
