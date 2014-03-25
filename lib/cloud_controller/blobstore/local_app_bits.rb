@@ -67,7 +67,7 @@ class LocalAppBits
             while data = fd.read(read_block_size)
               actual_size += data.size
               if total_size + actual_size > disk_limit
-                raise VCAP::Errors::AppPackageInvalid, "Package may not be larger than #{disk_limit}"
+                raise VCAP::Errors::AppPackageInvalid, "Package may not be larger than #{disk_limit} bytes"
               end
             end
           end
