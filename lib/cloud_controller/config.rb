@@ -165,9 +165,26 @@ module VCAP::CloudController
         config = Kato::Config.get("cloud_controller_ng").symbolize_keys
         config.update(config_overrides)
         merge_defaults(config)
+        validate_upgraded_config(config)
       end
 
       attr_reader :config, :message_bus
+
+      # Performs validation on the cc_ng config to make sure that any config values sitting under old keys (from previous
+      # versions of the cc_ng component) that haven't been updated to their newer counterpart after an upgrade get updated
+      # before the cc_ng starts up.
+      # xxx: This doesn't remove the old values as they could be required by other cc_ngs still being upgraded
+      def validate_upgraded_config(config)
+        # v3.0.1 message_bus_uri: String -> v3.2.1 message_bus_servers: [String]
+        if config[:message_bus_uri]
+          if config[:message_bus_servers] && config[:message_bus_servers] == ['nats://127.0.0.1:4222']
+            config[:message_bus_servers] = [config[:message_bus_uri]]
+            Kato::Config.set('cloud_controller_ng', 'message_bus_servers', config[:message_bus_servers])
+          end
+        end
+
+        config
+      end
 
       def configure_components(config)
         @config = config
