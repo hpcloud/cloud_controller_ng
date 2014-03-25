@@ -23,9 +23,7 @@ module VCAP::CloudController
   end
 
   module DeaClient
-    # define FileUriResult's base class only once; this file can be reloaded.
-    FileUriResultStruct ||= Struct.new(:file_uri_v1, :file_uri_v2, :credentials)
-    class FileUriResult < FileUriResultStruct
+    FileUriResult ||= Class.new(Struct.new(:file_uri_v1, :file_uri_v2, :credentials)) do
       def initialize(opts = {})
         if opts[:file_uri_v2]
           self.file_uri_v2 = opts[:file_uri_v2]
