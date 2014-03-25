@@ -103,7 +103,12 @@ module VCAP::CloudController
       indices = {}
       return indices if (app.nil? || !app.started?)
 
-      instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
+      begin
+        instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
+      rescue Redis::CannotConnectError
+        logger.warn("Failed to connect to redis to gather statistics for app ID #{app.guid} (#{app.name}: #{e.message}")
+        instance_ids = []
+      end
 
       instance_ids.each do |instance_id|
         logger.debug2("Getting droplet instance stats for droplet_id:#{droplet_id} instance_id:#{instance_id}")
