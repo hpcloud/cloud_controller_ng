@@ -125,12 +125,12 @@ module VCAP::CloudController
 
       validate_environment
       validate_metadata
+      validate_autoscaling_settings
 
       if state == "STARTED" || total_requested_memory > total_existing_memory
         check_memory_quota
       end
       validate_instances
-      validate_autoscaling_settings
       validate_health_check_timeout
     end
 
@@ -156,7 +156,6 @@ module VCAP::CloudController
       AppStartEvent.create_from_app(self) if generate_start_event?
 
       adjust_route_sso_clients if sso_updated?
-      adjust_instances
     end
 
     def after_save
@@ -234,41 +233,6 @@ module VCAP::CloudController
           route.register_oauth_client
         else
           route.delete_oauth_client
-        end
-      end
-    end
-
-    def adjust_instances
-      # First ensure that if only one of :min_instances and :max_instances
-      # is specified, the requirement that min < max is maintained.
-      if (changed_columns & [:min_instances, :max_instances]).size == 1
-        if self.min_instances.nil? || self.max_instances.nil?
-          # Set the unset attribute to the same value as the set one
-          if changed_columns.include?(:min_instances)
-            self.max_instances = self.min_instances
-          else
-            self.min_instances = self.min_instances
-          end
-        elsif self.min_instances > self.max_instances
-          # Now complain if setting one breaks the requirement that min <= max
-          if changed_columns.include?(:min_instances)
-            raise VCAP::Errors::AppPackageInvalid.new("specified value of min_instances: #{self.min_instances} > current value of max_instances: #{self.max_instances}")
-          else
-            raise VCAP::Errors::AppPackageInvalid.new("specified value of max_instances: #{self.max_instances} > current value of min_instances: #{self.min_instances}")
-          end
-        end
-      end
-      # Now if we're switching into autoscale_enabled, make sure # instances
-      # falls between the min and max ranges.
-      if (autoscale_enabled &&
-          (changed_columns & [:instances, :min_instances, :max_instances,
-                              :autoscale_enabled]).size > 0)
-        if !self.min_instances.nil? && self.instances < self.min_instances
-          logger.debug("Raising # instances from specified #{instances} to min_instances #{min_instances}")
-          self.instances = self.min_instances
-        elsif !self.max_instances.nil? && self.instances > self.max_instances
-          logger.debug("Lowering # instances from specified #{instances} to max_instances #{max_instances}")
-          self.instances = self.max_instances
         end
       end
     end
@@ -434,6 +398,10 @@ module VCAP::CloudController
       end
     end
 
+    def total_requested_memory
+      requested_memory * requested_instances
+    end
+
     def additional_memory_requested
 
       total_requested_memory = requested_memory * requested_instances
@@ -506,6 +474,39 @@ module VCAP::CloudController
           !max_instances.nil? &&
           max_instances < min_instances)
         errors.add(:max_instances, "< min_instances".to_sym)
+      end
+
+      # First ensure that if only one of :min_instances and :max_instances
+      # is specified, the requirement that min < max is maintained.
+      if (changed_columns & [:min_instances, :max_instances]).size == 1
+        if self.min_instances.nil? || self.max_instances.nil?
+          # Set the unset attribute to the same value as the set one
+          if changed_columns.include?(:min_instances)
+            self.max_instances = self.min_instances
+          else
+            self.min_instances = self.min_instances
+          end
+        elsif self.min_instances > self.max_instances
+          # Now complain if setting one breaks the requirement that min <= max
+          if changed_columns.include?(:min_instances)
+            raise VCAP::Errors::AppPackageInvalid.new("specified value of min_instances: #{self.min_instances} > current value of max_instances: #{self.max_instances}")
+          else
+            raise VCAP::Errors::AppPackageInvalid.new("specified value of max_instances: #{self.max_instances} > current value of min_instances: #{self.min_instances}")
+          end
+        end
+      end
+      # Now if we're switching into autoscale_enabled, make sure # instances
+      # falls between the min and max ranges.
+      if (autoscale_enabled &&
+          (changed_columns & [:instances, :min_instances, :max_instances,
+                              :autoscale_enabled]).size > 0)
+        if !self.min_instances.nil? && self.instances < self.min_instances
+          logger.debug("Raising # instances from specified #{instances} to min_instances #{min_instances}")
+          self.instances = self.min_instances
+        elsif !self.max_instances.nil? && self.instances > self.max_instances
+          logger.debug("Lowering # instances from specified #{instances} to max_instances #{max_instances}")
+          self.instances = self.max_instances
+        end
       end
     end
 
