@@ -36,7 +36,7 @@ module VCAP::CloudController
     end
 
     def before_save
-      if column_changed?(:is_default)
+      if (new? && is_default) || (!new? && column_changed?(:is_default))
         raise Errors::NotAuthorized unless VCAP::CloudController::SecurityContext.admin?
         # if this space is being made the default we need to 1) remove default from all other spaces and 2) ensure the default org is the org that owns this space
         if self.is_default
