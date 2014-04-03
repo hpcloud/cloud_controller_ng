@@ -8,3 +8,5 @@ stdout_logfile_maxbytes=1MB
 stdout_logfile_backups=3
 stopsignal=INT
 autostart=false
+stopasgroup=true
+killasgroup=true
