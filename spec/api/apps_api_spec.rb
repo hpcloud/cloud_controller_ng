@@ -10,7 +10,7 @@ resource "Apps", :type => :api do
   authenticated_request
 
   field :guid, "The guid of the app.", required: false
-  field :name, "The name of the app.", required: true, example_values: ["my_super_app"]
+  field :name, "The name of the app.", required: true, example_values: ["my-super-app"]
   field :memory, "The amount of memory each instance should have. In megabytes.", required: true, example_values: [1_024, 512]
   field :instances, "The number of instances of the app to run. To ensure optimal availability, ensure there are at least 2 instances.", required: true, example_values: [2, 6, 10]
   field :disk_quota, "The maximum amount of disk available to an instance of an app. In megabytes.", required: true, example_values: [1_204, 2_048]
