@@ -106,7 +106,7 @@ module VCAP::CloudController
     end
 
     def self.delete_all(app)
-      drains = Kato::Config.get("logyard", "drains")
+      drains = Kato::Config.get("logyard", "drains") || []
       drains.each do |drain_id, uri| 
         if drain_id.start_with? "appdrain.#{app.guid}."
           logger.info("Deleting drain #{drain_id}")          
