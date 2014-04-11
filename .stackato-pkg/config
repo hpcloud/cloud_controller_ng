@@ -27,7 +27,7 @@ gem_sqlite_deps="libsqlite3-dev"
 # reqs for pg gem
 gem_pg_deps="libpq-dev"
 
-PKG_DEPENDS="stackato-rubies, stackato-redis, postgresql, postgresql-contrib, \
+PKG_DEPENDS="stackato-redis, postgresql, postgresql-contrib, \
 stackato-nodejs, \
 stackato-kato-core-ng-$KATO_GEM_VERSION (=auto), \
 steno-codec-text, \
