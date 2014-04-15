@@ -31,9 +31,10 @@ module VCAP::CloudController
           unless redis_config.is_a? Hash and redis_config[:host] and redis_config[:port]
             raise Errors::StackatoRedisClientNotConfigured.new
           end
-          logger.info("Connecting to redis at #{redis_config[:host]}:#{redis_config[:port]}")
+          host = redis_config[:host].sub "127.0.0.1", VCAP.local_ip
+          logger.info("Connecting to redis at #{host}:#{redis_config[:port]}")
           @@redis = Redis.new(
-            :host => redis_config[:host],
+            :host => host,
             :port => redis_config[:port],
             :password => redis_config[:password]
           )
