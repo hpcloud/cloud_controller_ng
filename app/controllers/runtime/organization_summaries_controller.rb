@@ -7,6 +7,9 @@ module VCAP::CloudController
     def summary(guid)
       org = find_guid_and_validate_access(:read, guid)
 
+      logger.debug "params: #{@opts}"
+      caclulate_space_mem_usage = (@opts[:include_relations] || '').split(',').include? 'app-usage'
+
       Yajl::Encoder.encode(
         :guid => org.guid,
         :name => org.name,
@@ -21,13 +24,23 @@ module VCAP::CloudController
             :mem_prod_total => 0,
           }
 
+          space_mem_usage = 0
           space.apps.each do |app|
             space_summary[:app_count] += 1
             if app.started?
               type = app.production ? :mem_prod_total : :mem_dev_total
               space_summary[type] += app.instances * app.memory
             end
+            if caclulate_space_mem_usage
+              instances = StackatoDropletAccountability.get_app_stats(app)
+              instances.each do |index, instance|
+                next unless instance.fetch('stats', {}).fetch('usage', {})['mem']
+                space_mem_usage += instance["stats"]["usage"]["mem"].to_f / 1024.0 / 1024.0
+              end
+            end
           end
+
+          space_summary[:mem_usage] = space_mem_usage if caclulate_space_mem_usage
 
           {
             :guid => space.guid,
