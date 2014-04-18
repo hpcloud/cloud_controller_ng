@@ -18,10 +18,10 @@ module VCAP::CloudController
 
       if async?
         job = Delayed::Job.enqueue(app_bits_packer_job, queue: LocalQueue.new(config))
-        [HTTP::CREATED, JobPresenter.new(job).to_json]
+        upload_json_data = [HTTP::CREATED, JobPresenter.new(job).to_json]
       else
         app_bits_packer_job.perform
-        [HTTP::CREATED, "{}"]
+        upload_json_data = [HTTP::CREATED, '{}']
       end
 
       name = app[:name]
@@ -32,7 +32,9 @@ module VCAP::CloudController
         :event => 'APP_DEPLOYED',
         :message => "Queued deployment of app '#{name}'"}
       logger.info("TIMELINE #{event.to_json}")
-      
+
+      # Async requests require the jobpresenter data returned to them for validating against the /v2/jobs endpoint.
+      return upload_json_data
     rescue VCAP::CloudController::Errors::AppBitsUploadInvalid, VCAP::CloudController::Errors::AppPackageInvalid
       app.mark_as_failed_to_stage
       raise
