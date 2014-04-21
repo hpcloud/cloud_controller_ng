@@ -43,6 +43,10 @@ class KatoShell
     run(%W{patch status})
   end
   
+  def self.patch_status_json
+    run(%W{patch status --json --quiet})
+  end
+  
   def self.export_in_progress?
     return `ps --no-headers -C kato -f | grep export | wc -l`.strip.to_i > 0
   end

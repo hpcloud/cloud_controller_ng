@@ -10,5 +10,11 @@ module VCAP::CloudController
 
     get "/v2/stackato/patch/status", :get_patch_status
 
+    def get_patch_status_json
+      KatoShell.patch_status_json
+    end
+
+    get "/v2/stackato/patch/status.json", :get_patch_status_json
+
   end
 end
