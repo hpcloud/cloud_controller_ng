@@ -13,7 +13,7 @@
     "cluster-master": "0.2.0",
     "log": "1.4.0",
     "mkdirp": "0.3.5",
-    "http-proxy": "1.0.2",
+    "http-proxy": "1.1.2",
     "request": "git+https://github.com/mikeal/request.git#e2a14cc09f57c2feeb55f81d417ba989e562dea5",
     "router": "0.6.2"
   },
