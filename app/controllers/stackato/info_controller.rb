@@ -49,7 +49,7 @@ module VCAP::CloudController
       is_micro_cloud = Kato::Cluster::Manager.is_micro_cloud
 
       # *everything* other than a ucloud with zero admins is restricted
-      restricted = (not (is_micro_cloud and not (admins and admins.length)))
+      restricted = !is_micro_cloud || admins.length > 0
 
       Yajl::Encoder.encode({
         :endpoint => endpoint,
