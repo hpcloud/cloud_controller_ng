@@ -34,33 +34,6 @@ module VCAP::CloudController
       validates_unique   :name
 
       validates_format DOMAIN_REGEX, :name
-
-      errors.add(:name, :overlapping_domain) if overlaps_domain_in_other_org?
-    end
-
-    def overlaps_domain_in_other_org?
-      domains_to_check = intermediate_domains
-      return unless domains_to_check
-
-      overlapping_domains = Domain.dataset.filter(
-        :name => domains_to_check
-      ).exclude(:id => id)
-
-      if owning_organization
-        overlapping_domains = overlapping_domains.exclude(
-          :owning_organization => owning_organization
-        )
-      end
-
-      overlapping_domains.count != 0
-    end
-
-    def self.intermediate_domains(name)
-      return unless name and name =~ DOMAIN_REGEX
-
-      name.split(".").reverse.inject([]) do |a, e|
-        a.push(a.empty? ? e : "#{e}.#{a.last}")
-      end
     end
 
     def self.user_visibility_filter(user)
@@ -85,12 +58,6 @@ module VCAP::CloudController
 
     def owned_by?(org)
       owning_organization.id == org.id
-    end
-
-    private
-
-    def intermediate_domains
-      self.class.intermediate_domains(name)
     end
   end
 end
