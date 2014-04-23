@@ -28,7 +28,7 @@ module VCAP::CloudController
       end
 
       begin
-        Kato::Config.set('cluster', 'license', data['license'])
+        Kato::Config.set('cluster', 'license', data['license'], force: true)
       rescue KatoBadParamsException
         raise Errors::StackatoLicenseInvalid.new
       end
