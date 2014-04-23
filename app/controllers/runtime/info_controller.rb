@@ -1,4 +1,5 @@
 require 'kato/config'
+require 'cloud_controller/stackato/cluster_config'
 require 'cloud_controller/stackato/vendor_config'
 
 module VCAP::CloudController
@@ -29,6 +30,7 @@ module VCAP::CloudController
         info[:stackato][:cc_nginx] = cc_nginx
         info[:maintenance_mode] = Config.config[:maintenance_mode]
       end
+      StackatoClusterConfig.update_license_info(info, license)
 
       Yajl::Encoder.encode(info)
     end

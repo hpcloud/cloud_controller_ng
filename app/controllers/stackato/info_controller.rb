@@ -1,6 +1,7 @@
 
 require "kato/config"
 require "kato/cluster/manager"
+require 'cloud_controller/stackato/cluster_config'
 require 'cloud_controller/stackato/vendor_config'
 
 module VCAP::CloudController
@@ -51,7 +52,7 @@ module VCAP::CloudController
       # *everything* other than a ucloud with zero admins is restricted
       restricted = !is_micro_cloud || admins.length > 0
 
-      Yajl::Encoder.encode({
+      info = {
         :endpoint => endpoint,
         :maintenance_mode => Config.config[:maintenance_mode],
         :mbusip => mbusip,
@@ -64,7 +65,9 @@ module VCAP::CloudController
             :license_accepted => !license.blank?,
             :UUID => STACKATO_UUID
         }
-      })
+      }
+      StackatoClusterConfig.update_license_info(info, license)
+      Yajl::Encoder.encode(info)
     end
 
     get "/v2/stackato/info", :get_info
