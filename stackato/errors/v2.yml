@@ -255,3 +255,8 @@
   name: StackatoMaintenanceModeEnabled
   http_code: 503
   message: "Maintenance mode is enabled. The Cloud Controller is read-only."
+
+151:
+  name: StackatoLicenseInvalid
+  http_code: 400
+  message: "The given stackato license is invalid"

@@ -29,7 +29,7 @@ module VCAP::CloudController
     end
     
     def self.displayable_license_subset(license)
-        license.slice(%w/organization serial memory_limit/)
+        license.slice(*%w/organization serial type memory_limit/)
     end
     
   end
