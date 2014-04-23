@@ -52,7 +52,7 @@ module VCAP::CloudController
       validates_unique   [:host, :domain_id]
 
       main_domain = Kato::Config.get("cluster", "endpoint").gsub(/^api\./, '')
-      builtin_routes = ["www", "api", "login", "ports"]
+      builtin_routes = ["www", "api", "login", "ports", "aok"]
       configured_routes = Kato::Config.get("cloud_controller_ng", "app_uris/reserved_list")
       reserved_domains = (builtin_routes + configured_routes).map { |x| "#{x}.#{main_domain}" }
 
