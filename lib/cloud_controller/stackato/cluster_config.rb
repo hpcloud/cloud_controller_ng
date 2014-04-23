@@ -4,13 +4,17 @@ module VCAP::CloudController
     # Utilities for getting config info about the cluster
     
     def self.update_license_info(info, license)
-      if Kato::Config.get("cluster", "license_checking") != false && !license.blank?
+      no_license_required = Kato::Config.get("cluster", "no_license_required")
+      free_license = Kato::Config.get("cluster", "free_license")
+      if Kato::Config.get("cluster", "license_checking") != false
         if license.is_a?(Hash)
           info[:license] = displayable_license_subset(license)
         else
-          info[:license] = {
-            :memory_limit => license
-          }
+          info[:license] = {}
+          default_value = no_license_required || free_license
+          if default_value
+            info[:license][:memory_limit] = default_value
+          end
         end
         info[:license][:memory_in_use] = display_memory_in_gb(memory_in_use)
       end
@@ -29,7 +33,7 @@ module VCAP::CloudController
     end
     
     def self.displayable_license_subset(license)
-        license.slice(*%w/organization serial type memory_limit/)
+        license.slice("organization", "serial", "memory_limit")
     end
     
   end
