@@ -156,6 +156,7 @@ module VCAP::CloudController
       AppStartEvent.create_from_app(self) if generate_start_event?
 
       adjust_route_sso_clients if sso_updated?
+      self.min_instances = 1 if self.min_instances.nil? # Stackato bug 103723
     end
 
     def after_save
