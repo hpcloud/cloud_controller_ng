@@ -1,11 +1,17 @@
 require "spec_helper"
+require 'digest/sha1'
 
 module VCAP::CloudController
   # Test license handling
+  def hashed_license_from_hash(license_hash)
+    lic_parts = [:organization, :serial, :type, :memory_limit,
+                 :expiration].map{|k| license_hash[k]}.join(",")
+    lic_parts + "," + Digest::SHA1.hexdigest(lic_parts)
+  end
   describe VCAP::CloudController::LegacyInfo, type: :controller do
+    let(:current_user) { make_user_with_default_space(:admin => true) }
+    let(:headers) { headers_for(current_user) }
     describe "license checks" do
-      let(:current_user) { make_user_with_default_space(:admin => true) }
-      let(:headers) { headers_for(current_user) }
       let(:license) { Kato::Config.get('cluster', 'license') }
       let(:no_license_required) { Kato::Config.get('cluster', 'no_license_required') }
       let(:free_license) { Kato::Config.get('cluster', 'free_license') }
@@ -28,19 +34,22 @@ module VCAP::CloudController
       describe "for a user with a full license" do
         [true, nil].each do | license_checking_status|
           before do
-            Kato::Config.set('cluster', 'license', {
+            new_license = {
               user: "Flip <flip@example.com",
-              organization: "mervish.com",
+              organization: "example.com",
               serial: "ABCD1234",
+              type: "paid",
               memory_limit: 25,
-              expiration: "2019-12-31",
-            })
+              expiration: "2099-12-31",
+            }
+            Kato::Config.set('cluster', 'license', hashed_license_from_hash(new_license), :force => true)
             Kato::Config.set("cluster", "license_checking", true)
           end
           it "should return full license info" do
             get "/info", {}, headers
             expect(last_response.status).to be(200)
             hash = Yajl::Parser.parse(last_response.body)
+            $stderr.puts("/info => #{hash}")
             has_license = Kato::Config.get("cluster", "license_checking")
             expect(has_license).to be(true)
             hash.should have_key("license")
@@ -54,7 +63,7 @@ module VCAP::CloudController
           end
         end
       end
-      
+
       describe "for a user with no license" do
         before do
           Kato::Config.del('cluster', 'license')
@@ -80,13 +89,15 @@ module VCAP::CloudController
       
       describe "with license-checking off" do
         before do
-          Kato::Config.set('cluster', 'license', {
-              user: "Flip <flip@example.com",
-              organization: "mervish.com",
-              serial: "ABCD1234",
-              memory_limit: 27,
-              expiration: "2019-12-31",
-          })
+          new_license = {
+            user: "Flip <flip@example.com",
+            organization: "example.com",
+            serial: "ABCD1234",
+            type: "paid",
+            memory_limit: 27,
+            expiration: "2098-12-31",
+          }
+          Kato::Config.set('cluster', 'license', hashed_license_from_hash(new_license), :force => true)
           Kato::Config.set("cluster", "license_checking", false)
         end
         it "should return no license info" do
@@ -98,5 +109,6 @@ module VCAP::CloudController
       end
       
     end
+
   end
 end
