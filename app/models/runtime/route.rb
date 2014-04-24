@@ -1,4 +1,5 @@
 require "cloud_controller/dea/dea_client"
+require 'uri'
 
 module VCAP::CloudController
   class Route < Sequel::Model
@@ -55,6 +56,7 @@ module VCAP::CloudController
       builtin_routes = ["www", "api", "login", "ports", "aok"]
       configured_routes = Kato::Config.get("cloud_controller_ng", "app_uris/reserved_list")
       reserved_domains = (builtin_routes + configured_routes).map { |x| "#{x}.#{main_domain}" }
+      reserved_domains.push(URI(Kato::Config.get("cloud_controller_ng", "uaa/url")).host)
 
       if domain
         reserved_domains.each do |rdomain|
