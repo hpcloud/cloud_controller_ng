@@ -41,11 +41,11 @@ module VCAP::CloudController
       endpoint = Kato::Config.get("cluster", "endpoint")
       mbusip = Kato::Config.get("cluster", "mbusip")
       nodes = {}
-      Kato::Config.get("node").each_pair do |node_id, node|
+      (Kato::Config.get("node") || []).each_pair do |node_id, node|
         role_names = node["roles"].keys rescue []
         nodes[node_id] = { "roles" => role_names }
       end
-      admins = (Kato::Config.get("cloud_controller", "admins") or [])
+      admins = (Kato::Config.get("cloud_controller", "admins") || [])
 
       is_micro_cloud = Kato::Cluster::Manager.is_micro_cloud
 
