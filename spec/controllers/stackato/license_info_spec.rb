@@ -1,5 +1,6 @@
 require "spec_helper"
 require 'digest/sha1'
+require 'yajl'
 
 module VCAP::CloudController
   # Test license handling
@@ -250,6 +251,76 @@ module VCAP::CloudController
         end
       end
 
+    end
+
+  end
+
+  describe VCAP::CloudController::StackatoLicenseController, type: :controller do
+    let(:current_user) { make_user_with_default_space(:admin => true) }
+
+    attr_accessor :headers
+
+    before(:each, admin: true) do
+      self.headers = headers_for(current_user, admin_scope: true)
+    end
+    before(:each, admin: false) do
+      self.headers = headers_for(current_user, admin_scope: false)
+    end
+
+    before(:each) do
+      Kato::Config.set('cluster', 'no_license_required', 42)
+      Kato::Config.set('cluster', 'license', 'type: microcloud', force: true)
+      Kato::Config.set('cluster', 'license_checking', true)
+      header 'AUTHORIZATION', headers['HTTP_AUTHORIZATION']
+    end
+
+    def encode_license(license)
+      Yajl::Encoder.encode({ license: hashed_license_from_hash(license) })
+    end
+
+    it 'should parse a given license', admin: true do
+      new_license = {
+        organization: 'example.com',
+        serial: 'ABCD1234',
+        type: 'paid',
+        memory_limit: 25,
+        expiration: '9999-01-01',
+      }
+      post '/v2/stackato/license/parse', encode_license(new_license), headers
+      expect(last_response.status).to eq(200)
+      result = Yajl::Parser.parse(last_response.body)
+
+      expect(result.symbolize_keys).to eq(new_license)
+    end
+
+    it 'should accept a valid license', admin: true do
+      new_license = {
+        organization: 'example.com',
+        serial: 'ABCD1234',
+        type: 'paid',
+        memory_limit: 25,
+        expiration: '9999-01-01',
+      }
+      put '/v2/stackato/license', encode_license(new_license), headers
+      expect(last_response.status).to eq(200)
+      expect(Kato::Config.get('cluster', 'license').symbolize_keys).to eq(new_license)
+    end
+
+    it 'should reject an invalid license', admin: true do
+      put '/v2/stackato/license', Yajl::Encoder.encode({license: 'BAD LICENSE'}), headers
+      expect(last_response.status).not_to eq(200)
+    end
+
+    it 'should not allow non-admin to set a license', admin: false do
+      new_license = {
+        organization: 'example.com',
+        serial: 'ABCD1234',
+        type: 'paid',
+        memory_limit: 25,
+        expiration: '9999-01-01',
+      }
+      put '/v2/stackato/license', encode_license(new_license), headers
+      expect(last_response.status).to eq(403)
     end
 
   end

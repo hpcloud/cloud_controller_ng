@@ -7,17 +7,6 @@ module VCAP::CloudController
   class StackatoLicenseController < RestController::Base
     allow_unauthenticated_access
 
-    def get_license
-      license_value = Kato::Config.get("cluster", "license")
-      if license_value
-        Yajl::Encoder.encode(license_value)
-      else
-        raise Errors::StackatoNotLicensed.new
-      end
-    end
-
-    get "/v2/stackato/license", :get_license
-
     def set_license
       raise Errors::NotAuthorized unless roles.admin?
 
