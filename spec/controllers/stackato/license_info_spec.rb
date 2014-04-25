@@ -10,22 +10,24 @@ module VCAP::CloudController
                  :expiration].map{|k| license_hash[k]}.insert(0, '1').join(",")
     lic_parts + "," + Digest::SHA1.hexdigest(lic_parts)
   end
-  if Kato::Config.get("cluster", "license_urls/get_free_license").nil?
-    Kato::Config.set("cluster", "license_urls/get_free_license",
-                     Kato::Constants::LICENSE_URL_FREE_LICENSE_URL)
-  end
-  if Kato::Config.get("cluster", "license_urls/upgrade_license").nil?
-    Kato::Config.set("cluster", "license_urls/upgrade_license",
-                     Kato::Constants::LICENSE_URL_UPGRADE_LICENSE_URL)
-  end
-  if Kato::Config.get("cluster", "license_urls/purchase_license").nil?
-    Kato::Config.set("cluster", "license_urls/purchase_license",
-                     Kato::Constants::LICENSE_URL_PURCHASE_LICENSE_URL)
-  end
   
   describe VCAP::CloudController::LegacyInfo, type: :controller do
     let(:current_user) { make_user_with_default_space(:admin => true) }
     let(:headers) { headers_for(current_user) }
+    before do 
+      if Kato::Config.get("cluster", "license_urls/get_free_license").nil?
+        Kato::Config.set("cluster", "license_urls/get_free_license",
+                         Kato::Constants::LICENSE_URL_FREE_LICENSE_URL)
+      end
+      if Kato::Config.get("cluster", "license_urls/upgrade_license").nil?
+        Kato::Config.set("cluster", "license_urls/upgrade_license",
+                         Kato::Constants::LICENSE_URL_UPGRADE_LICENSE_URL)
+      end
+      if Kato::Config.get("cluster", "license_urls/purchase_license").nil?
+        Kato::Config.set("cluster", "license_urls/purchase_license",
+                         Kato::Constants::LICENSE_URL_PURCHASE_LICENSE_URL)
+      end
+    end
     describe "license checks" do
       let(:license) { Kato::Config.get('cluster', 'license') }
       let(:no_license_required) { Kato::Config.get('cluster', 'no_license_required') }
@@ -227,6 +229,7 @@ module VCAP::CloudController
         end
         it "should be non-compliant and needs a paid license" do
           get "/info", {}, headers
+          $stderr.puts("available mem: #{Kato::Config.get('cluster', 'memory_limits/free_license')}")
           expect(last_response.status).to eq(200)
           hash = Yajl::Parser.parse(last_response.body)
           license = hash["license"]
@@ -237,7 +240,7 @@ module VCAP::CloudController
 
       describe 'for first run setup' do
         before do
-          Kato::Config.set("cluster", "no_license_required", 42)
+          Kato::Config.set("cluster", "memory_limits/no_license_required", 42)
           Kato::Config.set('cluster', 'license', 'type: microcloud', force: true)
           Kato::Config.set("cluster", "license_checking", true)
         end
