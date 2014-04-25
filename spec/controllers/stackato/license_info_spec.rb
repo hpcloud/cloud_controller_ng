@@ -229,7 +229,6 @@ module VCAP::CloudController
         end
         it "should be non-compliant and needs a paid license" do
           get "/info", {}, headers
-          $stderr.puts("available mem: #{Kato::Config.get('cluster', 'memory_limits/free_license')}")
           expect(last_response.status).to eq(200)
           hash = Yajl::Parser.parse(last_response.body)
           license = hash["license"]
