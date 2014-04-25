@@ -27,7 +27,6 @@ module VCAP::CloudController
     #      }
     #    },
     #    "mbusip" : "127.0.0.1",
-    #    "restricted" : "True",
     #    "admins": [
     #      "betty@rubble.com,
     #      "fred@flintstone.com
@@ -45,21 +44,15 @@ module VCAP::CloudController
         role_names = node["roles"].keys rescue []
         nodes[node_id] = { "roles" => role_names }
       end
-      admins = (Kato::Config.get("cloud_controller", "admins") || [])
 
       is_micro_cloud = Kato::Cluster::Manager.is_micro_cloud
-
-      # *everything* other than a ucloud with zero admins is restricted
-      restricted = !is_micro_cloud || admins.length > 0
 
       info = {
         :endpoint => endpoint,
         :maintenance_mode => Config.config[:maintenance_mode],
         :mbusip => mbusip,
         :micro_cloud => is_micro_cloud,
-        :restricted => restricted,
         :nodes => nodes,
-        :admins => admins,
         :vendor_version => StackatoVendorConfig.vendor_version,
         :stackato => {
             :license_accepted => !license.blank?,
