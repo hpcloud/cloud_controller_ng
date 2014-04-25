@@ -6,7 +6,7 @@ module VCAP::CloudController
   OneMB = 2 ** 20
   def hashed_license_from_hash(license_hash)
     lic_parts = [:organization, :serial, :type, :memory_limit,
-                 :expiration].map{|k| license_hash[k]}.join(",")
+                 :expiration].map{|k| license_hash[k]}.insert(0, '1').join(",")
     lic_parts + "," + Digest::SHA1.hexdigest(lic_parts)
   end
   if Kato::Config.get("cluster", "license_urls/get_free_license").nil?
@@ -84,7 +84,6 @@ module VCAP::CloudController
           Kato::Config.del('cluster', 'license')
           Kato::Config.set("cluster", "license_checking", true)
           Kato::Config.set("cluster", "no_license_required", 4)
-          Kato::Config.set("cluster", "free_license", 20)
           Kato::Config.set("cluster", "free_license", 20)
         end
         it "should return empty license info" do
@@ -232,6 +231,22 @@ module VCAP::CloudController
           license = hash["license"]
           expect(license["state"]).to eq("NO_LICENSE_NONCOMPLIANT_OVER_FREE_MEMORY")
           expect(license["url"]).to eq(Kato::Config.get("cluster", "license_urls/purchase_license"))
+        end
+      end
+
+      describe 'for first run setup' do
+        before do
+          Kato::Config.set("cluster", "no_license_required", 42)
+          Kato::Config.set('cluster', 'license', 'type: microcloud', force: true)
+          Kato::Config.set("cluster", "license_checking", true)
+        end
+        it "should have the correct memory limit" do
+          get "/info", {}, headers
+          expect(last_response.status).to eq(200)
+          hash = Yajl::Parser.parse(last_response.body)
+          license = hash["license"]
+          license.should have_key("memory_limit")
+          expect(license["memory_limit"]).to eq(42)
         end
       end
 
