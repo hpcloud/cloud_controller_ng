@@ -52,7 +52,8 @@ module VCAP::CloudController
       :staging_task_id, :package_state, :health_check_timeout, :system_env_json,
       :distribution_zone,
       :description, :sso_enabled, :restart_required, :autoscale_enabled,
-      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances
+      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+      :droplet_hash
 
     import_attributes :name, :production,
       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
@@ -61,7 +62,8 @@ module VCAP::CloudController
       :staging_task_id, :service_binding_guids, :route_guids, :health_check_timeout,
       :distribution_zone,
       :description, :sso_enabled, :autoscale_enabled,
-      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances
+      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+      :droplet_hash
 
     strip_attributes :name
 
@@ -247,7 +249,7 @@ module VCAP::CloudController
       #
       # this is to indicate that the running state of an application has changed,
       # and that the system should converge on this new version.
-      (column_changed?(:state) || column_changed?(:memory)) && started?
+      (column_changed?(:state) || column_changed?(:memory) || column_changed?(:package_hash)) && started?
     end
 
     def set_new_version

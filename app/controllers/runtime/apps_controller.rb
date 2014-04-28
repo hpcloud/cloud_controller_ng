@@ -33,13 +33,16 @@ module VCAP::CloudController
       attribute  :buildpack,           String, :default => nil
       attribute  :detected_buildpack,  String, :exclude_in => [:create, :update]
 
+      attribute  :droplet_hash, String, :default => ""
+
       to_many    :service_bindings,    :exclude_in => :create
       to_many    :routes
+      to_many    :droplets
 
       to_many    :events
     end
 
-    query_parameters :name, :space_guid, :organization_guid, :restart_required, :state, :package_state, :sso_enabled
+    query_parameters :name, :space_guid, :organization_guid, :restart_required, :state, :package_state, :sso_enabled, :droplet_hash
 
     def self.default_order_by
       :name
