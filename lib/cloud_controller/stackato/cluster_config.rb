@@ -17,7 +17,7 @@ module VCAP::CloudController
         end
         info[:license][:memory_limit] = no_license_memory_limit
       end
-      info[:license][:memory_in_use] = display_memory_in_gb(memory_in_use)
+      info[:license][:memory_in_use] = display_memory_in_gb(Kato::Cluster::Manager.memory_available)
       state, url = get_memory_usage_info(license, info[:license][:memory_in_use], info[:license][:memory_limit])
       info[:license][:state] = state
       info[:license][:url] = url if url
@@ -46,14 +46,6 @@ module VCAP::CloudController
            Kato::Constants::LICENSE_URL_UPGRADE_LICENSE_URL]
         end
       end
-    end
-    
-    def self.memory_in_use
-      # Return memory in use in bytes
-      config = Kato::Config.get("cluster", "memory")
-      return 0 unless config
-      node_keys = config.keys.find_all{|x| x =~ /\A\d+(?:\.\d+){3}\z/ }
-      node_keys.map { |k| config[k].to_i }.reduce(:+) * 1024
     end
     
     def self.display_memory_in_gb(mem)
