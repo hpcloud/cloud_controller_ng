@@ -1,7 +1,7 @@
 
 require "kato/config"
+require 'kato/cluster/license'
 require "kato/cluster/manager"
-require 'cloud_controller/stackato/cluster_config'
 require 'cloud_controller/stackato/vendor_config'
 
 module VCAP::CloudController
@@ -59,7 +59,7 @@ module VCAP::CloudController
             :UUID => STACKATO_UUID
         }
       }
-      StackatoClusterConfig.update_license_info(info, license)
+      Kato::Cluster::License.update_license_info(info, license)
       Yajl::Encoder.encode(info)
     end
 

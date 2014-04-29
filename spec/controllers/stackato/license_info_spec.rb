@@ -11,10 +11,18 @@ module VCAP::CloudController
     lic_parts + "," + Digest::SHA1.hexdigest(lic_parts)
   end
   
-  describe VCAP::CloudController::LegacyInfo, type: :controller do
+  describe VCAP::CloudController::LegacyInfo, type: :controller, :if => !Kato::Cluster::Manager.is_micro_cloud do
     let(:current_user) { make_user_with_default_space(:admin => true) }
     let(:headers) { headers_for(current_user) }
-    before do 
+    let(:license) { Kato::Config.get('cluster', 'license') }
+    let(:license_checking) { Kato::Config.get("cluster", "license_checking") }
+    let(:no_license_required) { Kato::Config.get('cluster', 'memory_limits/no_license_required') }
+    let(:free_license) { Kato::Config.get('cluster', 'memory_limits/free_license') }
+    before(:each) do
+      Kato::Config.set('cluster', 'memory_limits/no_license_required',
+                       Kato::Constants::MEMORY_LIMIT_NO_LICENSE_REQUIRED)
+      Kato::Config.set('cluster', 'memory_limits/free_license',
+                       Kato::Constants::MEMORY_LIMIT_FREE_LICENSE)
       if Kato::Config.get("cluster", "license_urls/get_free_license").nil?
         Kato::Config.set("cluster", "license_urls/get_free_license",
                          Kato::Constants::LICENSE_URL_FREE_LICENSE_URL)
@@ -28,26 +36,21 @@ module VCAP::CloudController
                          Kato::Constants::LICENSE_URL_PURCHASE_LICENSE_URL)
       end
     end
-    describe "license checks" do
-      let(:license) { Kato::Config.get('cluster', 'license') }
-      let(:no_license_required) { Kato::Config.get('cluster', 'no_license_required') }
-      let(:free_license) { Kato::Config.get('cluster', 'free_license') }
-      let(:license_checking) { Kato::Config.get("cluster", "license_checking") }
-      
-      after(:each) do
-        if !license.nil?
-            Kato::Config.set('cluster', 'license', license)
-        end
-        if !license_checking.nil?
-          Kato::Config.set("cluster", "license_checking", license_checking)
-        end
-        if !no_license_required.nil?
-          Kato::Config.set("cluster", "no_license_required", no_license_required)
-        end
-        if !free_license.nil?
-          Kato::Config.set("cluster", "free_license", free_license)
-        end
+    after(:each) do
+      if !license.nil?
+          Kato::Config.set('cluster', 'license', license)
       end
+      if !license_checking.nil?
+        Kato::Config.set("cluster", "license_checking", license_checking)
+      end
+      if !no_license_required.nil?
+        Kato::Config.set("cluster", "memory_limits/no_license_required", no_license_required)
+      end
+      if !free_license.nil?
+        Kato::Config.set("cluster", "memory_limits/free_license", free_license)
+      end
+    end
+    describe "license checks" do
 
       describe "for a user with a full license" do
         [true, nil].each do | license_checking_status|
@@ -86,8 +89,8 @@ module VCAP::CloudController
         before do
           Kato::Config.del('cluster', 'license')
           Kato::Config.set("cluster", "license_checking", true)
-          Kato::Config.set("cluster", "no_license_required", 4)
-          Kato::Config.set("cluster", "free_license", 20)
+          Kato::Config.set("cluster", "memory_limits/no_license_required", 4)
+          Kato::Config.set("cluster", "memory_limits/free_license", 20)
         end
         it "should return empty license info" do
           get "/info", {}, headers
@@ -139,10 +142,10 @@ module VCAP::CloudController
           }
           Kato::Config.set('cluster', 'license', hashed_license_from_hash(new_license), :force => true)
           Kato::Config.set("cluster", "license_checking", true)
-          Kato::Config.set("cluster", "memory", {
-            "192.168.68.82" => 8 * OneMB,
-            "192.168.68.98" => 8 * OneMB,
-            "192.168.68.65" => 9 * OneMB})
+          Kato::Config.set("running", "total_memory", {
+            "192.168.68.82" => { "timestamp" => (Time.now - 1).to_i, "size" => 8 * OneMB },
+            "192.168.68.98" => { "timestamp" => ((Time.now - 1).to_i).to_i, "size" => 8 * OneMB },
+            "192.168.68.65" => { "timestamp" => ((Time.now - 1).to_i).to_i, "size" => 9 * OneMB }})
         end
         it "should be compliant" do
           get "/info", {}, headers
@@ -166,10 +169,10 @@ module VCAP::CloudController
           }
           Kato::Config.set('cluster', 'license', hashed_license_from_hash(new_license), :force => true)
           Kato::Config.set("cluster", "license_checking", true)
-          Kato::Config.set("cluster", "memory", {
-            "192.168.68.82" => 8 * OneMB,
-            "192.168.68.98" => 8 * OneMB,
-            "192.168.68.65" => 11 * OneMB})
+          Kato::Config.set("running", "total_memory", {
+            "192.168.68.82" => { "timestamp" => ((Time.now - 1).to_i).to_i, "size" => 8 * OneMB },
+            "192.168.68.98" => { "timestamp" => ((Time.now - 1).to_i).to_i, "size" => 8 * OneMB },
+            "192.168.68.65" => { "timestamp" => ((Time.now - 1).to_i).to_i, "size" => 11 * OneMB }})
         end
         it "should offer to upgrade the license" do
           get "/info", {}, headers
@@ -185,9 +188,9 @@ module VCAP::CloudController
         before do
           Kato::Config.del('cluster', 'license')
           Kato::Config.set("cluster", "license_checking", true)
-          Kato::Config.set("cluster", "memory", {
-            "192.168.68.82" => 2 * OneMB,
-            "192.168.68.65" => 2 * OneMB})
+          Kato::Config.set("running", "total_memory", {
+            "192.168.68.82" => { "timestamp" => (Time.now - 1).to_i, "size" => 2 * OneMB },
+            "192.168.68.98" => { "timestamp" => (Time.now - 1).to_i, "size" => 2 * OneMB }})
         end
         it "should be compliant" do
           get "/info", {}, headers
@@ -203,10 +206,10 @@ module VCAP::CloudController
         before do
           Kato::Config.del('cluster', 'license')
           Kato::Config.set("cluster", "license_checking", true)
-          Kato::Config.set("cluster", "memory", {
-            "192.168.68.82" => 5 * OneMB,
-            "192.168.68.98" => 6 * OneMB,
-            "192.168.68.65" => 9 * OneMB})
+          Kato::Config.set("running", "total_memory", {
+            "192.168.68.82" => { "timestamp" => (Time.now - 1).to_i, "size" => 5 * OneMB },
+            "192.168.68.98" => { "timestamp" => (Time.now - 1).to_i, "size" => 6 * OneMB },
+            "192.168.68.65" => { "timestamp" => (Time.now - 1).to_i, "size" => 9 * OneMB }})
         end
         it "should be non-compliant but qualifies for free license" do
           get "/info", {}, headers
@@ -222,10 +225,10 @@ module VCAP::CloudController
         before do
           Kato::Config.del('cluster', 'license')
           Kato::Config.set("cluster", "license_checking", true)
-          Kato::Config.set("cluster", "memory", {
-            "192.168.68.82" => 5 * OneMB,
-            "192.168.68.98" => 8 * OneMB,
-            "192.168.68.65" => 9 * OneMB})
+          Kato::Config.set("running", "total_memory", {
+            "192.168.68.82" => { "timestamp" => (Time.now - 1).to_i, "size" => 5 * OneMB },
+            "192.168.68.98" => { "timestamp" => (Time.now - 1).to_i, "size" => 8 * OneMB },
+            "192.168.68.65" => { "timestamp" => (Time.now - 1).to_i, "size" => 9 * OneMB }})
         end
         it "should be non-compliant and needs a paid license" do
           get "/info", {}, headers
@@ -253,9 +256,61 @@ module VCAP::CloudController
         end
       end
 
+      describe "find out-dated running nodes" do
+        before do
+          Kato::Config.del('cluster', 'license')
+          Kato::Config.set("cluster", "license_checking", true)
+          delta = 3600 * 25 
+          Kato::Config.set("running", "total_memory", {
+            "192.168.68.82" => { "timestamp" => (Time.now - 1).to_i, "size" => 5 * OneMB },
+            "192.168.68.98" => { "timestamp" => (Time.now - 1).to_i, "size" => 6 * OneMB },
+            "192.168.68.65" => { "timestamp" => (Time.now - delta - 1).to_i, "size" => 9 * OneMB },
+            "192.168.68.66" => { "timestamp" => (Time.now - delta).to_i, "size" => 12 * OneMB },
+            "192.168.68.67" => { "timestamp" => (Time.now - delta + 1).to_i, "size" => 15 * OneMB }})
+        end
+        it "should remove out-dated node entries" do
+          get "/info", {}, headers
+          expect(last_response.status).to eq(200)
+          config = Kato::Config.get("running", "total_memory")
+          expect(config.keys.size).to eq(4)
+          expect(config.values.map{|n|n["size"]}.reduce(:+)).to eq(38 * OneMB)
+        end
+      end
+    end # describe "license checks" 
+  end # describe LegacyInfo, !is_micro_cloud
+  
+  describe VCAP::CloudController::LegacyInfo, type: :controller, :if => Kato::Cluster::Manager.is_micro_cloud do
+    let(:current_user) { make_user_with_default_space(:admin => true) }
+    let(:headers) { headers_for(current_user) }
+    let(:license_checking) { Kato::Config.get("cluster", "license_checking") }
+    let(:no_license_required) { Kato::Config.get('cluster', 'memory_limits/no_license_required') }
+    let(:free_license) { Kato::Config.get('cluster', 'memory_limits/free_license') }
+#=begin
+    describe "for a user on a microcloud" do
+      before do
+        Kato::Config.set("cluster", "license_checking", true)
+        Kato::Config.set("cluster", "memory_limits/no_license_required", 4)
+        Kato::Config.set("cluster", "memory_limits/free_license", 20)
+      end
+      after do
+        if license_checking
+          Kato::Config.set("cluster", "license_checking", license_checking)
+        end
+        if no_license_required
+          Kato::Config.set("cluster", "memory_limits/no_license_required", no_license_required)
+        end
+        if free_license
+          Kato::Config.set("cluster", "memory_limits/free_license", free_license)
+        end
+      end
+      it "should return no license info" do
+        get "/info", {}, headers
+        expect(last_response.status).to eq(200)
+        hash = Yajl::Parser.parse(last_response.body)
+        hash.should_not have_key("license")
+      end
     end
-
-  end
+  end # describe LegacyInfo, is_micro_cloud
 
   describe VCAP::CloudController::StackatoLicenseController, type: :controller do
     let(:current_user) { make_user_with_default_space(:admin => true) }
@@ -270,7 +325,7 @@ module VCAP::CloudController
     end
 
     before(:each) do
-      Kato::Config.set('cluster', 'no_license_required', 42)
+      Kato::Config.set('cluster', 'memory_limits/no_license_required', 42)
       Kato::Config.set('cluster', 'license', 'type: microcloud', force: true)
       Kato::Config.set('cluster', 'license_checking', true)
       header 'AUTHORIZATION', headers['HTTP_AUTHORIZATION']
@@ -325,5 +380,6 @@ module VCAP::CloudController
       expect(last_response.status).to eq(403)
     end
 
-  end
-end
+  end # describe VCAP::CloudController::StackatoLicenseController
+
+end # module

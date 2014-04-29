@@ -1,5 +1,5 @@
 require 'kato/config'
-require 'cloud_controller/stackato/cluster_config'
+require 'kato/cluster/license'
 require 'cloud_controller/stackato/vendor_config'
 
 module VCAP::CloudController
@@ -33,7 +33,7 @@ module VCAP::CloudController
         info[:usage]  = account_usage if has_default_space?
         info[:cc_nginx]  = Kato::Config.get("cloud_controller_ng", "nginx").fetch("use_nginx", false)
       end
-      StackatoClusterConfig.update_license_info(info, license)
+      Kato::Cluster::License.update_license_info(info, license)
       Yajl::Encoder.encode(info)
     end
 
