@@ -33,8 +33,6 @@ module VCAP::CloudController
       attribute  :buildpack,           String, :default => nil
       attribute  :detected_buildpack,  String, :exclude_in => [:create, :update]
 
-      attribute  :version_description, String, :default => ""
-
       to_many    :service_bindings,    :exclude_in => :create
       to_many    :routes
 
