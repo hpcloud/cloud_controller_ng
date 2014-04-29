@@ -249,7 +249,7 @@ module VCAP::CloudController
       #
       # this is to indicate that the running state of an application has changed,
       # and that the system should converge on this new version.
-      (column_changed?(:state) || column_changed?(:memory) || column_changed?(:droplet_hash)) && started?
+      (column_changed?(:state) || column_changed?(:memory) || column_changed?(:package_hash)) && started?
     end
 
     def set_new_version
@@ -262,7 +262,7 @@ module VCAP::CloudController
       # once during a state change. Also, if the app is not in started state
       # and/or is new, then the changes to the footprint shouldn't trigger a
       # billing event.
-      started? && ((column_changed?(:state)) || column_changed?(:droplet_hash) || (!new? && footprint_changed?))
+      started? && ((column_changed?(:state)) || (!new? && footprint_changed?))
     end
 
     def generate_stop_event?

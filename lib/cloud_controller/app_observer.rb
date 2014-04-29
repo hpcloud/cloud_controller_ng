@@ -30,8 +30,6 @@ module VCAP::CloudController
 
         if changes.has_key?(:state)
           react_to_state_change(app)
-        elsif changes.has_key?(:droplet_hash)
-          react_to_droplet_hash_change(app)
         elsif changes.has_key?(:instances)
           delta = changes[:instances][1] - changes[:instances][0]
           react_to_instances_change(app, delta)
@@ -92,18 +90,6 @@ module VCAP::CloudController
           stage_if_needed(app) do |staging_result|
             started_instances = staging_result[:started_instances] || 0
             DeaClient.start(app, :instances_to_start => app.instances - started_instances)
-            broadcast_app_updated(app)
-          end
-        else
-          DeaClient.stop(app)
-          broadcast_app_updated(app)
-        end
-      end
-
-      def react_to_droplet_hash_change(app)
-        if app.started?
-          stage_if_needed(app) do |staging_result|
-            DeaClient.start(app, :instances_to_start => app.instances) # this will temporarily create 2x instance count; the old versions will be autoterminated by the HM
             broadcast_app_updated(app)
           end
         else
