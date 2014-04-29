@@ -29,9 +29,25 @@ module VCAP::CloudController
       return 0
     end
 
+    def self.build_description(app)
+      pushed_new_code   = app.column_changed?(:droplet_hash)
+      changed_instances = app.column_changed?(:instances)
+
+      messages = []
+      if pushed_new_code
+        messages << "pushed new code"
+      end
+
+      if changed_instances
+        messages << "changed instances to #{app.instances}"
+      end
+
+      messages.join ", "
+    end
+
     def self.make_new_version(app)
       new_version_count = latest_version(app) + 1
-      version = new( :app => app, :droplet => app.current_droplet, :version_count => new_version_count, :version_guid => app.version, :instances => app.instances )
+      version = new( :app => app, :droplet => app.current_droplet, :version_count => new_version_count, :version_guid => app.version, :instances => app.instances, :description => build_description(app) )
       version.save
 
       version
