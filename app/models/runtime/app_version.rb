@@ -13,7 +13,14 @@ module VCAP::CloudController
       validates_presence :version_guid
     end
 
-    def self.current_version(app)
+    def rollback
+      app.droplet_hash = droplet_hash
+      app.instances    = instances
+      app.version      = version_guid
+      app.save
+    end
+
+    def self.latest_version(app)
       versions = where( :app => app ).map(:version_count)
       if versions.is_a? Array
         return versions.map { |x| x.to_i }.max
@@ -23,7 +30,7 @@ module VCAP::CloudController
     end
 
     def self.make_new_version(app)
-      new_version_count = current_version(app) + 1
+      new_version_count = latest_version(app) + 1
       version = new( :app => app, :droplet => app.current_droplet, :version_count => new_version_count, :version_guid => app.version, :instances => app.instances )
       version.save
 
