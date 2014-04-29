@@ -1,6 +1,9 @@
 module VCAP::CloudController
   class Droplet < Sequel::Model
     many_to_one :app
+    one_to_many :app_versions
+
+    add_association_dependencies app_versions: :destroy
 
     def validate
       validates_presence :app

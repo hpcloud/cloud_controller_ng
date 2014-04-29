@@ -5,7 +5,11 @@ module CloudController
       @blobstore = blobstore
     end
 
-    def upload(source_path, droplets_to_keep=2)
+    def upload(source_path, droplets_to_keep=0)
+      if droplets_to_keep == 0
+        droplets_to_keep = VCAP::CloudController::Config.config[:droplets_to_keep] || 5
+      end
+
       digest = Digest::SHA1.file(source_path).hexdigest
       blobstore.cp_to_blobstore(
         source_path,

@@ -34,6 +34,7 @@ module VCAP::CloudController
     end
 
     one_to_many :droplets
+    one_to_many :app_versions
     one_to_many :service_bindings, :after_remove => :after_remove_binding
     one_to_many :events, :class => VCAP::CloudController::AppEvent
     many_to_one :admin_buildpack, class: VCAP::CloudController::Buildpack
@@ -41,7 +42,7 @@ module VCAP::CloudController
     many_to_one :stack
     many_to_many :routes, before_add: :validate_route, after_add: :mark_routes_changed, after_remove: :mark_routes_changed
 
-    add_association_dependencies routes: :nullify, service_bindings: :destroy, events: :delete, droplets: :destroy
+    add_association_dependencies routes: :nullify, service_bindings: :destroy, events: :delete, droplets: :destroy, app_versions: :destroy
 
     default_order_by :name
 
@@ -149,6 +150,7 @@ module VCAP::CloudController
       self.stack ||= Stack.default
       self.memory ||= Config.config[:default_app_memory]
       set_new_version if version_needs_to_be_updated?
+      snapshot_new_version if snapshot_necessary?
 
       update_requires_restart
 
@@ -180,6 +182,15 @@ module VCAP::CloudController
 
     def auditable_changes
       @changes || {}
+    end
+
+    def snapshot_necessary?
+      column_changed?(:instances) || column_changed?(:droplet_hash) || column_changed?(:memory) || column_changed?(:state)
+    end
+
+    def snapshot_new_version
+      AppVersion.make_new_version(self)
+      AppVersion.prune_old_versions
     end
 
     def sso_updated?

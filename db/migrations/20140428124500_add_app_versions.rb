@@ -12,6 +12,7 @@ Sequel.migration do
       Integer  :instances, :default => 0
 
       index :app_id
+      index :droplet_id
 
       foreign_key [:app_id], :apps, :name => :fk_app_versions_app_id
       foreign_key [:droplet_id], :droplets, :name => :fk_app_versions_droplet_id
