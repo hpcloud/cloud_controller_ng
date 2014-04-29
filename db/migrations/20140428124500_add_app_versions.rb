@@ -6,7 +6,7 @@ Sequel.migration do
       Integer  :app_id, :null => false
       String   :version_guid, :null => false
       Integer  :version_count, :null => false
-      String   :droplet_id, :null => false
+      Integer  :droplet_id, :null => false
       String   :description, :default => ""
 
       Integer  :instances, :default => 0
