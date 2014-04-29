@@ -35,6 +35,7 @@ module VCAP::CloudController
 
       to_many    :service_bindings,    :exclude_in => :create
       to_many    :routes
+      to_many    :app_versions, :exclude_in => :create
 
       to_many    :events
     end

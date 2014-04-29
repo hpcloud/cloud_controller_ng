@@ -1,6 +1,7 @@
 require "cloud_controller/app_observer"
 require 'digest/sha1'
 require_relative "buildpack"
+require_relative "app_version"
 
 module VCAP::CloudController
   class App < Sequel::Model
@@ -87,6 +88,9 @@ module VCAP::CloudController
     # +DeaClient.start+
     attr_accessor :routes_changed
 
+    attr_accessor :version_description
+    attr_accessor :version_updated
+
     # Last staging response which will contain streaming log url
     attr_accessor :last_stager_response
 
@@ -150,8 +154,7 @@ module VCAP::CloudController
       self.stack ||= Stack.default
       self.memory ||= Config.config[:default_app_memory]
       set_new_version if version_needs_to_be_updated?
-      snapshot_new_version if snapshot_necessary?
-
+      
       update_requires_restart
 
       AppStopEvent.create_from_app(self) if generate_stop_event?
@@ -162,6 +165,7 @@ module VCAP::CloudController
     end
 
     def after_save
+      snapshot_new_version if snapshot_necessary?
       create_app_usage_event
       @changes = column_changes
       super
@@ -185,12 +189,12 @@ module VCAP::CloudController
     end
 
     def snapshot_necessary?
-      column_changed?(:instances) || column_changed?(:droplet_hash) || column_changed?(:memory) || column_changed?(:state)
+      current_droplet && (column_changed?(:instances) || column_changed?(:droplet_hash))
     end
 
     def snapshot_new_version
-      AppVersion.make_new_version(self)
-      AppVersion.prune_old_versions
+      VCAP::CloudController::AppVersion.make_new_version(self)
+      VCAP::CloudController::AppVersion.prune_old_versions
     end
 
     def sso_updated?

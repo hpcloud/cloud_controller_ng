@@ -3,8 +3,8 @@ module VCAP::CloudController
     many_to_one :app
     many_to_one :droplet
 
-    export_attributes :app_guid, :version_guid, :version_count, :droplet_hash, :description, :instances
-    import_attributes :app_guid, :version_guid, :version_count, :droplet_hash, :description, :instances
+    export_attributes :app_guid, :version_guid, :version_count, :description, :instances
+    import_attributes :app_guid, :version_guid, :version_count, :description, :instances
 
     def validate
       validates_presence :app
@@ -14,16 +14,20 @@ module VCAP::CloudController
     end
 
     def rollback
-      app.droplet_hash = droplet_hash
-      app.instances    = instances
-      app.version      = version_guid
+      app.droplet_hash        = droplet.droplet_hash
+      app.instances           = instances
+      app.version_description = "rolled back to v#{version_count}"
+      app.version_updated = true
+      app.set_new_version # a rollback creates a new version, similar to Heroku
       app.save
+      AppObserver.updated(app)
     end
 
     def self.latest_version(app)
       versions = where( :app => app ).map(:version_count)
       if versions.is_a? Array
-        return versions.map { |x| x.to_i }.max
+        max = versions.map { |x| x.to_i }.max
+        return max || 0
       end
 
       return 0
@@ -46,8 +50,13 @@ module VCAP::CloudController
     end
 
     def self.make_new_version(app)
+      existing = where( :version_guid => app.version )
+      return existing.first if !existing.empty?
+        
+      description_field = app.version_description || build_description(app)
+
       new_version_count = latest_version(app) + 1
-      version = new( :app => app, :droplet => app.current_droplet, :version_count => new_version_count, :version_guid => app.version, :instances => app.instances, :description => build_description(app) )
+      version = new( :app => app, :droplet => app.current_droplet, :version_count => new_version_count, :version_guid => app.version, :instances => app.instances, :description => description_field )
       version.save
 
       version
@@ -60,7 +69,7 @@ module VCAP::CloudController
       apps.each do |app, versions|
         versions_to_remove = versions.sort.reverse.drop(versions_to_keep)
         versions_to_remove.each do |version|
-          where( :app => app, :version_count => version ).destroy
+          where( :app_id => app, :version_count => version ).destroy
         end
       end
     end
