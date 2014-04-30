@@ -33,7 +33,7 @@ module VCAP::CloudController
         elsif changes.has_key?(:instances)
           delta = changes[:instances][1] - changes[:instances][0]
           react_to_instances_change(app, delta)
-        elsif app.version_updated || changes.has_key?(:droplet_hash)
+        elsif app.version_updated
           react_to_version_change(app)
         elsif (changes.keys & [:min_instances, :max_instances,
                               :min_cpu_threshold, :max_cpu_threshold,
