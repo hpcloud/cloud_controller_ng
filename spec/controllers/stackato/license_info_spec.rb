@@ -5,6 +5,8 @@ require 'yajl'
 module VCAP::CloudController
   # Test license handling
   OneMB = 2 ** 20
+  dynamic_config_name = "dynamic"
+  
   def hashed_license_from_hash(license_hash)
     lic_parts = [:organization, :serial, :type, :memory_limit,
                  :expiration].map{|k| license_hash[k]}.insert(0, '1').join(",")
@@ -142,7 +144,7 @@ module VCAP::CloudController
           }
           Kato::Config.set('cluster', 'license', hashed_license_from_hash(new_license), :force => true)
           Kato::Config.set("cluster", "license_checking", true)
-          Kato::Config.set("running", "total_memory", {
+          Kato::Config.set(dynamic_config_name, "total_memory", {
             "192.168.68.82" => { "timestamp" => (Time.now - 1).to_i, "size" => 8 * OneMB },
             "192.168.68.98" => { "timestamp" => ((Time.now - 1).to_i).to_i, "size" => 8 * OneMB },
             "192.168.68.65" => { "timestamp" => ((Time.now - 1).to_i).to_i, "size" => 9 * OneMB }})
@@ -169,7 +171,7 @@ module VCAP::CloudController
           }
           Kato::Config.set('cluster', 'license', hashed_license_from_hash(new_license), :force => true)
           Kato::Config.set("cluster", "license_checking", true)
-          Kato::Config.set("running", "total_memory", {
+          Kato::Config.set(dynamic_config_name, "total_memory", {
             "192.168.68.82" => { "timestamp" => ((Time.now - 1).to_i).to_i, "size" => 8 * OneMB },
             "192.168.68.98" => { "timestamp" => ((Time.now - 1).to_i).to_i, "size" => 8 * OneMB },
             "192.168.68.65" => { "timestamp" => ((Time.now - 1).to_i).to_i, "size" => 11 * OneMB }})
@@ -188,7 +190,7 @@ module VCAP::CloudController
         before do
           Kato::Config.del('cluster', 'license')
           Kato::Config.set("cluster", "license_checking", true)
-          Kato::Config.set("running", "total_memory", {
+          Kato::Config.set(dynamic_config_name, "total_memory", {
             "192.168.68.82" => { "timestamp" => (Time.now - 1).to_i, "size" => 2 * OneMB },
             "192.168.68.98" => { "timestamp" => (Time.now - 1).to_i, "size" => 2 * OneMB }})
         end
@@ -206,7 +208,7 @@ module VCAP::CloudController
         before do
           Kato::Config.del('cluster', 'license')
           Kato::Config.set("cluster", "license_checking", true)
-          Kato::Config.set("running", "total_memory", {
+          Kato::Config.set(dynamic_config_name, "total_memory", {
             "192.168.68.82" => { "timestamp" => (Time.now - 1).to_i, "size" => 5 * OneMB },
             "192.168.68.98" => { "timestamp" => (Time.now - 1).to_i, "size" => 6 * OneMB },
             "192.168.68.65" => { "timestamp" => (Time.now - 1).to_i, "size" => 9 * OneMB }})
@@ -225,7 +227,7 @@ module VCAP::CloudController
         before do
           Kato::Config.del('cluster', 'license')
           Kato::Config.set("cluster", "license_checking", true)
-          Kato::Config.set("running", "total_memory", {
+          Kato::Config.set(dynamic_config_name, "total_memory", {
             "192.168.68.82" => { "timestamp" => (Time.now - 1).to_i, "size" => 5 * OneMB },
             "192.168.68.98" => { "timestamp" => (Time.now - 1).to_i, "size" => 8 * OneMB },
             "192.168.68.65" => { "timestamp" => (Time.now - 1).to_i, "size" => 9 * OneMB }})
@@ -260,18 +262,19 @@ module VCAP::CloudController
         before do
           Kato::Config.del('cluster', 'license')
           Kato::Config.set("cluster", "license_checking", true)
-          delta = 3600 * 25 
-          Kato::Config.set("running", "total_memory", {
-            "192.168.68.82" => { "timestamp" => (Time.now - 1).to_i, "size" => 5 * OneMB },
-            "192.168.68.98" => { "timestamp" => (Time.now - 1).to_i, "size" => 6 * OneMB },
-            "192.168.68.65" => { "timestamp" => (Time.now - delta - 1).to_i, "size" => 9 * OneMB },
-            "192.168.68.66" => { "timestamp" => (Time.now - delta).to_i, "size" => 12 * OneMB },
-            "192.168.68.67" => { "timestamp" => (Time.now - delta + 1).to_i, "size" => 15 * OneMB }})
+          delta = 3600 * 25
+          now = Time.now
+          Kato::Config.set(dynamic_config_name, "total_memory", {
+            "192.168.68.82" => { "timestamp" => (now - 1).to_i, "size" => 5 * OneMB },
+            "192.168.68.98" => { "timestamp" => (now - 1).to_i, "size" => 6 * OneMB },
+            "192.168.68.65" => { "timestamp" => (now - delta - 1).to_i, "size" => 9 * OneMB },
+            "192.168.68.66" => { "timestamp" => (now - delta).to_i, "size" => 12 * OneMB },
+            "192.168.68.67" => { "timestamp" => (now - delta + 1).to_i, "size" => 15 * OneMB }})
         end
         it "should remove out-dated node entries" do
           get "/info", {}, headers
           expect(last_response.status).to eq(200)
-          config = Kato::Config.get("running", "total_memory")
+          config = Kato::Config.get(dynamic_config_name, "total_memory")
           expect(config.keys.size).to eq(4)
           expect(config.values.map{|n|n["size"]}.reduce(:+)).to eq(38 * OneMB)
         end
