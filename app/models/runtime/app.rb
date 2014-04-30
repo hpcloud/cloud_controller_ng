@@ -189,7 +189,7 @@ module VCAP::CloudController
     end
 
     def snapshot_necessary?
-      current_droplet && (column_changed?(:instances) || column_changed?(:droplet_hash))
+      current_droplet && (column_changed?(:instances) || column_changed?(:memory) || column_changed?(:droplet_hash))
     end
 
     def snapshot_new_version

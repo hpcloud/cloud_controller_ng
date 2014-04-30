@@ -10,7 +10,7 @@ module VCAP::CloudController
       attribute :description, String
     end
 
-    query_parameters :app_guid, :version_guid, :description, :instances, :version_count
+    query_parameters :app_guid, :version_guid, :description, :instances, :memory, :version_count
 
     define_messages
     define_routes

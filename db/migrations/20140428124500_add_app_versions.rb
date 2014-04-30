@@ -10,6 +10,7 @@ Sequel.migration do
       String   :description, :default => ""
 
       Integer  :instances, :default => 0
+      Integer  :memory, :default => 256
 
       index :app_id
       index :droplet_id

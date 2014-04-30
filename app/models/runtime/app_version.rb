@@ -3,8 +3,8 @@ module VCAP::CloudController
     many_to_one :app
     many_to_one :droplet
 
-    export_attributes :app_guid, :version_guid, :version_count, :description, :instances
-    import_attributes :app_guid, :version_guid, :version_count, :description, :instances
+    export_attributes :app_guid, :version_guid, :version_count, :description, :instances, :memory
+    import_attributes :app_guid, :version_guid, :version_count, :description, :instances, :memory
 
     def validate
       validates_presence :app
@@ -14,11 +14,14 @@ module VCAP::CloudController
     end
 
     def rollback
-      app.droplet_hash        = droplet.droplet_hash
-      app.instances           = instances
+      app.droplet_hash = droplet.droplet_hash
+      app.instances    = instances
+      app.memory       = memory
+
       app.version_description = "rolled back to v#{version_count}"
       app.version_updated = true
       app.set_new_version # a rollback creates a new version, similar to Heroku
+
       app.save
       AppObserver.updated(app)
     end
@@ -36,6 +39,7 @@ module VCAP::CloudController
     def self.build_description(app)
       pushed_new_code   = app.column_changed?(:droplet_hash)
       changed_instances = app.column_changed?(:instances)
+      changed_memory    = app.column_changed?(:memory)
 
       messages = []
       if pushed_new_code
@@ -46,17 +50,21 @@ module VCAP::CloudController
         messages << "changed instances to #{app.instances}"
       end
 
+      if changed_memory
+        messages << "changed memory to #{changed_memory}MB"
+      end
+
       messages.join ", "
     end
 
     def self.make_new_version(app)
       existing = where( :version_guid => app.version )
       return existing.first if !existing.empty?
-        
+
       description_field = app.version_description || build_description(app)
 
       new_version_count = latest_version(app) + 1
-      version = new( :app => app, :droplet => app.current_droplet, :version_count => new_version_count, :version_guid => app.version, :instances => app.instances, :description => description_field )
+      version = new( :app => app, :droplet => app.current_droplet, :version_count => new_version_count, :version_guid => app.version, :instances => app.instances, :memory => app.memory, :description => description_field )
       version.save
 
       version
