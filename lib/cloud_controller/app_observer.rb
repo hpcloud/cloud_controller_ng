@@ -103,7 +103,6 @@ module VCAP::CloudController
       def react_to_version_change(app)
         if app.started?
           stage_if_needed(app) do |staging_result|
-            started_instances = staging_result[:started_instances] || 0
             DeaClient.start(app, :instances_to_start => app.instances) # this will temporarily cause 2x instances, allowing the HM to gracefully terminate the old ones
             broadcast_app_updated(app)
           end

@@ -127,6 +127,7 @@ module VCAP::CloudController
       model.db.transaction(savepoint: true) do
         app.lock!
         app.update_from_hash(payload)
+        app.save
       end
       if app.dea_update_pending?
         DeaClient.update_uris(app)

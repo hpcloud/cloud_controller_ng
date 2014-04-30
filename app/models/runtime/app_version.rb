@@ -51,16 +51,13 @@ module VCAP::CloudController
       end
 
       if changed_memory
-        messages << "changed memory to #{changed_memory}MB"
+        messages << "changed memory to #{app.memory}MB"
       end
 
       messages.join ", "
     end
 
     def self.make_new_version(app)
-      existing = where( :version_guid => app.version )
-      return existing.first if !existing.empty?
-
       description_field = app.version_description || build_description(app)
 
       new_version_count = latest_version(app) + 1
