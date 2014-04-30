@@ -4,12 +4,11 @@ module VCAP::CloudController
   class AppVersionsController < RestController::ModelController
     define_attributes do
       to_one    :app
-      attribute :version_guid, String
       attribute :version_count, Integer
       attribute :description, String
     end
 
-    query_parameters :app_guid, :version_guid, :description, :instances, :memory, :version_count
+    query_parameters :app_guid, :description, :instances, :memory, :version_count
 
     define_messages
     define_routes
