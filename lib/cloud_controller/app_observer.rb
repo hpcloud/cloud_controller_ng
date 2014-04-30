@@ -34,6 +34,7 @@ module VCAP::CloudController
           delta = changes[:instances][1] - changes[:instances][0]
           react_to_instances_change(app, delta)
         elsif app.version_updated
+          @health_manager_client.notify_of_new_live_version( :app_id => app.guid, :version => app.version )
           react_to_version_change(app)
         elsif (changes.keys & [:min_instances, :max_instances,
                               :min_cpu_threshold, :max_cpu_threshold,
