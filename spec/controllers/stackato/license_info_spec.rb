@@ -264,12 +264,14 @@ module VCAP::CloudController
           Kato::Config.set("cluster", "license_checking", true)
           delta = 3600 * 25
           now = Time.now
+          # Don't test right at the current time in case the second-hand
+          # changes during this test.
           Kato::Config.set(dynamic_config_name, "total_memory", {
             "192.168.68.82" => { "timestamp" => (now - 1).to_i, "size" => 5 * OneMB },
             "192.168.68.98" => { "timestamp" => (now - 1).to_i, "size" => 6 * OneMB },
-            "192.168.68.65" => { "timestamp" => (now - delta - 1).to_i, "size" => 9 * OneMB },
-            "192.168.68.66" => { "timestamp" => (now - delta).to_i, "size" => 12 * OneMB },
-            "192.168.68.67" => { "timestamp" => (now - delta + 1).to_i, "size" => 15 * OneMB }})
+            "192.168.68.65" => { "timestamp" => (now - delta - 2).to_i, "size" => 9 * OneMB },
+            "192.168.68.66" => { "timestamp" => (now - delta + 2).to_i, "size" => 12 * OneMB },
+            "192.168.68.67" => { "timestamp" => (now - delta + 2).to_i, "size" => 15 * OneMB }})
         end
         it "should remove out-dated node entries" do
           get "/info", {}, headers
@@ -277,6 +279,15 @@ module VCAP::CloudController
           config = Kato::Config.get(dynamic_config_name, "total_memory")
           expect(config.keys.size).to eq(4)
           expect(config.values.map{|n|n["size"]}.reduce(:+)).to eq(38 * OneMB)
+        end
+      end
+      
+      describe "for no logged-in user" do
+        it "should find no license" do
+          get "/info"
+          expect(last_response.status).to eq(200)
+          hash = Yajl::Parser.parse(last_response.body)
+          hash.should_not have_key("license")
         end
       end
     end # describe "license checks" 
