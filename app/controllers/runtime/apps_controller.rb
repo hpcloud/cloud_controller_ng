@@ -170,7 +170,7 @@ module VCAP::CloudController
         :changes => app.auditable_changes,
         :event => 'APP_UPDATED',
         :instance_index => -1,
-        :message => "Updated app '#{app.name}' -- #{app.auditable_changes}"
+        :message => "Updated app '#{app.name}' -- #{App.audit_hash(request_attrs)}"
       }
       logger.info("TIMELINE #{event.to_json}")
     end
