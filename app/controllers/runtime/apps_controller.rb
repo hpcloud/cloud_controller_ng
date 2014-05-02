@@ -95,7 +95,7 @@ module VCAP::CloudController
       [ HTTP::NO_CONTENT, nil ]
     end
     
-    def adjust_instances(app_guid, payload)
+    def adjust_instances(app_guid, payload, force_no_version=false)
       instances = payload[:instances]
       if instances && instances.kind_of?(Array) && instances.size == 2
         before_count = instances[0]
@@ -127,6 +127,7 @@ module VCAP::CloudController
       model.db.transaction(savepoint: true) do
         app.lock!
         app.update_from_hash(payload)
+        app.force_no_snapshot = force_no_version if force_no_version
         app.save
       end
       if app.dea_update_pending?

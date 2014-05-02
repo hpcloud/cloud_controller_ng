@@ -93,7 +93,7 @@ module VCAP::CloudController
       factory = CloudController::ControllerFactory.new({}, logger, {}, decoded_msg, {})
       controller = factory.create_controller(VCAP::CloudController::AppsController)
       app_guid = decoded_msg.delete(:guid)
-      controller.adjust_instances(app_guid, decoded_msg)
+      controller.adjust_instances(app_guid, decoded_msg, true) # force no version creation
     end
       
     def process_request_autoscaling_settings(decoded_msg)

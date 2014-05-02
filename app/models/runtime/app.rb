@@ -90,6 +90,7 @@ module VCAP::CloudController
 
     attr_accessor :version_description
     attr_accessor :version_updated
+    attr_accessor :force_no_snapshot
 
     # Last staging response which will contain streaming log url
     attr_accessor :last_stager_response
@@ -193,6 +194,11 @@ module VCAP::CloudController
     end
 
     def snapshot_new_version
+      if app.force_no_snapshot
+        app.force_no_snapshot = false
+        return
+      end
+
       VCAP::CloudController::AppVersion.make_new_version(self)
       VCAP::CloudController::AppVersion.prune_old_versions
     end
