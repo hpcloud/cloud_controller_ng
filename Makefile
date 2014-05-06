@@ -81,7 +81,6 @@ ifndef VMNAME
 	@exit 1
 endif
 
-# eg: make dev-push VM=y9ba
 dev-push:
 	rsync -rtv --exclude .stackato-pkg --exclude .git \
-		. stackato@stackato-${VM}:/s/code/cloud_controller_ng
+		. stackato@${TARGET}:/s/code/cloud_controller_ng
