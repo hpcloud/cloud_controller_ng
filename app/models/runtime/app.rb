@@ -194,8 +194,8 @@ module VCAP::CloudController
     end
 
     def snapshot_new_version
-      if app.force_no_snapshot
-        app.force_no_snapshot = false
+      if force_no_snapshot
+        force_no_snapshot = false
         return
       end
 
