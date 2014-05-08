@@ -69,6 +69,9 @@ module VCAP::CloudController
 
     def self.prune_old_versions
       versions_to_keep = VCAP::CloudController::Config.config[:versions_to_keep] || 5
+      if versions_to_keep <= 0
+        return
+      end
 
       apps = select_hash_groups(:app_id, :version_count)
       apps.each do |app, versions|
