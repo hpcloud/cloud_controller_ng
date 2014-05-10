@@ -200,7 +200,6 @@ module VCAP::CloudController
       end
 
       VCAP::CloudController::AppVersion.make_new_version(self)
-      VCAP::CloudController::AppVersion.prune_old_versions
     end
 
     def sso_updated?
