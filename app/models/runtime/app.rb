@@ -1,42 +1,30 @@
 require "cloud_controller/app_observer"
+<<<<<<< HEAD
 require 'digest/sha1'
+=======
+require "cloud_controller/database_uri_generator"
+require "cloud_controller/errors/application_missing"
+require "cloud_controller/errors/invalid_route_relation"
+require "repositories/runtime/app_usage_event_repository"
+
+>>>>>>> upstream/master
 require_relative "buildpack"
 require_relative "app_version"
 
 module VCAP::CloudController
+  # rubocop:disable ClassLength
   class App < Sequel::Model
     plugin :serialization
 
     APP_NAME_REGEX = /\A[[:print:]]+\Z/.freeze
 
-    class InvalidRouteRelation < InvalidRelation
-      def to_s
-        "The URL was not available [route ID #{super}]"
-      end
-    end
-
-    class InvalidBindingRelation < InvalidRelation;
-    end
-
-    class AlreadyDeletedError < StandardError;
-    end
-
-    class ApplicationMissing < RuntimeError
-    end
-
-    class << self
-      def configure(custom_buildpacks_enabled)
-        @custom_buildpacks_enabled = custom_buildpacks_enabled
-      end
-
-      def custom_buildpacks_enabled?
-        @custom_buildpacks_enabled
-      end
-    end
-
     one_to_many :droplets
+<<<<<<< HEAD
     one_to_many :app_versions
     one_to_many :service_bindings, :after_remove => :after_remove_binding
+=======
+    one_to_many :service_bindings
+>>>>>>> upstream/master
     one_to_many :events, :class => VCAP::CloudController::AppEvent
     many_to_one :admin_buildpack, class: VCAP::CloudController::Buildpack
     many_to_one :space
@@ -47,6 +35,7 @@ module VCAP::CloudController
 
     default_order_by :name
 
+<<<<<<< HEAD
     export_attributes :guid, :name, :production,
       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
       :environment_json, :memory, :instances, :disk_quota,
@@ -64,6 +53,19 @@ module VCAP::CloudController
       :distribution_zone,
       :description, :sso_enabled, :autoscale_enabled,
       :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances
+=======
+    export_attributes :name, :production,
+                      :space_guid, :stack_guid, :buildpack, :detected_buildpack,
+                      :environment_json, :memory, :instances, :disk_quota,
+                      :state, :version, :command, :console, :debug,
+                      :staging_task_id, :package_state, :health_check_timeout
+
+    import_attributes :name, :production,
+                      :space_guid, :stack_guid, :buildpack, :detected_buildpack,
+                      :environment_json, :memory, :instances, :disk_quota,
+                      :state, :command, :console, :debug,
+                      :staging_task_id, :service_binding_guids, :route_guids, :health_check_timeout
+>>>>>>> upstream/master
 
     strip_attributes :name
 
@@ -95,9 +97,9 @@ module VCAP::CloudController
     # Last staging response which will contain streaming log url
     attr_accessor :last_stager_response
 
-    alias :kill_after_multiple_restarts? :kill_after_multiple_restarts
+    alias_method :kill_after_multiple_restarts?, :kill_after_multiple_restarts
 
-    def validate_buildpack_name_or_git_url
+    def copy_buildpack_errors
       bp = buildpack
 
       unless bp.valid?
@@ -107,12 +109,17 @@ module VCAP::CloudController
       end
     end
 
-    def validate_buildpack_is_not_custom
-      return unless column_changed?(:buildpack)
-
-      if buildpack.custom?
-        errors.add(:buildpack, "custom buildpacks are disabled")
-      end
+    def validation_policies
+      [
+          AppEnvironmentPolicy.new(self),
+          DiskQuotaPolicy.new(self, max_app_disk_in_mb),
+          MetadataPolicy.new(self, metadata_deserialized),
+          MinMemoryPolicy.new(self),
+          MaxMemoryPolicy.new(self),
+          InstancesPolicy.new(self),
+          HealthCheckPolicy.new(self, health_check_timeout),
+          CustomBuildpackPolicy.new(self, custom_buildpacks_enabled?)
+      ]
     end
 
     def validate
@@ -123,12 +130,12 @@ module VCAP::CloudController
       validates_unique [:space_id, :name]
       validates_format APP_NAME_REGEX, :name
 
-      validate_buildpack_name_or_git_url
-      validate_buildpack_is_not_custom unless self.class.custom_buildpacks_enabled?
+      copy_buildpack_errors
 
       validates_includes PACKAGE_STATES, :package_state, :allow_missing => true
       validates_includes APP_STATES, :state, :allow_missing => true
 
+<<<<<<< HEAD
       validate_environment
       validate_metadata
       validate_autoscaling_settings
@@ -138,6 +145,9 @@ module VCAP::CloudController
       end
       validate_instances
       validate_health_check_timeout
+=======
+      validation_policies.map(&:validate)
+>>>>>>> upstream/master
     end
 
     def before_create
@@ -147,8 +157,7 @@ module VCAP::CloudController
 
     def before_save
       if generate_start_event? && !package_hash
-        raise VCAP::Errors::AppPackageInvalid.new(
-          "bits have not been uploaded")
+        raise VCAP::Errors::ApiError.new_from_details("AppPackageInvalid", "bits have not been uploaded")
       end
       super
 
@@ -172,6 +181,7 @@ module VCAP::CloudController
       super
     end
 
+<<<<<<< HEAD
     def create_app_usage_event
       return unless app_usage_changed?
       AppUsageEvent.create(state: state,
@@ -258,6 +268,8 @@ module VCAP::CloudController
       end
     end
 
+=======
+>>>>>>> upstream/master
     def version_needs_to_be_updated?
       # change version if:
       #
@@ -274,6 +286,22 @@ module VCAP::CloudController
       self.version = SecureRandom.uuid
     end
 
+    def update_detected_buildpack(detect_output, detected_buildpack_key)
+      detected_admin_buildpack = Buildpack.find(key: detected_buildpack_key)
+      if detected_admin_buildpack
+        detected_buildpack_guid = detected_admin_buildpack.guid
+        detected_buildpack_name = detected_admin_buildpack.name
+      end
+
+      update(
+        detected_buildpack: detect_output,
+        detected_buildpack_guid: detected_buildpack_guid,
+        detected_buildpack_name: detected_buildpack_name || custom_buildpack_url
+      )
+
+      create_app_usage_buildpack_event
+    end
+
     def generate_start_event?
       # Change to app state is given priority over change to footprint as
       # we would like to generate only either start or stop event exactly
@@ -287,26 +315,38 @@ module VCAP::CloudController
       # If app is not in started state and/or is new, then the changes
       # to the footprint shouldn't trigger a billing event.
       !new? &&
-        (being_stopped? || (footprint_changed? && started?)) &&
-        !has_stop_event_for_latest_run?
+          (being_stopped? || (footprint_changed? && started?)) &&
+          !has_stop_event_for_latest_run?
+    end
+
+    def in_suspended_org?
+      space.in_suspended_org?
     end
 
     def being_stopped?
       column_changed?(:state) && stopped?
     end
 
+<<<<<<< HEAD
     def being_started?
       column_changed?(:state) && started?
+=======
+    def scaling_operation?
+      new? || !being_stopped?
+    end
+
+    def buildpack_changed?
+      column_changed?(:buildpack)
+    end
+
+    def organization
+      space && space.organization
+>>>>>>> upstream/master
     end
 
     def has_stop_event_for_latest_run?
       latest_run_id = AppStartEvent.filter(:app_guid => guid).order(Sequel.desc(:id)).select_map(:app_run_id).first
       !!AppStopEvent.find(:app_run_id => latest_run_id)
-    end
-
-    def footprint_changed?
-      (column_changed?(:production) || column_changed?(:memory) ||
-        column_changed?(:instances))
     end
 
     def before_destroy
@@ -363,44 +403,47 @@ module VCAP::CloudController
       json = Yajl::Encoder.encode(env)
       generate_salt
       self.encrypted_environment_json =
-        VCAP::CloudController::Encryptor.encrypt(json, salt)
+          VCAP::CloudController::Encryptor.encrypt(json, salt)
     end
 
     def environment_json
       return unless encrypted_environment_json
 
       Yajl::Parser.parse(
-        VCAP::CloudController::Encryptor.decrypt(
-          encrypted_environment_json, salt))
+          VCAP::CloudController::Encryptor.decrypt(
+              encrypted_environment_json, salt))
     end
 
     def system_env_json
       vcap_services
     end
 
-    def validate_environment
-      return if environment_json.nil?
-      unless environment_json.kind_of?(Hash)
-        errors.add(:environment_json, :invalid_environment)
-        return
-      end
-      environment_json.keys.each do |k|
-        errors.add(:environment_json, "reserved_key:#{k}") if k =~ /^(vcap|vmc)_/i
-      end
-    rescue Yajl::ParseError
-      errors.add(:environment_json, :invalid_json)
+    def vcap_application
+      {
+          limits: {
+              mem: memory,
+              disk: disk_quota,
+              fds: file_descriptors
+          },
+          application_version: version,
+          application_name: name,
+          application_uris: uris,
+          version: version,
+          name: name,
+          space_name: space.name,
+          space_id: space_guid,
+          uris: uris,
+          users: nil
+      }
     end
 
-    def validate_metadata
-      m = deserialized_values[:metadata]
-      return if m.nil?
-      unless m.kind_of?(Hash)
-        errors.add(:metadata, :invalid_metadata)
-      end
+    def database_uri
+      service_uris = service_bindings.map { |binding| binding.credentials["uri"] }.compact
+      DatabaseUriGenerator.new(service_uris).database_uri
     end
 
     def validate_route(route)
-      objection = InvalidRouteRelation.new(route.guid)
+      objection = Errors::InvalidRouteRelation.new(route.guid)
 
       raise objection if route.nil?
       raise objection if space.nil?
@@ -423,26 +466,8 @@ module VCAP::CloudController
       requested_memory * requested_instances
     end
 
-    def additional_memory_requested
-
-      total_requested_memory = requested_memory * requested_instances
-
-      return total_requested_memory if new?
-
-      app_from_db = self.class.find(:guid => guid)
-      if app_from_db.nil?
-        self.class.logger.fatal("app.find.missing", :guid => guid, :self => self.inspect)
-        raise ApplicationMissing, "Attempting to check memory quota. Should have been able to find app with guid #{guid}"
-      end
-      total_existing_memory = app_from_db[:memory] * app_from_db[:instances]
-      total_requested_memory - total_existing_memory
-    end
-
-    def check_memory_quota
-      errors.add(:memory, :zero_or_less) unless requested_memory > 0
-      if space && (space.organization.memory_remaining < additional_memory_requested)
-        errors.add(:memory, :quota_exceeded) if (new? || !being_stopped?)
-      end
+    def custom_buildpacks_enabled?
+      !VCAP::CloudController::Config.config[:disable_custom_buildpacks]
     end
 
     def total_existing_memory
@@ -455,19 +480,22 @@ module VCAP::CloudController
       instances ? instances : default_instances
     end
 
-    def validate_instances
-      if (requested_instances < 0)
-        errors.add(:instances, :less_than_zero)
-      end
+    def max_app_disk_in_mb
+      VCAP::CloudController::Config.config[:maximum_app_disk_in_mb]
     end
 
-    def validate_health_check_timeout
-      return unless health_check_timeout
-      errors.add(:health_check_timeout, :less_than_zero) unless health_check_timeout >= 0
+    def requested_memory
+      memory ? memory : VCAP::CloudController::Config.config[:default_app_memory]
+    end
 
-      if health_check_timeout > VCAP::CloudController::Config.config[:maximum_health_check_timeout]
-        errors.add(:health_check_timeout, :maximum_exceeded)
-      end
+    def additional_memory_requested
+      total_requested_memory = requested_memory * requested_instances
+
+      return total_requested_memory if new?
+
+      app = app_from_db
+      total_existing_memory = app[:memory] * app[:instances]
+      total_requested_memory - total_existing_memory
     end
     
     def validate_autoscaling_settings
@@ -547,11 +575,11 @@ module VCAP::CloudController
 
     def self.user_visibility_filter(user)
       Sequel.or([
-        [:space, user.spaces_dataset],
-        [:space, user.managed_spaces_dataset],
-        [:space, user.audited_spaces_dataset],
-        [:apps__space_id, user.managed_organizations_dataset.join(:spaces, :spaces__organization_id => :organizations__id).select(:spaces__id)]
-      ])
+                    [:space, user.spaces_dataset],
+                    [:space, user.managed_spaces_dataset],
+                    [:space, user.audited_spaces_dataset],
+                    [:apps__space_id, user.managed_organizations_dataset.join(:spaces, :spaces__organization_id => :organizations__id).select(:spaces__id)]
+                ])
     end
 
     def needs_staging?
@@ -582,10 +610,6 @@ module VCAP::CloudController
       routes.map(&:fqdn)
     end
 
-    def after_remove_binding(binding)
-      mark_for_restaging
-    end
-
     def mark_as_failed_to_stage
       app_from_db = self.class.find(:guid => guid)
       return unless app_from_db
@@ -593,9 +617,8 @@ module VCAP::CloudController
       save
     end
 
-    def mark_for_restaging(opts={})
+    def mark_for_restaging
       self.package_state = "PENDING"
-      save if opts[:save]
     end
 
     def buildpack
@@ -608,16 +631,20 @@ module VCAP::CloudController
       AutoDetectionBuildpack.new
     end
 
-    def buildpack=(buildpack)
-      admin_buildpack = Buildpack.find(name: buildpack.to_s)
+    def buildpack=(buildpack_name)
+      self.admin_buildpack = nil
+      super(nil)
+      admin_buildpack = Buildpack.find(name: buildpack_name.to_s)
+
       if admin_buildpack
         self.admin_buildpack = admin_buildpack
-        super(nil)
-        return
-      else
-        self.admin_buildpack = nil
-        super(buildpack)
+      elsif buildpack_name != "" #git url case
+        super(buildpack_name)
       end
+    end
+
+    def custom_buildpack_url
+      buildpack.url if buildpack.custom?
     end
 
     def package_hash=(hash)
@@ -646,12 +673,28 @@ module VCAP::CloudController
     def current_droplet
       return nil unless droplet_hash
       self.droplets_dataset.filter(droplet_hash: droplet_hash).first ||
-        Droplet.new(app: self, droplet_hash: self.droplet_hash)
+          Droplet.new(app: self, droplet_hash: self.droplet_hash)
     end
 
     def running_instances
       return 0 unless started?
       health_manager_client.healthy_instances(self)
+    end
+
+    def start!
+      self.state = "STARTED"
+      save
+    end
+
+    def stop!
+      self.state = "STOPPED"
+      save
+    end
+
+    def restage!
+      stop!
+      mark_for_restaging
+      start!
     end
 
     # returns True if we need to update the DEA's with
@@ -665,7 +708,13 @@ module VCAP::CloudController
 
     def after_commit
       super
-      AppObserver.updated(self)
+
+      begin
+        AppObserver.updated(self)
+      rescue Errors::ApiError => e
+        undo_changes(previous_changes)
+        raise e
+      end
     end
 
     def allow_sudo?
@@ -674,7 +723,22 @@ module VCAP::CloudController
 
     private
 
-    WHITELIST_SERVICE_KEYS = %W[name label tags plan credentials].freeze
+    def metadata_deserialized
+      deserialized_values[:metadata]
+    end
+
+    def app_from_db
+      error_message = "Expected app record not found in database with guid %s"
+      app_from_db = self.class.find(guid: guid)
+      if app_from_db.nil?
+        self.class.logger.fatal("app.find.missing", guid: guid, self: inspect)
+        raise Errors::ApplicationMissing, error_message % guid
+      end
+      app_from_db
+    end
+
+    WHITELIST_SERVICE_KEYS = %W[name label tags plan credentials syslog_drain_url].freeze
+
     def service_binding_json (binding)
       vcap_service = {}
       WHITELIST_SERVICE_KEYS.each do |key|
@@ -698,11 +762,6 @@ module VCAP::CloudController
       CloudController::DependencyLocator.instance.health_manager_client
     end
 
-    def requested_memory
-      default_memory = VCAP::CloudController::Config.config[:default_app_memory]
-      memory ? memory : default_memory
-    end
-
     def mark_routes_changed(_)
       @routes_changed = true
 
@@ -714,6 +773,20 @@ module VCAP::CloudController
       self.salt ||= VCAP::CloudController::Encryptor.generate_salt.freeze
     end
 
+    def app_usage_event_repository
+      @repository ||= Repositories::Runtime::AppUsageEventRepository.new
+    end
+
+    def create_app_usage_buildpack_event
+      return unless staged? && started?
+      app_usage_event_repository.create_from_app(self, "BUILDPACK_SET")
+    end
+
+    def create_app_usage_event
+      return unless app_usage_changed?
+      app_usage_event_repository.create_from_app(self)
+    end
+
     def app_usage_changed?
       previously_started = initial_value(:state) == 'STARTED'
       return true if previously_started != started?
@@ -721,8 +794,23 @@ module VCAP::CloudController
       false
     end
 
+<<<<<<< HEAD
     def logger
       self.class.logger
+=======
+    def undo_changes(changes)
+      attrs = changes.each_with_object({}) { |(key, change), hash| hash[key] = change[0] }
+      attrs.delete(:updated_at)
+      db.transaction(savepoint: true) do
+        lock!
+        update(attrs)
+      end
+    end
+
+    def footprint_changed?
+      (column_changed?(:production) || column_changed?(:memory) ||
+        column_changed?(:instances))
+>>>>>>> upstream/master
     end
 
     class << self
@@ -731,4 +819,5 @@ module VCAP::CloudController
       end
     end
   end
+  # rubocop:enable ClassLength
 end

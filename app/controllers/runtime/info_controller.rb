@@ -12,6 +12,7 @@ module VCAP::CloudController
       license = Kato::Config.get("cluster", "license")
       cc_nginx = Kato::Config.get("cloud_controller_ng", "nginx").fetch("use_nginx", false)
       info = {
+<<<<<<< HEAD
         :name        => @config[:info][:name],
         :build       => @config[:info][:build],
         :support     => @config[:info][:support_address],
@@ -24,6 +25,15 @@ module VCAP::CloudController
             :license_accepted => !license.blank?,
             :UUID => STACKATO_UUID
         }
+=======
+        name: @config[:info][:name],
+        build: @config[:info][:build],
+        support: @config[:info][:support_address],
+        version: @config[:info][:version],
+        description: @config[:info][:description],
+        authorization_endpoint: @config[:login] ? @config[:login][:url] : @config[:uaa][:url],
+        api_version: VCAP::CloudController::Constants::API_VERSION
+>>>>>>> upstream/master
       }
 
       if user

@@ -1,10 +1,11 @@
-require "vcap/component"
-require "vcap/ring_buffer"
-require "vcap/rest_api"
-require "vcap/request"
-require "sinatra/reloader"
-require "securerandom"
-require "steno"
+require 'vcap/component'
+require 'vcap/ring_buffer'
+require 'vcap/rest_api'
+require 'vcap/request'
+require 'presenters/error_presenter'
+require 'sinatra/reloader'
+require 'securerandom'
+require 'steno'
 
 module Sinatra
   module VCAP
@@ -14,27 +15,7 @@ module Sinatra
       end
 
       def in_test_mode?
-        ENV["CC_TEST"]
-      end
-
-      def error_payload(exception)
-        payload = {
-          'code' => 10001,
-          'description' => exception.message,
-          'error_code' => "CF-#{Hashify.demodulize(exception.class)}"
-        }
-
-        if exception.respond_to?(:error_code)
-          payload['code'] = exception.error_code
-        end
-
-        if exception.respond_to?(:to_h)
-          payload.merge!(exception.to_h)
-        else
-          payload.merge!(Hashify.exception(exception))
-        end
-
-        payload
+        ENV['CC_TEST']
       end
 
       def clean_error_payload(payload)
@@ -65,38 +46,46 @@ module Sinatra
         # from our logic. This is a check to see if we already did a 404 below.
         # We don't really have a class to attach a member variable to, so we have to
         # use the env to flag this.
+<<<<<<< HEAD
         unless request.env["vcap_exception_body_set"]
           payload_hash = error_payload(::VCAP::Errors::NotFound.new)
           clean_error_payload(payload_hash)
           body Yajl::Encoder.encode(payload_hash)
+=======
+        unless request.env['vcap_exception_body_set']
+          error = ::VCAP::Errors::ApiError.new_from_details("NotFound")
+          presenter = ErrorPresenter.new(error, in_test_mode?)
+
+          body Yajl::Encoder.encode(presenter.error_hash)
+>>>>>>> upstream/master
         end
       end
 
       app.error do
-        exception = request.env["sinatra.error"]
+        error = request.env['sinatra.error']
+        presenter = ErrorPresenter.new(error, in_test_mode?)
 
-        raise exception if in_test_mode? && !exception.respond_to?(:error_code)
+        status(presenter.response_code)
 
-        response_code = exception.respond_to?(:response_code) ? exception.response_code : 500
-        status(response_code)
-
-        payload_hash = error_payload(exception)
-
-        if response_code >= 400 && response_code <= 499
-          logger.info("Request failed: #{response_code}: #{payload_hash}")
+        if presenter.client_error?
+          logger.info(presenter.log_message)
         else
-          logger.error("Request failed: #{response_code}: #{payload_hash}")
+          logger.error(presenter.log_message)
         end
 
+<<<<<<< HEAD
         clean_error_payload(payload_hash)
 
         payload = Yajl::Encoder.encode(payload_hash)
+=======
+        payload = Yajl::Encoder.encode(presenter.error_hash)
+>>>>>>> upstream/master
 
         ::VCAP::Component.varz.synchronize do
           varz[:recent_errors] << payload
         end
 
-        request.env["vcap_exception_body_set"] = true
+        request.env['vcap_exception_body_set'] = true
 
         body payload.concat("\n")
       end
@@ -135,11 +124,11 @@ module Sinatra
         ::VCAP::Component.varz.synchronize do
           varz[:requests][:outstanding] += 1
         end
-        logger_name = opts[:logger_name] || "vcap.api"
-        env["rack.logger"] = Steno.logger(logger_name)
+        logger_name = opts[:logger_name] || 'vcap.api'
+        env['rack.logger'] = Steno.logger(logger_name)
 
-        @request_guid = env["X_VCAP_REQUEST_ID"]
-        @request_guid ||= env["X_REQUEST_ID"]
+        @request_guid = env['HTTP_X_VCAP_REQUEST_ID']
+        @request_guid ||= env['HTTP_X_REQUEST_ID']
 
         # we append a new guid to the request because we have no idea if the
         # caller is really going to be giving us a unique guid, i.e. they might
@@ -151,7 +140,6 @@ module Sinatra
         end
 
         ::VCAP::Request.current_id = @request_guid
-        Steno.config.context.data["request_guid"] = @request_guid
       end
 
       after do
@@ -160,21 +148,19 @@ module Sinatra
           varz[:requests][:completed] += 1
           varz[:http_status][response.status] += 1
         end
-        headers["Content-Type"] = "application/json;charset=utf-8"
+        headers['Content-Type'] = 'application/json;charset=utf-8'
         headers[::VCAP::Request::HEADER_NAME] = @request_guid
         ::VCAP::Request.current_id = nil
-        Steno.config.context.data.delete("request_guid")
         nil
       end
     end
-
 
     private
 
     def self.init_varz
       ::VCAP::Component.varz.threadsafe!
 
-      requests = { :outstanding => 0, :completed => 0 }
+      requests = {:outstanding => 0, :completed => 0}
       http_status = {}
       [(100..101), (200..206), (300..307), (400..417), (500..505)].each do |r|
         r.each { |c| http_status[c] = 0 }

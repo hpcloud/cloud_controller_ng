@@ -14,7 +14,8 @@ module VCAP::CloudController
       info = get_file_uri_for_search_param(app, path, search_param)
 
       headers = {}
-      if range = env["HTTP_RANGE"]
+      range = env["HTTP_RANGE"]
+      if range
         headers["Range"] = range
       end
 
@@ -33,7 +34,7 @@ module VCAP::CloudController
         msg = "Request failed for app: #{app.name}, search_param: #{search_param}"
         msg << " as there was an error retrieving the files."
 
-        raise Errors::FileError.new(msg)
+        raise Errors::ApiError.new_from_details("FileError", msg)
       end
 
       [http_response.status, http_response.body]
@@ -65,7 +66,8 @@ module VCAP::CloudController
       # harmless, but it is weird.  Getting rid of it would require checking
       # with the VMC and STS teams to make sure no one expects to be able to
       # send a +.
-      if match = search_param.match(/^[+]?([0-9]+)$/)
+      match = search_param.match(/^[+]?([0-9]+)$/)
+      if match
         instance = match.captures[0].to_i
         DeaClient.get_file_uri_for_active_instance_by_index(app, path, instance)
       elsif search_param.match(/^[0-9a-zA-z]+$/)
@@ -74,7 +76,7 @@ module VCAP::CloudController
         msg = "Request failed for app: #{app.name}, path: #{path || '/'}"
         msg << " as the search_param: #{search_param} is invalid."
 
-        raise Errors::FileError.new(msg)
+        raise Errors::ApiError.new_from_details("FileError", msg)
       end
     end
   end

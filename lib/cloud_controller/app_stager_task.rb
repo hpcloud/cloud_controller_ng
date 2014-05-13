@@ -22,15 +22,20 @@ module VCAP::CloudController
       def droplet_hash
         @response["droplet_sha1"]
       end
+
+      def buildpack_key
+        @response["buildpack_key"]
+      end
     end
 
     attr_reader :config
     attr_reader :message_bus
 
-    def initialize(config, message_bus, app, stager_pool, blobstore_url_generator)
+    def initialize(config, message_bus, app, dea_pool, stager_pool, blobstore_url_generator)
       @config = config
       @message_bus = message_bus
       @app = app
+      @dea_pool = dea_pool
       @stager_pool = stager_pool
       @blobstore_url_generator = blobstore_url_generator
     end
@@ -40,6 +45,7 @@ module VCAP::CloudController
     end
 
     def stage(&completion_callback)
+<<<<<<< HEAD
       @stager_id = @stager_pool.find_stager(@app.stack.name, @app.memory, @app.distribution_zone)
       if !@stager_id
         parts = ["stack #{@app.stack.name}", "mem #{@app.memory}"]
@@ -50,21 +56,24 @@ module VCAP::CloudController
         end
         raise Errors::StagingError, "no available stagers for #{partString}" 
       end
+=======
+      @stager_id = @stager_pool.find_stager(@app.stack.name, staging_task_memory_mb, staging_task_disk_mb)
+      raise Errors::ApiError.new_from_details("StagingError", "no available stagers") unless @stager_id
+
+>>>>>>> upstream/master
       subject = "staging.#{@stager_id}.start"
       @multi_message_bus_request = MultiResponseMessageBusRequest.new(@message_bus, subject)
-      # The creation of upload handle only guarantees that this cloud controller
-      # is disallowed from trying to stage this app again. It does NOT guarantee that a different
-      # cloud controller will NOT start staging the app in parallel. Therefore, we need to
-      # cache the current droplet hash here, and later check it was NOT changed by a
-      # different cloud controller completing staging request for the same app before
-      # this cloud controller completes the staging.
-      @current_droplet_hash = @app.droplet_hash
 
+      # Save the current staging task
       @app.update(staging_task_id: task_id)
 
+      # Attempt to stop any in-flight staging for this app
       @message_bus.publish("staging.stop", :app_id => @app.guid)
 
       @completion_callback = completion_callback
+
+      @dea_pool.reserve_app_memory(@stager_id, staging_task_memory_mb)
+      @stager_pool.reserve_app_memory(@stager_id, staging_task_memory_mb)
 
       logger.info("staging.begin", :app_guid => @app.guid)
       staging_result = EM.schedule_sync do |promise|
@@ -90,8 +99,13 @@ module VCAP::CloudController
 
     # We never stage if there is not a start request
     def staging_request
+<<<<<<< HEAD
       { :app_id => @app.guid,
         :space_guid => @app.space_guid,
+=======
+      {
+        :app_id => @app.guid,
+>>>>>>> upstream/master
         :task_id => task_id,
         :properties => staging_task_properties(@app),
         # All url generation should go to blobstore_url_generator
@@ -109,7 +123,8 @@ module VCAP::CloudController
     def admin_buildpacks
       Buildpack.list_admin_buildpacks.
         select(&:enabled).
-        collect { |buildpack| admin_buildpack_entry(buildpack) }
+        collect { |buildpack| admin_buildpack_entry(buildpack) }.
+        select { |entry| entry[:url] }
     end
 
     def admin_buildpack_entry(buildpack)
@@ -120,10 +135,8 @@ module VCAP::CloudController
     end
 
     def start_app_message
-      msg = DeaClient.start_app_message(@app)
-      msg[:index] = 0
+      msg = StartAppMessage.new(@app, 0, @config, @blobstore_url_generator)
       msg[:sha1] = nil
-      msg[:executableUri] = nil
       msg
     end
 
@@ -163,7 +176,7 @@ module VCAP::CloudController
     def check_staging_error!(response, error)
       if (msg = error_message(response))
         @app.mark_as_failed_to_stage
-        raise Errors::StagingError, msg
+        raise Errors::ApiError.new_from_details("StagingError", msg)
       end
     end
 
@@ -177,7 +190,7 @@ module VCAP::CloudController
 
     def ensure_staging_is_current!
       unless staging_is_current?
-        raise Errors::StagingError, "failed to stage application: another staging request was initiated"
+        raise Errors::ApiError.new_from_details("StagingError", "failed to stage application: another staging request was initiated")
       end
     end
 
@@ -195,10 +208,8 @@ module VCAP::CloudController
 
     def staging_completion(stager_response)
       instance_was_started_by_dea = !!stager_response.droplet_hash
-
-      @app.update(detected_buildpack: stager_response.detected_buildpack)
-
-      DeaClient.dea_pool.mark_app_started(:dea_id => @stager_id, :app_id => @app.guid) if instance_was_started_by_dea
+      @app.update_detected_buildpack(stager_response.detected_buildpack, stager_response.buildpack_key)
+      @dea_pool.mark_app_started(:dea_id => @stager_id, :app_id => @app.guid) if instance_was_started_by_dea
 
       @completion_callback.call(:started_instances => instance_was_started_by_dea ? 1 : 0) if @completion_callback
     end
@@ -226,7 +237,18 @@ module VCAP::CloudController
     end
 
     def staging_timeout
-      @config[:staging] && @config[:staging][:max_staging_runtime] || 120
+      @config[:staging][:timeout_in_seconds]
+    end
+
+    def staging_task_disk_mb
+      [ @config[:staging][:minimum_staging_disk_mb] || 4096, @app.disk_quota ].max
+    end
+
+    def staging_task_memory_mb
+      [
+        (@config[:staging] && @config[:staging][:minimum_staging_memory_mb] || 1024),
+        @app.memory
+      ].max
     end
 
     def logger

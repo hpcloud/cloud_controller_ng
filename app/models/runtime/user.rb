@@ -2,9 +2,13 @@ require "uaa/scim"
 
 module VCAP::CloudController
   class User < Sequel::Model
+<<<<<<< HEAD
     include StackatoUserCreation
 
     class InvalidOrganizationRelation < InvalidRelation; end
+=======
+    class InvalidOrganizationRelation < VCAP::Errors::InvalidRelation; end
+>>>>>>> upstream/master
 
     no_auto_guid
 
@@ -18,7 +22,8 @@ module VCAP::CloudController
       class: "VCAP::CloudController::Organization",
       join_table: "organizations_managers",
       right_key: :organization_id, reciprocal: :managers,
-      before_add: :validate_organization
+      before_add: :validate_organization,
+      before_remove: proc { |user, org| org.manager_guids.count > 1 }
 
     many_to_many :billing_managed_organizations,
       class: "VCAP::CloudController::Organization",

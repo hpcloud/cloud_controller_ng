@@ -1,3 +1,5 @@
+require 'ext/validation_error_message_overrides'
+
 module VCAP::CloudController
   class ServicesController < RestController::ModelController
     define_attributes do
@@ -31,26 +33,42 @@ module VCAP::CloudController
       to_many   :service_plans
     end
 
+<<<<<<< HEAD
     query_parameters :active, :label
     
     def self.default_order_by
       :label
     end
+=======
+    query_parameters :active, :label, :provider, :service_broker_guid
+>>>>>>> upstream/master
 
     def self.translate_validation_exception(e, attributes)
       label_provider_errors = e.errors.on([:label, :provider])
       if label_provider_errors && label_provider_errors.include?(:unique)
-        Errors::ServiceLabelTaken.new("#{attributes["label"]}-#{attributes["provider"]}")
+        Errors::ApiError.new_from_details("ServiceLabelTaken", "#{attributes["label"]}-#{attributes["provider"]}")
       else
-        Errors::ServiceInvalid.new(e.errors.full_messages)
+        Errors::ApiError.new_from_details("ServiceInvalid", e.errors.full_messages)
       end
     end
 
     def delete(guid)
-      do_delete(find_guid_and_validate_access(:delete, guid))
+      service = find_guid_and_validate_access(:delete, guid)
+      if purge?
+        service.purge
+        [HTTP::NO_CONTENT, nil]
+      else
+        do_delete(find_guid_and_validate_access(:delete, guid))
+      end
     end
 
     define_messages
     define_routes
+
+    private
+
+    def purge?
+      params['purge'] == 'true'
+    end
   end
 end

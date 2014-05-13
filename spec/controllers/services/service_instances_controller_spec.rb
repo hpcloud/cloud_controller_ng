@@ -25,13 +25,6 @@ module VCAP::CloudController
                      many_to_one_collection_ids: {},
                      many_to_many_collection_ids: {}
 
-    before do
-      Steno.init(Steno::Config.new(
-        :default_log_level => "debug2",
-        :sinks => [Steno::Sink::IO.for_file("/tmp/cloud_controller_test.log")]
-      ))
-    end
-
     describe "Permissions" do
       include_context "permissions"
 
@@ -95,7 +88,7 @@ module VCAP::CloudController
             post "/v2/service_instances", req, json_headers(headers_for(member_a))
 
             last_response.status.should == 403
-            Yajl::Parser.parse(last_response.body)['description'].should == VCAP::CloudController::Errors::NotAuthorized.new.message
+            Yajl::Parser.parse(last_response.body)['description'].should eq("You are not authorized to perform the requested action")
           end
         end
 
@@ -116,7 +109,7 @@ module VCAP::CloudController
               post 'v2/service_instances', payload, json_headers(headers_for(developer))
 
               last_response.status.should == 403
-              Yajl::Parser.parse(last_response.body)['description'].should == VCAP::CloudController::Errors::NotAuthorized.new.message
+              Yajl::Parser.parse(last_response.body)['description'].should eq("You are not authorized to perform the requested action")
             end
           end
 
@@ -157,7 +150,7 @@ module VCAP::CloudController
               post 'v2/service_instances', payload, json_headers(headers_for(developer))
 
               last_response.status.should == 403
-              Yajl::Parser.parse(last_response.body)['description'].should == VCAP::CloudController::Errors::ServiceInstanceOrganizationNotAuthorized.new.message
+              Yajl::Parser.parse(last_response.body)['description'].should match('A service instance for the selected plan cannot be created in this organization.')
             end
           end
         end
@@ -174,19 +167,23 @@ module VCAP::CloudController
       end
     end
 
-    describe 'POST', '/v2/service_instance' do
-      let(:space) { Space.make }
-      let(:developer) { make_developer_for_space(space) }
-      let(:plan) { ServicePlan.make(:service => service) }
-
-      context 'when provisioning without a service-auth-token' do
-        let(:service) { Service.make(:description => "blah blah foobar") }
+    describe 'POST', '/v2/service_instances' do
+      context 'with a v2 service' do
+        let(:space) { Space.make }
+        let(:plan) { ServicePlan.make }
+        let(:developer) { make_developer_for_space(space) }
+        let(:client) { double('client') }
 
         before do
-          service.stub(:v2?) { false }
+          client.stub(:provision) do |instance|
+            instance.credentials = '{}'
+            instance.dashboard_url = 'the dashboard_url'
+          end
+          client.stub(:deprovision)
+          Service.any_instance.stub(:client).and_return(client)
         end
 
-        it 'should throw a 500 and give you an error message saying "Missing service auth token"' do
+        it 'provisions a service instance' do
           req = Yajl::Encoder.encode(
             :name => 'foo',
             :space_guid => space.guid,
@@ -194,113 +191,85 @@ module VCAP::CloudController
           )
           headers = json_headers(headers_for(developer))
 
-          expect(plan.service.service_auth_token).to eq(nil)
-
           post "/v2/service_instances", req, headers
 
-          expect(last_response.status).to eq(500)
-        end
-      end
-    end
+          expect(last_response.status).to eq(201)
 
-    describe 'POST', '/v2/service_instance' do
-      let(:space) { Space.make }
-      let(:plan) { ServicePlan.make }
-      let(:developer) { make_developer_for_space(space) }
-      let(:client) { double('client') }
-
-      before do
-        client.stub(:provision) do |instance|
-          instance.credentials = '{}'
-          instance.dashboard_url = 'the dashboard_url'
-        end
-        client.stub(:deprovision)
-        Service.any_instance.stub(:client).and_return(client)
-      end
-
-      it 'provisions a service instance' do
-        req = Yajl::Encoder.encode(
-          :name => 'foo',
-          :space_guid => space.guid,
-          :service_plan_guid => plan.guid
-        )
-        headers = json_headers(headers_for(developer))
-
-        post "/v2/service_instances", req, headers
-
-        expect(last_response.status).to eq(201)
-
-        instance = ServiceInstance.last
-        expect(instance.credentials).to eq('{}')
-        expect(instance.dashboard_url).to eq('the dashboard_url')
-      end
-
-      context 'when name is blank' do
-        let(:body) do
-          Yajl::Encoder.encode(
-            :name => '',
-            :space_guid => space.guid,
-            :service_plan_guid => plan.guid
-          )
-        end
-        let(:headers) { json_headers(headers_for(developer)) }
-
-        it 'returns a name validation error' do
-          post '/v2/service_instances', body, headers
-
-          expect(last_response.status).to eq(400)
-          expect(decoded_response['description']).to match /name is invalid/
+          instance = ServiceInstance.last
+          expect(instance.credentials).to eq('{}')
+          expect(instance.dashboard_url).to eq('the dashboard_url')
         end
 
-        it 'does not provision or deprovision an instance' do
-          post '/v2/service_instances', body, headers
+        context 'when name is blank' do
+          let(:body) do
+            Yajl::Encoder.encode(
+              :name => '',
+              :space_guid => space.guid,
+              :service_plan_guid => plan.guid
+            )
+          end
+          let(:headers) { json_headers(headers_for(developer)) }
 
-          expect(client).to_not have_received(:provision)
-          expect(client).to_not have_received(:deprovision)
-        end
-
-        it 'does not create a service instance' do
-          expect {
+          it 'returns a name validation error' do
             post '/v2/service_instances', body, headers
-          }.to_not change(ServiceInstance, :count)
+
+            expect(last_response.status).to eq(400)
+            expect(decoded_response['description']).to match(/name is invalid/)
+          end
+
+          it 'does not provision or deprovision an instance' do
+            post '/v2/service_instances', body, headers
+
+            expect(client).to_not have_received(:provision)
+            expect(client).to_not have_received(:deprovision)
+          end
+
+          it 'does not create a service instance' do
+            expect {
+              post '/v2/service_instances', body, headers
+            }.to_not change(ServiceInstance, :count)
+          end
         end
-      end
 
-      it 'deprovisions the service instance when an exception is raised' do
-        req = Yajl::Encoder.encode(
-          :name => 'foo',
-          :space_guid => space.guid,
-          :service_plan_guid => plan.guid
-        )
-
-        ManagedServiceInstance.any_instance.stub(:save).and_raise
-        Controller.any_instance.stub(:in_test_mode?).and_return(false)
-
-        post "/v2/service_instances", req, json_headers(headers_for(developer))
-
-        expect(last_response.status).to eq(500)
-        expect(client).to have_received(:deprovision).with(an_instance_of(ManagedServiceInstance))
-      end
-
-      context 'when the model save and the subsequent deprovision both raise errors' do
-        it 'raises the original error' do
+        it 'deprovisions the service instance when an exception is raised' do
           req = Yajl::Encoder.encode(
             :name => 'foo',
             :space_guid => space.guid,
             :service_plan_guid => plan.guid
           )
 
-          client.stub(:deprovision).and_raise(StandardError, 'deprovision')
-          ManagedServiceInstance.any_instance.stub(:save).and_raise(StandardError, 'save')
-          Controller.any_instance.stub(:in_test_mode?).and_return(true)
+          ManagedServiceInstance.any_instance.stub(:save).and_raise
 
-          expect {
-            post "/v2/service_instances", req, json_headers(headers_for(developer))
-          }.to raise_error(StandardError, "save")
+          post "/v2/service_instances", req, json_headers(headers_for(developer))
+
+          expect(last_response.status).to eq(500)
+          expect(client).to have_received(:deprovision).with(an_instance_of(ManagedServiceInstance))
         end
-      end
 
-      context 'creating a service instance with a name over 50 characters' do
+        context 'when the model save and the subsequent deprovision both raise errors' do
+          let(:save_error_text) { "InvalidRequest" }
+          let(:deprovision_error_text) { "NotAuthorized" }
+
+          before do
+            allow(client).to receive(:deprovision).and_raise(Errors::ApiError.new_from_details(deprovision_error_text))
+            allow_any_instance_of(ManagedServiceInstance).to receive(:save).and_raise(Errors::ApiError.new_from_details(save_error_text))
+          end
+
+          it 'raises the save error' do
+            req = Yajl::Encoder.encode(
+              :name => 'foo',
+              :space_guid => space.guid,
+              :service_plan_guid => plan.guid
+            )
+
+            post "/v2/service_instances", req, json_headers(headers_for(developer))
+
+            expect(last_response.body).to_not match(deprovision_error_text)
+            expect(last_response.body).to match(save_error_text)
+          end
+        end
+
+        context 'creating a service instance with a name over 50 characters' do
         let(:very_long_name) { 's' * 51 }
 
         it "returns an error if the service instance name is over 50 characters" do
@@ -316,6 +285,36 @@ module VCAP::CloudController
           last_response.status.should == 400
           decoded_response["description"].should =~ /service instance name.*limited to 50 characters/
         end
+      end
+      end
+
+      context 'with a v1 service' do
+        let(:space) { Space.make }
+        let(:developer) { make_developer_for_space(space) }
+        let(:plan) { ServicePlan.make(:service => service) }
+        let(:service) { Service.make(:description => "blah blah foobar") }
+
+        before do
+          service.stub(:v2?) { false }
+        end
+
+        context 'when provisioning without a service-auth-token' do
+          it 'should throw a 500 and give you an error message' do
+            req = Yajl::Encoder.encode(
+              :name => 'foo',
+              :space_guid => space.guid,
+              :service_plan_guid => plan.guid
+            )
+            headers = json_headers(headers_for(developer))
+
+            expect(plan.service.service_auth_token).to eq(nil)
+
+            post "/v2/service_instances", req, headers
+
+            expect(last_response.status).to eq(500)
+          end
+        end
+
       end
     end
 
@@ -383,9 +382,96 @@ module VCAP::CloudController
       end
     end
 
+    describe 'PUT', '/v2/service_plans/:service_plan_guid/services_instances' do
+      let(:first_service_plan)  { ServicePlan.make }
+      let(:second_service_plan) { ServicePlan.make }
+      let(:third_service_plan)  { ServicePlan.make }
+      let(:space)               { Space.make }
+      let(:developer)           { make_developer_for_space(space) }
+      let(:new_plan_guid)       { third_service_plan.guid }
+      let(:body) do
+        Yajl::Encoder.encode(
+          :service_plan_guid => new_plan_guid
+        )
+      end
+
+      before do
+        ManagedServiceInstance.make(service_plan: first_service_plan)
+        ManagedServiceInstance.make(service_plan: second_service_plan)
+        ManagedServiceInstance.make(service_plan: third_service_plan)
+      end
+
+      it 'updates all services instances for a given plan with the new plan id' do
+        put "/v2/service_plans/#{first_service_plan.guid}/service_instances", body, admin_headers
+
+        expect(last_response.status).to eql(200)
+        expect(first_service_plan.service_instances.count).to eql(0)
+        expect(second_service_plan.service_instances.count).to eql(1)
+        expect(third_service_plan.service_instances.count).to eql(2)
+      end
+
+      it 'returns the number of instances moved' do
+        ManagedServiceInstance.make(service_plan: first_service_plan)
+
+        put "/v2/service_plans/#{first_service_plan.guid}/service_instances", body, admin_headers
+
+        expect(decoded_response['changed_count']).to eql(2)
+      end
+
+      context 'when given an invalid new plan guid' do
+        let(:new_plan_guid) { "a-plan-that-does-not-exist" }
+
+        it 'does not update any service instances' do
+          put "/v2/service_plans/#{first_service_plan.guid}/service_instances", body, admin_headers
+
+          expect(last_response.status).to eql(400)
+          expect(first_service_plan.service_instances.count).to eql(1)
+          expect(second_service_plan.service_instances.count).to eql(1)
+          expect(third_service_plan.service_instances.count).to eql(1)
+        end
+      end
+
+      context 'when given an invalid existing plan guid' do
+        it 'does not update any service instances' do
+          put "/v2/service_plans/some-non-existant-plan/service_instances", body, admin_headers
+
+          expect(last_response.status).to eql(400)
+          expect(first_service_plan.service_instances.count).to eql(1)
+          expect(second_service_plan.service_instances.count).to eql(1)
+          expect(third_service_plan.service_instances.count).to eql(1)
+        end
+      end
+
+      it 'requires admin permissions' do
+        put "/v2/service_plans/#{first_service_plan.guid}/service_instances", body
+        expect(last_response.status).to eql(401)
+
+        put "/v2/service_plans/#{first_service_plan.guid}/service_instances", body, json_headers(headers_for(developer))
+        expect(last_response.status).to eql(403)
+
+        put "/v2/service_plans/#{first_service_plan.guid}/service_instances", body, admin_headers
+        expect(last_response.status).to eql(200)
+      end
+    end
+
     describe 'DELETE', '/v2/service_instances/:service_instance_guid' do
       context 'with a managed service instance' do
-        let!(:service_instance) { ManagedServiceInstance.make }
+        let(:service) { Service.make(:v2) }
+        let(:service_plan) { ServicePlan.make(service: service) }
+        let!(:service_instance) { ManagedServiceInstance.make(service_plan: service_plan) }
+        let(:body) { '{}' }
+        let(:status) { 200 }
+
+        before do
+          guid = service_instance.guid
+          plan_id = service_plan.unique_id
+          service_id = service.unique_id
+          path = "/v2/service_instances/#{guid}?plan_id=#{plan_id}&service_id=#{service_id}"
+          uri = URI(service.service_broker.broker_url + path)
+          uri.user = service.service_broker.auth_username
+          uri.password = service.service_broker.auth_password
+          stub_request(:delete, uri.to_s).to_return(body: body, status: status)
+        end
 
         it "deletes the service instance with the given guid" do
           expect {
@@ -394,6 +480,45 @@ module VCAP::CloudController
           last_response.status.should == 204
           ServiceInstance.find(:guid => service_instance.guid).should be_nil
         end
+
+        context 'when the service broker returns a 409' do
+          let(:body) {'{"description": "service broker error"}' }
+          let(:status) { 409 }
+
+          it 'forwards the error message from the service broker' do
+            delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
+
+            expect(last_response.status).to eq 409
+            expect(JSON.parse(last_response.body)['description']).to include 'service broker error'
+          end
+        end
+      end
+
+      context 'with a v1 service instance' do
+        let(:service) { Service.make(:v1) }
+        let(:service_plan) { ServicePlan.make(service: service)}
+        let!(:service_instance) { ManagedServiceInstance.make(service_plan: service_plan) }
+
+        context 'when the service gateway returns a 409' do
+          before do
+            # Stub 409
+            VCAP::Services::ServiceBrokers::V1::HttpClient.unstub(:new)
+
+            guid = service_instance.broker_provided_id
+            path = "/gateway/v1/configurations/#{guid}"
+            uri = URI(service.url + path)
+
+            stub_request(:delete, uri.to_s).to_return(body: '{"description": "service gateway error"}', status: 409)
+          end
+
+          it 'forwards the error message from the service gateway' do
+            delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
+
+            expect(last_response.status).to eq 409
+            expect(JSON.parse(last_response.body)['description']).to include 'service gateway error'
+          end
+        end
+
       end
 
       context 'with a user provided service instance' do
@@ -405,6 +530,66 @@ module VCAP::CloudController
           }.to change(ServiceInstance, :count).by(-1)
           last_response.status.should == 204
           ServiceInstance.find(:guid => service_instance.guid).should be_nil
+        end
+      end
+    end
+
+    describe 'GET', '/v2/service_instances/:service_instance_guid/permissions' do
+      let(:space)     { Space.make }
+      let(:developer) { make_developer_for_space(space) }
+
+      context 'when the user is a member of the space this instance exists in' do
+        let(:instance)  { ServiceInstance.make(space: space) }
+
+        context 'when the user has only the cloud_controller.read scope' do
+          it 'returns a JSON payload indicating they have permission to manage this instance' do
+            get "/v2/service_instances/#{instance.guid}/permissions", {}, json_headers(headers_for(developer, {scopes: ['cloud_controller.read']}))
+            expect(last_response.status).to eql(200)
+            expect(JSON.parse(last_response.body)['manage']).to be_true
+          end
+        end
+
+        context 'when the user has only the cloud_controller_service_permissions.read scope' do
+          it 'returns a JSON payload indicating they have permission to manage this instance' do
+            get "/v2/service_instances/#{instance.guid}/permissions", {}, json_headers(headers_for(developer, {scopes: ['cloud_controller_service_permissions.read']}))
+            expect(last_response.status).to eql(200)
+            expect(JSON.parse(last_response.body)['manage']).to be_true
+          end
+        end
+
+        context 'when the user does not have either necessary scope' do
+          it 'returns InvalidAuthToken' do
+            get "/v2/service_instances/#{instance.guid}/permissions", {}, json_headers(headers_for(developer, {scopes: ['cloud_controller.write']}))
+            expect(last_response.status).to eql(403)
+            expect(JSON.parse(last_response.body)['description']).to eql('Your token lacks the necessary scopes to access this resource.')
+          end
+        end
+      end
+
+      context 'when the user is NOT a member of the space this instance exists in' do
+        let(:instance)  { ServiceInstance.make }
+
+        it 'returns a JSON payload indicating the user does not have permission to manage this instance' do
+          get "/v2/service_instances/#{instance.guid}/permissions", {}, json_headers(headers_for(developer))
+          expect(last_response.status).to eql(200)
+          expect(JSON.parse(last_response.body)['manage']).to be_false
+        end
+      end
+
+      context 'when the user has not authenticated with Cloud Controller' do
+        let(:instance)  { ServiceInstance.make }
+        let(:developer) { nil }
+
+        it 'returns an error saying that the user is not authenticated' do
+          get "/v2/service_instances/#{instance.guid}/permissions", {}, json_headers(headers_for(developer))
+          expect(last_response.status).to eq(401)
+        end
+      end
+
+      context 'when the service instance does not exist' do
+        it 'returns an error saying the instance was not found' do
+          get '/v2/service_instances/nonexistent_instance/permissions', {}, json_headers(headers_for(developer))
+          expect(last_response.status).to eql 404
         end
       end
     end
@@ -466,7 +651,6 @@ module VCAP::CloudController
         it "returns a user friendly error" do
           org = Organization.make()
           space = Space.make(:organization => org)
-          service = Service.make
           plan = ServicePlan.make(free: true)
 
           body = {

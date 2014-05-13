@@ -5,6 +5,12 @@ module VCAP::CloudController::RestController
     include Routes
     include ::Allowy::Context
 
+    def inject_dependencies(dependencies)
+      super
+      @object_renderer = dependencies.fetch(:object_renderer)
+      @collection_renderer = dependencies.fetch(:collection_renderer)
+    end
+
     # Create operation
     def create
       json_msg = self.class::CreateMessage.decode(body)
@@ -13,7 +19,7 @@ module VCAP::CloudController::RestController
 
       logger.debug "cc.create", model: self.class.model_class_name, attributes: request_attrs
 
-      raise InvalidRequest unless request_attrs
+      raise VCAP::Errors::ApiError.new_from_details("InvalidRequest") unless request_attrs
 
       before_create
 
@@ -28,7 +34,7 @@ module VCAP::CloudController::RestController
       [
         HTTP::CREATED,
         {"Location" => "#{self.class.path}/#{obj.guid}"},
-        serialization.render_json(self.class, obj, @opts)
+        object_renderer.render_json(self.class, obj, @opts)
       ]
     end
 
@@ -38,7 +44,7 @@ module VCAP::CloudController::RestController
     def read(guid)
       logger.debug "cc.read", model: self.class.model_class_name, guid: guid
       obj = find_guid_and_validate_access(:read, guid)
-      serialization.render_json(self.class, obj, @opts)
+      object_renderer.render_json(self.class, obj, @opts)
     end
 
     # Update operation
@@ -55,7 +61,7 @@ module VCAP::CloudController::RestController
 
       after_update(obj)
 
-      [HTTP::CREATED, serialization.render_json(self.class, obj, @opts)]
+      [HTTP::CREATED, object_renderer.render_json(self.class, obj, @opts)]
     end
 
     def find_for_update(guid)
@@ -74,9 +80,8 @@ module VCAP::CloudController::RestController
       check_maintenance_mode
       raise_if_has_associations!(obj) if v2_api? && !recursive?
       model_deletion_job = Jobs::Runtime::ModelDeletion.new(obj.class, obj.guid)
-
       if async?
-        job = Delayed::Job.enqueue(model_deletion_job, queue: "cc-generic")
+        job = Jobs::Enqueuer.new(model_deletion_job, queue: "cc-generic").enqueue()
         [HTTP::ACCEPTED, JobPresenter.new(job).to_json]
       else
         model_deletion_job.perform
@@ -86,12 +91,16 @@ module VCAP::CloudController::RestController
 
     # Enumerate operation
     def enumerate
-      raise NotAuthenticated unless user || roles.admin?
+      raise ApiError.new_from_details("NotAuthenticated") unless user || roles.admin?
       validate_access(:index, model, user, roles)
 
-      Paginator.render_json(
-        self.class, enumerate_dataset, self.class.path,
-        @opts.merge(serialization: serialization), params)
+      collection_renderer.render_json(
+        self.class,
+        enumerate_dataset,
+        self.class.path,
+        @opts,
+        params,
+      )
     end
 
     def get_filtered_dataset_for_enumeration(model, ds, qp, opts)
@@ -125,7 +134,13 @@ module VCAP::CloudController::RestController
           @opts
         )
 
-      Paginator.render_json(associated_controller, filtered_dataset, associated_path, @opts)
+      collection_renderer.render_json(
+        associated_controller,
+        filtered_dataset,
+        associated_path,
+        @opts,
+        {}
+      )
     end
 
     def self.default_order_by
@@ -183,7 +198,7 @@ module VCAP::CloudController::RestController
 
       after_update(obj)
 
-      [HTTP::CREATED, serialization.render_json(self.class, obj, @opts)]
+      [HTTP::CREATED, object_renderer.render_json(self.class, obj, @opts)]
     end
 
     # Find an object and validate that the current user has rights to
@@ -200,7 +215,7 @@ module VCAP::CloudController::RestController
     # the use has access.
     def find_guid_and_validate_access(op, guid, find_model = model)
       obj = find_model.find(guid: guid)
-      raise self.class.not_found_exception.new(guid) if obj.nil?
+      raise self.class.not_found_exception(guid) if obj.nil?
       validate_access(op, obj, user, roles)
       obj
     end
@@ -218,11 +233,13 @@ module VCAP::CloudController::RestController
     #
     # @param [Roles] The roles for the current user or client.
     def validate_access(op, obj, user, roles)
-      if cannot? op, obj
-        raise NotAuthenticated if user.nil? && roles.none?
+      if cannot?("#{op}_with_token".to_sym, obj)
+        raise VCAP::Errors::ApiError.new_from_details('InsufficientScope')
+      end
 
+      if cannot?(op, obj)
         logger.info("allowy.access-denied", op: op, obj: obj, user: user, roles: roles)
-        raise Errors::NotAuthorized
+        raise VCAP::Errors::ApiError.new_from_details('NotAuthorized')
       end
     end
 
@@ -233,9 +250,8 @@ module VCAP::CloudController::RestController
       self.class.model
     end
 
-    def serialization
-      self.class.serialization
-    end
+    protected
+    attr_reader :object_renderer, :collection_renderer
 
     private
 
@@ -255,7 +271,7 @@ module VCAP::CloudController::RestController
       end
 
       if associations.any?
-        raise VCAP::Errors::AssociationNotEmpty.new(associations.join(", "), obj.class.table_name)
+        raise VCAP::Errors::ApiError.new_from_details("AssociationNotEmpty", associations.join(", "), obj.class.table_name)
       end
     end
 
@@ -306,11 +322,6 @@ module VCAP::CloudController::RestController
         class_basename.sub(/Controller$/, '').singularize
       end
 
-      def serialization(klass = nil)
-        @serialization = klass if klass
-        @serialization || ObjectSerialization
-      end
-
       # Model class name associated with this rest/api endpoint.
       #
       # @return [String] The class name of the model associated with
@@ -322,8 +333,8 @@ module VCAP::CloudController::RestController
       #
       # @return [Exception] The vcap not-found exception for this
       # rest/api endpoint.
-      def not_found_exception
-        Errors.const_get(not_found_exception_name)
+      def not_found_exception(guid)
+        Errors::ApiError.new_from_details(not_found_exception_name, guid)
       end
 
       # Start the DSL for defining attributes.  This is used inside

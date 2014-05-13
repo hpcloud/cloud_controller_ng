@@ -105,10 +105,16 @@ module VCAP::CloudController
       @dea_advertisements.find { |ad| ad.dea_id == dea_id }.increment_instance_count(app_id)
     end
 
+<<<<<<< HEAD
     def get_active_deas
       prune_stale_deas
       @dea_advertisements.dup
     end 
+=======
+    def reserve_app_memory(dea_id, app_memory)
+      @dea_advertisements.find { |ad| ad.dea_id == dea_id }.decrement_memory(app_memory)
+    end
+>>>>>>> upstream/master
 
     private
 

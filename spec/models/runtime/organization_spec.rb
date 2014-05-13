@@ -21,9 +21,29 @@ module VCAP::CloudController
       }
     }
 
+    context "statuses" do
+      describe "when status == active" do
+        subject(:org) { Organization.make(status: "active") }
+        it("is active") { expect(org).to be_active }
+        it("is not suspended") { expect(org).not_to be_suspended }
+      end
+
+      describe "when status == suspended" do
+        subject(:org) { Organization.make(status: "suspended") }
+        it("is not active") { expect(org).not_to be_active }
+        it("is suspended") { expect(org).to be_suspended }
+      end
+
+      describe "when status == unknown" do
+        subject(:org) { Organization.make(status: "unknown") }
+        it("is not active") { expect(org).not_to be_active }
+        it("is not suspended") { expect(org).not_to be_suspended }
+      end
+    end
+
     describe "validations" do
       context "name" do
-        let(:org) { Organization.make }
+        subject(:org) { Organization.make }
 
         it "shoud allow standard ascii characters" do
           org.name = "A -_- word 2!?()\'\"&+."
@@ -60,6 +80,47 @@ module VCAP::CloudController
           }.to raise_error(Sequel::ValidationFailed)
         end
       end
+
+      context "managers" do
+        subject(:org) { Organization.make }
+
+        it "allows creating an org with no managers" do
+          expect {
+            org.save
+          }.to_not raise_error
+        end
+
+        it "allows deleting a manager but leaving at least one manager behind" do
+          u1, u2 = [User.make, User.make]
+          org.manager_guids = [u1.guid, u2.guid]
+          org.save
+
+          org.manager_guids = [u1.guid]
+          expect {
+            org.save
+          }.not_to raise_error
+        end
+
+        it "disallows removing all the managersjim" do
+          u1, u2 = [User.make, User.make]
+          org.manager_guids = [u1.guid]
+          org.save
+
+          expect {
+            org.manager_guids = [u2.guid]
+          }.not_to raise_error
+        end
+
+        it "disallows removing all the managers" do
+          u1, u2 = [User.make, User.make]
+          org.manager_guids = [u1.guid, u2.guid]
+          org.save
+
+          expect {
+            org.manager_guids = []
+          }.to raise_error(Sequel::HookFailed)
+        end
+      end
     end
 
     describe "billing" do
@@ -68,6 +129,10 @@ module VCAP::CloudController
       end
 
       context "enabling billing" do
+        before do
+          config_override({ :billing_event_writing_enabled => true })
+        end
+
         let (:org) do
           o = Organization.make
           2.times do
@@ -143,7 +208,7 @@ module VCAP::CloudController
     end
 
     describe "#destroy" do
-      let(:org) { Organization.make }
+      subject(:org) { Organization.make }
       let(:space) { Space.make(:organization => org) }
 
       before { org.reload }
@@ -212,7 +277,83 @@ module VCAP::CloudController
       it "raises error if the private domain does not belongs to the organization" do
         org = Organization.make
         private_domain = PrivateDomain.make(owning_organization: Organization.make)
-        expect { org.add_domain(private_domain) }.to raise_error(Organization::UnauthorizedAccessToPrivateDomain)
+        expect { org.add_domain(private_domain) }.to raise_error(Domain::UnauthorizedAccessToPrivateDomain)
+      end
+    end
+
+    describe "#domains (eager loading)" do
+      before { SharedDomain.dataset.delete }
+
+      it "is able to eager load domains" do
+        org = Organization.make
+        private_domain1 = PrivateDomain.make(owning_organization: org)
+        private_domain2 = PrivateDomain.make(owning_organization: org)
+        shared_domain = SharedDomain.make
+
+        expect {
+          @eager_loaded_org = Organization.eager(:domains).where(id: org.id).all.first
+        }.to have_queried_db_times(/domains/i, 1)
+
+        expect {
+          @eager_loaded_domains = @eager_loaded_org.domains.to_a
+        }.to have_queried_db_times(//, 0)
+
+        expect(@eager_loaded_org).to eql(org)
+        expect(@eager_loaded_domains).to eql([private_domain1, private_domain2, shared_domain])
+        expect(@eager_loaded_domains).to eql(org.domains)
+      end
+
+      it "has correct domains for each org" do
+        org1 = Organization.make
+        org2 = Organization.make
+
+        private_domain1 = PrivateDomain.make(owning_organization: org1)
+        private_domain2 = PrivateDomain.make(owning_organization: org2)
+        shared_domain = SharedDomain.make
+
+        expect {
+          @eager_loaded_orgs = Organization.eager(:domains).where(id: [org1.id, org2.id]).limit(2).all
+        }.to have_queried_db_times(/domains/i, 1)
+
+        expect {
+          expect(@eager_loaded_orgs[0].domains).to match_array([private_domain1, shared_domain])
+          expect(@eager_loaded_orgs[1].domains).to match_array([private_domain2, shared_domain])
+        }.to have_queried_db_times(//, 0)
+      end
+
+      it "passes in dataset to be loaded to eager_block option" do
+        org1 = Organization.make
+
+        private_domain1 = PrivateDomain.make(owning_organization: org1)
+        private_domain2 = PrivateDomain.make(owning_organization: org1)
+
+        eager_block = proc { |ds| ds.where(id: private_domain1.id) }
+
+        expect {
+          @eager_loaded_org = Organization.eager(domains: eager_block).where(id: org1.id).all.first
+        }.to have_queried_db_times(/domains/i, 1)
+
+        expect(@eager_loaded_org.domains).to eql([private_domain1])
+      end
+
+      it "allow nested eager_load" do
+        org = Organization.make
+        space = Space.make(organization: org)
+
+        domain1 = PrivateDomain.make(owning_organization: org)
+        domain2 = PrivateDomain.make(owning_organization: org)
+
+        route1 = Route.make(domain: domain1, space: space)
+        route2 = Route.make(domain: domain2, space: space)
+
+        expect {
+          @eager_loaded_org = Organization.eager(domains: :routes).where(id: org.id).all.first
+        }.to have_queried_db_times(/domains/i, 1)
+
+        expect {
+          expect(@eager_loaded_org.domains[0].routes).to eql([route1])
+          expect(@eager_loaded_org.domains[1].routes).to eql([route2])
+        }.to have_queried_db_times(//, 0)
       end
     end
   end

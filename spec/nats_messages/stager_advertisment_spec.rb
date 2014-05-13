@@ -112,6 +112,7 @@ describe StagerAdvertisement do
     end
   end
 
+<<<<<<< HEAD
   describe "#zone" do
     context "when the stager does not have the placement properties" do
       it "returns default zone" do
@@ -133,6 +134,15 @@ describe StagerAdvertisement do
       it "returns the zone with name zone_cf" do
         expect(ad.zone).to eq "zone_cf"
       end
+=======
+  describe "decrement_memory" do
+    it "decrement the stager's memory" do
+      expect {
+        ad.decrement_memory(512)
+      }.to change {
+        ad.available_memory
+      }.from(1024).to(512)
+>>>>>>> upstream/master
     end
   end
 end

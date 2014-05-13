@@ -17,7 +17,7 @@ Sham.define do
   service_credentials { |index| { "creds-key-#{index}" => "creds-val-#{index}" } }
   binding_options     { |index| { "binding-options-#{index}" => "value-#{index}" } }
   uaa_id              { |index| "uaa-id-#{index}" }
-  domain              { |index| "domain-#{index}.com" }
+  domain              { |index| "domain-#{index}.example.com" }
   host                { |index| "host-#{index}" }
   guid                { |_| "guid-#{SecureRandom.uuid}" }
   extra               { |index| "extra-#{index}"}
@@ -74,17 +74,28 @@ module VCAP::CloudController
     provider          { Sham.provider }
     url               { Sham.url }
     version           { Sham.version }
-    unique_id         { "#{provider}_#{label}" }
+    unique_id         { SecureRandom.uuid }
     description do
       # Hack since Sequel does not allow two foreign keys natively
       # and putting this side effect outside memoizes the label and provider.
       # This also creates a ServiceAuthToken for v2 services despite the fact
       # that they do not use it.
-      ServiceAuthToken.make(:label => label, :provider => provider, :token => Sham.token)
+      ServiceAuthToken.make(label: label, provider: provider, token: Sham.token)
       Sham.description
     end
     bindable          { true }
     active            { true }
+  end
+
+  Service.blueprint(:v1) do
+  end
+
+  Service.blueprint(:v2) do
+    service_broker
+    description { Sham.description } # remove hack
+    provider    { '' }
+    url         { nil }
+    version     { nil }
   end
 
   ServiceInstance.blueprint do
@@ -121,7 +132,7 @@ module VCAP::CloudController
     name              { Sham.name }
     space             { Space.make }
     stack             { Stack.make }
-    instances         { 0 }
+    instances         { 1 }
   end
 
   ServiceBinding.blueprint do
@@ -138,12 +149,17 @@ module VCAP::CloudController
     auth_password     { Sham.auth_password }
   end
 
+  ServiceDashboardClient.blueprint do
+    uaa_id          { Sham.name }
+    service_broker  { ServiceBroker.make }
+  end
+
   ServicePlan.blueprint do
     name              { Sham.name }
     free              { false }
     description       { Sham.description }
     service           { Service.make }
-    unique_id         { [service.provider, service.label, name].join("_") }
+    unique_id         { SecureRandom.uuid }
     active            { true }
   end
 
@@ -163,8 +179,10 @@ module VCAP::CloudController
     type       { Sham.name}
     actor      { Sham.guid }
     actor_type { Sham.name }
+    actor_name { Sham.name }
     actee      { Sham.guid }
     actee_type { Sham.name }
+    actee_name { Sham.name }
     space      { Space.make }
   end
 
@@ -234,8 +252,11 @@ module VCAP::CloudController
     total_services { 60 }
     total_routes { 1_000 }
     memory_limit { 20_480 } # 20 GB
+<<<<<<< HEAD
     trial_db_allowed { false }
     allow_sudo { false }
+=======
+>>>>>>> upstream/master
   end
 
   Buildpack.blueprint do
@@ -253,5 +274,7 @@ module VCAP::CloudController
     org_guid { Sham.guid }
     space_guid { Sham.guid }
     space_name { Sham.name }
+    buildpack_guid { Sham.guid }
+    buildpack_name { Sham.name }
   end
 end

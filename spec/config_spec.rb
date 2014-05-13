@@ -10,14 +10,102 @@ module VCAP::CloudController
           Config.from_file("nonexistent.yml")
         }.to raise_error(Errno::ENOENT, /No such file or directory - nonexistent.yml/)
       end
+    end
 
-      it "adds default stack file path" do
-        config = Config.from_file(File.join(fixture_path, "config/minimal_config.yml"))
-        config[:stacks_file].should == File.join(Config.config_dir, "stacks.yml")
+    describe ".merge_defaults" do
+      context "when no config values are provided" do
+        let (:config) { Config.from_file(File.join(fixture_path, "config/minimal_config.yml")) }
+        it "sets default stacks_file" do
+          expect(config[:stacks_file]).to eq(File.join(Config.config_dir, "stacks.yml"))
+        end
+
+        it "sets default maximum_app_disk_in_mb" do
+          expect(config[:maximum_app_disk_in_mb]).to eq(2048)
+        end
+
+        it "sets default directories" do
+          expect(config[:directories]).to eq({})
+        end
+
+        it "enables writing billing events" do
+          expect(config[:billing_event_writing_enabled]).to be_true
+        end
+
+        it "sets a default request_timeout_in_seconds value" do
+          expect(config[:request_timeout_in_seconds]).to eq(300)
+        end
+
+        it "sets a default value for skip_cert_verify" do
+          expect(config[:skip_cert_verify]).to eq false
+        end
+
+        it "sets a default value for app_bits_upload_grace_period_in_seconds" do
+          expect(config[:app_bits_upload_grace_period_in_seconds]).to eq(0)
+        end
+      end
+
+      context "when config values are provided" do
+        context "and the values are valid" do
+          let (:config) { Config.from_file(File.join(fixture_path, "config/default_overriding_config.yml")) }
+
+          it "preserves the stacks_file value from the file" do
+            expect(config[:stacks_file]).to eq("/tmp/foo")
+          end
+
+          it "preserves the maximum_app_disk_in_mb value from the file" do
+            expect(config[:maximum_app_disk_in_mb]).to eq(3)
+          end
+
+          it "preserves the directories value from the file" do
+            expect(config[:directories]).to eq({ some: "value" })
+          end
+
+          it "preserves the external_protocol value from the file" do
+            expect(config[:external_protocol]).to eq("http")
+          end
+
+          it "preserves the billing_event_writing_enabled value from the file" do
+            expect(config[:billing_event_writing_enabled]).to be_false
+          end
+
+          it "preserves the request_timeout_in_seconds value from the file" do
+            expect(config[:request_timeout_in_seconds]).to eq(600)
+          end
+
+          it "preserves the value of skip_cert_verify from the file" do
+            expect(config[:skip_cert_verify]).to eq true
+          end
+
+          it "preserves the value for app_bits_upload_grace_period_in_seconds" do
+            expect(config[:app_bits_upload_grace_period_in_seconds]).to eq(600)
+          end
+        end
+
+        context "and the values are invalid" do
+          let(:tmpdir) { Dir.mktmpdir }
+          let (:config_from_file) { Config.from_file(File.join(tmpdir, "incorrect_overridden_config.yml")) }
+
+          before do
+            config_hash = YAML.load_file(File.join(fixture_path, "config/minimal_config.yml"))
+            config_hash["app_bits_upload_grace_period_in_seconds"] = -2345
+
+            File.open(File.join(tmpdir, "incorrect_overridden_config.yml"), "w") do |f|
+              YAML.dump(config_hash, f)
+            end
+          end
+
+          after do
+            FileUtils.rm_r(tmpdir)
+          end
+
+          it "reset the negative value of app_bits_upload_grace_period_in_seconds to 0" do
+            expect(config_from_file[:app_bits_upload_grace_period_in_seconds]).to eq(0)
+          end
+        end
       end
     end
 
-    describe ".configure" do
+    describe ".configure_components" do
       before do
         @test_config = {
           packages: {},
@@ -48,6 +136,7 @@ module VCAP::CloudController
         expect(AppObserver).to receive(:configure).with(
           @test_config,
           message_bus,
+          instance_of(DeaPool),
           instance_of(StagerPool))
 
         Config.configure_components(@test_config)
@@ -62,6 +151,13 @@ module VCAP::CloudController
 
         message_bus.should_receive(:subscribe).at_least(:once)
         DeaClient.dea_pool.register_subscriptions
+      end
+
+      it "starts the staging task completion handler" do
+        StagingCompletionHandler.any_instance.should_receive(:subscribe!)
+
+        Config.configure_components(@test_config)
+        Config.configure_components_depending_on_message_bus(message_bus)
       end
 
       it "sets the legacy bulk" do
@@ -84,34 +180,22 @@ module VCAP::CloudController
         Config.configure_components(config)
       end
 
-      it "sets up the service plan" do
-        config = @test_config.merge(trial_db: "no quota")
-        ServicePlan.should_receive(:configure).with("no quota")
-        Config.configure_components(config)
-      end
-
-      it "sets up the service plan" do
-        config = @test_config.merge(trial_db: "no quota")
-        ServicePlan.should_receive(:configure).with("no quota")
-        Config.configure_components(config)
-      end
-
       it "sets up app with whether custom buildpacks are enabled" do
         config = @test_config.merge(disable_custom_buildpacks: true)
 
         expect {
           Config.configure_components(config)
         }.to change {
-          App.custom_buildpacks_enabled?
-        }.to(false)
+          VCAP::CloudController::Config.config[:disable_custom_buildpacks]
+        }.to(true)
 
         config = @test_config.merge(disable_custom_buildpacks: false)
 
         expect {
           Config.configure_components(config)
         }.to change {
-          App.custom_buildpacks_enabled?
-        }.to(true)
+          VCAP::CloudController::Config.config[:disable_custom_buildpacks]
+        }.to(false)
       end
     end
   end

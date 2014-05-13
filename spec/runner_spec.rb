@@ -10,11 +10,12 @@ module VCAP::CloudController
     let(:argv) { [] }
 
     before do
+      allow(Steno).to receive(:init)
       MessageBus::Configurer.any_instance.stub(:go).and_return(message_bus)
       VCAP::Component.stub(:register)
       EM.stub(:run).and_yield
-      EM.stub(:add_periodic_timer).and_yield
-
+      VCAP::CloudController::Varz.stub(:setup_updates)
+      VCAP::PidFile.stub(:new) { double(:pidfile, unlink_at_exit: nil) }
       registrar.stub(:message_bus => message_bus)
       registrar.stub(:register_with_router)
     end
@@ -22,59 +23,94 @@ module VCAP::CloudController
     subject do
       Runner.new(argv + ["-c", config_file.path]).tap do |r|
         r.stub(:start_thin_server)
-        r.stub(:create_pidfile)
         r.stub(:router_registrar => registrar)
       end
     end
 
     describe "#run!" do
-      def self.it_configures_stacks
-        it "configures the stacks" do
-          Stack.should_receive(:configure)
+      shared_examples "running Cloud Controller" do
+        it "creates a pidfile" do
+          expect(VCAP::PidFile).to receive(:new).with("/tmp/cloud_controller.pid")
           subject.run!
         end
-      end
 
-      def self.it_runs_dea_client
-        it "starts running dea client (one time set up to start tracking deas)" do
-          DeaClient.should_receive(:run)
-          subject.run!
-        end
-      end
-
-      def self.it_runs_app_stager
-        it "starts running app stager (one time set up to start tracking stagers)" do
-          AppObserver.should_receive(:run)
-          subject.run!
-        end
-      end
-
-      def self.it_handles_health_manager_requests
-        it "starts handling health manager requests" do
-          HealthManagerRespondent.any_instance.should_receive(:handle_requests)
-          subject.run!
-        end
-      end
-
-      def self.it_handles_hm9000_requests
-        it "starts handling hm9000 requests" do
-          hm9000respondent = double(:hm9000respondent)
-          HM9000Respondent.should_receive(:new).with(DeaClient, message_bus, true).and_return(hm9000respondent)
-          hm9000respondent.should_receive(:handle_requests)
-          subject.run!
-        end
-      end
-
-      def self.it_registers_a_log_counter
         it "registers a log counter with the component" do
           log_counter = Steno::Sink::Counter.new
-          Steno::Sink::Counter.should_receive(:new).once.and_return(log_counter)
+          expect(Steno::Sink::Counter).to receive(:new).once.and_return(log_counter)
 
-          Steno.should_receive(:init) do |steno_config|
+          expect(Steno).to receive(:init) do |steno_config|
             expect(steno_config.sinks).to include log_counter
           end
 
-          VCAP::Component.should_receive(:register).with(hash_including(:log_counter => log_counter))
+          expect(VCAP::Component).to receive(:register).with(hash_including(:log_counter => log_counter))
+          subject.run!
+        end
+
+        it "sets up database" do
+          expect(DB).to receive(:load_models)
+          subject.run!
+        end
+
+        it "configures components" do
+          expect(Config).to receive(:configure_components)
+          subject.run!
+        end
+
+        it "sets up loggregator emitter" do
+          loggregator_emitter = double(:loggregator_emitter)
+          expect(LoggregatorEmitter::Emitter).to receive(:new).and_return(loggregator_emitter)
+          expect(Loggregator).to receive(:emitter=).with(loggregator_emitter)
+          subject.run!
+        end
+
+        it "configures components depending on message bus" do
+          expect(Config).to receive(:configure_components_depending_on_message_bus).with(message_bus)
+          subject.run!
+        end
+
+        it "starts thin server on set up bind address" do
+          subject.unstub(:start_thin_server)
+          expect(VCAP).to receive(:local_ip).and_return("some_local_ip")
+          expect(Thin::Server).to receive(:new).with("some_local_ip", 8181).and_return(double(:thin_server).as_null_object)
+          subject.run!
+        end
+
+        it "starts running dea client (one time set up to start tracking deas)" do
+          expect(DeaClient).to receive(:run)
+          subject.run!
+        end
+
+        it "starts app observer" do
+          expect(AppObserver).to receive(:run)
+          subject.run!
+        end
+
+        it "registers subscription for Bulk API" do
+          expect(LegacyBulk).to receive(:register_subscription)
+          subject.run!
+        end
+
+        it "starts handling hm9000 requests" do
+          hm9000respondent = double(:hm9000respondent)
+          expect(HM9000Respondent).to receive(:new).with(DeaClient, message_bus).and_return(hm9000respondent)
+          expect(hm9000respondent).to receive(:handle_requests)
+          subject.run!
+        end
+
+        it "starts dea respondent" do
+          dea_respondent = double(:dea_respondent)
+          expect(DeaRespondent).to receive(:new).with(message_bus).and_return(dea_respondent)
+          expect(dea_respondent).to receive(:start)
+          subject.run!
+        end
+
+        it "registers with router" do
+          expect(registrar).to receive(:register_with_router)
+          subject.run!
+        end
+
+        it "sets up varz updates" do
+          expect(VCAP::CloudController::Varz).to receive(:setup_updates)
           subject.run!
         end
       end
@@ -87,11 +123,7 @@ module VCAP::CloudController
             Stack.stub(:configure)
           end
 
-          it_configures_stacks
-          it_runs_dea_client
-          it_runs_app_stager
-          it_handles_health_manager_requests
-          it_handles_hm9000_requests
+          it_behaves_like "running Cloud Controller"
 
           describe "when the seed data has not yet been created" do
             before { subject.run! }
@@ -172,15 +204,7 @@ module VCAP::CloudController
       context "when the insert seed flag is not passed in" do
         let(:argv) { [] }
 
-        it_configures_stacks
-        it_runs_dea_client
-        it_runs_app_stager
-        it_handles_health_manager_requests
-        it_handles_hm9000_requests
-
-        # This shouldn't be inside here but unless we run under this wrapper we
-        # end up with state pollution and other tests fail. Should be refactored.
-        it_registers_a_log_counter
+        it_behaves_like "running Cloud Controller"
 
         it "registers with the router" do
           registrar.should_receive(:register_with_router)
@@ -203,6 +227,7 @@ module VCAP::CloudController
         subject.should_receive(:trap).with("TERM")
         subject.should_receive(:trap).with("INT")
         subject.should_receive(:trap).with("QUIT")
+        subject.should_receive(:trap).with("USR2")
         subject.trap_signals
       end
 
@@ -221,9 +246,18 @@ module VCAP::CloudController
           callbacks << blk
         end
 
+        subject.should_receive(:trap).with("USR2") do |_, &blk|
+          callbacks << blk
+        end
+
         subject.trap_signals
 
         subject.should_receive(:stop!).exactly(3).times
+
+        registrar = double(:registrar)
+        subject.should_receive(:router_registrar).and_return(registrar)
+        expect(registrar).to receive(:shutdown)
+
         callbacks.each(&:call)
       end
     end
@@ -278,6 +312,40 @@ module VCAP::CloudController
             end
           end
         end
+      end
+    end
+
+    describe "#start_thin_server" do
+      let(:app) { double(:app) }
+      let(:thin_server) { OpenStruct.new }
+      let(:valid_config_file_path) { File.join(fixture_path, "config/default_overriding_config.yml") }
+
+      subject(:start_thin_server) do
+        runner = Runner.new(argv + ["-c", config_file.path])
+        runner.send(:start_thin_server, app)
+      end
+
+      before do
+        allow(Thin::Server).to receive(:new).and_return(thin_server)
+        allow(thin_server).to receive(:start!)
+      end
+
+      it "gets the timeout from the config" do
+        start_thin_server
+
+        expect(thin_server.timeout).to eq(600)
+      end
+
+      it "uses thin's experimental threaded mode intentionally" do
+        start_thin_server
+
+        expect(thin_server.threaded).to eq(true)
+      end
+
+      it "starts the thin server" do
+        start_thin_server
+
+        expect(thin_server).to have_received(:start!)
       end
     end
   end

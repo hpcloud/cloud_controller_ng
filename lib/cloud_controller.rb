@@ -10,7 +10,9 @@ require "allowy"
 require "eventmachine/schedule_sync"
 
 require "vcap/common"
-require "vcap/errors"
+require "cf-registrar"
+require "vcap/errors/details"
+require "vcap/errors/api_error"
 require "uaa/token_coder"
 
 require "sinatra/vcap"
@@ -18,41 +20,8 @@ require "cloud_controller/security_context"
 require "active_support/core_ext/hash"
 require "active_support/core_ext/object/to_query"
 require "active_support/json/encoding"
-require "cloud_controller/models"
-require "cloud_controller/jobs"
-require "cloud_controller/background_job_environment"
-require "cloud_controller/db_migrator"
 
-module VCAP::CloudController
-  include VCAP::RestAPI
-
-  Errors = VCAP::Errors
-
-  class Controller < Sinatra::Base
-    register Sinatra::VCAP
-
-    attr_reader :config
-
-    vcap_configure(logger_name: "cc.api", reload_path: File.dirname(__FILE__))
-
-    def initialize(config, token_decoder)
-      @config = config
-      @token_decoder = token_decoder
-      super()
-    end
-
-
-    before do
-      VCAP::CloudController::SecurityContext.clear
-      auth_token = env["HTTP_AUTHORIZATION"]
-
-      token_information = decode_token(auth_token)
-
-      if token_information
-        token_information['user_id'] ||= token_information['client_id']
-        uaa_id = token_information['user_id']
-      end
-
+<<<<<<< HEAD
       if uaa_id
         user = User.find(:guid => uaa_id.to_s)
         if user.nil?
@@ -113,8 +82,24 @@ module VCAP::CloudController
     end
   end
 end
+=======
+module VCAP::CloudController; end
 
-require "vcap/errors"
+require "vcap/errors/invalid_relation"
+require "vcap/errors/missing_required_scope_error"
+require "sequel_plugins/sequel_plugins"
+require "vcap/sequel_add_association_dependencies_monkeypatch"
+require "access/access"
+
+
+require "cloud_controller/jobs"
+require "cloud_controller/background_job_environment"
+require "cloud_controller/db_migrator"
+require "cloud_controller/steno_configurer"
+require "cloud_controller/constants"
+>>>>>>> upstream/master
+
+require "cloud_controller/controller"
 
 require "cloud_controller/config"
 require "cloud_controller/db"
@@ -124,10 +109,11 @@ require "cloud_controller/app_stager_task"
 require "cloud_controller/controllers"
 require "cloud_controller/roles"
 require "cloud_controller/encryptor"
-require "cloud_controller/blobstore/blobstore"
-require "cloud_controller/blobstore/blobstore_url_generator"
+require "cloud_controller/blobstore/client"
+require "cloud_controller/blobstore/url_generator"
 require "cloud_controller/dependency_locator"
 require "cloud_controller/controller_factory"
+require "cloud_controller/start_app_message"
 
 require "cloud_controller/legacy_api/legacy_api_base"
 require "cloud_controller/legacy_api/legacy_info"
@@ -141,16 +127,21 @@ require "cloud_controller/dea/dea_pool"
 require "cloud_controller/dea/dea_client"
 require "cloud_controller/dea/dea_respondent"
 
-require "cloud_controller/stager/stager_pool"
+require "cloud_controller/diego/diego_client"
 
-require "cloud_controller/health_manager_client"
+require "cloud_controller/stager/stager_pool"
+require "cloud_controller/stager/staging_completion_handler"
+
 require "cloud_controller/hm9000_client"
-require "cloud_controller/health_manager_respondent"
 require "cloud_controller/hm9000_respondent"
 
 require "cloud_controller/task_client"
 
-require "cloud_controller/hashify"
 require "cloud_controller/structured_error"
 require "cloud_controller/http_request_error"
 require "cloud_controller/http_response_error"
+
+require "cloud_controller/install_buildpacks"
+require "cloud_controller/upload_buildpack"
+
+require "services"

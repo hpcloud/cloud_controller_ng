@@ -9,9 +9,11 @@ language: ruby
 bundler_args: --deployment --without development
 
 rvm:
-  - 1.9.3-p484
+  - 1.9.3-p545
 
-script: bundle exec parallel_rspec spec$SUB -s integration -n $THREADS -o "--format $FORMAT --order rand:$RANDOM"
+script:
+  - bundle exec parallel_rspec spec$SUB -s 'integration|acceptance' -n $THREADS -o "--format $FORMAT --order rand:$RANDOM"
+  - bundle exec rake rubocop
 
 env:
   global:
@@ -39,8 +41,8 @@ before_install:
 before_script:
   - sh -c "if [ '$DB' = 'postgres' ]; then psql  -c 'create database cc_test_;' -U postgres; psql  -c 'create database cc_test_2;' -U postgres; psql  -c 'create database cc_test_3;' -U postgres; fi"
   - sh -c "if [ '$DB' = 'mysql' ];    then mysql -e 'create database cc_test_; create database cc_test_2; create database cc_test_3;'; fi"
+  - gem install --version 0.8.9 faraday
   - gem install travis-artifacts
 
-after_success: # and this only on success
-  - travis-artifacts upload --path doc/api --target-path api_docs/$TRAVIS_BUILD_ID
-  - "echo https://s3-us-west-1.amazonaws.com/cc-travis-api-doc/api_docs/$TRAVIS_BUILD_ID/index.html"
+after_script: # and this only on success, fail the whole build if it fails
+  - "[ $TRAVIS_TEST_RESULT == 0 ] && travis-artifacts upload --path doc/api --target-path api_docs/$TRAVIS_BUILD_ID && echo https://s3-us-west-1.amazonaws.com/cc-travis-api-doc/api_docs/$TRAVIS_BUILD_ID/index.html"

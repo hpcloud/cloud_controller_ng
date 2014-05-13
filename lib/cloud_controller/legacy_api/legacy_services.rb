@@ -25,7 +25,7 @@ module VCAP::CloudController
                                   :version => legacy_attrs["version"]})
       unless svc
         msg = "#{legacy_attrs["vendor"]}-#{legacy_attrs["version"]}"
-        raise ServiceInvalid.new(msg)
+        raise ApiError.new_from_details("ServiceInvalid", msg)
       end
 
       plans = svc.service_plans_dataset.filter(:name => LEGACY_PLAN_OVERIDE)
@@ -40,7 +40,8 @@ module VCAP::CloudController
       }
 
       req = Yajl::Encoder.encode(attrs)
-      svc_api = VCAP::CloudController::ServiceInstancesController.new(config, logger, env, params, req)
+      controller_factory = CloudController::ControllerFactory.new(config, logger, env, params, req)
+      svc_api = controller_factory.create_controller(VCAP::CloudController::ServiceInstancesController)
       svc_api.dispatch(:create)
       "{}"
     end
@@ -52,7 +53,9 @@ module VCAP::CloudController
 
     def delete(name)
       service_instance = service_instance_from_name(name)
-      VCAP::CloudController::ServiceInstancesController.new(config, logger, env, params, body).dispatch(:delete, service_instance.guid)
+      controller_factory = CloudController::ControllerFactory.new(config, logger, env, params, body)
+      controller = controller_factory.create_controller(VCAP::CloudController::ServiceInstancesController)
+      controller.dispatch(:delete, service_instance.guid)
       HTTP::OK
     end
 
@@ -96,7 +99,7 @@ module VCAP::CloudController
     def service_instance_from_name(name)
       visible_instances = ManagedServiceInstance.user_visible(SecurityContext.current_user, SecurityContext.admin?)
       svc = visible_instances[:name => name, :space => default_space]
-      raise ServiceInstanceNotFound.new(name) unless svc
+      raise ApiError.new_from_details("ServiceInstanceNotFound", name) unless svc
       svc
     end
 

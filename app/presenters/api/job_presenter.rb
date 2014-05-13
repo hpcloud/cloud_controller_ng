@@ -18,24 +18,67 @@ class JobPresenter < ApiPresenter
   end
 
   def entity_hash
-    {
+    entity_hash = {
       guid: @object.guid,
       status: status
     }
+
+    if job_errored?
+      entity_hash[:error] = error_deprecation_message
+      entity_hash[:error_details] = error_details
+    end
+
+    entity_hash
   end
 
   private
 
+  def error_details
+    if job_has_exception?
+      YAML.load(@object.cf_api_error)
+    else
+      ErrorHasher::UNKNOWN_ERROR_HASH
+    end
+  end
+
+  def job_exception_or_nil
+    if job_has_exception?
+      VCAP::CloudController::ExceptionMarshaler.unmarshal(@object.cf_api_error)
+    else
+      nil
+    end
+  end
+
+  def job_has_exception?
+    @object.cf_api_error
+  end
+
+  def error_deprecation_message
+    "Use of entity>error is deprecated in favor of entity>error_details."
+  end
+
   def status
-    if @object.last_error
+    if job_errored?
       "failed"
-    elsif @object.is_a? NullJob
+    elsif job_missing?
       "finished"
-    elsif @object.locked_at.nil?
+    elsif job_queued?
       "queued"
     else
       "running"
     end
+  end
+
+  def job_queued?
+    @object.locked_at.nil?
+  end
+
+  def job_missing?
+    @object.is_a? NullJob
+  end
+
+  def job_errored?
+    @object.cf_api_error or @object.last_error
   end
 
   class NullJob
@@ -53,6 +96,10 @@ class JobPresenter < ApiPresenter
 
     def run_at
       Time.at(0)
+    end
+
+    def cf_api_error
+      nil
     end
 
     def last_error

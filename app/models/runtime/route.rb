@@ -3,8 +3,8 @@ require 'uri'
 
 module VCAP::CloudController
   class Route < Sequel::Model
-    class InvalidDomainRelation < InvalidRelation; end
-    class InvalidAppRelation < InvalidRelation; end
+    class InvalidDomainRelation < VCAP::Errors::InvalidRelation; end
+    class InvalidAppRelation < VCAP::Errors::InvalidRelation; end
 
     many_to_one :domain
     many_to_one :space
@@ -112,6 +112,7 @@ module VCAP::CloudController
       {:space => spaces}
     end
 
+<<<<<<< HEAD
     def register_oauth_client
       return if !client_secret.blank?
       self.class.db.transaction do
@@ -155,6 +156,10 @@ module VCAP::CloudController
 
     def client_id
       [fqdn, guid].join('-')
+=======
+    def in_suspended_org?
+      space.in_suspended_org?
+>>>>>>> upstream/master
     end
 
     private

@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 require "kato/config"
+=======
+require "cloud_controller/rest_controller/common_params"
+>>>>>>> upstream/master
 
 module VCAP::CloudController::RestController
 
@@ -41,7 +45,8 @@ module VCAP::CloudController::RestController
       @env     = env
       @params  = params
       @body    = body
-      @opts    = parse_params(params)
+      common_params = CommonParams.new(logger)
+      @opts    = common_params.parse(params)
       @sinatra = sinatra
 
       inject_dependencies(dependencies)
@@ -52,6 +57,7 @@ module VCAP::CloudController::RestController
     def inject_dependencies(dependencies = {})
     end
 
+<<<<<<< HEAD
     # Parses and sanitizes query parameters from the sinatra request.
     #
     # @return [Hash] the parsed parameter hash
@@ -84,6 +90,8 @@ module VCAP::CloudController::RestController
       raise Errors::BadQueryParameter
     end
 
+=======
+>>>>>>> upstream/master
     # Main entry point for the rest routes.  Acts as the final location
     # for catching any unhandled sequel and db exceptions.  By calling
     # translate_and_log_exception, they will get logged so that we can
@@ -102,15 +110,16 @@ module VCAP::CloudController::RestController
       check_authentication(op)
       send(op, *args)
     rescue Sequel::ValidationFailed => e
-      logger.error "Validation failed: #{Hashify.exception(e)}"
       raise self.class.translate_validation_exception(e, request_attrs)
+    rescue Sequel::HookFailed => e
+      raise VCAP::Errors::ApiError.new_from_details("InvalidRequest", e.message)
     rescue Sequel::DatabaseError => e
       raise self.class.translate_and_log_exception(logger, e)
     rescue JsonMessage::Error => e
       logger.debug("Rescued JsonMessage::Error at #{__FILE__}:#{__LINE__}\n#{e.inspect}\n#{e.backtrace.join("\n")}")
-      raise MessageParseError.new(e)
-    rescue VCAP::CloudController::InvalidRelation => e
-      raise VCAP::Errors::InvalidRelation.new(e)
+      raise VCAP::Errors::ApiError.new_from_details("MessageParseError", e)
+    rescue VCAP::Errors::InvalidRelation => e
+      raise VCAP::Errors::ApiError.new_from_details("InvalidRelation", e)
     end
 
     # Fetch the current active user.  May be nil
@@ -136,6 +145,16 @@ module VCAP::CloudController::RestController
       @sinatra.headers[name] = value
     end
 
+    def add_warning(warning)
+      escaped_warning = CGI.escape(warning)
+      existing_warning = @sinatra.headers['X-Cf-Warnings']
+
+      new_warning = existing_warning.nil? ?
+          escaped_warning : "#{existing_warning},#{escaped_warning}"
+
+      set_header('X-Cf-Warnings', new_warning)
+    end
+
     def check_authentication(op)
       # The logic here is a bit oddly ordered, but it supports the
       # legacy calls setting a user, but not providing a token.
@@ -143,10 +162,14 @@ module VCAP::CloudController::RestController
       return if VCAP::CloudController::SecurityContext.current_user
       return if VCAP::CloudController::SecurityContext.admin?
 
-      if VCAP::CloudController::SecurityContext.token
-        raise NotAuthorized
+      if VCAP::CloudController::SecurityContext.missing_token?
+        raise VCAP::Errors::ApiError.new_from_details('NotAuthenticated')
+      elsif VCAP::CloudController::SecurityContext.invalid_token?
+        raise VCAP::Errors::ApiError.new_from_details('InvalidAuthToken')
       else
-        raise InvalidAuthToken
+        logger.error "Unexpected condition: valid token with no user/client id " +
+                       "or admin scope. Token hash: #{VCAP::CloudController::SecurityContext.token}"
+        raise VCAP::Errors::ApiError.new_from_details('InvalidAuthToken')
       end
     end
 
@@ -244,7 +267,7 @@ module VCAP::CloudController::RestController
 
       def deprecated_endpoint(path)
         controller.after "#{path}*" do
-          headers["X-Cf-Warning"] ||= "Endpoint deprecated"
+          headers["X-Cf-Warnings"] ||= CGI.escape("Endpoint deprecated")
         end
       end
 
@@ -260,16 +283,16 @@ module VCAP::CloudController::RestController
         controller.before path do
           auth = Rack::Auth::Basic::Request.new(env)
           unless auth.provided? && auth.basic? && auth.credentials == block.call
-            raise Errors::NotAuthorized
+            raise Errors::ApiError.new_from_details("NotAuthorized")
           end
         end
       end
 
       def allow_unauthenticated_access?(op)
-        if @allow_unauthenticated_access_ops
-           @allow_unauthenticated_access_ops.include?(op)
-        else
+        if @allow_unauthenticated_access_to_all_ops
           @allow_unauthenticated_access_to_all_ops
+        elsif @allow_unauthenticated_access_ops
+          @allow_unauthenticated_access_ops.include?(op)
         end
       end
 
@@ -278,7 +301,7 @@ module VCAP::CloudController::RestController
         msg[0] = msg[0] + ":"
         msg.concat(e.backtrace).join("\\n")
         logger.warn(msg.join("\\n"))
-        Errors::InvalidRequest
+        Errors::ApiError.new_from_details("InvalidRequest")
       end
     end
   end

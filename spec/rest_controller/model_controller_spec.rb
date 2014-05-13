@@ -36,10 +36,13 @@ module VCAP::CloudController
       end
     end
 
-    subject(:controller) { controller_class.new({}, logger, env, params, request_body) }
+    subject(:controller) { controller_class.new({}, logger, env, params, request_body, sinatra, dependencies) }
+    let(:sinatra) { double('sinatra') }
+    let(:dependencies) { {object_renderer: object_renderer, collection_renderer: collection_renderer} }
+    let(:object_renderer) { double('object_renderer', render_json: nil) }
+    let(:collection_renderer) { double('collection_renderer', render_json: nil) }
 
     def define_model_class(class_name, table_name)
-      stub_const("VCAP::Errors::#{class_name}NotFound", Errors::AppPackageNotFound)
       stub_const("VCAP::CloudController::#{class_name}Access", BaseAccess)
 
       Class.new(Sequel::Model).tap do |klass|
@@ -55,13 +58,21 @@ module VCAP::CloudController
       end
     end
 
+    let(:details) do
+      double(VCAP::Errors::Details,
+             name: "TestModelNotFound",
+             response_code: 404,
+             code: 12345,
+             message_format: "Test model could not be found.")
+    end
+
     before { VCAP::CloudController::SecurityContext.set(user, scope) }
     after { db.drop_table model_table_name }
 
     describe "#create" do
       it "raises InvalidRequest when a CreateMessage cannot be extracted from the request body" do
         controller_class::CreateMessage.any_instance.stub(:extract).and_return(nil)
-        expect { controller.create }.to raise_error(VCAP::Errors::InvalidRequest)
+        expect { controller.create }.to raise_error(VCAP::Errors::ApiError, /The request is invalid/)
       end
 
       it "calls the hooks in the right order" do
@@ -74,9 +85,22 @@ module VCAP::CloudController
         expect { controller.create }.to change { model_klass.count }.by(1)
       end
 
+      context "when the user's token is missing the required scope" do
+        let(:mock_access) { double(:access) }
+
+        before do
+          allow(BaseAccess).to receive(:new).and_return(mock_access)
+          allow(mock_access).to receive(:cannot?).with(:create_with_token, anything).and_return(true)
+        end
+
+        it 'responds with a 403 Insufficient Scope' do
+          expect { controller.create }.to raise_error(VCAP::Errors::ApiError, /lacks the necessary scopes/)
+        end
+      end
+
       context "when validate access fails" do
         before do
-          controller.stub(:validate_access).and_raise(VCAP::Errors::NotAuthorized)
+          controller.stub(:validate_access).and_raise(VCAP::Errors::ApiError.new_from_details("NotAuthorized"))
 
           controller.should_receive(:before_create).with(no_args).ordered
           model_klass.should_receive(:create_from_hash).ordered.and_call_original
@@ -84,14 +108,14 @@ module VCAP::CloudController
         end
 
         it "raises the validation failure" do
-          expect { controller.create }.to raise_error(VCAP::Errors::NotAuthorized)
+          expect { controller.create }.to raise_error(VCAP::Errors::ApiError, /not authorized/)
         end
 
         it "does not persist the model" do
           before_count = model_klass.count
           begin
             controller.create
-          rescue VCAP::Errors::NotAuthorized
+          rescue VCAP::Errors::ApiError
           end
           after_count = model_klass.count
           expect(after_count).to eq(before_count)
@@ -107,15 +131,13 @@ module VCAP::CloudController
 
         expect(result[0]).to eq(201)
         expect(result[1]).to eq({"Location" => url})
-
-        parsed_json = JSON.parse(result[2])
-        expect(parsed_json.keys).to match_array(%w(metadata entity))
       end
 
       it "should call the serialization instance asssociated with controller to generate response data" do
-        serializer = double
-        controller.should_receive(:serialization).and_return(serializer)
-        serializer.should_receive(:render_json).with(controller_class, instance_of(model_klass), {}).and_return("serialized json")
+        object_renderer.
+          should_receive(:render_json).
+          with(controller_class, instance_of(model_klass), {}).
+          and_return("serialized json")
 
         result = controller.create
         expect(result[2]).to eq("serialized json")
@@ -131,24 +153,27 @@ module VCAP::CloudController
         end
 
         it "raises if validate_access fails" do
-          controller.stub(:validate_access).and_raise(VCAP::Errors::NotAuthorized)
-          expect { controller.read(model.guid) }.to raise_error(VCAP::Errors::NotAuthorized)
+          controller.stub(:validate_access).and_raise(VCAP::Errors::ApiError.new_from_details("NotAuthorized"))
+          expect { controller.read(model.guid) }.to raise_error(VCAP::Errors::ApiError, "You are not authorized to perform the requested action")
         end
 
         it "returns the serialized object if access is validated" do
-          serializer = double
-          controller.should_receive(:serialization).and_return(serializer)
-          serializer.should_receive(:render_json).with(controller_class, model, {}).and_return("serialized json")
+          object_renderer.
+            should_receive(:render_json).
+            with(controller_class, model, {}).
+            and_return("serialized json")
 
           expect(controller.read(model.guid)).to eq("serialized json")
         end
       end
 
       context "when the guid does not match a record" do
+        before do
+          allow(VCAP::Errors::Details).to receive("new").with("TestModelNotFound").and_return(details)
+        end
+
         it "raises a not found exception for the underlying model" do
-          error_class = Class.new(RuntimeError)
-          stub_const("VCAP::CloudController::Errors::TestModelNotFound", error_class)
-          expect { controller.read(SecureRandom.uuid) }.to raise_error(error_class)
+          expect { controller.read(SecureRandom.uuid) }.to raise_error(VCAP::Errors::ApiError, /Test model could not be found/)
         end
       end
     end
@@ -166,8 +191,8 @@ module VCAP::CloudController
         end
 
         it "raises if validate_access fails" do
-          controller.stub(:validate_access).and_raise(VCAP::Errors::NotAuthorized)
-          expect { controller.update(model.guid) }.to raise_error(VCAP::Errors::NotAuthorized)
+          controller.stub(:validate_access).and_raise(VCAP::Errors::ApiError.new_from_details("NotAuthorized"))
+          expect { controller.update(model.guid) }.to raise_error(VCAP::Errors::ApiError, /not authorized/)
         end
 
         it "prevents other processes from updating the same row until the transaction finishes" do
@@ -179,9 +204,10 @@ module VCAP::CloudController
         end
 
         it "returns the serialized updated object if access is validated" do
-          serializer = double
-          controller.should_receive(:serialization).and_return(serializer)
-          serializer.should_receive(:render_json).with(controller_class, instance_of(model_klass), {}).and_return("serialized json")
+          object_renderer.
+            should_receive(:render_json).
+            with(controller_class, instance_of(model_klass), {}).
+            and_return("serialized json")
 
           result = controller.update(model.guid)
           expect(result[0]).to eq(201)
@@ -207,11 +233,14 @@ module VCAP::CloudController
           controller.update(model.guid)
         end
       end
+
       context "when the guid does not match a record" do
+        before do
+          allow(VCAP::Errors::Details).to receive("new").with("TestModelNotFound").and_return(details)
+        end
+
         it "raises a not found exception for the underlying model" do
-          error_class = Class.new(RuntimeError)
-          stub_const("VCAP::CloudController::Errors::TestModelNotFound", error_class)
-          expect { controller.update(SecureRandom.uuid) }.to raise_error(error_class)
+          expect { controller.update(SecureRandom.uuid) }.to raise_error(VCAP::Errors::ApiError, /Test model could not be found/)
         end
       end
     end
@@ -263,7 +292,7 @@ module VCAP::CloudController
         context "when deleting with recursive set to true" do
           let(:run_delayed_job) { Delayed::Worker.new.work_off if Delayed::Job.last }
 
-          subject(:controller) { controller_class.new({}, logger, env, params.merge("recursive" => "true"), request_body) }
+          before { params.merge!("recursive" => "true") }
 
           it "successfully deletes" do
             expect {
@@ -297,7 +326,7 @@ module VCAP::CloudController
           it "raises an association error" do
             expect {
               controller.do_delete(model)
-            }.to raise_error(VCAP::Errors::AssociationNotEmpty)
+            }.to raise_error(VCAP::Errors::ApiError, /associations/)
           end
         end
       end
@@ -326,25 +355,35 @@ module VCAP::CloudController
       context "when async" do
         let(:params) { {"async" => "true"} }
 
-        it "enqueues a job to delete the object" do
-          expect {
+        context "and using the job enqueuer" do
+          let(:job) { double(Jobs::Runtime::ModelDeletion) }
+          let(:enqueuer) { double(Jobs::Enqueuer) }
+          let(:presenter) { double(JobPresenter) }
+
+          before do
+            allow(Jobs::Runtime::ModelDeletion).to receive(:new).with(model_klass, model.guid).and_return(job)
+            allow(Jobs::Enqueuer).to receive(:new).with(job, queue: "cc-generic").and_return(enqueuer)
+            allow(enqueuer).to receive(:enqueue)
+
+            allow(JobPresenter).to receive(:new).and_return(presenter)
+            allow(presenter).to receive(:to_json)
+          end
+
+          it "enqueues a job to delete the object" do
             expect { controller.do_delete(model) }.to_not change { model_klass.count }
-          }.to change {
-            Delayed::Job.count
-          }.by(1)
 
-          job = Delayed::Job.last
-          expect(job.queue).to eq "cc-generic"
-          expect(job.payload_object).to be_a Jobs::Runtime::ModelDeletion
-          expect(job.payload_object.model_class).to eq model_klass
-          expect(job.payload_object.guid).to eq model.guid
-        end
+            expect(Jobs::Runtime::ModelDeletion).to have_received(:new).with(model_klass, model.guid)
+            expect(Jobs::Enqueuer).to have_received(:new).with(job, queue: "cc-generic")
+            expect(enqueuer).to have_received(:enqueue)
+          end
 
-        it "returns a 202 with the job information" do
-          http_code, body = controller.do_delete(model)
+          it "returns a 202 with the job information" do
+            http_code, body = controller.do_delete(model)
 
-          expect(http_code).to eq(202)
-          expect(body).to include('"status": "queued"')
+            expect(http_code).to eq(202)
+            expect(JobPresenter).to have_received(:new)
+            expect(presenter).to have_received(:to_json)
+          end
         end
 
         context "when the model has active associations" do
@@ -368,7 +407,7 @@ module VCAP::CloudController
 
         controller_class.stub(path: fake_class_path)
 
-        RestController::Paginator.should_receive(:render_json).with(
+        collection_renderer.should_receive(:render_json).with(
           controller_class,
           filtered_dataset,
           fake_class_path,
@@ -397,33 +436,44 @@ module VCAP::CloudController
             end
           end
 
-          context "and the user is not authenticated" do
+          context "and the user does not have the authorization" do
+            let(:scope) { {'scope' => ['cloud_controller.read', 'cloud_controller.write']} }
+
+            before do
+              dataset = double(:dataset)
+              allow(dataset).to receive(:where).with(:guid => model.guid).and_return([])
+              allow(model.class).to receive(:user_visible).with(user, false).and_return(dataset)
+            end
+
             it "finds the model and does not grant access" do
-              VCAP::CloudController::SecurityContext.set(nil)
               expect {
                 controller.find_guid_and_validate_access(:read, model.guid)
-              }.to raise_error Errors::NotAuthenticated
+              }.to raise_error Errors::ApiError, /not authorized/
             end
           end
 
-          context "and the user is not allowed access" do
+          context "and the user does not have the necessary scopes" do
             let(:scope) { {'scope' => []} }
 
             it "finds the model and does not grant access" do
               expect {
                 controller.find_guid_and_validate_access(:read, model.guid)
-              }.to raise_error Errors::NotAuthorized
+              }.to raise_error Errors::ApiError, /lacks the necessary scopes/
             end
           end
         end
       end
 
       context "when a model does not exist" do
+        before do
+          allow(VCAP::Errors::Details).to receive("new").with("TestModelNotFound").and_return(details)
+        end
+
         context "and a find_model is supplied" do
           it "should raise Model Not Found" do
             expect {
               controller.find_guid_and_validate_access(:read, model.guid, App)
-            }.to raise_error Errors::TestModelNotFound
+            }.to raise_error(Errors::ApiError, /could not be found/)
           end
         end
 
@@ -431,7 +481,7 @@ module VCAP::CloudController
           it "should raise Model Not Found" do
             expect {
               controller.find_guid_and_validate_access(:read, "bogus_guid")
-            }.to raise_error Errors::TestModelNotFound
+            }.to raise_error(Errors::ApiError, /could not be found/)
           end
         end
       end

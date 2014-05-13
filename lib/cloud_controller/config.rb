@@ -10,8 +10,13 @@ module VCAP::CloudController
   class Config < VCAP::Config
     define_schema do
       {
+<<<<<<< HEAD
         :port => Integer,
         :instance_socket => String,
+=======
+        :external_port => Integer,
+        :external_protocol => String,
+>>>>>>> upstream/master
         :info => {
           :name            => String,
           :build           => String,
@@ -30,7 +35,9 @@ module VCAP::CloudController
         :app_usage_events => {
           :cutoff_age_in_days => Fixnum
         },
+        optional(:billing_event_writing_enabled) => bool,
         :default_app_memory => Fixnum,
+        optional(:maximum_app_disk_in_mb) => Fixnum,
         :maximum_health_check_timeout => Fixnum,
 
         optional(:allow_debug) => bool,
@@ -80,6 +87,16 @@ module VCAP::CloudController
           :auth_password => String,
         },
 
+        :staging => {
+          :timeout_in_seconds => Fixnum,
+          optional(:minimum_staging_memory_mb) => Fixnum,
+          optional(:minimum_staging_disk_mb) => Fixnum,
+          :auth => {
+            :user => String,
+            :password => String,
+          }
+        },
+
         :cc_partition => String,
 
         optional(:default_account_capacity) => {
@@ -119,34 +136,54 @@ module VCAP::CloudController
         },
 
         :packages => {
-          optional(:max_droplet_size) => Integer,
+          optional(:max_package_size) => Integer,
           optional(:app_package_directory_key) => String,
           :fog_connection => Hash
         },
 
         :droplets => {
-          optional(:max_droplet_size) => Integer,
           optional(:droplet_directory_key) => String,
           :fog_connection => Hash
         },
 
         :db_encryption_key => String,
 
-        optional(:trial_db) => {
-          :guid => String,
-        },
-
         optional(:tasks_disabled) => bool,
 
-        optional(:hm9000_noop) => bool,
         optional(:flapping_crash_count_threshold) => Integer,
 
         optional(:varz_port) => Integer,
         optional(:varz_user) => String,
         optional(:varz_password) => String,
-        optional(:varz_update_user_count_period_in_seconds) => Float,
         optional(:disable_custom_buildpacks) => bool,
-        optional(:broker_client_timeout_seconds) => Integer
+        optional(:broker_client_timeout_seconds) => Integer,
+        optional(:uaa_client_name) => String,
+        optional(:uaa_client_secret) => String,
+
+        :renderer => {
+          :max_results_per_page => Integer,
+          :default_results_per_page => Integer,
+        },
+
+        optional(:loggregator) => {
+          optional(:router) => String,
+          optional(:shared_secret) => String,
+        },
+
+        optional(:request_timeout_in_seconds) => Integer,
+        optional(:skip_cert_verify) => bool,
+
+        optional(:install_buildpacks) => [
+          {
+            "name" => String,
+            optional("package") => String,
+            optional("file") => String,
+            optional("enabled") => bool,
+            optional("locked") => bool,
+            optional("position") => Integer,
+          }
+        ],
+        optional(:app_bits_upload_grace_period_in_seconds) => Integer
       }
     end
 
@@ -198,8 +235,6 @@ module VCAP::CloudController
 
         QuotaDefinition.configure(config)
         Stack.configure(config[:stacks_file])
-        ServicePlan.configure(config[:trial_db])
-        App.configure(!config[:disable_custom_buildpacks])
 
         run_initializers(config)
       end
@@ -207,13 +242,19 @@ module VCAP::CloudController
       def configure_components_depending_on_message_bus(message_bus)
         @message_bus = message_bus
         stager_pool = StagerPool.new(@config, message_bus)
+        dea_pool = DeaPool.new(message_bus)
 
+<<<<<<< HEAD
         health_manager_client = HealthManagerClient.new(message_bus)
         AppObserver.configure(@config, message_bus, stager_pool, health_manager_client)
+=======
+        AppObserver.configure(@config, message_bus, dea_pool, stager_pool)
+>>>>>>> upstream/master
 
-        dea_pool = DeaPool.new(message_bus)
         blobstore_url_generator = CloudController::DependencyLocator.instance.blobstore_url_generator
-        DeaClient.configure(@config, message_bus, dea_pool, blobstore_url_generator)
+        DeaClient.configure(@config, message_bus, dea_pool, stager_pool, blobstore_url_generator)
+        diego_client = DiegoClient.new(message_bus, blobstore_url_generator)
+        StagingCompletionHandler.new(message_bus, diego_client).subscribe!
 
         LegacyBulk.configure(@config, message_bus)
       end
@@ -221,7 +262,6 @@ module VCAP::CloudController
       def config_dir
         @config_dir ||= File.expand_path("../../../config", __FILE__)
       end
-
 
       def run_initializers(config)
         return if @initialized
@@ -234,10 +274,22 @@ module VCAP::CloudController
         @initialized = true
       end
 
-      private
       def merge_defaults(config)
         config[:stacks_file] ||= File.join(config_dir, "stacks.yml")
+        config[:maximum_app_disk_in_mb] ||= 2048
+        config[:request_timeout_in_seconds] ||= 300
         config[:directories] ||= {}
+        config[:billing_event_writing_enabled] = true if config[:billing_event_writing_enabled].nil?
+        config[:skip_cert_verify] = false if config[:skip_cert_verify].nil?
+        config[:app_bits_upload_grace_period_in_seconds] ||= 0
+        sanitize(config)
+      end
+
+      private
+
+      def sanitize(config)
+        grace_period = config[:app_bits_upload_grace_period_in_seconds]
+        config[:app_bits_upload_grace_period_in_seconds] = 0 if grace_period < 0
         config
       end
 
