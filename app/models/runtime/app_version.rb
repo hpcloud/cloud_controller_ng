@@ -13,10 +13,12 @@ module VCAP::CloudController
       validates_presence :version_guid
     end
 
-    def rollback
+    def rollback(code_only)
       app.droplet_hash = droplet.droplet_hash
-      app.instances    = instances
-      app.memory       = memory
+      if !code_only
+        app.instances    = instances
+        app.memory       = memory
+      end
 
       app.version_description = "rolled back to v#{version_count}"
       app.version_updated = true

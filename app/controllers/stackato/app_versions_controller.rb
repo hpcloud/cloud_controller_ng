@@ -16,9 +16,15 @@ module VCAP::CloudController
     post "#{path_guid}/rollback", :rollback_version
     def rollback_version(guid)
       version = find_guid_and_validate_access(:update, guid)
-
+      begin
+        body_params = Yajl::Parser.parse(body)
+        code_only = body_params.fetch('code_only', false)
+      rescue
+        logger.debug("failed to read body: #{$!}")
+        code_only = false
+      end
       if version
-        version.rollback
+        version.rollback(code_only)
         return [204, {}, nil]
       else
         logger.warn "Unable to find version #{guid} for app"
