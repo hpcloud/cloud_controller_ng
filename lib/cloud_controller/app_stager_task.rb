@@ -45,8 +45,7 @@ module VCAP::CloudController
     end
 
     def stage(&completion_callback)
-<<<<<<< HEAD
-      @stager_id = @stager_pool.find_stager(@app.stack.name, @app.memory, @app.distribution_zone)
+      @stager_id = @stager_pool.find_stager(@app.stack.name, staging_task_memory_mb, staging_task_disk_mb, @app.distribution_zone)
       if !@stager_id
         parts = ["stack #{@app.stack.name}", "mem #{@app.memory}"]
         if @app.distribution_zone && @app.distribution_zone != "default"
@@ -54,13 +53,8 @@ module VCAP::CloudController
         else
           partString = parts.join(" and ")
         end
-        raise Errors::StagingError, "no available stagers for #{partString}" 
+        raise Errors::ApiError.new_from_details("StagingError", "no available stagers for #{partString}")
       end
-=======
-      @stager_id = @stager_pool.find_stager(@app.stack.name, staging_task_memory_mb, staging_task_disk_mb)
-      raise Errors::ApiError.new_from_details("StagingError", "no available stagers") unless @stager_id
-
->>>>>>> upstream/master
       subject = "staging.#{@stager_id}.start"
       @multi_message_bus_request = MultiResponseMessageBusRequest.new(@message_bus, subject)
 

@@ -57,11 +57,7 @@ module VCAP::CloudController
       app.staged?.should be_false
 
       VCAP.stub(:secure_uuid) { "some_task_id" }
-<<<<<<< HEAD
-      stager_pool.stub(:find_stager).with(app.stack.name, 1024, "default").and_return(stager_id)
-=======
-      stager_pool.stub(:find_stager).with(app.stack.name, 1024, anything).and_return(stager_id)
->>>>>>> upstream/master
+      stager_pool.stub(:find_stager).with(app.stack.name, 1024, anything, "default").and_return(stager_id)
 
       EM.stub(:add_timer)
       EM.stub(:defer).and_yield
@@ -85,18 +81,11 @@ module VCAP::CloudController
       end
     end
 
-<<<<<<< HEAD
-    context 'when the app memory requirement exceeds the staging memory requirement (1024)' do
-      it 'should request a stager with the app memory requirement' do
-        app.memory = 1025
-        stager_pool.should_receive(:find_stager).with(app.stack.name, 1025, "default").and_return(stager_id)
-        staging_task.stage
-=======
     describe "staging memory requirements" do
       context 'when the app memory requirement exceeds the staging memory requirement (1024)' do
         it 'should request a stager with the app memory requirement' do
           app.memory = 1025
-          stager_pool.should_receive(:find_stager).with(app.stack.name, 1025, anything).and_return(stager_id)
+          stager_pool.should_receive(:find_stager).with(app.stack.name, 1025, anything, "default").and_return(stager_id)
           staging_task.stage
         end
       end
@@ -136,7 +125,6 @@ module VCAP::CloudController
           stager_pool.should_receive(:find_stager).with(app.stack.name, anything, 123).and_return(stager_id)
           staging_task.stage
         end
->>>>>>> upstream/master
       end
     end
 

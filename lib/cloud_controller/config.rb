@@ -244,12 +244,8 @@ module VCAP::CloudController
         stager_pool = StagerPool.new(@config, message_bus)
         dea_pool = DeaPool.new(message_bus)
 
-<<<<<<< HEAD
         health_manager_client = HealthManagerClient.new(message_bus)
-        AppObserver.configure(@config, message_bus, stager_pool, health_manager_client)
-=======
-        AppObserver.configure(@config, message_bus, dea_pool, stager_pool)
->>>>>>> upstream/master
+        AppObserver.configure(@config, message_bus, dea_pool, stager_pool, health_manager_client)
 
         blobstore_url_generator = CloudController::DependencyLocator.instance.blobstore_url_generator
         DeaClient.configure(@config, message_bus, dea_pool, stager_pool, blobstore_url_generator)

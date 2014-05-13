@@ -86,7 +86,6 @@ module VCAP::CloudController
         raise VCAP::Errors::ApiError.new_from_details("AssociationNotEmpty", "service_bindings", app.class.table_name)
       end
 
-<<<<<<< HEAD
       name = app[:name]
       event = {
         :user => SecurityContext.current_user,
@@ -96,14 +95,11 @@ module VCAP::CloudController
         :message => "Deleted app '#{name}'"
       }
       logger.info("TIMELINE #{event.to_json}")
-      @app_event_repository.record_app_delete_request(app, SecurityContext.current_user, recursive?)
-=======
       @app_event_repository.record_app_delete_request(
           app,
           SecurityContext.current_user,
           SecurityContext.current_user_email,
           recursive?)
->>>>>>> upstream/master
       app.destroy
 
       [ HTTP::NO_CONTENT, nil ]
@@ -180,8 +176,7 @@ module VCAP::CloudController
         DeaClient.update_uris(app)
       end
 
-<<<<<<< HEAD
-      @app_event_repository.record_app_update(app, SecurityContext.current_user, request_attrs)
+      @app_event_repository.record_app_update(app, SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
       update_health_manager_for_autoscaling(app)
 
       event = {
@@ -202,9 +197,6 @@ module VCAP::CloudController
       changes[:appid] = app.guid
       changes[:react] = false
       @health_manager_client.update_autoscaling_fields(changes)
-=======
-      @app_event_repository.record_app_update(app, SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
->>>>>>> upstream/master
     end
 
     define_messages

@@ -100,19 +100,18 @@ bulk_api:
 # App staging parameters
 staging:
   # Max duration for staging process
-<<<<<<< HEAD
   max_staging_runtime: 480 # secs
+  timeout_in_seconds: 120 # secs
+  minimum_staging_memory_mb: 1024
+  minimum_staging_disk_mb: 4096
+  
   # Check zipfiles for oversize files before unzipping them.
   # This streams zipfiles, counting the bytes of each file, because
   # zipfiles created without the zip64 extensions truncate the size field
   # in the directory to the low 32 bits.
   # https://bugs.activestate.com/show_bug.cgi?id=102802
   check_zipfile_actual_contents_size: true
-=======
-  timeout_in_seconds: 120 # secs
-  minimum_staging_memory_mb: 1024
-  minimum_staging_disk_mb: 4096
->>>>>>> upstream/master
+  
   auth:
     user: placeholder
     password: placeholder

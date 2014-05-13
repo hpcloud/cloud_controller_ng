@@ -7,11 +7,7 @@ module VCAP::CloudController
     class << self
       extend Forwardable
 
-<<<<<<< HEAD
-      def configure(config, message_bus, stager_pool, health_manager_client)
-=======
-      def configure(config, message_bus, dea_pool, stager_pool)
->>>>>>> upstream/master
+      def configure(config, message_bus, dea_pool, stager_pool, health_manager_client)
         @config = config
         @message_bus = message_bus
         @dea_pool = dea_pool

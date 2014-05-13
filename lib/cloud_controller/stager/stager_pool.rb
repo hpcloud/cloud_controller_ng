@@ -24,22 +24,13 @@ module VCAP::CloudController
         @stager_advertisements << advertisement
       end
     end
-<<<<<<< HEAD
-  
-    def find_stager(stack, memory, zone="default")
-=======
 
-    def find_stager(stack, memory, disk)
->>>>>>> upstream/master
+    def find_stager(stack, memory, disk, zone="default")
       mutex.synchronize do
         validate_stack_availability(stack)
 
         prune_stale_advertisements
-<<<<<<< HEAD
-        best_ad = top_5_stagers_for(memory, stack, zone).sample
-=======
-        best_ad = top_5_stagers_for(memory, disk, stack).sample
->>>>>>> upstream/master
+        best_ad = top_5_stagers_for(memory, disk, stack, zone).sample
         best_ad && best_ad.stager_id
       end
     end
@@ -55,15 +46,11 @@ module VCAP::CloudController
     end
 
     private
-<<<<<<< HEAD
-    def top_5_stagers_for(memory, stack, zone)
+    def top_5_stagers_for(memory, disk, stack, zone)
       @stager_advertisements.select do |advertisement|
-        advertisement.meets_needs?(memory, stack) && advertisement.accepts_zone?(zone)
-=======
-    def top_5_stagers_for(memory, disk, stack)
-      @stager_advertisements.select do |advertisement|
-        advertisement.meets_needs?(memory, stack) && advertisement.has_sufficient_disk?(disk)
->>>>>>> upstream/master
+        advertisement.meets_needs?(memory, stack) &&
+          advertisement.has_sufficient_disk?(disk) &&
+          advertisement.accepts_zone?(zone)
       end.sort do |advertisement_a, advertisement_b|
         advertisement_a.available_memory <=> advertisement_b.available_memory
       end.last(5)

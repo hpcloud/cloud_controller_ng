@@ -35,37 +35,23 @@ module VCAP::CloudController
 
     default_order_by :name
 
-<<<<<<< HEAD
-    export_attributes :guid, :name, :production,
-      :space_guid, :stack_guid, :buildpack, :detected_buildpack,
-      :environment_json, :memory, :instances, :disk_quota,
-      :state, :version, :command, :console, :debug,
-      :staging_task_id, :package_state, :health_check_timeout, :system_env_json,
-      :distribution_zone,
-      :description, :sso_enabled, :restart_required, :autoscale_enabled,
-      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances
-
-    import_attributes :name, :production,
-      :space_guid, :stack_guid, :buildpack, :detected_buildpack,
-      :environment_json, :memory, :instances, :disk_quota,
-      :state, :command, :console, :debug,
-      :staging_task_id, :service_binding_guids, :route_guids, :health_check_timeout,
-      :distribution_zone,
-      :description, :sso_enabled, :autoscale_enabled,
-      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances
-=======
     export_attributes :name, :production,
                       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
                       :environment_json, :memory, :instances, :disk_quota,
                       :state, :version, :command, :console, :debug,
-                      :staging_task_id, :package_state, :health_check_timeout
+                      :staging_task_id, :package_state, :health_check_timeout,
+                      :system_env_json, :distribution_zone,
+                      :description, :sso_enabled, :restart_required, :autoscale_enabled,
+                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances
 
     import_attributes :name, :production,
                       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
                       :environment_json, :memory, :instances, :disk_quota,
                       :state, :command, :console, :debug,
-                      :staging_task_id, :service_binding_guids, :route_guids, :health_check_timeout
->>>>>>> upstream/master
+                      :staging_task_id, :service_binding_guids, :route_guids, :health_check_timeout,
+                      :distribution_zone,
+                      :description, :sso_enabled, :autoscale_enabled,
+                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances
 
     strip_attributes :name
 
