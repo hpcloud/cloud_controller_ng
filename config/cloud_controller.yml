@@ -189,5 +189,4 @@ disable_custom_buildpacks: false
 broker_client_timeout_seconds: 60
 maximum_health_check_timeout: 180
 
-versions_to_keep: 10
 droplets_to_keep: 5

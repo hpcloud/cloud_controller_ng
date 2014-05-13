@@ -69,21 +69,6 @@ module VCAP::CloudController
       version
     end
 
-    def self.prune_old_versions
-      versions_to_keep = VCAP::CloudController::Config.config[:versions_to_keep] || 5
-      if versions_to_keep <= 0
-        return
-      end
-
-      apps = select_hash_groups(:app_id, :version_count)
-      apps.each do |app, versions|
-        versions_to_remove = versions.sort.reverse.drop(versions_to_keep)
-        versions_to_remove.each do |version|
-          where( :app_id => app, :version_count => version ).destroy
-        end
-      end
-    end
-
     def self.user_visibility_filter(user)
       {:app => App.user_visible(user)}
     end
