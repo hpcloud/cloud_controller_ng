@@ -10,14 +10,10 @@ module VCAP::CloudController
 
     put "#{path_guid}/bits", :upload
     def upload(guid)
-<<<<<<< HEAD
       check_maintenance_mode
-      buildpack = find_guid_and_validate_access(:read_bits, guid)
-=======
       buildpack = find_guid_and_validate_access(:upload, guid)
       raise Errors::ApiError.new_from_details("BuildpackLocked") if buildpack.locked?
 
->>>>>>> upstream/master
       uploaded_file = upload_handler.uploaded_file(params, "buildpack")
       uploaded_filename = upload_handler.uploaded_filename(params, "buildpack")
 
