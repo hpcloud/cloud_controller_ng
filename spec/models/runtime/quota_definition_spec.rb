@@ -2,7 +2,8 @@ require "spec_helper"
 
 module VCAP::CloudController
   describe VCAP::CloudController::QuotaDefinition, type: :model do
-    let(:quota_definition) { QuotaDefinition.make }
+    let(:quota_definition) { QuotaDefinition.make(:allow_sudo => false,
+                                                  :total_droplets => 7) }
 
     it_behaves_like "a CloudController model", {
         required_attributes: [
@@ -10,6 +11,7 @@ module VCAP::CloudController
             :non_basic_services_allowed,
             :total_services,
             :total_routes,
+            :total_droplets,
             :memory_limit,
         ],
         unique_attributes: [:name],
@@ -27,6 +29,7 @@ module VCAP::CloudController
           non_basic_services_allowed: true,
           total_services: 3,
           total_routes: 1000,
+          total_droplets: 6,
           memory_limit: 20,
       }.each do |field, value|
         it "allows export of #{field}" do

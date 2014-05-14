@@ -5,8 +5,9 @@ module CloudController
       @blobstore = blobstore
     end
 
-    def upload(source_path, droplets_to_keep=0)
-      if droplets_to_keep == 0
+    def upload(source_path)
+      droplets_to_keep = @app.space.organization.quota_definition.total_droplets
+      if droplets_to_keep.nil? || droplets_to_keep == 0
         droplets_to_keep = VCAP::CloudController::Config.config[:droplets_to_keep] || 5
       end
 

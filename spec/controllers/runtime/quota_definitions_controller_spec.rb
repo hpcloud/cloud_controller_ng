@@ -4,9 +4,9 @@ module VCAP::CloudController
   describe VCAP::CloudController::QuotaDefinitionsController, type: :controller do
     include_examples "uaa authenticated api", path: "/v2/quota_definitions"
     include_examples "enumerating objects", path: "/v2/quota_definitions", model: QuotaDefinition
-    include_examples "reading a valid object", path: "/v2/quota_definitions", model: QuotaDefinition, basic_attributes: %w(name non_basic_services_allowed total_routes total_services memory_limit trial_db_allowed)
+    include_examples "reading a valid object", path: "/v2/quota_definitions", model: QuotaDefinition, basic_attributes: %w(name non_basic_services_allowed total_routes total_services total_droplets memory_limit trial_db_allowed)
     include_examples "operations on an invalid object", path: "/v2/quota_definitions"
-    include_examples "creating and updating", path: "/v2/quota_definitions", model: QuotaDefinition, required_attributes: %w(name non_basic_services_allowed total_routes total_services memory_limit), unique_attributes: %w(name)
+    include_examples "creating and updating", path: "/v2/quota_definitions", model: QuotaDefinition, required_attributes: %w(name non_basic_services_allowed total_routes total_services total_droplets memory_limit), unique_attributes: %w(name)
     include_examples "deleting a valid object", path: "/v2/quota_definitions", model: QuotaDefinition, one_to_many_collection_ids: {},
       one_to_many_collection_ids: {
         organizations: lambda { |quota_definition|
@@ -29,6 +29,7 @@ module VCAP::CloudController
         non_basic_services_allowed: false,
         total_services: 1,
         total_routes: 10,
+        total_droplets: 7,
         memory_limit: 1024
       }
     end
@@ -50,6 +51,11 @@ module VCAP::CloudController
 
       it "does allow update of a quota def" do
         put "/v2/quota_definitions/#{existing_quota.guid}", Yajl::Encoder.encode({:total_services => 2}), json_headers(headers)
+        last_response.status.should == 201
+      end
+
+      it "does allow update of a quota.total_droplets field" do
+        put "/v2/quota_definitions/#{existing_quota.guid}", Yajl::Encoder.encode({:total_droplets => 11}), json_headers(headers)
         last_response.status.should == 201
       end
 

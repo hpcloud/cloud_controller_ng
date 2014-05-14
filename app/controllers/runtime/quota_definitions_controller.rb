@@ -5,6 +5,7 @@ module VCAP::CloudController
       attribute  :non_basic_services_allowed, Message::Boolean
       attribute  :total_services,             Integer
       attribute  :total_routes,               Integer
+      attribute  :total_droplets,             Integer, :default => 0
       attribute  :memory_limit,               Integer
       attribute  :trial_db_allowed,           Message::Boolean, :default => false
       attribute  :allow_sudo,                 Message::Boolean, :default => false
