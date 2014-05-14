@@ -1,9 +1,6 @@
-<<<<<<< HEAD
 require "vcap/errors"
 require "stackato/logyard"
 
-=======
->>>>>>> upstream/master
 module VCAP::CloudController
   class AppStopper
     attr_reader :message_bus
@@ -189,8 +186,7 @@ module VCAP::CloudController
           dea_pool.reserve_app_memory(dea_id, app.memory)
           stager_pool.reserve_app_memory(dea_id, app.memory)
         else
-<<<<<<< HEAD
-          logger.error "dea-client.no-resources-available", message: message
+          logger.error "dea-client.no-resources-available", message: scrub_sensitive_fields(start_message)
           app_info = {
               :name => app.name,
               :guid => app.guid,
@@ -199,9 +195,6 @@ module VCAP::CloudController
           msg = "No DEA available satisfying mem #{app.memory}M, stack #{app.stack.name}, and zone #{app.distribution_zone}"
           instance_identifier = Stackato::Logyard.make_instance_identifier(nil, app_info, -1)
           Stackato::Logyard.report_event("NORESOURCES", msg, instance_identifier)
-=======
-          logger.error "dea-client.no-resources-available", message: scrub_sensitive_fields(start_message)
->>>>>>> upstream/master
         end
       end
 

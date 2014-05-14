@@ -93,13 +93,9 @@ module VCAP::CloudController
 
     # We never stage if there is not a start request
     def staging_request
-<<<<<<< HEAD
       { :app_id => @app.guid,
         :space_guid => @app.space_guid,
-=======
-      {
         :app_id => @app.guid,
->>>>>>> upstream/master
         :task_id => task_id,
         :properties => staging_task_properties(@app),
         # All url generation should go to blobstore_url_generator

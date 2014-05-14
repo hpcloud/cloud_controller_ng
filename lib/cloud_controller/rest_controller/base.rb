@@ -1,8 +1,5 @@
-<<<<<<< HEAD
 require "kato/config"
-=======
 require "cloud_controller/rest_controller/common_params"
->>>>>>> upstream/master
 
 module VCAP::CloudController::RestController
 
@@ -57,7 +54,6 @@ module VCAP::CloudController::RestController
     def inject_dependencies(dependencies = {})
     end
 
-<<<<<<< HEAD
     # Parses and sanitizes query parameters from the sinatra request.
     #
     # @return [Hash] the parsed parameter hash
@@ -90,8 +86,6 @@ module VCAP::CloudController::RestController
       raise Errors::BadQueryParameter
     end
 
-=======
->>>>>>> upstream/master
     # Main entry point for the rest routes.  Acts as the final location
     # for catching any unhandled sequel and db exceptions.  By calling
     # translate_and_log_exception, they will get logged so that we can

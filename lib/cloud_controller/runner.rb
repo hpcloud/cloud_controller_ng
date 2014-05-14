@@ -7,13 +7,10 @@ require "cf_message_bus/message_bus"
 require "cf/registrar"
 require "loggregator_emitter"
 require "loggregator"
-<<<<<<< HEAD
 require 'kato/local/node'
 require "kato/proc_ready"
-=======
 require "cloud_controller/globals"
 require "cloud_controller/rack_app_builder"
->>>>>>> upstream/master
 require "cloud_controller/varz"
 
 require_relative "seeds"
@@ -77,7 +74,6 @@ module VCAP::CloudController
       puts "ERROR: There was a problem validating the supplied config: #{ve}"
       exit 1
     rescue => e
-<<<<<<< HEAD
       exit 1
     end
 
@@ -105,12 +101,6 @@ module VCAP::CloudController
       @config[:development_mode]
     end
 
-=======
-      puts "ERROR: Failed loading config from file '#{@config_file}': #{e}"
-      exit 1
-    end
-
->>>>>>> upstream/master
     def run!
       EM.run do
         message_bus = MessageBus::Configurer.new(servers: @config[:message_bus_servers], logger: logger).go
@@ -126,16 +116,12 @@ module VCAP::CloudController
         builder = RackAppBuilder.new
         app = builder.build(@config)
 
-<<<<<<< HEAD
-        router_registrar.register_with_router
-        ::Kato::ProcReady.i_am_ready("cloud_controller_ng")
-=======
         start_thin_server(app)
 
         router_registrar.register_with_router
+        ::Kato::ProcReady.i_am_ready("cloud_controller_ng")
 
         VCAP::CloudController::Varz.setup_updates
->>>>>>> upstream/master
       end
     end
 
@@ -182,12 +168,8 @@ module VCAP::CloudController
       Config.configure_components(@config)
       setup_loggregator_emitter
 
-<<<<<<< HEAD
       @config[:bind_address] = Kato::Local::Node.get_local_node_id
-
-=======
-      @config[:external_host] = VCAP.local_ip(@config[:local_route])
->>>>>>> upstream/master
+      @config[:external_host] = Kato::Local::Node.get_local_node_id
       Config.configure_components_depending_on_message_bus(message_bus)
 
       # TODO:Stackato: Move to CloudController::DependencyLocator ?
