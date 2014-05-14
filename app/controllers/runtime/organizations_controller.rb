@@ -32,13 +32,9 @@ module VCAP::CloudController
       if quota_def_errors && quota_def_errors.include?(:not_authorized)
         Errors::ApiError.new_from_details("NotAuthorized", attributes["quota_definition_id"])
       elsif name_errors && name_errors.include?(:unique)
-<<<<<<< HEAD
-        Errors::OrganizationNameTaken.new(attributes["name"])
-      elsif name_errors && name_errors.include?(:max_length)
-        Errors::StackatoParameterLengthInvalid.new(64, attributes["name"])
-=======
         Errors::ApiError.new_from_details("OrganizationNameTaken", attributes["name"])
->>>>>>> upstream/master
+      elsif name_errors && name_errors.include?(:max_length)
+        Errors::ApiError.new_from_details("StackatoParameterLengthInvalid", 64, attributes["name"])
       else
         Errors::ApiError.new_from_details("OrganizationInvalid", e.errors.full_messages)
       end
