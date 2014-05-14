@@ -54,7 +54,8 @@ module VCAP::CloudController
       :staging_task_id, :package_state, :health_check_timeout, :system_env_json,
       :distribution_zone,
       :description, :sso_enabled, :restart_required, :autoscale_enabled,
-      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances
+      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+      :droplet_count
 
     import_attributes :name, :production,
       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
@@ -354,6 +355,10 @@ module VCAP::CloudController
 
     def debug
       self.metadata && self.metadata["debug"]
+    end
+
+    def droplet_count
+      self.droplets_dataset.count
     end
 
     # We sadly have to do this ourselves because the serialization plugin

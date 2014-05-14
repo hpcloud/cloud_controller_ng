@@ -21,6 +21,26 @@ module VCAP::CloudController
       many_to_one_collection_ids: {},
       many_to_many_collection_ids: {}
   end
+  
+  describe "default total_droplets" do
+    let(:total_droplets) { Kato::Config.get('cloud_controller_ng', 'droplets_to_keep')}
+    let(:quota_attributes) do
+      {
+        name: quota_name,
+        non_basic_services_allowed: false,
+        total_services: 1,
+        total_routes: 10,
+        memory_limit: 1024
+      }
+    end
+    let(:headers) { admin_headers }
+    let(:quota_name) { "quota 1" }
+    it "finds the config value" do
+      post "/v2/quota_definitions", Yajl::Encoder.encode(quota_attributes), json_headers(headers)
+      last_response.status.should == 201
+      JSON.parse(last_response.body)["entity"]["total_droplets"].should == total_droplets
+    end
+  end
 
   describe "permissions" do
     let(:quota_attributes) do

@@ -18,9 +18,16 @@ module VCAP::CloudController
       validates_presence :non_basic_services_allowed
       validates_presence :total_services
       validates_presence :total_routes
-      #validates_presence :total_droplets
       validates_presence :memory_limit
       validates_presence :allow_sudo
+    end
+
+    def before_create
+      if self.total_droplets.nil? || self.total_droplets == 0
+        self.total_droplets = VCAP::CloudController::Config.config[:droplets_to_keep].to_i
+        self.total_droplets = 5 if self.total_droplets <= 0
+      end
+      super
     end
 
     def self.configure(config)
