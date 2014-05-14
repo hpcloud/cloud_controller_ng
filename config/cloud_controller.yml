@@ -50,14 +50,9 @@ info:
   name: "stackato"
   build: "2222"
   version: 2
-<<<<<<< HEAD
   support_address: "stackato-support@activestate.com"
   description: "ActiveState Stackato"
   api_version: "2.0.0"
-=======
-  support_address: "http://support.cloudfoundry.com"
-  description: "Cloud Foundry sponsored by Pivotal"
->>>>>>> upstream/master
 
 nginx:
   use_nginx: false
@@ -122,11 +117,7 @@ quota_definitions:
     total_services: 100
     non_basic_services_allowed: true
     total_routes: 1000
-<<<<<<< HEAD
-    trial_db_allowed: true
     allow_sudo: false
-=======
->>>>>>> upstream/master
 
 default_quota_definition: default
 

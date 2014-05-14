@@ -252,11 +252,7 @@ module VCAP::CloudController
     total_services { 60 }
     total_routes { 1_000 }
     memory_limit { 20_480 } # 20 GB
-<<<<<<< HEAD
-    trial_db_allowed { false }
     allow_sudo { false }
-=======
->>>>>>> upstream/master
   end
 
   Buildpack.blueprint do

@@ -10,13 +10,10 @@ module VCAP::CloudController
   class Config < VCAP::Config
     define_schema do
       {
-<<<<<<< HEAD
         :port => Integer,
         :instance_socket => String,
-=======
         :external_port => Integer,
         :external_protocol => String,
->>>>>>> upstream/master
         :info => {
           :name            => String,
           :build           => String,
