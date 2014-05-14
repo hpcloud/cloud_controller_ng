@@ -1,13 +1,10 @@
 require "cloud_controller/app_observer"
-<<<<<<< HEAD
 require 'digest/sha1'
-=======
 require "cloud_controller/database_uri_generator"
 require "cloud_controller/errors/application_missing"
 require "cloud_controller/errors/invalid_route_relation"
 require "repositories/runtime/app_usage_event_repository"
 
->>>>>>> upstream/master
 require_relative "buildpack"
 require_relative "app_version"
 
@@ -19,12 +16,8 @@ module VCAP::CloudController
     APP_NAME_REGEX = /\A[[:print:]]+\Z/.freeze
 
     one_to_many :droplets
-<<<<<<< HEAD
     one_to_many :app_versions
-    one_to_many :service_bindings, :after_remove => :after_remove_binding
-=======
     one_to_many :service_bindings
->>>>>>> upstream/master
     one_to_many :events, :class => VCAP::CloudController::AppEvent
     many_to_one :admin_buildpack, class: VCAP::CloudController::Buildpack
     many_to_one :space
@@ -167,7 +160,6 @@ module VCAP::CloudController
       super
     end
 
-<<<<<<< HEAD
     def create_app_usage_event
       return unless app_usage_changed?
       AppUsageEvent.create(state: state,
@@ -254,8 +246,6 @@ module VCAP::CloudController
       end
     end
 
-=======
->>>>>>> upstream/master
     def version_needs_to_be_updated?
       # change version if:
       #
@@ -313,10 +303,10 @@ module VCAP::CloudController
       column_changed?(:state) && stopped?
     end
 
-<<<<<<< HEAD
     def being_started?
       column_changed?(:state) && started?
-=======
+    end
+
     def scaling_operation?
       new? || !being_stopped?
     end
@@ -327,7 +317,6 @@ module VCAP::CloudController
 
     def organization
       space && space.organization
->>>>>>> upstream/master
     end
 
     def has_stop_event_for_latest_run?
@@ -780,10 +769,11 @@ module VCAP::CloudController
       false
     end
 
-<<<<<<< HEAD
+
     def logger
       self.class.logger
-=======
+    end
+
     def undo_changes(changes)
       attrs = changes.each_with_object({}) { |(key, change), hash| hash[key] = change[0] }
       attrs.delete(:updated_at)
@@ -796,7 +786,6 @@ module VCAP::CloudController
     def footprint_changed?
       (column_changed?(:production) || column_changed?(:memory) ||
         column_changed?(:instances))
->>>>>>> upstream/master
     end
 
     class << self

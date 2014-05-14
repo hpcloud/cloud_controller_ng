@@ -167,7 +167,6 @@ module VCAP::CloudController
     end
 
     private
-<<<<<<< HEAD
 
     def check_addable!(legacy_domain)
       if legacy_domain.owning_organization_id && legacy_domain.owning_organization_id != id
@@ -177,8 +176,6 @@ module VCAP::CloudController
       false
     end
 
-=======
->>>>>>> upstream/master
     def require_admin_for(field_name)
       unless VCAP::CloudController::SecurityContext.admin?
         errors.add(field_name, :not_authorized)

@@ -2,13 +2,9 @@ require "uaa/scim"
 
 module VCAP::CloudController
   class User < Sequel::Model
-<<<<<<< HEAD
     include StackatoUserCreation
 
-    class InvalidOrganizationRelation < InvalidRelation; end
-=======
     class InvalidOrganizationRelation < VCAP::Errors::InvalidRelation; end
->>>>>>> upstream/master
 
     no_auto_guid
 
