@@ -1,3 +1,5 @@
+## Application Versions
+
 Stackato maintains older versions of each pushed application. The main
 limitation is due to the maximum number of droplets that can be stored for
 the application; this setting is in the quota definition associated with the
@@ -23,3 +25,16 @@ In the command-line client, to list all the versions for an app:
 To select a particular version:
 
     stackato rollback [_application_] _version name_
+    
+## Changing the Total Droplets Setting
+
+This value governs the number of versions stored for each application.
+It can only be set via the command-line client:
+
+   stackato quota create ... [--droplets _max-per-app_] ...
+   
+   stackato quota configure _quota-name_ ... [--droplets _max-per-app_] ...
+   
+To list the settings for a particular quota:
+
+   stackato quota show _quota-name_
