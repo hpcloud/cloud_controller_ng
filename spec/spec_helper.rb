@@ -104,7 +104,6 @@ module VCAP::CloudController
       @db_logger
     end
 
-<<<<<<< HEAD
     def kato_config(component = "cloud_controller_ng")
       config_yaml = `kato config get #{component} --yaml`.strip
       if config_yaml != ""
@@ -119,38 +118,6 @@ module VCAP::CloudController
         puts "WARNING: kato config_override ignored."
       end
       config_hash = ::Kato::Util.symbolize_keys(kato_config)
-=======
-    def config
-      config_file = File.expand_path("../../config/cloud_controller.yml", __FILE__)
-      config_hash = VCAP::CloudController::Config.from_file(config_file)
-
-      config_hash.update(
-        :nginx => {:use_nginx => true},
-        :resource_pool => {
-          :resource_directory_key => "spec-cc-resources",
-          :fog_connection => {
-            :provider => "AWS",
-            :aws_access_key_id => "fake_aws_key_id",
-            :aws_secret_access_key => "fake_secret_access_key",
-          },
-        },
-        :packages => {
-          :app_package_directory_key => "cc-packages",
-          :fog_connection => {
-            :provider => "AWS",
-            :aws_access_key_id => "fake_aws_key_id",
-            :aws_secret_access_key => "fake_secret_access_key",
-          },
-        },
-        :droplets => {
-          :droplet_directory_key => "cc-droplets",
-          :fog_connection => {
-            :provider => "AWS",
-            :aws_access_key_id => "fake_aws_key_id",
-            :aws_secret_access_key => "fake_secret_access_key",
-          },
-        },
->>>>>>> upstream/master
 
       config_override = {
         :db => {
