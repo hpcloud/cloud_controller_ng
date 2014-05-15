@@ -1,11 +1,15 @@
+require "steno/codec/text"
+
 class BackgroundJobEnvironment
   def initialize(config)
     @config = config
-    Steno.init(Steno::Config.new(:sinks => [Steno::Sink::IO.new(STDOUT)]))
+    Steno.init(Steno::Config.new(:sinks => [Steno::Sink::IO.new(STDOUT)],
+                                 :codec => Steno::Codec::Text.new))
   end
 
   def setup_environment
-    VCAP::CloudController::DB.load_models(@config.fetch(:db), Steno.logger("cc.background"))
+    logger = Steno.logger("cc.background")
+    VCAP::CloudController::DB.load_models(@config.fetch(:db), logger)
     VCAP::CloudController::Config.configure_components(@config)
 
     Thread.new do

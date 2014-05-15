@@ -1,3 +1,5 @@
+require "steno/codec/text"
+
 namespace :db do
   desc "Create a Sequel migration in ./db/migrate"
   task :create_migration do
@@ -22,7 +24,8 @@ end
 
   desc "Perform Sequel migration to database"
   task :migrate do
-    Steno.init(Steno::Config.new(sinks: [Steno::Sink::IO.new(STDOUT)]))
+    Steno.init(Steno::Config.new(sinks: [Steno::Sink::IO.new(STDOUT)],
+                                 codec: Steno::Codec::Text.new))
     db_logger = Steno.logger("cc.db.migrations")
     DBMigrator.from_config(config, db_logger).apply_migrations
   end
