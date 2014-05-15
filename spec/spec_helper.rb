@@ -212,13 +212,9 @@ module VCAP::CloudController::SpecHelper
 
   # Sets a hash of configurations to merge with the defaults
   def config_override(hash)
-<<<<<<< HEAD
     hash ||= {}
     @config_override ||= {}
     @config_override.update(hash)
-=======
-    @config_override = hash || {}
->>>>>>> upstream/master
 
     @config = nil
     config
@@ -561,7 +557,6 @@ module VCAP::CloudController::SpecHelper
   end
 end
 
-<<<<<<< HEAD
 class CF::UAA::Misc
   def self.validation_key(*args)
     raise CF::UAA::TargetError.new('error' => 'unauthorized')
@@ -582,8 +577,6 @@ module VCAP::CloudController::StackatoSpecHelper
   end
 end
 
-=======
->>>>>>> upstream/master
 Dir[File.expand_path("../support/**/*.rb", __FILE__)].each { |file| require file }
 
 RSpec.configure do |rspec_config|
