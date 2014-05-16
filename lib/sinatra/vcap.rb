@@ -46,18 +46,11 @@ module Sinatra
         # from our logic. This is a check to see if we already did a 404 below.
         # We don't really have a class to attach a member variable to, so we have to
         # use the env to flag this.
-<<<<<<< HEAD
-        unless request.env["vcap_exception_body_set"]
-          payload_hash = error_payload(::VCAP::Errors::NotFound.new)
-          clean_error_payload(payload_hash)
-          body Yajl::Encoder.encode(payload_hash)
-=======
         unless request.env['vcap_exception_body_set']
           error = ::VCAP::Errors::ApiError.new_from_details("NotFound")
           presenter = ErrorPresenter.new(error, in_test_mode?)
 
           body Yajl::Encoder.encode(presenter.error_hash)
->>>>>>> upstream/master
         end
       end
 
@@ -73,13 +66,7 @@ module Sinatra
           logger.error(presenter.log_message)
         end
 
-<<<<<<< HEAD
-        clean_error_payload(payload_hash)
-
-        payload = Yajl::Encoder.encode(payload_hash)
-=======
         payload = Yajl::Encoder.encode(presenter.error_hash)
->>>>>>> upstream/master
 
         ::VCAP::Component.varz.synchronize do
           varz[:recent_errors] << payload
