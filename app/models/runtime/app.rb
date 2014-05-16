@@ -114,19 +114,10 @@ module VCAP::CloudController
       validates_includes PACKAGE_STATES, :package_state, :allow_missing => true
       validates_includes APP_STATES, :state, :allow_missing => true
 
-<<<<<<< HEAD
-      validate_environment
-      validate_metadata
+      # REFACTOR: incorporate `validate_autoscaling_settings` into upstream's
+      # `validation_policies` data structure
       validate_autoscaling_settings
-
-      if state == "STARTED" || total_requested_memory > total_existing_memory
-        check_memory_quota
-      end
-      validate_instances
-      validate_health_check_timeout
-=======
       validation_policies.map(&:validate)
->>>>>>> upstream/master
     end
 
     def before_create
