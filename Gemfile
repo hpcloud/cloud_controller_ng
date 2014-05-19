@@ -122,7 +122,7 @@ gem 'squash_ruby'       ,    '1.2.3'
 gem 'stackato-kato'     ,    '3.0.0'
 gem 'stager-client'     ,    '0.0.2', :github => "cloudfoundry/stager-client", :ref => "04c2aee9"
 gem 'steno'             ,    '1.1.0'
-gem 'steno-codec-text'  ,      '0.1', :git => "git://github.com:ActiveState/steno-codec-text.git"
+gem 'steno-codec-text'  ,      '0.1', :git => "git://github.com/ActiveState/steno-codec-text.git"
 gem 'talentbox-delayed_job_sequel',    '4.0.0'
 gem 'term-ansicolor'    ,    '1.0.7'
 gem 'thin'              ,    '1.6.1'
