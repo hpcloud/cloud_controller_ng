@@ -14,7 +14,7 @@ var Fs = require('fs'),
     Mkdirp = require('mkdirp');
 
 /* Base directory for storing uploaded staging/buildpack bits */
-var uploadStagingBitsDir = process.env.upload_staging_bits_dir;
+var uploadStagingBitsDir = process.env.uploadStagingBitsDir;
 
 Mkdirp(uploadStagingBitsDir, function (err) {
     if (err) { throw err; }

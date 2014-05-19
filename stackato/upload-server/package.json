@@ -1,10 +1,10 @@
 {
   "name": "stackato-upload-server",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "A proxy for streaming large filed uploads to disk.",
   "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "mocha --reporter list",
     "start": "node server.js"
   },
   "dependencies": {
@@ -12,10 +12,15 @@
     "busboy": "0.2.1",
     "cluster-master": "0.2.0",
     "log": "1.4.0",
+    "morgan": "1.0.1",
     "mkdirp": "0.3.5",
     "http-proxy": "1.1.2",
     "request": "git+https://github.com/mikeal/request.git#e2a14cc09f57c2feeb55f81d417ba989e562dea5",
     "router": "0.6.2"
+  },
+  "devDependencies": {
+    "mocha": "",
+    "supertest": ""
   },
   "author": "ActiveState Software Inc.",
   "license": "ActiveState Software Inc."

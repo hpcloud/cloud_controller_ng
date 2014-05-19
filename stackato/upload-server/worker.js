@@ -13,11 +13,12 @@ var Log = require('log'),
     ForwardProxies = require('./lib/forward-proxies'),
     Pong = require('./lib/pong');
 
+
 /* HTTP listen port */
-var listenPort = process.env.listen_port;
+var listenPort = process.env.listenPort;
 
 /* Default logging level */
-var logLevel = process.env.log_level;
+var logLevel = process.env.logLevel;
 
 /* console logger */
 var log = new Log(logLevel);

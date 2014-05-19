@@ -7,33 +7,14 @@
 var Log = require('log'),
     Package = require('./package'),
     Path = require('path'),
+    Config = require('./lib/config'),
     ClusterMaster = require('cluster-master');
 
 /* Logger for the cluster master */
-var log_level = process.env.UPLOAD_LOG_LEVEL || 'info';
-var log = new Log(log_level);
-
+var logLevel = process.env.UPLOAD_LOG_LEVEL || 'info';
+var log = new Log(logLevel);
 /* Worker process environment */
-var workerEnv = {
-
-    /* HTTP listen port */
-    listen_port: 8181,
-
-    /* Upstream cloud controller unix domain socket path */
-    cc_socket: '/var/stackato/sys/run/cloud_controller_ng/cloud_controller.sock',
-
-    /* Base directory for storing uploaded app bits */
-    upload_app_bits_dir: '/var/stackato/data/cloud_controller_ng/tmp/uploads',
-
-    /* Base directory for storing uploaded staging/buildpack bits */
-    upload_staging_bits_dir: '/var/stackato/data/cloud_controller_ng/tmp/staged_droplet_uploads',
-
-    /* Default logging level */
-    log_level:  log_level,
-
-    /* HTTP access log file path */
-    access_log: '/s/logs/cloud_controller_uploads_access.log'
-};
+var workerEnv = Config;
 
 /* Handles messages from the worker processes */
 var handleWorkerMessage = function (msg) {
@@ -51,7 +32,7 @@ ClusterMaster({
     debug: false,
 });
 
-log.info('Application uploads are sent to: ' + workerEnv.upload_app_bits_dir);
-log.info('Staging bits uploads are sent to: ' + workerEnv.upload_staging_bits_dir);
-log.info('All other requests are forwarded to: ' + workerEnv.cc_socket);
-log.info('Stackato file upload server v%s is listening for requests on port %s', Package.version, workerEnv.listen_port);
+log.info('Application uploads are sent to: ' + workerEnv.uploadAppBitsDir);
+log.info('Staging bits uploads are sent to: ' + workerEnv.uploadStagingBitsDir);
+log.info('All other requests are forwarded to: ' + workerEnv.ccSocket);
+log.info('Stackato file upload server v%s is listening for requests on port %s', Package.version, workerEnv.listenPort);

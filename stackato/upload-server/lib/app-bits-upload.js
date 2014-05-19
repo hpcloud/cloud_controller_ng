@@ -12,7 +12,7 @@ var Fs = require('fs'),
     Mkdirp = require('mkdirp');
 
 /* Base directory for storing uploaded files */
-var uploadAppBitsDir = process.env.upload_app_bits_dir;
+var uploadAppBitsDir = process.env.uploadAppBitsDir;
 
 Mkdirp(uploadAppBitsDir, function (err) {
     if (err) { throw err; }

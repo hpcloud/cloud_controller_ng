@@ -9,7 +9,7 @@ var Http = require('http'),
     Request = require('request');
 
 /* Upstream cloud controller unix domain socket path */
-var ccSocket = process.env.cc_socket;
+var ccSocket = process.env.ccSocket;
 
 /* Non upload request forwarder */
 var proxy = HttpProxy.createProxyServer({

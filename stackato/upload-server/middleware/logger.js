@@ -5,13 +5,19 @@
 'use strict';
 
 var Fs = require('fs'),
-    Log = require('log');
+    Log = require('log'),
+    Morgan = require('morgan');
 
 /* Default logging level */
-var logLevel = process.env.log_level;
+var logLevel = process.env.logLevel;
 
 /* HTTP access logger */
-var accessLog = new Log(logLevel, Fs.createWriteStream(process.env.access_log));
+var accessLog = new Morgan({
+    buffer: true,
+    stream: Fs.createWriteStream(process.env.accessLog, {
+        flags: 'a'
+    })
+});
 
 /* Console logger */
 var log = new Log(logLevel);
@@ -27,19 +33,15 @@ module.exports = function (req, res, next) {
     var remoteAddr = req.connection.remoteAddress;
 
     req.on('error', function (err) {
-        accessLog.error('Request error: %s - %s - %s - %s', err, remoteAddr, req.method, req.url);
+        log.error('Request error: %s - %s - %s - %s', err, remoteAddr, req.method, req.url);
     });
 
     res.on('error', function (err) {
-        accessLog.error('Response error: %s - %s - %s - %s', err, remoteAddr, req.method, req.url);
-    });
-
-    res.on('finish', function () {
-        accessLog.info('%s - %s - %s - %s', remoteAddr, req.method, req.url, JSON.stringify(req.headers));
+        log.error('Response error: %s - %s - %s - %s', err, remoteAddr, req.method, req.url);
     });
 
     req.log = log;
     req.accessLog = accessLog;
 
-    next();
+    accessLog(req, res, next);
 };
