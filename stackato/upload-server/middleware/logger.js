@@ -11,7 +11,9 @@ var Fs = require('fs'),
 var logLevel = process.env.log_level;
 
 /* HTTP access logger */
-var accessLog = new Log(logLevel, Fs.createWriteStream(process.env.access_log));
+var accessLog = new Log(logLevel, Fs.createWriteStream(process.env.access_log, {
+    flags: 'a'
+}));
 
 /* Console logger */
 var log = new Log(logLevel);
