@@ -20,11 +20,11 @@ gem 'bcrypt-ruby'       ,    '3.1.2'
 gem 'beefcake'          ,    '0.3.7'
 gem 'builder'           ,    '3.0.4'
 gem 'celluloid'         ,   '0.15.2', :groups => [:test]
-gem 'cf-message-bus'    ,    '0.2.0', :git => "https://github.com/ActiveState/cf-message-bus.git", :branch => 'bug-102665'
+gem 'cf-message-bus'    ,    '0.2.0', :github => "ActiveState/cf-message-bus"
+gem 'cf-registrar'      ,    '1.0.1', :github => "cloudfoundry/cf-registrar"
 gem 'cf-uaa-lib'        ,    '2.0.0', :github => "ActiveState/cf-uaa-lib", :ref => "3026895da933a7b1102735db96568c007b4c9148"
-gem 'cf-registrar',          '1.0.0', :git => "https://github.com/cloudfoundry/cf-registrar.git"
 gem 'ci_reporter'       ,    '1.9.0'
-gem "clockwork", require: false
+gem 'clockwork'         ,    '0.7.0'
 gem 'cloudfront-signer' ,    '2.1.1'
 gem 'coderay'           ,    '1.1.0', :groups => [:development, :test]
 gem 'coercible'         ,    '0.2.0'
@@ -81,7 +81,7 @@ gem 'multi_xml'         ,    '0.5.5'
 gem 'multipart-post'    ,    '1.2.0'
 gem 'mustache'          ,   '0.99.4'
 gem 'mysql2'            ,   '0.3.14', :groups => [:db]
-gem 'nats'              ,   '0.5.0.beta.12'
+gem 'nats'              , '0.5.0.beta.12'
 gem 'net-scp'           ,    '1.1.2'
 gem 'net-ssh'           ,    '2.7.0'
 gem 'nokogiri'          ,    '1.6.0'
@@ -102,12 +102,13 @@ gem 'rbvmomi'           ,    '1.6.0'
 gem 'redis'             ,    '3.0.6'
 gem 'rfc822'            ,    '0.1.4'
 gem 'rspec'             ,   '2.14.1', :groups => [:default, :test]
-gem 'rspec_api_documentation'
 gem 'rspec-core'        ,   '2.14.7', :groups => [:default, :test]
 gem 'rspec-expectations',   '2.14.4', :groups => [:default, :test]
 gem 'rspec-mocks'       ,   '2.14.4', :groups => [:default, :test]
+gem 'rspec_api_documentation',    '2.0.0'
 gem 'ruby-hmac'         ,    '0.4.0'
 gem 'ruby-termios'      ,    '0.9.6'
+gem 'rubyzip'           ,    '1.1.0'
 gem 'safe_yaml'         ,    '0.9.7', :groups => [:test]
 gem 'sequel'            ,   '3.48.0'
 gem 'simplecov'         ,    '0.8.2', :groups => [:test]
@@ -119,10 +120,10 @@ gem 'slop'              ,    '3.4.7', :groups => [:development, :test]
 gem 'sqlite3'           ,    '1.3.7', :groups => [:db, :default]
 gem 'squash_ruby'       ,    '1.2.3'
 gem 'stackato-kato'     ,    '3.0.0'
-gem 'stager-client'     ,    '0.0.2', :git => "https://github.com/cloudfoundry/stager-client.git", :ref => "04c2aee9"
+gem 'stager-client'     ,    '0.0.2', :github => "cloudfoundry/stager-client", :ref => "04c2aee9"
 gem 'steno'             ,    '1.1.0'
-gem 'steno-codec-text'  ,      '0.1', :path => "../steno-codec-text"
-gem "talentbox-delayed_job_sequel" , '4.0.0'
+gem 'steno-codec-text'  ,      '0.1', :git => "git@github.com:ActiveState/steno-codec-text.git"
+gem 'talentbox-delayed_job_sequel',    '4.0.0'
 gem 'term-ansicolor'    ,    '1.0.7'
 gem 'thin'              ,    '1.6.1'
 gem 'thor'              ,   '0.18.1', :groups => [:test]
@@ -132,11 +133,13 @@ gem 'timers'            ,    '1.1.0', :groups => [:test]
 gem 'trollop'           ,      '2.0'
 gem 'tzinfo'            ,   '0.3.38'
 gem 'unf'               ,    '0.1.3'
-gem 'vcap-concurrency'  ,    '0.1.0', :git => "https://github.com/cloudfoundry/vcap-concurrency.git", :ref => "2a5b0179"
-gem 'vcap_common'       ,    '3.0.0', :path => '../common'
+gem 'unf_ext'           ,    '0.0.6'
+gem 'uuidtools'         ,    '2.1.4'
+gem 'vcap-concurrency'  ,    '0.1.0', :github => "cloudfoundry/vcap-concurrency", :ref => "2a5b0179"
+gem 'vcap_common'       ,    '3.0.0', :git => "gitolite@gitolite.activestate.com:vcap-common"
 gem 'virtus'            ,    '1.0.0'
 gem 'vmstat'            ,    '2.0.0'
 gem 'webmock'           ,   '1.16.0', :groups => [:test]
 gem 'xmlparser'         ,  '0.7.2.1'
 gem 'yajl-ruby'         ,    '1.1.0'
-gem 'rubyzip'           ,    '1.1.0'
+

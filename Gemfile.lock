@@ -1,15 +1,6 @@
 GIT
-  remote: git://github.com/ActiveState/cf-uaa-lib.git
-  revision: 3026895da933a7b1102735db96568c007b4c9148
-  ref: 3026895da933a7b1102735db96568c007b4c9148
-  specs:
-    cf-uaa-lib (2.0.0)
-      multi_json
-
-GIT
-  remote: https://github.com/ActiveState/cf-message-bus.git
+  remote: git://github.com/ActiveState/cf-message-bus.git
   revision: cb951d204beeb028dd98e36f087d2464d5059762
-  branch: bug-102665
   specs:
     cf-message-bus (0.2.0)
       eventmachine (~> 1.0.0)
@@ -19,17 +10,25 @@ GIT
       yajl-ruby
 
 GIT
-  remote: https://github.com/cloudfoundry/cf-registrar.git
-  revision: fb7d89608eb78e3fa7174ec30f64cc60ce9735e2
+  remote: git://github.com/ActiveState/cf-uaa-lib.git
+  revision: 3026895da933a7b1102735db96568c007b4c9148
+  ref: 3026895da933a7b1102735db96568c007b4c9148
   specs:
-    cf-registrar (1.0.0)
+    cf-uaa-lib (2.0.0)
+      multi_json
+
+GIT
+  remote: git://github.com/cloudfoundry/cf-registrar.git
+  revision: 49850ee876652a59dbd2d73dad726b3b808bb8f9
+  specs:
+    cf-registrar (1.0.1)
       cf-message-bus
       eventmachine (~> 1.0.0)
       steno
       vcap-concurrency
 
 GIT
-  remote: https://github.com/cloudfoundry/stager-client.git
+  remote: git://github.com/cloudfoundry/stager-client.git
   revision: 04c2aee9ceed39571d47704a42a70beb472503b9
   ref: 04c2aee9
   specs:
@@ -39,14 +38,22 @@ GIT
       yajl-ruby
 
 GIT
-  remote: https://github.com/cloudfoundry/vcap-concurrency.git
+  remote: git://github.com/cloudfoundry/vcap-concurrency.git
   revision: 2a5b0179642cb3d3e7f912a6453ec5731979d115
   ref: 2a5b0179
   specs:
     vcap-concurrency (0.1.0)
 
-PATH
-  remote: ../common
+GIT
+  remote: git@github.com:ActiveState/steno-codec-text.git
+  revision: e760c1e058076d58262d7ae5dca9994f603495a4
+  specs:
+    steno-codec-text (0.1)
+      steno (~> 1.1.0)
+
+GIT
+  remote: gitolite@gitolite.activestate.com:vcap-common
+  revision: dd687888ba92328b883b1aba01e870af79734358
   specs:
     vcap_common (3.0.0)
       addressable (~> 2.2)
@@ -64,12 +71,6 @@ PATH
       uuidtools
       vmstat (~> 2.0)
       yajl-ruby
-
-PATH
-  remote: ../steno-codec-text
-  specs:
-    steno-codec-text (0.1)
-      steno (~> 1.1.0)
 
 GEM
   remote: https://rubygems.org/
@@ -290,7 +291,6 @@ GEM
     stackato-kato (3.0.0)
       colored (= 1.2)
       docopt (= 0.5.0)
-      futuroscope (~> 0.1.5)
       ipaddress (= 0.8.0)
       mustache (= 0.99.4)
       pg (= 0.14.1)
@@ -352,10 +352,10 @@ DEPENDENCIES
   builder (= 3.0.4)
   celluloid (= 0.15.2)
   cf-message-bus (= 0.2.0)!
-  cf-registrar (= 1.0.0)!
+  cf-registrar (= 1.0.1)!
   cf-uaa-lib (= 2.0.0)!
   ci_reporter (= 1.9.0)
-  clockwork
+  clockwork (= 0.7.0)
   cloudfront-signer (= 2.1.1)
   coderay (= 1.1.0)
   coercible (= 0.2.0)
@@ -436,7 +436,7 @@ DEPENDENCIES
   rspec-core (= 2.14.7)
   rspec-expectations (= 2.14.4)
   rspec-mocks (= 2.14.4)
-  rspec_api_documentation
+  rspec_api_documentation (= 2.0.0)
   ruby-hmac (= 0.4.0)
   ruby-termios (= 0.9.6)
   rubyzip (= 1.1.0)
@@ -464,6 +464,8 @@ DEPENDENCIES
   trollop (= 2.0)
   tzinfo (= 0.3.38)
   unf (= 0.1.3)
+  unf_ext (= 0.0.6)
+  uuidtools (= 2.1.4)
   vcap-concurrency (= 0.1.0)!
   vcap_common (= 3.0.0)!
   virtus (= 1.0.0)
