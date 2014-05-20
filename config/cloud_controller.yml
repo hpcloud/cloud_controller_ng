@@ -1,11 +1,9 @@
 ---
 local_route: 127.0.0.1
-<<<<<<< HEAD
-port: 8181
+
 instance_socket: "/var/stackato/sys/run/cloud_controller_ng/cloud_controller.sock"
-=======
 external_port: 8181
->>>>>>> upstream/master
+
 pid_filename: /tmp/cloud_controller.pid
 message_bus_servers:
   - nats://127.0.0.1:4222
