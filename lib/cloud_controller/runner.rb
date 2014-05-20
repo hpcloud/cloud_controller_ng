@@ -201,34 +201,12 @@ module VCAP::CloudController
       DB.load_models(@config[:db], db_logger)
     end
 
-<<<<<<< HEAD
-        VCAP::CloudController.auto_scaler_respondent = \
-          VCAP::CloudController::AutoScalerRespondent.new(config, message_bus)
-        VCAP::CloudController.auto_scaler_respondent.handle_requests
-
-        map "/" do
-          run Controller.new(config, token_decoder)
-        end
-      end
-    end
-
-    def start_thin_server(app, config)
+    def start_thin_server(app)
       if @config[:nginx][:use_nginx] || @config[:stackato_upload_handler][:enabled]
         @thin_server = Thin::Server.new(
             config[:instance_socket],
             :signals => false
         )
-=======
-    def setup_loggregator_emitter
-      if @config[:loggregator] && @config[:loggregator][:router] && @config[:loggregator][:shared_secret]
-        Loggregator.emitter = LoggregatorEmitter::Emitter.new(@config[:loggregator][:router], "API", @config[:index], @config[:loggregator][:shared_secret])
-      end
-    end
-
-    def start_thin_server(app)
-      if @config[:nginx][:use_nginx]
-        @thin_server = Thin::Server.new(@config[:nginx][:instance_socket], signals: false)
->>>>>>> upstream/master
       else
         @thin_server = Thin::Server.new(@config[:external_host], @config[:external_port])
       end
