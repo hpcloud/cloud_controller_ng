@@ -33,15 +33,11 @@ module VCAP::CloudController
       to_many   :service_plans
     end
 
-<<<<<<< HEAD
-    query_parameters :active, :label
-    
     def self.default_order_by
       :label
     end
-=======
+
     query_parameters :active, :label, :provider, :service_broker_guid
->>>>>>> upstream/master
 
     def self.translate_validation_exception(e, attributes)
       label_provider_errors = e.errors.on([:label, :provider])

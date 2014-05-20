@@ -72,11 +72,8 @@ module VCAP::CloudController
 
     delete '/v2/service_brokers/:guid', :delete
     def delete(guid)
-<<<<<<< HEAD
       check_maintenance_mode
-=======
       validate_access(:delete, ServiceBroker, user, roles)
->>>>>>> upstream/master
       broker = ServiceBroker.find(:guid => guid)
       return HTTP::NOT_FOUND unless broker
       VCAP::Services::ServiceBrokers::ServiceBrokerRemover.new(broker).execute!

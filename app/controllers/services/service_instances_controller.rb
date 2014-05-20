@@ -13,19 +13,10 @@ module VCAP::CloudController
 
     query_parameters :name, :space_guid, :service_plan_guid, :service_binding_guid, :gateway_name
 
-<<<<<<< HEAD
     def self.default_order_by
       :name
     end
 
-    def requested_space
-      space = Space.filter(:guid => request_attrs['space_guid']).first
-      raise Errors::ServiceInstanceInvalid.new('not a valid space') unless space
-      space
-    end
-
-=======
->>>>>>> upstream/master
     def self.translate_validation_exception(e, attributes)
       space_and_name_errors = e.errors.on([:space_id, :name])
       quota_errors = e.errors.on(:org)
