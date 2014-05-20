@@ -22,7 +22,7 @@ gem "cf-uaa-lib", "~> 2.0.0", :github => "ActiveState/cf-uaa-lib", :ref => "3026
 gem "stager-client", "~> 0.0.02", :github => "cloudfoundry/stager-client", :ref => "04c2aee9"
 gem "cf-message-bus", :github => "ActiveState/cf-message-bus"
 gem 'cf-registrar', '~> 1.0.1', :github => "cloudfoundry/cf-registrar"
-gem 'vcap_common', :git => "gitolite@gitolite.activestate.com:vcap-common"
+gem 'vcap_common', :path => '../common'
 gem "allowy"
 gem "delayed_job_active_record", "~> 4.0"
 gem "loggregator_emitter", "~> 0.0.11.pre"
@@ -58,7 +58,7 @@ group :test do
   gem "fakefs", :require => "fakefs/safe"
 end
 
-gem "steno-codec-text", :git => "git@github.com:ActiveState/steno-codec-text.git"
+gem "steno-codec-text", :path => "../steno-codec-text"
 if ENV["KATO_DEV"] and File.directory? '../kato'
   gem 'stackato-kato', :path => '../kato'
 else

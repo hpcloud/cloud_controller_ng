@@ -122,7 +122,7 @@ gem 'squash_ruby'       ,    '1.2.3'
 gem 'stackato-kato'     ,    '3.0.0'
 gem 'stager-client'     ,    '0.0.2', :github => "cloudfoundry/stager-client", :ref => "04c2aee9"
 gem 'steno'             ,    '1.1.0'
-gem 'steno-codec-text'  ,      '0.1', :git => "git://github.com/ActiveState/steno-codec-text.git"
+gem 'steno-codec-text'  ,      '0.1', :path => "../steno-codec-text"
 gem 'talentbox-delayed_job_sequel',    '4.0.0'
 gem 'term-ansicolor'    ,    '1.0.7'
 gem 'thin'              ,    '1.6.1'
@@ -136,7 +136,7 @@ gem 'unf'               ,    '0.1.3'
 gem 'unf_ext'           ,    '0.0.6'
 gem 'uuidtools'         ,    '2.1.4'
 gem 'vcap-concurrency'  ,    '0.1.0', :github => "cloudfoundry/vcap-concurrency", :ref => "2a5b0179"
-gem 'vcap_common'       ,    '3.0.0', :git => "gitolite@gitolite.activestate.com:vcap-common"
+gem 'vcap_common'       ,    '3.0.0', :path => '../common'
 gem 'virtus'            ,    '1.0.0'
 gem 'vmstat'            ,    '2.0.0'
 gem 'webmock'           ,   '1.16.0', :groups => [:test]

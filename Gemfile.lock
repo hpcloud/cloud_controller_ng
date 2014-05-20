@@ -44,16 +44,8 @@ GIT
   specs:
     vcap-concurrency (0.1.0)
 
-GIT
-  remote: git@github.com:ActiveState/steno-codec-text.git
-  revision: e760c1e058076d58262d7ae5dca9994f603495a4
-  specs:
-    steno-codec-text (0.1)
-      steno (~> 1.1.0)
-
-GIT
-  remote: gitolite@gitolite.activestate.com:vcap-common
-  revision: dd687888ba92328b883b1aba01e870af79734358
+PATH
+  remote: ../common
   specs:
     vcap_common (3.0.0)
       addressable (~> 2.2)
@@ -71,6 +63,12 @@ GIT
       uuidtools
       vmstat (~> 2.0)
       yajl-ruby
+
+PATH
+  remote: ../steno-codec-text
+  specs:
+    steno-codec-text (0.1)
+      steno (~> 1.1.0)
 
 GEM
   remote: https://rubygems.org/
