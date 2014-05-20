@@ -1,13 +1,8 @@
 module VCAP::CloudController
   class SpacesController < RestController::ModelController
     define_attributes do
-<<<<<<< HEAD
       attribute  :name,            String
       attribute  :is_default, Message::Boolean, :default => false
-=======
-      attribute  :name, String
-
->>>>>>> upstream/master
       to_one     :organization
       to_many    :developers
       to_many    :managers
@@ -27,13 +22,9 @@ module VCAP::CloudController
     def self.translate_validation_exception(e, attributes)
       name_errors = e.errors.on([:organization_id, :name])
       if name_errors && name_errors.include?(:unique)
-<<<<<<< HEAD
-        Errors::SpaceNameTaken.new(attributes["name"])
-      elsif name_errors && name_errors.include?(:max_length)
-        Errors::StackatoParameterLengthInvalid.new(64, attributes["name"])
-=======
         Errors::ApiError.new_from_details("SpaceNameTaken", attributes["name"])
->>>>>>> upstream/master
+      elsif name_errors && name_errors.include?(:max_length)
+        Errors::ApiError.new_from_details("StackatoParameterLengthInvalid", 64, attributes["name"])
       else
         Errors::ApiError.new_from_details("SpaceInvalid", e.errors.full_messages)
       end
