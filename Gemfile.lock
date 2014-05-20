@@ -20,22 +20,15 @@ GIT
 
 GIT
   remote: https://github.com/cloudfoundry/cf-registrar.git
-<<<<<<< HEAD
-  revision: fb7d89608eb78e3fa7174ec30f64cc60ce9735e2
-  specs:
-    cf-registrar (1.0.0)
-=======
   revision: 49850ee876652a59dbd2d73dad726b3b808bb8f9
   specs:
     cf-registrar (1.0.1)
->>>>>>> upstream/master
       cf-message-bus
       eventmachine (~> 1.0.0)
       steno
       vcap-concurrency
 
 GIT
-<<<<<<< HEAD
   remote: https://github.com/cloudfoundry/stager-client.git
   revision: 04c2aee9ceed39571d47704a42a70beb472503b9
   ref: 04c2aee9
@@ -71,14 +64,6 @@ PATH
       uuidtools
       vmstat (~> 2.0)
       yajl-ruby
-=======
-  remote: https://github.com/cloudfoundry/cf-uaa-lib.git
-  revision: 81e5e4d622338b3332ce24840e6b40d47b161849
-  ref: 81e5e4d6
-  specs:
-    cf-uaa-lib (2.1.0)
-      multi_json
->>>>>>> upstream/master
 
 PATH
   remote: ../steno-codec-text
@@ -89,7 +74,6 @@ PATH
 GEM
   remote: https://rubygems.org/
   specs:
-<<<<<<< HEAD
     activemodel (3.2.17)
       activesupport (= 3.2.17)
       builder (~> 3.0.0)
@@ -98,8 +82,6 @@ GEM
       activesupport (= 3.2.17)
       arel (~> 3.0.2)
       tzinfo (~> 0.3.29)
-=======
->>>>>>> upstream/master
     activesupport (3.2.17)
       i18n (~> 0.6, >= 0.6.4)
       multi_json (~> 1.0)
@@ -107,7 +89,6 @@ GEM
     allowy (0.4.0)
       activesupport (>= 3.2)
       i18n
-<<<<<<< HEAD
     arel (3.0.3)
     axiom-types (0.0.5)
       descendants_tracker (~> 0.0.1)
@@ -115,7 +96,6 @@ GEM
     backports (3.3.5)
     bcrypt-ruby (3.1.2)
     beefcake (0.3.7)
-    builder (3.0.4)
     celluloid (0.15.2)
       timers (~> 1.1.0)
     ci_reporter (1.9.0)
@@ -129,18 +109,9 @@ GEM
       backports (~> 3.0, >= 3.1.0)
       descendants_tracker (~> 0.0.1)
     colored (1.2)
-=======
     ast (1.1.0)
     atomic (1.1.14)
-    backports (3.5.0)
-    bcrypt-ruby (3.1.1)
-    beefcake (0.3.7)
     builder (3.2.2)
-    clockwork (0.4.1)
-      tzinfo
-    cloudfront-signer (2.1.0)
-    coderay (1.1.0)
->>>>>>> upstream/master
     columnize (0.3.6)
     cookiejar (0.3.0)
     crack (0.4.2)
@@ -154,7 +125,6 @@ GEM
     debugger-ruby_core_source (1.3.2)
     delayed_job (4.0.0)
       activesupport (>= 3.0, < 4.1)
-<<<<<<< HEAD
     delayed_job_active_record (4.0.0)
       activerecord (>= 3.0, < 4.1)
       delayed_job (>= 3.0, < 4.1)
@@ -162,11 +132,7 @@ GEM
     diff-lcs (1.2.5)
     docile (1.1.1)
     docopt (0.5.0)
-    em-http-request (1.1.1)
-=======
-    diff-lcs (1.2.5)
     em-http-request (1.1.2)
->>>>>>> upstream/master
       addressable (>= 2.3.4)
       cookiejar
       em-socksify (>= 0.3)
@@ -174,18 +140,12 @@ GEM
       http_parser.rb (>= 0.6.0)
     em-socksify (0.3.0)
       eventmachine (>= 1.0.0.beta.4)
-<<<<<<< HEAD
     equalizer (0.0.8)
     errand (0.7.3)
     eventmachine (1.0.3)
     excon (0.28.0)
-    fakefs (0.4.3)
     ffi (1.9.3)
-=======
-    eventmachine (1.0.3)
-    excon (0.28.0)
     fakefs (0.5.2)
->>>>>>> upstream/master
     fluent-logger (0.4.7)
       msgpack (>= 0.4.4, < 0.6.0, != 0.5.3, != 0.5.2, != 0.5.1, != 0.5.0)
       yajl-ruby (~> 1.0)
@@ -200,7 +160,6 @@ GEM
       nokogiri (~> 1.5)
       ruby-hmac
     formatador (0.2.4)
-<<<<<<< HEAD
     futuroscope (0.1.5)
     grape (0.6.1)
       activesupport
@@ -237,34 +196,24 @@ GEM
     loggregator_emitter (0.0.16)
       beefcake (~> 0.3.7)
     loggregator_messages (0.0.5.pre)
-=======
     http_parser.rb (0.6.0)
     httpclient (2.3.4.1)
     i18n (0.6.9)
     json (1.8.1)
     json_pure (1.8.1)
     loggregator_emitter (3.0.0)
->>>>>>> upstream/master
       beefcake (~> 0.3.7)
     machinist (1.0.6)
     membrane (1.0.0)
     method_source (0.8.2)
     mime-types (2.1)
     mini_portile (0.5.2)
-<<<<<<< HEAD
-    msgpack (0.5.7)
-    multi_json (1.8.2)
     multi_xml (0.5.5)
-    multipart-post (1.2.0)
-    mustache (0.99.4)
     mysql2 (0.3.14)
-=======
     msgpack (0.5.8)
     multi_json (1.9.2)
     multipart-post (2.0.0)
     mustache (0.99.5)
-    mysql2 (0.3.13)
->>>>>>> upstream/master
     nats (0.5.0.beta.12)
       daemons (>= 1.1.9)
       eventmachine (>= 1.0.3)
@@ -273,21 +222,12 @@ GEM
     net-scp (1.1.2)
       net-ssh (>= 2.6.5)
     net-ssh (2.7.0)
-<<<<<<< HEAD
-    nokogiri (1.6.0)
-=======
     newrelic_rpm (3.7.3.204)
     nokogiri (1.6.1)
->>>>>>> upstream/master
       mini_portile (~> 0.5.0)
     parallel (1.0.0)
     parallel_tests (0.16.10)
       parallel
-<<<<<<< HEAD
-    pg (0.14.1)
-    posix-spawn (0.3.6)
-    pry (0.9.12.4)
-=======
     parser (2.1.4)
       ast (~> 1.1)
       slop (~> 3.4, >= 3.4.5)
@@ -295,12 +235,10 @@ GEM
     posix-spawn (0.3.8)
     powerpack (0.0.9)
     pry (0.9.12.6)
->>>>>>> upstream/master
       coderay (~> 1.0)
       method_source (~> 0.8)
       slop (~> 3.4)
     rack (1.5.2)
-<<<<<<< HEAD
     rack-accept (0.4.5)
       rack (>= 0.4)
     rack-mount (0.8.3)
@@ -318,14 +256,8 @@ GEM
       nokogiri (>= 1.4.1)
       trollop
     redis (3.0.6)
-=======
-    rack-protection (1.5.0)
-      rack
-    rack-test (0.6.2)
-      rack (>= 1.0)
     rainbow (2.0.0)
     rake (10.1.1)
->>>>>>> upstream/master
     rfc822 (0.1.4)
     rspec (2.14.1)
       rspec-core (~> 2.14.0)
@@ -349,10 +281,8 @@ GEM
       powerpack (~> 0.0.6)
       rainbow (>= 1.99.1, < 3.0)
     ruby-hmac (0.4.0)
-<<<<<<< HEAD
     ruby-termios (0.9.6)
     rubyzip (1.1.0)
-    safe_yaml (0.9.7)
     sequel (3.48.0)
     simplecov (0.8.2)
       docile (~> 1.1.0)
@@ -362,11 +292,7 @@ GEM
     simplecov-rcov (0.2.3)
       simplecov (>= 0.4.1)
     sinatra (1.4.4)
-=======
     safe_yaml (1.0.1)
-    sequel (3.48.0)
-    sinatra (1.4.3)
->>>>>>> upstream/master
       rack (~> 1.4)
       rack-protection (~> 1.4)
       tilt (~> 1.3, >= 1.3.4)
@@ -377,7 +303,6 @@ GEM
       rack-test
       sinatra (~> 1.4.0)
       tilt (~> 1.3)
-<<<<<<< HEAD
     slop (3.4.7)
     sqlite3 (1.3.7)
     squash_ruby (1.2.3)
@@ -396,13 +321,11 @@ GEM
       xmlparser (= 0.7.2.1)
       yajl-ruby (= 1.1.0)
     steno (1.1.0)
-=======
     slop (3.5.0)
     sqlite3 (1.3.8)
     squash_ruby (1.4.0)
       json
     steno (1.2.4)
->>>>>>> upstream/master
       fluent-logger
       yajl-ruby (~> 1.0)
     talentbox-delayed_job_sequel (4.0.0)
@@ -414,26 +337,22 @@ GEM
       daemons (>= 1.0.9)
       eventmachine (>= 1.0.0)
       rack (>= 1.0.0)
-<<<<<<< HEAD
     thor (0.18.1)
     tilt (1.4.1)
     timecop (0.7.0)
     timers (1.1.0)
     trollop (2.0)
     tzinfo (0.3.38)
-=======
     thread_safe (0.1.3)
       atomic
     tilt (1.4.1)
     timecop (0.7.1)
     tzinfo (1.1.0)
       thread_safe (~> 0.1)
->>>>>>> upstream/master
     unf (0.1.3)
       unf_ext
     unf_ext (0.0.6)
     uuidtools (2.1.4)
-<<<<<<< HEAD
     virtus (1.0.0)
       axiom-types (~> 0.0.5)
       coercible (~> 0.2)
@@ -445,7 +364,6 @@ GEM
       crack (>= 0.3.2)
     xmlparser (0.7.2.1)
     yajl-ruby (1.1.0)
-=======
     vcap_common (4.0.1)
       addressable (~> 2.2)
       cookiejar (<= 0.3.0)
@@ -468,13 +386,11 @@ GEM
       addressable (>= 2.2.7)
       crack (>= 0.3.2)
     yajl-ruby (1.2.0)
->>>>>>> upstream/master
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
-<<<<<<< HEAD
   activemodel (= 3.2.17)
   activerecord (= 3.2.17)
   activesupport (= 3.2.17)
@@ -607,7 +523,6 @@ DEPENDENCIES
   webmock (= 1.16.0)
   xmlparser (= 0.7.2.1)
   yajl-ruby (= 1.1.0)
-=======
   activesupport (~> 3.0)
   addressable
   allowy
@@ -650,4 +565,3 @@ DEPENDENCIES
   vcap_common (~> 4.0)
   webmock
   yajl-ruby
->>>>>>> upstream/master
