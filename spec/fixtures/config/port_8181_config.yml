@@ -1,6 +1,8 @@
 ---
 local_route: 127.0.0.1
 external_port: 8181
+instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
+
 pid_filename: /tmp/cloud_controller.8181.pid
 
 info:
@@ -69,7 +71,6 @@ cc_partition: ng
 
 nginx:
   use_nginx: false
-  instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 quota_definitions:
   default:
