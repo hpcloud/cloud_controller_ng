@@ -32,7 +32,22 @@ module VCAP::CloudController
         user_guid = token && token['user_id']
         return unless user_guid
         admin = VCAP::CloudController::Roles.new(token).admin?
-        User.find(guid: user_guid.to_s) || User.create(guid: user_guid, admin: admin, active: true)
+        user = User.find(guid: user_guid.to_s)
+        return user if user
+        
+        User.db.transaction do
+          user = User.create(guid: user_guid, admin: admin, active: true)
+          default_org = Organization.where(:is_default => true).first
+          if default_org
+            default_org.add_user(user)
+            default_space = Space.where(:is_default => true).first
+            if default_space
+              default_space.add_developer(user)
+            end
+          end
+        end
+
+        return user
       end
     end
   end
