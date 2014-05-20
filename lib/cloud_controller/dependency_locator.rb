@@ -150,7 +150,7 @@ module CloudController
     end
 
     def blob_sender
-      if config[:nginx][:use_nginx]
+      if config[:nginx][:use_nginx] || config[:stackato_upload_handler][:enabled]
         CloudController::BlobSender::NginxLocalBlobSender.new(missing_blob_handler)
       else
         CloudController::BlobSender::DefaultLocalBlobSender.new(missing_blob_handler)

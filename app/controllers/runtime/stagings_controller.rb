@@ -29,21 +29,9 @@ module VCAP::CloudController
       blob = package_blobstore.blob(guid)
       unless blob
         logger.error "could not find package for #{guid}"
-<<<<<<< HEAD
-        raise AppPackageNotFound.new(guid)
+        raise ApiError.new_from_details("AppPackageNotFound", guid)
       end
 
-      if config[:nginx][:use_nginx] || config[:stackato_upload_handler][:enabled]
-        url = package_blobstore.download_uri(guid)
-        logger.debug "nginx redirect #{url}"
-        [200, {"X-Accel-Redirect" => url}, ""]
-      else
-        logger.debug "send_file #{package_path} #{url}"
-        send_file package_path
-=======
-        raise ApiError.new_from_details("AppPackageNotFound", guid)
->>>>>>> upstream/master
-      end
       @blob_sender.send_blob(app.guid, "AppPackage", blob, self)
     end
 
@@ -111,30 +99,8 @@ module VCAP::CloudController
       @buildpack_cache_blobstore = dependencies.fetch(:buildpack_cache_blobstore)
       @package_blobstore = dependencies.fetch(:package_blobstore)
       @config = dependencies.fetch(:config)
-<<<<<<< HEAD
-    end
-
-    def log_and_raise_missing_blob(app_guid, name)
-      logger.error "could not find #{name} for #{app_guid}"
-      raise StagingError.new("#{name} not found for #{app_guid}")
-    end
-
-    def download(app, blob_path, url, name)
-      raise InvalidRequest unless blobstore.local?
-
-      logger.debug "guid: #{app.guid} #{name} #{blob_path} #{url}"
-
-      if config[:nginx][:use_nginx] || config[:stackato_upload_handler][:enabled]
-        logger.debug "nginx redirect #{url}"
-        [200, {"X-Accel-Redirect" => url}, ""]
-      else
-        logger.debug "send_file #{blob_path}"
-        send_file blob_path
-      end
-=======
       @missing_blob_handler = dependencies.fetch(:missing_blob_handler)
       @blob_sender = dependencies.fetch(:blob_sender)
->>>>>>> upstream/master
     end
 
     def upload_path
