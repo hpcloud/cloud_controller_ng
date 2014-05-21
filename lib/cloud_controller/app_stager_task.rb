@@ -48,7 +48,11 @@ module VCAP::CloudController
         else
           partString = parts.join(" and ")
         end
-        raise Errors::StagingError, "no available stagers for #{partString}" 
+        available_zones = available_placement_zones
+        if available_zones.size > 1 || available_zones.first != "default"
+            partString += ". Requested placement_zone: #{@app.distribution_zone}, available placement zones: #{available_zones.join(" ")}"
+        end
+        raise Errors::StagingError, "no available stagers for #{partString}." 
       end
       subject = "staging.#{@stager_id}.start"
       @multi_message_bus_request = MultiResponseMessageBusRequest.new(@message_bus, subject)
@@ -117,6 +121,23 @@ module VCAP::CloudController
         key: buildpack.key,
         url: @blobstore_url_generator.admin_buildpack_download_url(buildpack)
       }
+    end
+    
+    def available_placement_zones
+      available_zones = []
+      Kato::Cluster::Manager.node_ids_for_process("dea_ng").each do |node_id|
+        zones = Kato::Config.get("dea_ng", "placement_properties/zones",
+                                 :node => node_id)
+        if zones
+          # If this array has zero items then add nothing.
+          available_zones += zones
+        else
+          zone = Kato::Config.get("dea_ng", "placement_properties/zone",
+                                  :node => node_id)
+          available_zones << ("default" || zone)
+        end
+      end
+      available_zones.uniq.sort
     end
 
     def start_app_message
