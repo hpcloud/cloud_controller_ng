@@ -9,10 +9,13 @@ require "bundler/setup"
 require "cloud_controller"
 require "irb/completion"
 require "pry"
+require "kato/local/node"
 
-@config = VCAP::CloudController::Config.new()
+config_yml = File.expand_path("../../../config/cloud_controller.yml", __FILE__)
+@config = VCAP::CloudController::Config.new().class.from_file(config_yml)
 logger = Logger.new(STDOUT)
 db_config = @config.fetch(:db).merge(log_level: :debug)
+db_config[:database][:password] = Kato::Config.get("stackato_rest", "db/database/password")
 
 VCAP::CloudController::DB.load_models(db_config, logger)
 VCAP::CloudController::Config.configure_components(@config)
