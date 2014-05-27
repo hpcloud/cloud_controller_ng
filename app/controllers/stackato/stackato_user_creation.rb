@@ -1,3 +1,5 @@
+require 'cloud_controller/stackato/license_helper'
+
 module VCAP::CloudController
   module StackatoUserCreation
     ADMIN_GROUPS = %W{cloud_controller.admin scim.write scim.read}
@@ -126,9 +128,11 @@ module VCAP::CloudController
       if first_space_name and not first_space_name.empty?
         space = Space.create_from_hash({:name => first_space_name, :organization_guid => org.guid, :manager_guids => [@new_user.guid]})
       end
-
-      logger.info("SETUP: storing the license key in config")
-      Kato::Config.set("cluster", "license", "type: microcloud")
+      
+      if !Kato::Config.get("cluster", "license")
+        logger.info("SETUP: storing the license key in config")
+        Kato::Config.set("cluster", "license", "type: microcloud")
+      end
     end
 
     # Run a command and report to log, and back to caller.
@@ -143,7 +147,7 @@ module VCAP::CloudController
     end
 
     def check_firstuser_allowed
-      if Kato::Config.get("cluster", "license")
+      if StackatoLicenseHelper.get_license_accepted(Kato::Config.get("cluster", "license"))
         raise Errors::StackatoFirstUserAlreadySetup
       end
     end

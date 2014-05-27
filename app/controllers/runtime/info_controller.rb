@@ -1,6 +1,7 @@
 require 'kato/config'
 require 'kato/cluster/license'
 require 'cloud_controller/stackato/cluster_config'
+require 'cloud_controller/stackato/license_helper'
 require 'cloud_controller/stackato/vendor_config'
 
 module VCAP::CloudController
@@ -21,7 +22,7 @@ module VCAP::CloudController
         :api_version => @config[:info][:api_version],
         :vendor_version => StackatoVendorConfig.vendor_version,
         :stackato => {
-            :license_accepted => !license.blank?,
+            :license_accepted => StackatoLicenseHelper.get_license_accepted(license),
             :UUID => STACKATO_UUID
         }
       }
