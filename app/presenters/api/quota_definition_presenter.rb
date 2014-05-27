@@ -7,7 +7,7 @@ class QuotaDefinitionPresenter < ApiPresenter
       non_basic_services_allowed: @object.non_basic_services_allowed,
       total_services: @object.total_services,
       memory_limit: @object.memory_limit,
-      allow_sudo: @object.allow_sudo
+      allow_sudo: @object.allow_sudo,
       trial_db_allowed: false
     }
   end

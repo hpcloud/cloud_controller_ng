@@ -1,12 +1,16 @@
 ---
 local_route: 127.0.0.1
-
+port: 8181
 instance_socket: "/var/stackato/sys/run/cloud_controller_ng/cloud_controller.sock"
-external_port: 8181
-
 pid_filename: /tmp/cloud_controller.pid
+
+# development_mode: true
+
 message_bus_servers:
   - nats://127.0.0.1:4222
+
+external_port: 8181
+external_domain: api.vcap.me
 
 bootstrap_admin_email: stackato@stackato.com
 
@@ -109,6 +113,7 @@ quota_definitions:
     total_services: 100
     non_basic_services_allowed: true
     total_routes: 1000
+    trial_db_allowed: true
     allow_sudo: false
 
 default_quota_definition: default
@@ -138,6 +143,9 @@ buildpacks:
     local_root: /home/stackato/stackato/data/
 
 db_encryption_key: "placeholder"
+
+trial_db:
+  guid: "78ad16cf-3c22-4427-a982-b9d35d746914"
 
 tasks_disabled: false
 
@@ -198,7 +206,6 @@ flapping_crash_count_threshold: 3
 
 disable_custom_buildpacks: false
 broker_client_timeout_seconds: 60
-maximum_health_check_timeout: 180
 
 droplets_to_keep: 5
 
