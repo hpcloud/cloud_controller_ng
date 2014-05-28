@@ -27,7 +27,7 @@ module IntegrationSetup
 
     FileUtils.rm(config['pid_filename']) if File.exists?(config['pid_filename'])
 
-    database_file = config["db"]["database"].gsub('sqlite://', '')
+    database_file = config["db"]["database"]["adapter"].gsub('sqlite://', '')
     if !opts[:preserve_database] && File.file?(database_file)
       run_cmd("rm -f #{database_file}", wait: true)
     end
