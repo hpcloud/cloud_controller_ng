@@ -70,7 +70,7 @@ module VCAP::CloudController
 
       [ VCAP::RestAPI::HTTP::CREATED,
         { "Location" => "#{UsersController.path}/#{@new_user.guid}" },
-        serialization.render_json(UsersController, @new_user, @opts)
+        object_renderer.render_json(UsersController, @new_user, @opts)
       ]
     rescue CF::UAA::InvalidToken => e
       logger.error "The token for the 'cloud_controller' oauth2 client was
@@ -89,6 +89,7 @@ module VCAP::CloudController
       raise e
     rescue Exception => e
       begin
+        logger.debug "Error while setting up: #{e}\n#{e.backtrace[0..6].join("\n")}..."
         logger.debug "Attempting to roll back UAA user..."
         scim_client.delete :user, scim_user['id']
       rescue Exception => uaa_rollback
