@@ -54,10 +54,10 @@ gem 'fluent-logger'     ,    '0.4.7'
 gem 'fog'               ,   '1.18.0'
 gem 'formatador'        ,    '0.2.4', :groups => [:default, :test]
 gem 'futuroscope'       ,    '0.1.5'
-gem 'grape'             ,    '0.6.1'
+gem 'grape'             ,    '0.7.1', :git => "https://github.com/intridea/grape.git"
 gem 'guard'             ,    '2.2.4', :groups => [:test]
 gem 'guard-rspec'       ,    '4.1.0', :groups => [:test]
-gem 'hashie'            ,    '2.0.5'
+gem 'hashie'            ,    '2.1.1'
 gem 'http_parser.rb'    , '0.6.0.beta.2'
 gem 'httpclient'        ,  '2.3.4.1'
 gem 'i18n'              ,    '0.6.9'
@@ -71,7 +71,7 @@ gem 'loggregator_emitter',   '0.0.16'
 gem 'loggregator_messages', '0.0.5.pre'
 gem 'lumberjack'        ,    '1.0.4', :groups => [:test]
 gem 'machinist'         ,    '1.0.6', :groups => [:test]
-gem 'membrane'          ,    '0.0.2'
+gem 'membrane'          ,    '1.0.0'
 gem 'method_source'     ,    '0.8.2', :groups => [:development, :test]
 gem 'mime-types'        ,      '2.0'
 gem 'mini_portile'      ,    '0.5.2'

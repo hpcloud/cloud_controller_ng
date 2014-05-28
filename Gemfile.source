@@ -11,7 +11,8 @@ gem "sequel", "~> 3.48"
 gem "sinatra", "~> 1.4"
 gem "sinatra-contrib"
 gem "yajl-ruby"
-gem "membrane", "~> 0.0.2"
+gem "membrane", "~> 1.0.0"
+gem "grape", "0.7.1", :github => "intridea/grape.git"
 gem 'errand', '0.7.3'
 gem 'librrd', '1.0.3'
 gem "httpclient"
