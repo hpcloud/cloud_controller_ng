@@ -197,7 +197,7 @@ GEM
       celluloid (>= 0.15.2)
       rb-fsevent (>= 0.9.3)
       rb-inotify (>= 0.9)
-    loggregator_emitter (3.0.0)
+    loggregator_emitter (0.0.16)
       beefcake (~> 0.3.7)
     loggregator_messages (0.0.5.pre)
       beefcake (~> 0.3.7)
@@ -420,7 +420,7 @@ DEPENDENCIES
   json_pure (= 1.8.1)
   librrd (= 1.0.3)
   listen (= 2.3.1)
-  loggregator_emitter (= 3.0.0)
+  loggregator_emitter (= 0.0.16)
   loggregator_messages (= 0.0.5.pre)
   lumberjack
   machinist (= 1.0.6)
