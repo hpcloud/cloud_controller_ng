@@ -27,6 +27,8 @@ require "rspec_api_documentation"
 require "kato/config"
 require "kato/util"
 
+require "services"
+
 module VCAP::CloudController
   MAX_LOG_FILE_SIZE_IN_BYTES = 100_000_000
   class SpecEnvironment
@@ -38,10 +40,9 @@ module VCAP::CloudController
         FileUtils.rm_f(log_filename)
       end
 
-      Steno.init(Steno::Config.new(
-        default_log_level: "info",
-        sinks: [Steno::Sink::IO.for_file(log_filename)]
-      ))
+      StenoConfigurer.new(level: "debug2").configure do |steno_config_hash|
+        steno_config_hash[:sinks] = [Steno::Sink::IO.for_file(log_filename)]
+      end
 
       reset_database
       VCAP::CloudController::DB.load_models(config.fetch(:db), db_logger)
@@ -126,12 +127,6 @@ module VCAP::CloudController
         }
       }
 
-      config_hash.merge!(config_override || {})
-
-      res_pool_connection_provider = config_hash[:resource_pool][:fog_connection][:provider].downcase
-      packages_connection_provider = config_hash[:packages][:fog_connection][:provider].downcase
-      Fog.mock! unless (res_pool_connection_provider == "local" || packages_connection_provider == "local")
-
       config_hash
     end
 
@@ -177,8 +172,12 @@ module VCAP::CloudController::SpecHelper
     $spec_env.db
   end
 
-  # Note that this method is mixed into each example, and so the instance
-  # variable we created here gets cleared automatically after each example
+  # Clears the config_override and sets config to the default
+  def config_reset
+    config_override({})
+  end
+
+  # Sets a hash of configurations to merge with the defaults
   def config_override(hash)
     hash ||= {}
     @config_override ||= {}
@@ -188,9 +187,10 @@ module VCAP::CloudController::SpecHelper
     config
   end
 
+  # Lazy load the configuration (default + override)
   def config
     @config ||= begin
-      config = $spec_env.config(@config_override)
+      config = config_default.merge(@config_override || {})
       configure_components(config)
       config
     end
@@ -200,7 +200,19 @@ module VCAP::CloudController::SpecHelper
     config
   end
 
+  # Lazy load the default config
+  def config_default
+    @config_default ||= begin
+      $spec_env.config
+    end
+  end
+
   def configure_components(config)
+    # Always enable Fog mocking (except when using a local provider, which Fog can't mock).
+    res_pool_connection_provider = config[:resource_pool][:fog_connection][:provider].downcase
+    packages_connection_provider = config[:packages][:fog_connection][:provider].downcase
+    Fog.mock! unless (res_pool_connection_provider == "local" || packages_connection_provider == "local")
+
     # DO NOT override the message bus, use the same mock that's set the first time
     message_bus = VCAP::CloudController::Config.message_bus || CfMessageBus::MockMessageBus.new
 
@@ -563,17 +575,21 @@ RSpec.configure do |rspec_config|
     :file_path => rspec_config.escaped_path(%w[spec api])
   }
 
+  rspec_config.include AcceptanceHelpers, type: :acceptance, :example_group => {
+    :file_path => rspec_config.escaped_path(%w[spec acceptance])
+  }
+
   rspec_config.include ApiDsl, type: :api, :example_group => {
     :file_path => rspec_config.escaped_path(%w[spec api])
   }
 
   rspec_config.before :all do
     VCAP::CloudController::SecurityContext.clear
-    @old_before_all_config = configure
+
     RspecApiDocumentation.configure do |c|
       c.format = [:html, :json]
       c.api_name = "Cloud Foundry API"
-      c.template_path = "spec/api/templates"
+      c.template_path = "spec/api/documentation/templates"
       c.curl_host = "https://api.[your-domain.com]"
       c.app = Struct.new(:config) do
         # generate app() method for rack::test to use
@@ -582,14 +598,12 @@ RSpec.configure do |rspec_config|
     end
   end
 
-  rspec_config.after :all do
-    config_override(@old_before_all_config)
-  end
-
   rspec_config.before :each do
     Fog::Mock.reset
     Sequel::Deprecation.output = StringIO.new
     Sequel::Deprecation.backtrace_filter = 5
+
+    config_reset
   end
 
   rspec_config.after :each do

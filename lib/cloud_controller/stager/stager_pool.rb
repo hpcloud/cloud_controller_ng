@@ -24,27 +24,33 @@ module VCAP::CloudController
         @stager_advertisements << advertisement
       end
     end
-  
-    def find_stager(stack, memory, zone="default")
+
+    def find_stager(stack, memory, disk, zone="default")
       mutex.synchronize do
         validate_stack_availability(stack)
 
         prune_stale_advertisements
-        best_ad = top_5_stagers_for(memory, stack, zone).sample
+        best_ad = top_5_stagers_for(memory, disk, stack, zone).sample
         best_ad && best_ad.stager_id
       end
     end
 
     def validate_stack_availability(stack)
       unless @stager_advertisements.any? { |ad| ad.has_stack?(stack) }
-        raise Errors::StackNotFound, "The requested app stack #{stack} is not available on this system."
+        raise Errors::ApiError.new_from_details("StackNotFound", "The requested app stack #{stack} is not available on this system.")
       end
     end
 
+    def reserve_app_memory(stager_id, app_memory)
+      @stager_advertisements.find { |ad| ad.stager_id == stager_id }.decrement_memory(app_memory)
+    end
+
     private
-    def top_5_stagers_for(memory, stack, zone)
+    def top_5_stagers_for(memory, disk, stack, zone)
       @stager_advertisements.select do |advertisement|
-        advertisement.meets_needs?(memory, stack) && advertisement.accepts_zone?(zone)
+        advertisement.meets_needs?(memory, stack) &&
+          advertisement.has_sufficient_disk?(disk) &&
+          advertisement.accepts_zone?(zone)
       end.sort do |advertisement_a, advertisement_b|
         advertisement_a.available_memory <=> advertisement_b.available_memory
       end.last(5)

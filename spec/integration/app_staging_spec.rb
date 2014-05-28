@@ -41,9 +41,6 @@ describe "Staging an app", type: :integration do
     end
 
     before do
-      @tmpdir = Dir.mktmpdir
-      @expected_buildpack_shas = [valid_zip(4).hexdigest, valid_zip.hexdigest]
-
       @buildpack_response_1 = make_post_request(
         "/v2/buildpacks",
         { "name" => "buildpack-1", "position" => 2 }.to_json,
@@ -55,6 +52,11 @@ describe "Staging an app", type: :integration do
         { "name" => "buildpack-2", "position" => 1 }.to_json,
         authed_headers
       )
+
+      @expected_buildpack_shas = [
+        "#{@buildpack_response_2.json_body["metadata"]["guid"]}_#{valid_zip.hexdigest}",
+        "#{@buildpack_response_1.json_body["metadata"]["guid"]}_#{valid_zip(4).hexdigest}",
+      ]
 
       org = make_post_request(
         "/v2/organizations",
@@ -176,10 +178,10 @@ describe "Staging an app", type: :integration do
             end
           end
         end
-        
+
         context "excludes disabled buildpacks" do
           before do
-            @enabled_buildpack_shas = @expected_buildpack_shas[0..0]
+            @enabled_buildpack_shas = @expected_buildpack_shas[1..1]
             @buildpack_response_2_disable = make_put_request(
               "/v2/buildpacks/#{@buildpack_response_2.json_body["metadata"]["guid"]}",
               { "enabled" => false }.to_json,

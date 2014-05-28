@@ -10,9 +10,9 @@ module VCAP::CloudController
       # only admins should have unfettered access to all users
       # UserAccess allows all to read so org and space user lists show all users in those lists
       if guid != user.guid
-        raise Errors::NotAuthorized unless roles.admin?
+        raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       end
-      
+
       user = find_guid_and_validate_access(:read, guid)
       Yajl::Encoder.encode UserSummaryPresenter.new(user).to_hash
     end

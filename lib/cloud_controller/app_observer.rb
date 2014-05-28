@@ -1,14 +1,16 @@
 require "cloud_controller/multi_response_message_bus_request"
 require "models/runtime/droplet_uploader"
+require "cloud_controller/diego_stager_task"
 
 module VCAP::CloudController
   module AppObserver
     class << self
       extend Forwardable
 
-      def configure(config, message_bus, stager_pool, health_manager_client)
+      def configure(config, message_bus, dea_pool, stager_pool, health_manager_client)
         @config = config
         @message_bus = message_bus
+        @dea_pool = dea_pool
         @stager_pool = stager_pool
         @health_manager_client = health_manager_client
       end
@@ -55,12 +57,12 @@ module VCAP::CloudController
 
       def delete_buildpack_cache(app)
         delete_job = Jobs::Runtime::BlobstoreDelete.new(app.guid, :buildpack_cache_blobstore)
-        Delayed::Job.enqueue(delete_job, queue: "cc-generic")
+        Jobs::Enqueuer.new(delete_job, queue: "cc-generic").enqueue()
       end
 
       def delete_package(app)
         delete_job = Jobs::Runtime::BlobstoreDelete.new(app.guid, :package_blobstore)
-        Delayed::Job.enqueue(delete_job, queue: "cc-generic")
+        Jobs::Enqueuer.new(delete_job, queue: "cc-generic").enqueue()
       end
 
       def dependency_locator
@@ -69,14 +71,20 @@ module VCAP::CloudController
 
       def stage_app(app, &completion_callback)
         if app.package_hash.nil? || app.package_hash.empty?
-          raise Errors::AppPackageInvalid, "The app package hash is empty"
+          raise Errors::ApiError.new_from_details("AppPackageInvalid", "The app package hash is empty")
         end
 
-        if app.buildpack.custom? && !App.custom_buildpacks_enabled?
-          raise Errors::CustomBuildpacksDisabled
+        if app.buildpack.custom? && !app.custom_buildpacks_enabled?
+          raise Errors::ApiError.new_from_details("CustomBuildpacksDisabled")
         end
 
-        task = AppStagerTask.new(@config, @message_bus, app, @stager_pool, dependency_locator.blobstore_url_generator)
+
+        if @config[:diego] && (app.environment_json || {})["CF_DIEGO_BETA"] == "true"
+          task = DiegoStagerTask.new(@config[:staging][:timeout_in_seconds], @message_bus, app, dependency_locator.blobstore_url_generator)
+        else
+          task = AppStagerTask.new(@config, @message_bus, app, @dea_pool, @stager_pool, dependency_locator.blobstore_url_generator)
+        end
+
         task.stage(&completion_callback)
       end
 
@@ -117,6 +125,12 @@ module VCAP::CloudController
       def react_to_instances_change(app, delta)
         if app.started?
           DeaClient.change_running_instances(app, delta)
+          broadcast_app_updated(app)
+        end
+      end
+
+      def react_to_package_state_change(app)
+        stage_if_needed(app) do |_|
           broadcast_app_updated(app)
         end
       end

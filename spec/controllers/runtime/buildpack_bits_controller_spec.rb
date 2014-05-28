@@ -32,10 +32,12 @@ module VCAP::CloudController
       Rack::Test::UploadedFile.new(tar_gz_name)
     end
 
+    let(:expected_sha_valid_zip) { "#{@buildpack.guid}_#{sha_valid_zip}" }
+
     before do
       @file = double(:file, {
-          :public_url => "https://some-bucket.example.com/ab/cd/abcdefg",
-          :key => "123-456",
+                       :public_url => "https://some-bucket.example.com/ab/cd/abcdefg",
+                       :key => "123-456",
       })
       buildpack_blobstore = CloudController::DependencyLocator.instance.buildpack_blobstore
       buildpack_blobstore.stub(:files).and_return(double(:files, :head => @file, create: {}))
@@ -44,28 +46,36 @@ module VCAP::CloudController
     after { FileUtils.rm_rf(tmpdir) }
 
     context "Buildpack binaries" do
-      context "/v2/buildpacks/:guid/bits" do
-        before { @test_buildpack = VCAP::CloudController::Buildpack.create_from_hash({ name: "upload_binary_buildpack", position: 0 }) }
+      let (:test_buildpack) { VCAP::CloudController::Buildpack.create_from_hash({ name: "upload_binary_buildpack", position: 0 }) }
 
-        let(:upload_body) { { :buildpack => valid_zip } }
+      context "/v2/buildpacks/:guid/bits" do
+        before do
+          Delayed::Worker.delay_jobs = false
+        end
+
+        after { Delayed::Worker.delay_jobs = true }
+
+        let(:upload_body) { { :buildpack => valid_zip, :buildpack_name => valid_zip.path } }
 
         it "returns NOT AUTHORIZED (403) for non admins" do
-          put "/v2/buildpacks/#{@test_buildpack.guid}/bits", upload_body, headers_for(user)
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", upload_body, headers_for(user)
           expect(last_response.status).to eq(403)
         end
 
         it "returns a CREATED (201) if an admin uploads a zipped build pack" do
-          put "/v2/buildpacks/#{@test_buildpack.guid}/bits", upload_body, admin_headers
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", upload_body, admin_headers
           expect(last_response.status).to eq(201)
         end
 
         it "takes a buildpack file and adds it to the custom buildpacks blobstore with the correct key" do
           CloudController::DependencyLocator.instance.upload_handler.stub(:uploaded_file).and_return(valid_zip)
           buildpack_blobstore = CloudController::DependencyLocator.instance.buildpack_blobstore
-          expected_key = sha_valid_zip
+          expected_key = "#{test_buildpack.guid}_#{sha_valid_zip}"
 
-          put "/v2/buildpacks/#{@test_buildpack.guid}/bits", upload_body, admin_headers
-          expect(Buildpack.find(name: 'upload_binary_buildpack').key).to eq(expected_key)
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", upload_body, admin_headers
+          buildpack = Buildpack.find(name: 'upload_binary_buildpack')
+          expect(buildpack.key).to eq(expected_key)
+          expect(buildpack.filename).to eq(filename)
           expect(buildpack_blobstore.exists?(expected_key)).to be_true
         end
 
@@ -74,14 +84,31 @@ module VCAP::CloudController
           upload_handler.should_receive(:uploaded_file).
             with(hash_including('buildpack_name' => filename), "buildpack").
             and_return(valid_zip)
-          put "/v2/buildpacks/#{@test_buildpack.guid}/bits", upload_body, admin_headers
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", upload_body, admin_headers
+        end
+
+        it "requires a filename as part of the upload" do
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", { :buildpack => "abc" }, admin_headers
+          expect(last_response.status).to eql 400
+          json = Yajl::Parser.parse(last_response.body)
+          expect(json['code']).to eq(290002)
+          expect(json['description']).to match(/a filename must be specified/)
+        end
+
+        it "requires a file to be uploaded" do
+          FileUtils.should_not_receive(:rm_f)
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", { buildpack: nil, buildpack_name: "abc.zip" }, admin_headers
+          expect(last_response.status).to eq(400)
+          json = Yajl::Parser.parse(last_response.body)
+          expect(json['code']).to eq(290002)
+          expect(json['description']).to match(/a file must be provided/)
         end
 
         it "does not allow non-zip files" do
           buildpack_blobstore = CloudController::DependencyLocator.instance.buildpack_blobstore
           buildpack_blobstore.should_not_receive(:cp_to_blobstore)
 
-          put "/v2/buildpacks/#{@test_buildpack.guid}/bits", { :buildpack => valid_tar_gz }, admin_headers
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", { :buildpack => valid_tar_gz }, admin_headers
           expect(last_response.status).to eql 400
           json = Yajl::Parser.parse(last_response.body)
           expect(json['code']).to eq(290002)
@@ -89,38 +116,78 @@ module VCAP::CloudController
         end
 
         it "removes the old buildpack binary when a new one is uploaded" do
-          put "/v2/buildpacks/#{@test_buildpack.guid}/bits", { :buildpack => valid_zip2 }, admin_headers
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", { :buildpack => valid_zip2 }, admin_headers
 
+          expected_sha = "#{test_buildpack.guid}_#{sha_valid_zip2}"
           buildpack_blobstore = CloudController::DependencyLocator.instance.buildpack_blobstore
-          expect(buildpack_blobstore.exists?(sha_valid_zip2)).to be_true
+          expect(buildpack_blobstore.exists?(expected_sha)).to be_true
 
-          put "/v2/buildpacks/#{@test_buildpack.guid}/bits", upload_body, admin_headers
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", upload_body, admin_headers
           response = Yajl::Parser.parse(last_response.body)
           entity = response['entity']
           expect(entity['name']).to eq('upload_binary_buildpack')
-          expect(buildpack_blobstore.exists?(sha_valid_zip2)).to be_false
+          expect(entity['filename']).to eq(filename)
+          expect(buildpack_blobstore.exists?(expected_sha)).to be_false
         end
 
-        it 'reports a conflict if the same buildpack is uploaded again' do
-          put "/v2/buildpacks/#{@test_buildpack.guid}/bits", { :buildpack => valid_zip }, admin_headers
-          put "/v2/buildpacks/#{@test_buildpack.guid}/bits", { :buildpack => valid_zip }, admin_headers
+        it 'reports a no content if the same buildpack is uploaded again' do
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", { :buildpack => valid_zip }, admin_headers
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", { :buildpack => valid_zip }, admin_headers
 
-          expect(last_response.status).to eq(409)
+          expect(last_response.status).to eq(204)
+        end
+
+        it 'allowed when same bits but different filename are uploaded again' do
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", { :buildpack => valid_zip }, admin_headers
+          new_name = File.join(File.dirname(valid_zip.path), "newfilename.zip")
+          File.rename(valid_zip.path, new_name)
+          newfile = Rack::Test::UploadedFile.new(File.new(new_name))
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", { :buildpack => newfile }, admin_headers
+
+          expect(last_response.status).to eq(201)
         end
 
         it "removes the uploaded buildpack file" do
           FileUtils.should_receive(:rm_f).with(/.*ngx.upload.*/)
-          put "/v2/buildpacks/#{@test_buildpack.guid}/bits", { :buildpack => valid_zip }, admin_headers
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", { :buildpack => valid_zip }, admin_headers
+        end
+
+        it "does not allow upload if the buildpack is locked" do
+          locked_buildpack = VCAP::CloudController::Buildpack.create_from_hash({ name: "locked_buildpack", locked: true, position: 0 })
+          put "/v2/buildpacks/#{locked_buildpack.guid}/bits", { :buildpack => valid_zip2 }, admin_headers
+          expect(last_response.status).to eq(409)
+        end
+
+        it "does allow upload if the buildpack has been unlocked" do
+          locked_buildpack = VCAP::CloudController::Buildpack.create_from_hash({ name: "locked_buildpack", locked: true, position: 0 })
+          put "/v2/buildpacks/#{locked_buildpack.guid}", '{"locked": false}', admin_headers
+
+          put "/v2/buildpacks/#{locked_buildpack.guid}/bits", { :buildpack => valid_zip2 }, admin_headers
+          expect(last_response.status).to eq(201)
         end
 
         context "when the upload file is nil" do
-          it "should be okay" do
+          it "should be a bad request" do
             FileUtils.should_not_receive(:rm_f)
-            expect {
-              put "/v2/buildpacks/#{@test_buildpack.guid}/bits", { buildpack: nil }, admin_headers
-            }.to raise_error
+            put "/v2/buildpacks/#{test_buildpack.guid}/bits", { buildpack: nil }, admin_headers
+            expect(last_response.status).to eq(400)
           end
         end
+
+        context "when the same bits are uploaded twice" do
+          let (:test_buildpack2) { VCAP::CloudController::Buildpack.create_from_hash({ name: "buildpack2", position: 0 }) }
+          before do
+            put "/v2/buildpacks/#{test_buildpack.guid}/bits", { :buildpack => valid_zip2 }, admin_headers
+            put "/v2/buildpacks/#{test_buildpack2.guid}/bits", { :buildpack => valid_zip2 }, admin_headers
+          end
+
+          it "should have different keys" do
+            bp1 = Buildpack.find(name: 'upload_binary_buildpack')
+            bp2 = Buildpack.find(name: 'buildpack2')
+            expect(bp1.key).to_not eq(bp2.key)
+          end
+        end
+
       end
 
       context "/v2/buildpacks/:guid/download" do
@@ -130,25 +197,26 @@ module VCAP::CloudController
           config_override(
             {
               :staging => {
+                :timeout_in_seconds => 240,
                 :auth => {
                   :user => staging_user,
                   :password => staging_password
                 }
               },
-            })
+          })
         end
 
-        before { @test_buildpack = VCAP::CloudController::Buildpack.create_from_hash({ name: "get_binary_buildpack", key: 'xyz', position: 0 }) }
+        before { test_buildpack = VCAP::CloudController::Buildpack.create_from_hash({ name: "get_binary_buildpack", key: 'xyz', position: 0 }) }
 
         it "returns NOT AUTHORIZED (403) users without correct basic auth" do
-          get "/v2/buildpacks/#{@test_buildpack.guid}/download", {}
+          get "/v2/buildpacks/#{test_buildpack.guid}/download", {}
           expect(last_response.status).to eq(403)
         end
 
         it "lets users with correct basic auth retrieve the bits for a specific buildpack" do
-          put "/v2/buildpacks/#{@test_buildpack.guid}/bits", { :buildpack => valid_zip }, admin_headers
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", { :buildpack => valid_zip }, admin_headers
           authorize(staging_user, staging_password)
-          get "/v2/buildpacks/#{@test_buildpack.guid}/download"
+          get "/v2/buildpacks/#{test_buildpack.guid}/download"
           expect(last_response.status).to eq(302)
           expect(last_response.header['Location']).to match(/cc-buildpacks/)
         end

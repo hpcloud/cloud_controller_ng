@@ -9,13 +9,6 @@ module VCAP::CloudController
       json_headers(headers_for(user))
     end
 
-    before do
-      Steno.init(Steno::Config.new(
-        :default_log_level => "debug2",
-        :sinks => [Steno::Sink::IO.for_file("/tmp/cloud_controller_test.log")]
-      ))
-    end
-
     describe 'POST /v2/service_brokers' do
       let(:name) { Sham.name }
       let(:broker_url) { 'http://cf-service-broker.example.com' }
@@ -46,11 +39,12 @@ module VCAP::CloudController
         })
       end
       let(:registration) do
-        reg = double(ServiceBrokerRegistration, {
+        reg = double(VCAP::Services::ServiceBrokers::ServiceBrokerRegistration, {
           broker: broker,
-          errors: errors
+          errors: errors,
         })
-        reg.stub(:save).and_return(reg)
+        reg.stub(:create).and_return(reg)
+        reg.stub(:warnings).and_return([])
         reg
       end
       let(:presenter) { double(ServiceBrokerPresenter, {
@@ -59,7 +53,7 @@ module VCAP::CloudController
 
       before do
         ServiceBroker.stub(:new).and_return(broker)
-        ServiceBrokerRegistration.stub(:new).with(broker).and_return(registration)
+        VCAP::Services::ServiceBrokers::ServiceBrokerRegistration.stub(:new).with(broker).and_return(registration)
         ServiceBrokerPresenter.stub(:new).with(broker).and_return(presenter)
       end
 
@@ -72,7 +66,7 @@ module VCAP::CloudController
       it 'creates a service broker registration' do
         post '/v2/service_brokers', body, headers
 
-        expect(registration).to have_received(:save)
+        expect(registration).to have_received(:create)
       end
 
       it 'returns the serialized broker' do
@@ -95,7 +89,7 @@ module VCAP::CloudController
       end
 
       context 'when there is an error in Broker Registration' do
-        before { registration.stub(:save).and_return(nil) }
+        before { registration.stub(:create).and_return(nil) }
 
         context 'when the broker url is taken' do
           before { errors.stub(:on).with(:broker_url).and_return([:unique]) }
@@ -122,45 +116,34 @@ module VCAP::CloudController
         end
 
         context 'when there are other errors on the registration' do
-          before { errors.stub(:full_messages).and_return('A bunch of stuff was wrong') }
+          let(:error_message) { 'A bunch of stuff was wrong' }
+          before do
+            errors.stub(:full_messages).and_return([error_message])
+            registration.stub(:create).and_raise(Sequel::ValidationFailed.new(errors))
+          end
 
           it 'returns an error' do
             post '/v2/service_brokers', body, headers
 
-            last_response.status.should == 400
-            decoded_response.fetch('code').should == 270001
-            decoded_response.fetch('description').should == 'Service broker is invalid: A bunch of stuff was wrong'
+            last_response.status.should == 502
+            decoded_response.fetch('code').should == 270012
+            decoded_response.fetch('description').should == 'Service broker catalog is invalid: A bunch of stuff was wrong'
           end
         end
+      end
 
-        context 'when the catalog has a service without any plans' do
-          before do
-            broker.stub(:save).and_raise(Errors::ServiceBrokerInvalid.new('each service must have at least one plan'))
-            errors.stub(:on).with(:services).and_return(['each service must have at least one plan'])
-          end
-
-          it 'returns an error' do
-            post '/v2/service_brokers', body, headers
-
-            last_response.status.should == 400
-            decoded_response.fetch('code').should == 270001
-            decoded_response.fetch('description').should == 'Service broker is invalid: each service must have at least one plan'
-          end
+      context 'when the broker registration has warnings' do
+        before do
+          allow(registration).to receive(:warnings).and_return(['warning1','warning2'])
         end
 
-        context 'when the catalog has plans with non-unique names' do
-          before do
-            broker.stub(:save).and_raise(Errors::ServiceBrokerInvalid.new('Plans within a service must have unique names'))
-            errors.stub(:full_messages).and_return(['Plans within a service must have unique names'])
-          end
+        it 'adds the warnings' do
+          post('/v2/service_brokers', body, headers)
 
-          it 'returns an error' do
-            post '/v2/service_brokers', body, headers
-
-            last_response.status.should == 400
-            decoded_response.fetch('code').should == 270001
-            decoded_response.fetch('description').should == 'Service broker is invalid: Plans within a service must have unique names'
-          end
+          warnings = last_response.headers['X-Cf-Warnings'].split(',').map { |w| CGI.unescape(w) }
+          expect(warnings.length).to eq(2)
+          expect(warnings[0]).to eq('warning1')
+          expect(warnings[1]).to eq('warning2')
         end
       end
 
@@ -227,7 +210,7 @@ module VCAP::CloudController
           get '/v2/service_brokers'
           expect(last_response.status).to eq(401)
           expect(decoded_response).to include({
-            'error_code' => 'CF-InvalidAuthToken'
+            'error_code' => 'CF-NotAuthenticated'
           })
         end
       end
@@ -314,11 +297,12 @@ module VCAP::CloudController
         })
       end
       let(:registration) do
-        reg = double(ServiceBrokerRegistration, {
+        reg = double(VCAP::Services::ServiceBrokers::ServiceBrokerRegistration, {
           broker: broker,
           errors: errors
         })
-        reg.stub(:save).and_return(reg)
+        reg.stub(:update).and_return(reg)
+        reg.stub(:warnings).and_return([])
         reg
       end
       let(:presenter) { double(ServiceBrokerPresenter, {
@@ -328,7 +312,7 @@ module VCAP::CloudController
       before do
         ServiceBroker.stub(:find)
         ServiceBroker.stub(:find).with(guid: broker.guid).and_return(broker)
-        ServiceBrokerRegistration.stub(:new).with(broker).and_return(registration)
+        VCAP::Services::ServiceBrokers::ServiceBrokerRegistration.stub(:new).with(broker).and_return(registration)
         ServiceBrokerPresenter.stub(:new).with(broker).and_return(presenter)
       end
 
@@ -336,7 +320,7 @@ module VCAP::CloudController
         put "/v2/service_brokers/#{broker.guid}", body, headers
 
         expect(broker).to have_received(:set).with(body_hash)
-        expect(registration).to have_received(:save)
+        expect(registration).to have_received(:update)
       end
 
 
@@ -362,7 +346,7 @@ module VCAP::CloudController
       end
 
       context 'when there is an error in Broker Registration' do
-        before { registration.stub(:save).and_return(nil) }
+        before { registration.stub(:update).and_return(nil) }
 
         context 'when the broker url is not a valid http/https url' do
           before { errors.stub(:on).with(:broker_url).and_return([:url]) }
@@ -410,6 +394,21 @@ module VCAP::CloudController
             decoded_response.fetch('code').should == 270001
             decoded_response.fetch('description').should == 'Service broker is invalid: A bunch of stuff was wrong'
           end
+        end
+      end
+
+      context 'when the broker registration has warnings' do
+        before do
+          allow(registration).to receive(:warnings).and_return(['warning1','warning2'])
+        end
+
+        it 'adds the warnings' do
+          put("/v2/service_brokers/#{broker.guid}", body, headers)
+
+          warnings = last_response.headers['X-Cf-Warnings'].split(',').map { |w| CGI.unescape(w) }
+          expect(warnings.length).to eq(2)
+          expect(warnings[0]).to eq('warning1')
+          expect(warnings[1]).to eq('warning2')
         end
       end
 

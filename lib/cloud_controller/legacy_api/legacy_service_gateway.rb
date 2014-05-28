@@ -18,7 +18,7 @@ module VCAP::CloudController
       (label, version_from_label, label_dash_check) = req.label.split("-")
       if label_dash_check
         logger.warn("Unexpected dash in label: #{req.label} ")
-        raise Errors::InvalidRequest
+        raise Errors::ApiError.new_from_details("InvalidRequest")
       end
 
       version = req.version_aliases["current"] || version_from_label
@@ -101,7 +101,7 @@ module VCAP::CloudController
       (label, version) = label_and_version.split("-")
 
       service = Service[:label => label, :provider => provider]
-      raise ServiceNotFound, "label=#{label} provider=#{provider}" unless service
+      raise ApiError.new_from_details("ServiceNotFound", "label=#{label} provider=#{provider}") unless service
       validate_access(label, provider)
       logger.debug("Listing handles for service: #{service.inspect}")
 
@@ -136,14 +136,17 @@ module VCAP::CloudController
 
       set_v2_security_context
       svc_guid = Service[:label => label, :provider => provider].guid
-      svc_api = VCAP::CloudController::ServicesController.new(config, logger, env, params, body)
+
+      controller_factory = CloudController::ControllerFactory.new(config, logger, env, params, body)
+      svc_api = controller_factory.create_controller(VCAP::CloudController::ServicesController)
       svc_api.dispatch(:delete, svc_guid)
 
       empty_json
     end
 
     def validate_access(label, provider = DEFAULT_PROVIDER)
-      raise NotAuthorized unless auth_token = env[SERVICE_TOKEN_KEY]
+      auth_token = env[SERVICE_TOKEN_KEY]
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless auth_token
 
       svc_auth_token = ServiceAuthToken[
         :label => label, :provider => provider,
@@ -151,7 +154,7 @@ module VCAP::CloudController
 
       unless (svc_auth_token && svc_auth_token.token_matches?(auth_token))
         logger.warn("unauthorized service offering")
-        raise NotAuthorized
+        raise Errors::ApiError.new_from_details("NotAuthorized")
       end
     end
 
@@ -204,27 +207,30 @@ module VCAP::CloudController
       req = VCAP::Services::Api::HandleUpdateRequest.decode(body)
 
       service = Service[:label => label, :provider => provider]
-      raise ServiceNotFound, "label=#{label} provider=#{provider}" unless service
+      raise ApiError.new_from_details("ServiceNotFound", "label=#{label} provider=#{provider}") unless service
 
 
       plans_ds = service.service_plans_dataset
       instances_ds = ManagedServiceInstance.filter(:service_plan => plans_ds)
       bindings_ds = ServiceBinding.filter(:service_instance => instances_ds)
 
-      if instance = instances_ds[:gateway_name => id]
+      instance = instances_ds[:gateway_name => id]
+      binding = bindings_ds[:gateway_name => id]
+
+      if instance
         instance.set(
           :gateway_data => req.configuration,
           :credentials => req.credentials,
         )
         instance.save_changes
-      elsif binding = bindings_ds[:gateway_name => id]
+      elsif binding
         binding.set(
           :configuration => req.configuration.to_s,
           :credentials => req.credentials.to_s,
         )
         binding.save_changes
       else
-        raise ServiceInstanceNotFound, "label=#{label} provider=#{provider} id=#{id}"
+        raise ApiError.new_from_details("ServiceInstanceNotFound", "label=#{label} provider=#{provider} id=#{id}")
       end
     end
 
@@ -268,7 +274,7 @@ module VCAP::CloudController
 
     def self.translate_validation_exception(e, attributes)
       Steno.logger("cc.api.legacy_svc_gw").error "#{attributes} #{e}"
-      Errors::InvalidRequest.new
+      Errors::ApiError.new_from_details("InvalidRequest.new")
     end
 
     setup_routes

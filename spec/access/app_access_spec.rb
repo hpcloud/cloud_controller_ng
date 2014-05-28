@@ -2,6 +2,11 @@ require 'spec_helper'
 
 module VCAP::CloudController
   describe AppAccess, type: :access do
+    before do
+      token = {'scope' => 'cloud_controller.read cloud_controller.write'}
+      VCAP::CloudController::SecurityContext.stub(:token).and_return(token)
+    end
+
     subject(:access) { AppAccess.new(double(:context, user: user, roles: roles)) }
     let(:user) { VCAP::CloudController::User.make }
     let(:roles) { double(:roles, :admin? => false, :none? => false, :present? => true) }
@@ -17,6 +22,11 @@ module VCAP::CloudController
         space.add_developer(user)
       end
       it_behaves_like :full_access
+
+      context 'when the organization is suspended' do
+        before { allow(object).to receive(:in_suspended_org?).and_return(true) }
+        it_behaves_like :read_only
+      end
     end
 
     context 'organization manager' do
@@ -53,6 +63,38 @@ module VCAP::CloudController
         space.add_auditor(user)
       end
       it_behaves_like :read_only
+    end
+
+    context 'any user using client without cloud_controller.write' do
+      before do
+        token = { 'scope' => 'cloud_controller.read'}
+        VCAP::CloudController::SecurityContext.stub(:token).and_return(token)
+        org.add_user(user)
+        org.add_manager(user)
+        org.add_billing_manager(user)
+        org.add_auditor(user)
+        space.add_manager(user)
+        space.add_developer(user)
+        space.add_auditor(user)
+      end
+
+      it_behaves_like :read_only
+    end
+
+    context 'any user using client without cloud_controller.read' do
+      before do
+        token = { 'scope' => ''}
+        VCAP::CloudController::SecurityContext.stub(:token).and_return(token)
+        org.add_user(user)
+        org.add_manager(user)
+        org.add_billing_manager(user)
+        org.add_auditor(user)
+        space.add_manager(user)
+        space.add_developer(user)
+        space.add_auditor(user)
+      end
+
+      it_behaves_like :no_access
     end
   end
 end

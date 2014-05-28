@@ -16,7 +16,7 @@ gem "grape", "0.7.1", :github => "intridea/grape.git"
 gem 'errand', '0.7.3'
 gem 'librrd', '1.0.3'
 gem "httpclient"
-gem "steno"
+gem "steno", '1.1.0'
 gem "cloudfront-signer"
 gem "vcap-concurrency", :github => "cloudfoundry/vcap-concurrency", :ref => "2a5b0179"
 gem "cf-uaa-lib", "~> 2.0.0", :github => "ActiveState/cf-uaa-lib", :ref => "3026895da933a7b1102735db96568c007b4c9148"

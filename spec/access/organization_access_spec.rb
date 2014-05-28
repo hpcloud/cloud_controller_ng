@@ -2,6 +2,11 @@ require 'spec_helper'
 
 module VCAP::CloudController
   describe OrganizationAccess, type: :access do
+    before do
+      token = {'scope' => 'cloud_controller.read cloud_controller.write'}
+      VCAP::CloudController::SecurityContext.stub(:token).and_return(token)
+    end
+
     subject(:access) { OrganizationAccess.new(double(:context, user: user, roles: roles)) }
     let(:object) { VCAP::CloudController::Organization.make }
     let(:user) { VCAP::CloudController::User.make }
@@ -9,15 +14,18 @@ module VCAP::CloudController
 
     it_should_behave_like :admin_full_access
 
-    context 'with a suspended organization' do
-      before { object.set(status: 'suspended') }
-      it_should_behave_like :admin_full_access
-    end
-
-    context 'changing the name' do
+    context 'an admin of the organization' do
       include_context :admin_setup
-      before { object.name = 'my new name' }
-      it { should be_able_to :update, object }
+
+      context 'changing the name' do
+        before { object.name = 'my new name' }
+        it { should be_able_to :update, object }
+      end
+
+      context 'with a suspended organization' do
+        before { object.set(status: 'suspended') }
+        it_behaves_like :full_access
+      end
     end
 
     context 'a user in the organization' do
@@ -46,7 +54,7 @@ module VCAP::CloudController
 
       context 'changing the name' do
         before { object.name = 'my new name' }
-        it { should_not be_able_to :update, object }
+        it { should be_able_to :update, object }
       end
 
       context 'with a suspended organization' do
@@ -58,6 +66,32 @@ module VCAP::CloudController
     context 'an auditor for the organization' do
       before { object.add_auditor(user) }
       it_behaves_like :read_only
+    end
+
+    context 'any user using client without cloud_controller.write' do
+      before do
+        token = { 'scope' => 'cloud_controller.read'}
+        VCAP::CloudController::SecurityContext.stub(:token).and_return(token)
+        object.add_user(user)
+        object.add_manager(user)
+        object.add_billing_manager(user)
+        object.add_auditor(user)
+      end
+
+      it_behaves_like :read_only
+    end
+
+    context 'any user using client without cloud_controller.read' do
+      before do
+        token = { 'scope' => ''}
+        VCAP::CloudController::SecurityContext.stub(:token).and_return(token)
+        object.add_user(user)
+        object.add_manager(user)
+        object.add_billing_manager(user)
+        object.add_auditor(user)
+      end
+
+      it_behaves_like :no_access
     end
   end
 end
