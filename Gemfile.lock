@@ -1,9 +1,9 @@
 GIT
   remote: git://github.com/ActiveState/cf-uaa-lib.git
-  revision: 3026895da933a7b1102735db96568c007b4c9148
-  ref: 3026895da933a7b1102735db96568c007b4c9148
+  revision: 4e44eacf9510d3ae882d6cad6969bc655d2ada5c
+  ref: 4e44eacf9510d3ae882d6cad6969bc655d2ada5c
   specs:
-    cf-uaa-lib (2.0.0)
+    cf-uaa-lib (2.1.0)
       multi_json
 
 GIT
@@ -375,7 +375,7 @@ DEPENDENCIES
   celluloid (= 0.15.2)
   cf-message-bus (= 0.2.0)!
   cf-registrar (= 1.0.1)!
-  cf-uaa-lib (= 2.0.0)!
+  cf-uaa-lib (= 2.1.0)!
   ci_reporter (= 1.9.0)
   clockwork (= 0.7.0)
   cloudfront-signer (= 2.1.1)
