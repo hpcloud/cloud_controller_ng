@@ -651,7 +651,7 @@ module VCAP::CloudController
     def current_droplet
       return nil unless droplet_hash
       self.droplets_dataset.filter(droplet_hash: droplet_hash).first ||
-        Droplet.new(app: self, droplet_hash: self.droplet_hash)
+        Droplet.new(app: self, droplet_hash: self.droplet_hash).save
     end
 
     def running_instances
