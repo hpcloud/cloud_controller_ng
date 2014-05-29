@@ -6,12 +6,7 @@ module VCAP::CloudController
       app.space.developers.include?(context.user)
     end
 
-    def update?(app)
-      create?(app)
-    end
-
-    def delete?(app)
-      create?(app)
-    end
+    alias :update? :create?
+    alias :delete? :create?
   end
 end

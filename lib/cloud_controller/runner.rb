@@ -82,7 +82,6 @@ module VCAP::CloudController
       steno_config[:codec] = Steno::Codec::Text.new
       steno_config[:context] = Steno::Context::ThreadLocal.new
       steno_config[:sinks] << @log_counter
-      steno_config[:default_log_level] = :debug
       Steno.init(Steno::Config.new(steno_config))
     end
 

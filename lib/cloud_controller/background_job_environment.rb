@@ -7,7 +7,6 @@ class BackgroundJobEnvironment
       steno_config_hash[:sinks] = [Steno::Sink::IO.new(STDOUT)]
       steno_config_hash[:codec] = Steno::Codec::Text.new
       steno_config_hash[:context] = Steno::Context::ThreadLocal.new
-      steno_config_hash[:default_log_level] = :debug
     end
   end
 
