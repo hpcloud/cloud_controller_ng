@@ -16,17 +16,17 @@ gem "grape", "0.7.1", :github => "intridea/grape.git"
 gem 'errand', '0.7.3'
 gem 'librrd', '1.0.3'
 gem "httpclient"
-gem "steno"
+gem "steno", '1.1.0'
 gem "cloudfront-signer"
 gem "vcap-concurrency", :github => "cloudfoundry/vcap-concurrency", :ref => "2a5b0179"
-gem "cf-uaa-lib", "~> 2.0.0", :github => "ActiveState/cf-uaa-lib", :ref => "3026895da933a7b1102735db96568c007b4c9148"
+gem "cf-uaa-lib", "~> 2.1.0", :github => "ActiveState/cf-uaa-lib", :ref => "4e44eacf9510d3ae882d6cad6969bc655d2ada5c"
 gem "stager-client", "~> 0.0.02", :github => "cloudfoundry/stager-client", :ref => "04c2aee9"
 gem "cf-message-bus", :github => "ActiveState/cf-message-bus"
 gem 'cf-registrar', '~> 1.0.1', :github => "cloudfoundry/cf-registrar"
 gem 'vcap_common', :path => '../common'
 gem "allowy"
 gem "delayed_job_active_record", "~> 4.0"
-gem "loggregator_emitter", "~> 0.0.11.pre"
+gem "loggregator_emitter", "~> 0.0.16"
 gem "loggregator_messages", "~> 0.0.4.pre"
 
 # Auto scaling

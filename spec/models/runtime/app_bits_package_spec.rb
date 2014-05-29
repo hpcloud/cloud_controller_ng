@@ -7,31 +7,34 @@ describe AppBitsPackage do
     File.open(path, "w" ) { |f| f.write "content"  }
     global_app_bits_cache.cp_to_blobstore(path, sha)
 
-    FingerprintsCollection.new([{"fn" => "path/to/content.txt", "size" => 123, "sha1" => sha}])
+    CloudController::Blobstore::FingerprintsCollection.new([{"fn" => "path/to/content.txt", "size" => 123, "sha1" => sha}])
   end
 
   let(:compressed_path) { File.expand_path("../../../fixtures/good.zip", __FILE__) }
   let(:app) { VCAP::CloudController::AppFactory.make }
   let(:blobstore_dir) { Dir.mktmpdir }
   let(:local_tmp_dir) { Dir.mktmpdir }
-  let(:global_app_bits_cache) { Blobstore.new({ provider: "Local", local_root: blobstore_dir }, "global_app_bits_cache") }
-  let(:package_blobstore) { Blobstore.new({provider: "Local", local_root: blobstore_dir}, "package") }
-  let(:packer) { AppBitsPackage.new(package_blobstore, global_app_bits_cache, max_droplet_size, local_tmp_dir) }
-  let(:max_droplet_size) { 1_073_741_824 }
 
-  around do |example|
-    begin
-      Fog.unmock!
-      example.call
-    ensure
-      Fog.mock!
-      FileUtils.remove_entry_secure local_tmp_dir
-      FileUtils.remove_entry_secure blobstore_dir
-    end
+  let(:global_app_bits_cache) do
+    CloudController::Blobstore::Client.new({provider: "Local", local_root: blobstore_dir}, "global_app_bits_cache", nil, nil, 4, 8)
   end
 
+  let(:package_blobstore) do
+    CloudController::Blobstore::Client.new({provider: "Local", local_root: blobstore_dir}, "package")
+  end
+
+  let(:packer) { AppBitsPackage.new(package_blobstore, global_app_bits_cache, max_package_size, local_tmp_dir) }
+  let(:max_package_size) { 1_073_741_824 }
+
   before do
+    Fog.unmock!
     FileUtils.stub(:rm_f).with(compressed_path)
+  end
+
+  after do
+    Fog.mock!
+    FileUtils.remove_entry_secure local_tmp_dir
+    FileUtils.remove_entry_secure blobstore_dir
   end
 
   describe "#create" do
@@ -41,6 +44,26 @@ describe AppBitsPackage do
       create
       sha_of_bye_file_in_good_zip = "ee9e51458f4642f48efe956962058245ee7127b1"
       expect(global_app_bits_cache.exists?(sha_of_bye_file_in_good_zip)).to be_true
+    end
+
+    context "when one of the files exceeds the configured maximum_size" do
+      it "it is not uploaded to the cache but the others are" do
+        create
+        sha_of_greetings_file_in_good_zip = "82693f9b3a4857415aeffccd535c375891d96f74"
+        sha_of_bye_file_in_good_zip = "ee9e51458f4642f48efe956962058245ee7127b1"
+        expect(global_app_bits_cache.exists?(sha_of_bye_file_in_good_zip)).to be_true
+        expect(global_app_bits_cache.exists?(sha_of_greetings_file_in_good_zip)).to be_false
+      end
+    end
+
+    context "when one of the files is less than the configured minimum_size" do
+      it "it is not uploaded to the cache but the others are" do
+        create
+        sha_of_hi_file_in_good_zip = "55ca6286e3e4f4fba5d0448333fa99fc5a404a73"
+        sha_of_bye_file_in_good_zip = "ee9e51458f4642f48efe956962058245ee7127b1"
+        expect(global_app_bits_cache.exists?(sha_of_bye_file_in_good_zip)).to be_true
+        expect(global_app_bits_cache.exists?(sha_of_hi_file_in_good_zip)).to be_false
+      end
     end
 
     it "uploads the new app bits to the package blob store" do
@@ -83,12 +106,12 @@ describe AppBitsPackage do
     end
 
     context "when the app bits are too large" do
-      let(:max_droplet_size) { 10 }
+      let(:max_package_size) { 10 }
 
       it "raises an exception" do
         expect {
           create
-        }.to raise_exception VCAP::Errors::AppPackageInvalid, /package.+larger/i
+        }.to raise_exception VCAP::Errors::ApiError, /package.+larger/i
       end
 
       it "removes the compressed path afterwards" do
@@ -98,10 +121,10 @@ describe AppBitsPackage do
     end
 
     context "when the max droplet size is not configured" do
-      let(:max_droplet_size) { nil }
+      let(:max_package_size) { nil }
 
       it "always accepts any droplet size" do
-        fingerprints_in_app_cache = FingerprintsCollection.new(
+        fingerprints_in_app_cache = CloudController::Blobstore::FingerprintsCollection.new(
           [{"fn" => "file.txt", "size" => (2048 * 1024 * 1024) + 1, "sha1" => 'a_sha'}]
         )
         packer.create(app, compressed_path, fingerprints_in_app_cache)

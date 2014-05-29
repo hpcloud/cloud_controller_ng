@@ -47,7 +47,8 @@ module VCAP::CloudController
     let(:app_event_repository) { CloudController::DependencyLocator.instance.app_event_repository }
 
     describe "create app" do
-      let(:space_guid) { Space.make.guid.to_s }
+      let(:space) { Space.make }
+      let(:space_guid) { space.guid.to_s }
       let(:initial_hash) do
         {
           name: "maria",
@@ -103,7 +104,7 @@ module VCAP::CloudController
         it "responds invalid arguments" do
           create_app
           last_response.status.should == 400
-          last_response.body.should match /instances less than 0/
+          last_response.body.should match /instances less than 1/
         end
       end
 
@@ -142,11 +143,10 @@ module VCAP::CloudController
         it "records app create" do
           expected_attrs = AppsController::CreateMessage.decode(initial_hash.to_json).extract(stringify_keys: true)
 
-          allow(app_event_repository).to receive(:record_app_create)
+          allow(app_event_repository).to receive(:record_app_create).and_call_original
 
           create_app
-
-          expect(app_event_repository).to have_received(:record_app_create).with(App.last, admin_user, expected_attrs)
+          expect(app_event_repository).to have_received(:record_app_create).with(App.last, admin_user, SecurityContext.current_user_email, expected_attrs)
         end
       end
 
@@ -171,6 +171,18 @@ module VCAP::CloudController
           expect(decoded_response["description"]).to match /is not valid public git url or a known buildpack name/
         end
       end
+
+      context "when the org is suspended" do
+        before do
+          space.organization.update(status: "suspended")
+        end
+
+        it "does not allow user to create new app (spot check)" do
+          post "/v2/apps", Yajl::Encoder.encode(initial_hash), json_headers(headers_for(make_developer_for_space(space)))
+          last_response.status.should == 403
+        end
+      end
+
     end
 
     describe "update app" do
@@ -309,26 +321,31 @@ module VCAP::CloudController
 
         context "when the update succeeds" do
           it "records app update with whitelisted attributes" do
-            allow(app_event_repository).to receive(:record_app_update)
+            allow(app_event_repository).to receive(:record_app_update).and_call_original
 
-            update_app
-
-            expect(app_event_repository).to have_received(:record_app_update) do |recorded_app, recorded_user, recorded_hash|
+            expect(app_event_repository).to receive(:record_app_update) do |recorded_app, user, user_name, attributes|
               expect(recorded_app.guid).to eq(app_obj.guid)
               expect(recorded_app.instances).to eq(2)
-              expect(recorded_user).to eq(admin_user)
-              expect(recorded_hash).to eq({"instances" => 2})
+              expect(user).to eq(admin_user)
+              expect(user_name).to eq(SecurityContext.current_user_email)
+              expect(attributes).to eq({"instances" => 2})
             end
+
+            update_app
           end
         end
 
         context "when the update fails" do
-          before { App.any_instance.stub(:update_from_hash).and_raise("Error saving") }
+          before do
+            allow_any_instance_of(App).to receive(:update_from_hash).and_raise("Error saving")
+            allow(app_event_repository).to receive(:record_app_update)
+          end
 
           it "does not record app update" do
-            expect(app_event_repository).not_to receive(:record_app_update)
+            update_app
 
-            expect { update_app }.to raise_error
+            expect(app_event_repository).to_not have_received(:record_app_update)
+            expect(last_response.status).to eq(500)
           end
         end
       end
@@ -348,16 +365,28 @@ module VCAP::CloudController
         decoded_response["entity"]["detected_buildpack"].should eq("buildpack-name")
       end
 
+      it "should not return the detected buildpack guid" do
+        get_app
+        last_response.status.should == 200
+        decoded_response["entity"].should_not have_key("detected_buildpack_guid")
+      end
+
+      it "should not return the detected buildpack name" do
+        get_app
+        last_response.status.should == 200
+        decoded_response["entity"].should_not have_key("detected_buildpack_name")
+      end
+
       it "should return the package state" do
         get_app
         last_response.status.should == 200
         expect(parse(last_response.body)["entity"]).to have_key("package_state")
       end
 
-      it "should return system_env_json" do
+      it "should not return system_env_json" do
         get_app
         last_response.status.should == 200
-        expect(parse(last_response.body)["entity"]).to have_key("system_env_json")
+        expect(parse(last_response.body)["entity"]).not_to have_key("system_env_json")
       end
     end
 
@@ -448,20 +477,30 @@ module VCAP::CloudController
 
       describe "events" do
         it "records an app delete-request" do
-          allow(app_event_repository).to receive(:record_app_delete_request)
+          allow(app_event_repository).to receive(:record_app_delete_request).and_call_original
 
           delete_app
 
-          expect(app_event_repository).to have_received(:record_app_delete_request).with(app_obj, admin_user, false)
+          expect(app_event_repository).to have_received(:record_app_delete_request).with(app_obj, admin_user, SecurityContext.current_user_email, false)
         end
 
         it "records the recursive query parameter when recursive"  do
-          allow(app_event_repository).to receive(:record_app_delete_request)
+          allow(app_event_repository).to receive(:record_app_delete_request).and_call_original
 
           delete "/v2/apps/#{app_obj.guid}?recursive=true", {}, json_headers(admin_headers)
 
-          expect(app_event_repository).to have_received(:record_app_delete_request).with(app_obj, admin_user, true)
+          expect(app_event_repository).to have_received(:record_app_delete_request).with(app_obj, admin_user, SecurityContext.current_user_email, true)
         end
+      end
+    end
+
+    describe "read an app's env" do
+      let(:app_obj) { AppFactory.make(detected_buildpack: "buildpack-name") }
+      it "returns system_env_json" do
+        get "/v2/apps/#{app_obj.guid}/env", {}, json_headers(admin_headers)
+        last_response.status.should == 200
+        expect(parse(last_response.body)).to have_key("system_env_json")
+        expect(parse(last_response.body)).to have_key("environment_json")
       end
     end
 
@@ -765,6 +804,22 @@ module VCAP::CloudController
           last_response.status.should == 400
           decoded_response["description"].should =~ /exceeded your organization's memory limit/
         end
+      end
+    end
+
+    describe "events associations (via AppEvents)" do
+      it "does not return events with inline-relations-depth=0" do
+        app = App.make
+        get "/v2/apps/#{app.guid}?inline-relations-depth=0", {}, json_headers(admin_headers)
+        expect(entity).to have_key("events_url")
+        expect(entity).to_not have_key("events")
+      end
+
+      it "does not return events with inline-relations-depth=1 since app_events dataset is relatively expensive to query" do
+        app = App.make
+        get "/v2/apps/#{app.guid}?inline-relations-depth=1", {}, json_headers(admin_headers)
+        expect(entity).to have_key("events_url")
+        expect(entity).to_not have_key("events")
       end
     end
   end

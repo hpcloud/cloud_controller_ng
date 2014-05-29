@@ -1,10 +1,16 @@
 module VCAP::CloudController
   class DomainAccess < BaseAccess
     def create?(domain)
-      super || (domain.owning_organization && domain.owning_organization.managers.include?(context.user))
+      return true if admin_user?
+      domain.owning_organization && domain.owning_organization.managers.include?(context.user)
     end
 
-    alias :update? :create?
-    alias :delete? :create?
+    def update?(domain)
+      create?(domain)
+    end
+
+    def delete?(domain)
+      create?(domain)
+    end
   end
 end

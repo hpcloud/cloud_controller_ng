@@ -30,6 +30,13 @@ module VCAP::CloudController
       super
     end
 
+    def trial_db_allowed=(_)
+    end
+
+    def trial_db_allowed
+      false
+    end
+
     def self.configure(config)
       @default_quota_name = config[:default_quota_definition]
     end

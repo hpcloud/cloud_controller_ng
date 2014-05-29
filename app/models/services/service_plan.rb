@@ -18,21 +18,14 @@ module VCAP::CloudController
 
     alias_method :active?, :active
 
-    def self.configure(trial_db_config)
-      @trial_db_guid = trial_db_config ? trial_db_config[:guid] : nil
-    end
-
-    def self.trial_db_guid
-      @trial_db_guid
-    end
-
     def validate
-      validates_presence :name
-      validates_presence :description
-      validates_presence :free
-      validates_presence :service
-      validates_presence :unique_id
-      validates_unique   [:service_id, :name], {message: Sequel.lit("Plans within a service must have unique names")}
+      validates_presence :name,                message: 'is required'
+      validates_presence :description,         message: 'is required'
+      validates_presence :free,                message: 'is required'
+      validates_presence :service,             message: 'is required'
+      validates_presence :unique_id,           message: 'is required'
+      validates_unique   [:service_id, :name], message: Sequel.lit('Plan names must be unique within a service')
+      validates_unique   :unique_id,           message: Sequel.lit('Plan ids must be unique')
     end
 
     def_dataset_method(:organization_visible) do |organization|
@@ -46,10 +39,6 @@ module VCAP::CloudController
       Sequel.
         or(public: true, id: ServicePlanVisibility.visible_private_plan_ids_for_user(user)).
         &(active: true)
-    end
-
-    def trial_db?
-      unique_id == self.class.trial_db_guid
     end
 
     def bindable?

@@ -8,7 +8,6 @@ module VCAP::CloudController
       to_one     :stack,               :optional_in => :create
 
       attribute  :environment_json,    Hash,       :default => {}
-      attribute  :system_env_json,     Hash,       :default => {}
       attribute  :memory,              Integer,    :default => nil
       attribute  :instances,           Integer,    :default => 1
       attribute  :disk_quota,          Integer,    :default => 1024
@@ -37,7 +36,7 @@ module VCAP::CloudController
       to_many    :routes
       to_many    :app_versions, :exclude_in => :create
 
-      to_many    :events
+      to_many    :events,              :link_only => true
     end
 
     query_parameters :name, :space_guid, :organization_guid, :restart_required, :state, :package_state, :sso_enabled
@@ -46,27 +45,34 @@ module VCAP::CloudController
       :name
     end
 
+    get '/v2/apps/:guid/env', :read_env
+    def read_env(guid)
+      app = find_guid_and_validate_access(:read, guid, App)
+      [HTTP::OK, {}, { system_env_json: app.system_env_json, environment_json: app.environment_json}.to_json]
+    end
+
     def self.translate_validation_exception(e, attributes)
       space_and_name_errors = e.errors.on([:space_id, :name])
       memory_quota_errors = e.errors.on(:memory)
       instance_number_errors = e.errors.on(:instances)
 
       if space_and_name_errors && space_and_name_errors.include?(:unique)
-        Errors::AppNameTaken.new(attributes["name"])
+        Errors::ApiError.new_from_details("AppNameTaken", attributes["name"])
       elsif memory_quota_errors
         if memory_quota_errors.include?(:quota_exceeded)
-          Errors::AppMemoryQuotaExceeded.new
+          Errors::ApiError.new_from_details("AppMemoryQuotaExceeded")
         elsif memory_quota_errors.include?(:zero_or_less)
-          Errors::AppMemoryInvalid.new
+          Errors::ApiError.new_from_details("AppMemoryInvalid")
         end
       elsif instance_number_errors
-        Errors::AppInvalid.new("Number of instances less than 0")
+        Errors::ApiError.new_from_details("AppInvalid", "Number of instances less than 1")
       else
-        Errors::AppInvalid.new(e.errors.full_messages)
+        Errors::ApiError.new_from_details("AppInvalid", e.errors.full_messages)
       end
     end
 
     def inject_dependencies(dependencies)
+      super
       @app_event_repository = dependencies.fetch(:app_event_repository)
       @health_manager_client = dependencies.fetch(:health_manager_client)
     end
@@ -77,7 +83,7 @@ module VCAP::CloudController
       app = find_guid_and_validate_access(:delete, guid)
 
       if !recursive? && app.service_bindings.present?
-        raise VCAP::Errors::AssociationNotEmpty.new("service_bindings", app.class.table_name)
+        raise VCAP::Errors::ApiError.new_from_details("AssociationNotEmpty", "service_bindings", app.class.table_name)
       end
 
       name = app[:name]
@@ -89,7 +95,11 @@ module VCAP::CloudController
         :message => "Deleted app '#{name}'"
       }
       logger.info("TIMELINE #{event.to_json}")
-      @app_event_repository.record_app_delete_request(app, SecurityContext.current_user, recursive?)
+      @app_event_repository.record_app_delete_request(
+          app,
+          SecurityContext.current_user,
+          SecurityContext.current_user_email,
+          recursive?)
       app.destroy
 
       [ HTTP::NO_CONTENT, nil ]
@@ -138,7 +148,11 @@ module VCAP::CloudController
     private
 
     def after_create(app)
-      record_app_create_value = @app_event_repository.record_app_create(app, SecurityContext.current_user, request_attrs)
+      record_app_create_value = @app_event_repository.record_app_create(
+          app,
+          SecurityContext.current_user,
+          SecurityContext.current_user_email,
+          request_attrs)
       record_app_create_value if request_attrs
       update_health_manager_for_autoscaling(app)
 
@@ -154,7 +168,7 @@ module VCAP::CloudController
 
     def after_update(app)
       stager_response = app.last_stager_response
-      if stager_response && stager_response.streaming_log_url
+      if stager_response.respond_to?(:streaming_log_url) && stager_response.streaming_log_url
         set_header("X-App-Staging-Log", stager_response.streaming_log_url)
       end
 
@@ -162,7 +176,7 @@ module VCAP::CloudController
         DeaClient.update_uris(app)
       end
 
-      @app_event_repository.record_app_update(app, SecurityContext.current_user, request_attrs)
+      @app_event_repository.record_app_update(app, SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
       update_health_manager_for_autoscaling(app)
 
       event = {

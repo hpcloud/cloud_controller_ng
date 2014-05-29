@@ -13,7 +13,7 @@ module VCAP::CloudController
       to_many   :managers
       to_many   :billing_managers
       to_many   :auditors
-      to_many   :app_events
+      to_many   :app_events, :link_only => true
     end
 
     query_parameters :name, :space_guid, :user_guid,
@@ -30,13 +30,13 @@ module VCAP::CloudController
       quota_def_errors = e.errors.on(:quota_definition_id)
       name_errors = e.errors.on(:name)
       if quota_def_errors && quota_def_errors.include?(:not_authorized)
-        Errors::NotAuthorized.new(attributes["quota_definition_id"])
+        Errors::ApiError.new_from_details("NotAuthorized", attributes["quota_definition_id"])
       elsif name_errors && name_errors.include?(:unique)
-        Errors::OrganizationNameTaken.new(attributes["name"])
+        Errors::ApiError.new_from_details("OrganizationNameTaken", attributes["name"])
       elsif name_errors && name_errors.include?(:max_length)
-        Errors::StackatoParameterLengthInvalid.new(64, attributes["name"])
+        Errors::ApiError.new_from_details("StackatoParameterLengthInvalid", 64, attributes["name"])
       else
-        Errors::OrganizationInvalid.new(e.errors.full_messages)
+        Errors::ApiError.new_from_details("OrganizationInvalid", e.errors.full_messages)
       end
     end
 
@@ -44,8 +44,9 @@ module VCAP::CloudController
       do_delete(find_guid_and_validate_access(:delete, guid))
     end
 
-    delete "#{path_guid}/domains/:domain_guid" do |_|
-      headers = {"X-Cf-Warning" => "Endpoint removed", "Location" => "/v2/private_domains/:domain_guid"}
+    delete "#{path_guid}/domains/:domain_guid" do |controller_instance|
+      controller_instance.add_warning("Endpoint removed")
+      headers = {"Location" => "/v2/private_domains/:domain_guid"}
       [HTTP::MOVED_PERMANENTLY, headers, "Use DELETE /v2/private_domains/:domain_guid"]
     end
 

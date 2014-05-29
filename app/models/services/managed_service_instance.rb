@@ -2,7 +2,6 @@ require 'vcap/request'
 
 module VCAP::CloudController
   class ManagedServiceInstance < ServiceInstance
-    class MissingServiceAuthToken < StandardError; end
     class ServiceGatewayError < StandardError; end
 
     class NGServiceGatewayClient
@@ -13,7 +12,7 @@ module VCAP::CloudController
         @token   = service.service_auth_token
         @service_id = service_id
         unless token
-          raise MissingServiceAuthToken, "ServiceAuthToken not found for service #{service}"
+          raise VCAP::Errors::ApiError.new_from_details("MissingServiceAuthToken", service)
         end
       end
 
@@ -48,9 +47,9 @@ module VCAP::CloudController
       end
     end
 
-    many_to_one :service_plan
-
     default_order_by  :id
+
+    many_to_one :service_plan
 
     export_attributes :name, :credentials, :service_plan_guid,
       :space_guid, :gateway_data, :dashboard_url, :type

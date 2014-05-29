@@ -1,13 +1,16 @@
 require "steno"
 require "steno/codec/text"
 require "optparse"
-require "vcap/uaa_util"
+require "vcap/uaa_token_decoder"
+require "vcap/uaa_verification_key"
 require "cf_message_bus/message_bus"
 require "cf/registrar"
 require "loggregator_emitter"
 require "loggregator"
 require 'kato/local/node'
 require "kato/proc_ready"
+require "cloud_controller/globals"
+require "cloud_controller/rack_app_builder"
 require "cloud_controller/varz"
 
 require_relative "seeds"
@@ -100,22 +103,25 @@ module VCAP::CloudController
 
     def run!
       EM.run do
-        config = @config.dup
-
-        message_bus = MessageBus::Configurer.new(
-          :servers => config[:message_bus_servers],
-          :logger => logger).go
+        message_bus = MessageBus::Configurer.new(servers: @config[:message_bus_servers], logger: logger).go
 
         start_cloud_controller(message_bus)
 
-        Seeds.write_seed_data(config) if @insert_seed_data
+        Seeds.write_seed_data(@config) if @insert_seed_data
+        register_with_collector(message_bus)
 
-        app = build_rack_app(config, message_bus, development_mode?)
+        globals = Globals.new(@config, message_bus)
+        globals.setup!
 
-        start_thin_server(app, config)
+        builder = RackAppBuilder.new
+        app = builder.build(@config)
+
+        start_thin_server(app)
 
         router_registrar.register_with_router
         ::Kato::ProcReady.i_am_ready("cloud_controller_ng")
+
+        VCAP::CloudController::Varz.setup_updates
       end
     end
 
@@ -126,13 +132,17 @@ module VCAP::CloudController
           stop!
         end
       end
+
+      trap('USR2') do
+        logger.warn("Caught signal USR2")
+        stop_router_registrar
+      end
     end
 
     def stop!
-      logger.info("Unregistering routes.")
-
-      router_registrar.shutdown do
+      stop_router_registrar do
         stop_thin_server
+        logger.info("Stopping EventMachine")
         EM.stop
       end
     end
@@ -142,10 +152,15 @@ module VCAP::CloudController
       pg_key = services.keys.select { |svc| svc =~ /postgres/i }.first
       c = services[pg_key].first["credentials"]
       @config[:db][:database] = "postgres://#{c["user"]}:#{c["password"]}@#{c["hostname"]}:#{c["port"]}/#{c["name"]}"
-      @config[:port] = ENV["VCAP_APP_PORT"].to_i
+      @config[:external_port] = ENV["VCAP_APP_PORT"].to_i
     end
 
     private
+
+    def stop_router_registrar(&blk)
+      logger.info("Unregistering routes.")
+      router_registrar.shutdown(&blk)
+    end
 
     def start_cloud_controller(message_bus)
       setup_logging
@@ -154,7 +169,7 @@ module VCAP::CloudController
       setup_loggregator_emitter
 
       @config[:bind_address] = Kato::Local::Node.get_local_node_id
-
+      @config[:external_host] = Kato::Local::Node.get_local_node_id
       Config.configure_components_depending_on_message_bus(message_bus)
 
       # TODO:Stackato: Move to CloudController::DependencyLocator ?
@@ -166,50 +181,28 @@ module VCAP::CloudController
       StackatoDeactivateServices::start
     end
 
-    def build_rack_app(config, message_bus, development)
-      token_decoder = VCAP::UaaTokenDecoder.new(config[:uaa])
-      register_with_collector(message_bus)
-
-      Rack::Builder.new do
-        use Rack::CommonLogger
-
-        if development
-          require 'new_relic/rack/developer_mode'
-          use NewRelic::Rack::DeveloperMode
-        end
-
-        DeaClient.run
-        AppObserver.run
-
-        LegacyBulk.register_subscription
-
-        VCAP::CloudController.health_manager_respondent = HealthManagerRespondent.new(DeaClient, message_bus)
-        VCAP::CloudController.health_manager_respondent.handle_requests
-
-        HM9000Respondent.new(DeaClient, message_bus, config[:hm9000_noop]).handle_requests
-
-        VCAP::CloudController.dea_respondent = DeaRespondent.new(message_bus)
-
-        VCAP::CloudController.dea_respondent.start
-
-        VCAP::CloudController.auto_scaler_respondent = \
-          VCAP::CloudController::AutoScalerRespondent.new(config, message_bus)
-        VCAP::CloudController.auto_scaler_respondent.handle_requests
-
-        map "/" do
-          run Controller.new(config, token_decoder)
-        end
-      end
+    def create_pidfile
+      pid_file = VCAP::PidFile.new(@config[:pid_filename])
+      pid_file.unlink_at_exit
+    rescue
+      puts "ERROR: Can't create pid file #{@config[:pid_filename]}"
+      exit 1
     end
 
-    def start_thin_server(app, config)
+    def setup_db
+      logger.info "db config #{@config[:db]}"
+      db_logger = Steno.logger("cc.db")
+      DB.load_models(@config[:db], db_logger)
+    end
+
+    def start_thin_server(app)
       if @config[:nginx][:use_nginx] || @config[:stackato_upload_handler][:enabled]
         @thin_server = Thin::Server.new(
-            config[:instance_socket],
+            @config[:instance_socket],
             :signals => false
         )
       else
-        @thin_server = Thin::Server.new(@config[:bind_address], @config[:port])
+        @thin_server = Thin::Server.new(@config[:external_host], @config[:external_port])
       end
 
       @thin_server.app = app
@@ -217,20 +210,21 @@ module VCAP::CloudController
 
       # The routers proxying to us handle killing inactive connections.
       # Set an upper limit just to be safe.
-      @thin_server.timeout = 15 * 60 # 15 min
+      @thin_server.timeout = @config[:request_timeout_in_seconds]
       @thin_server.threaded = true
       @thin_server.start!
     end
 
     def stop_thin_server
+      logger.info("Stopping Thin Server.")
       @thin_server.stop if @thin_server
     end
 
     def router_registrar
       @registrar ||= Cf::Registrar.new(
           message_bus_servers: @config[:message_bus_servers],
-          host: @config[:bind_address],
-          port: @config[:port],
+          host: @config[:external_host],
+          port: @config[:external_port],
           uri: @config[:external_domain],
           tags: {:component => "CloudController"},
           index: @config[:index],
@@ -240,12 +234,11 @@ module VCAP::CloudController
     def register_with_collector(message_bus)
       VCAP::Component.register(
           :type => 'CloudController',
-          :host => @config[:bind_address],
+          :host => @config[:external_host],
           :port => @config[:varz_port],
           :user => @config[:varz_user],
           :password => @config[:varz_password],
           :index => @config[:index],
-          :config => @config,
           :nats => message_bus,
           :logger => logger,
           :log_counter => @log_counter

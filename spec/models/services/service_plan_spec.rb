@@ -16,6 +16,22 @@ module VCAP::CloudController
       },
     }
 
+    describe "validation" do
+      context 'when the unique_id is not unique' do
+        let(:existing_service_plan) { ServicePlan.make }
+        let(:service_plan) { ServicePlan.make_unsaved(unique_id: existing_service_plan.unique_id, service: Service.make) }
+
+        it 'is not valid' do
+          expect(service_plan).not_to be_valid
+        end
+
+        it 'raises an error on save' do
+          expect { service_plan.save }.
+            to raise_error(Sequel::ValidationFailed, "Plan ids must be unique")
+        end
+      end
+    end
+
     describe '#save' do
       context 'on create' do
         context 'when no unique_id is set' do
@@ -44,7 +60,7 @@ module VCAP::CloudController
           before { plan = ServicePlan.make(attrs1) }
 
           it 'throws a useful error' do
-            expect{ ServicePlan.make(attrs2) }.to raise_exception('Plans within a service must have unique names')
+            expect{ ServicePlan.make(attrs2) }.to raise_exception('Plan names must be unique within a service')
           end
         end
 

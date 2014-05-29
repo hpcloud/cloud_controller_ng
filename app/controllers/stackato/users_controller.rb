@@ -83,7 +83,7 @@ module VCAP::CloudController
         end
       end
 
-      [HTTP::OK, serialization.render_json(self.class, obj, @opts)]
+      [HTTP::OK, object_renderer.render_json(self.class, obj, @opts)]
     end
 
     def delete(guid)
