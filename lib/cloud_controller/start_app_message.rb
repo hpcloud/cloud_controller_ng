@@ -3,6 +3,7 @@ module VCAP::CloudController
     def initialize(app, index, config, blobstore_url_generator)
       super()
 
+      @blobstore_url_generator = blobstore_url_generator
       self[:droplet] = app.guid
       self[:space_guid] = app.space_guid
       self[:name] = app.name
