@@ -33,10 +33,17 @@ module VCAP::CloudController
         return unless user_guid
         admin = VCAP::CloudController::Roles.new(token).admin?
         user = User.find(guid: user_guid.to_s)
-        return user if user
+        login_timestamp = Time.at(token['iat']) rescue nil
+        if user
+          if login_timestamp && user.logged_in_at != login_timestamp
+            user.logged_in_at = login_timestamp
+            user.save
+          end
+          return user 
+        end
         
         User.db.transaction do
-          user = User.create(guid: user_guid, admin: admin, active: true)
+          user = User.create(guid: user_guid, admin: admin, active: true, logged_in_at: login_timestamp)
           default_org = Organization.where(:is_default => true).first
           if default_org
             default_org.add_user(user)

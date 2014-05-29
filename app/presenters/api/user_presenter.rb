@@ -8,4 +8,8 @@ class UserPresenter < ApiPresenter
         default_space_guid: @object.default_space_guid
     }
   end
+
+  def metadata_hash
+    super.merge(logged_in_at: @object.logged_in_at)
+  end
 end
