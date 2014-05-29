@@ -5,7 +5,7 @@ module VCAP::CloudController::RestController
     end
 
     def parse(params)
-      @logger.debug "parse_params: #{params}"
+      @logger.debug2 "parse_params: #{params}"
       # Sinatra squshes duplicate query parms into a single entry rather
       # than an array (which we might have for q)
       res = {}
