@@ -4,9 +4,8 @@ require 'cloud_controller/dea/dea_client'
 module CCInitializers
   def self.new_relic_dea_client_instrumentation(_)
     VCAP::CloudController::DeaClient.class_eval do
-      include ::NewRelic::Agent::MethodTracer
-
       class << self
+        include ::NewRelic::Agent::MethodTracer
         %w(
           start
           stop
