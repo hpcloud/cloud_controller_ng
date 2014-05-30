@@ -17,7 +17,7 @@ module CloudController
 
       if current_droplet_size > droplets_to_keep
         app.droplets_dataset.
-          order_by(Sequel.asc(:created_at)).
+          order{ifnull(:updated_at, :created_at)}. # use updated_at if available to sort (asc), otherwise use created_at
           limit(current_droplet_size - droplets_to_keep).destroy
       end
 

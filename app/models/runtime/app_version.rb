@@ -61,9 +61,12 @@ module VCAP::CloudController
 
     def self.make_new_version(app)
       description_field = app.version_description || build_description(app)
+      current_droplet = app.current_droplet
+      current_droplet.updated_at = Time.now
+      current_droplet.save
 
       new_version_count = latest_version(app) + 1
-      version = new( :app => app, :droplet => app.current_droplet, :version_count => new_version_count, :version_guid => app.version, :instances => app.instances, :memory => app.memory, :description => description_field )
+      version = new( :app => app, :droplet => current_droplet, :version_count => new_version_count, :version_guid => app.version, :instances => app.instances, :memory => app.memory, :description => description_field )
       version.save
 
       version
