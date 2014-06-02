@@ -18,9 +18,6 @@ Sequel.migration do
       foreign_key [:app_id], :apps, :name => :fk_app_versions_app_id
       foreign_key [:droplet_id], :droplets, :name => :fk_app_versions_droplet_id
     end
-    App.all.each do |app|
-      app.version = VCAP::CloudController::AppVersion.make_new_version(app)
-    end
   end
   
   down do
