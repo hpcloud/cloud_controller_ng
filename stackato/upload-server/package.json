@@ -1,6 +1,6 @@
 {
   "name": "stackato-upload-server",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A proxy for streaming large filed uploads to disk.",
   "main": "server.js",
   "scripts": {

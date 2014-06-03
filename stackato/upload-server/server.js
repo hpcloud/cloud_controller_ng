@@ -34,5 +34,6 @@ ClusterMaster({
 
 log.info('Application uploads are sent to: ' + workerEnv.uploadAppBitsDir);
 log.info('Staging bits uploads are sent to: ' + workerEnv.uploadStagingBitsDir);
+log.info('Buildpack bits uploads are sent to: ' + workerEnv.uploadAppBitsDir);
 log.info('All other requests are forwarded to: ' + workerEnv.ccSocket);
 log.info('Stackato file upload server v%s is listening for requests on port %s', Package.version, workerEnv.listenPort);

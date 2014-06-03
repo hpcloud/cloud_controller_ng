@@ -12,16 +12,16 @@ var Fs = require('fs'),
     Mkdirp = require('mkdirp');
 
 /* Base directory for storing uploaded files */
-var uploadAppBitsDir = process.env.uploadAppBitsDir;
+var uploadBuildpackBitsDir = process.env.uploadAppBitsDir;
 
-Mkdirp(uploadAppBitsDir, function (err) {
+new Mkdirp(uploadBuildpackBitsDir, function (err) {
     if (err) { throw err; }
 });
 
 module.exports = function(req, res) {
 
-    var applicationFilePath,
-        applicationFileName,
+    var buildpackFilePath,
+        buildpackFileName,
         called = false,
         error = false,
         resources;
@@ -33,13 +33,13 @@ module.exports = function(req, res) {
 
     if (req.method === 'POST' || req.method === 'PUT') {
         busboy.on('file', function (fieldname, file, filename, encoding, mimetype) {
-            if (fieldname === 'application') {
-                applicationFilePath = Path.join(uploadAppBitsDir, new Date().getTime() + '-' + Path.basename(fieldname));
-                applicationFileName = filename;
-                var appWriteStream = Fs.createWriteStream(applicationFilePath);
-                file.pipe(appWriteStream);
+            if (fieldname === 'buildpack') {
+                buildpackFilePath = Path.join(uploadBuildpackBitsDir, new Date().getTime() + '-' + Path.basename(fieldname));
+                buildpackFileName = filename;
+                var buildpackWriteStream = Fs.createWriteStream(buildpackFilePath);
+                file.pipe(buildpackWriteStream);
                 file.on('end', function () {
-                    appWriteStream.end();
+                    buildpackWriteStream.end();
                     if (file.truncated) {
                         res.statusCode = 413;
                         res.end('HTTP Error 413: Request entity too large');
@@ -48,18 +48,15 @@ module.exports = function(req, res) {
                 });
             }
         });
-        busboy.on('field', function (fieldname, val, valTruncated, keyTruncated) {
-            if (fieldname === 'resources') { resources = val; }
-        });
         busboy.on('finish', function () {
             if (error) { return; }
             if (!called) { // bug, seems to emit twice
-                if (applicationFilePath && resources) {
-                    req.log.info('Handled app bits upload for filename %s stored @ file: %s', applicationFileName, applicationFilePath);
-                    ForwardProxies.proxyUploadToCloudController(req, res, applicationFilePath, applicationFileName, resources, 'application');
+                if (buildpackFilePath) {
+                    req.log.info('Handled buildpack upload for filename %s stored @ file: %s', buildpackFileName, buildpackFilePath);
+                    ForwardProxies.proxyUploadToCloudController(req, res, buildpackFilePath, buildpackFileName, resources, 'buildpack');
                     called = true;
                 } else {
-                    req.log.error('Cannot process upload request: Resources / filepath attributes are not mapped');
+                    req.log.error('Cannot process buildpack upload request: filepath attribute is not not mapped');
                 }
             }
         });

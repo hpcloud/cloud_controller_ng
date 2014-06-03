@@ -9,6 +9,7 @@ var Log = require('log'),
     Router = require('router'),
     MiddleWare = require('./middleware'),
     AppUpload = require('./lib/app-bits-upload'),
+    BuildpackUpload = require('./lib/buildpack-upload'),
     DropletUpload = require('./lib/droplet-bits-upload'),
     ForwardProxies = require('./lib/forward-proxies'),
     Pong = require('./lib/pong');
@@ -34,6 +35,10 @@ MiddleWare.use('x-accel');
 /* Client app bit uploads */
 router.put('/v2/apps/*/bits', AppUpload);
 router.post('/v2/apps/*/bits', AppUpload);
+
+/* Admin buildpacks */
+router.put('/v2/buildpacks/*/bits', BuildpackUpload);
+router.put('/v2/buildpacks/*/bits', BuildpackUpload);
 
 /* Internal droplet & buildpack cache uploads */
 router.put('/staging/(buildpack_cache|droplets)/*/upload', DropletUpload);

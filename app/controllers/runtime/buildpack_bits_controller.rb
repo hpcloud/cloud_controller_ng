@@ -17,7 +17,7 @@ module VCAP::CloudController
       uploaded_file = upload_handler.uploaded_file(params, "buildpack")
       uploaded_filename = upload_handler.uploaded_filename(params, "buildpack")
 
-      logger.info "Uploading bits for #{buildpack.name}, file: uploaded_filename"
+      logger.info "Uploading bits for #{buildpack.name}, filename: #{uploaded_filename}"
 
       raise Errors::ApiError.new_from_details("BuildpackBitsUploadInvalid", "a filename must be specified") if uploaded_filename.to_s == ""
       raise Errors::ApiError.new_from_details("BuildpackBitsUploadInvalid", "only zip files allowed") unless File.extname(uploaded_filename) == ".zip"

@@ -64,20 +64,28 @@ module.exports = {
      * at this point.
      * @param {Object} req - Http.IncomingRequest
      * @param {Object} res - Http.OutgoingResponse
-     * @param {String} filename - The full file path to the uploaded client zip
+     * @param {String} filepath - The full file path to the uploaded client zip
+     * @param {String} filename - The file name as originally specified by the client
      * @param {Array} resources - An array of filename/sha1 mappings to resources
+     * @param {String} type - The type of resource being proxied ('application' | 'buildpack')
      */
-    proxyUploadToCloudController: function (req, res, filename, resources) {
+    proxyUploadToCloudController: function (req, res, filepath, filename, resources, type) {
+
+        var form = {};
+        form[type + '_path'] = filepath;
+        form[type + '_name'] = filename;
+
+        if (resources) {
+            form.resources = resources;
+        }
+
         Request.put({
             uri: 'unix://' + ccSocket + req.url,
             headers: {
                 authorization: req.headers.authorization,
                 host: req.headers.host
             },
-            form: {
-                resources: resources,
-                application_path: filename
-            }
+            form: form
         })
         .on('error', function (err) {
             req.log.error('Error proxying request to the cloud controller: %s', err);
