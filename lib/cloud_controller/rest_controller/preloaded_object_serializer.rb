@@ -42,8 +42,10 @@ module VCAP::CloudController::RestController
         "created_at" => obj.created_at,
       }
 
-      if obj.respond_to?(:updated_at)
-        metadata_hash["updated_at"] = obj.updated_at
+      %w{updated_at logged_in_at}.each do |prop|
+        if obj.respond_to?(prop.intern)
+          metadata_hash[prop] = obj.send(prop.intern)
+        end
       end
 
       {"metadata" => metadata_hash, "entity" => entity_hash}
