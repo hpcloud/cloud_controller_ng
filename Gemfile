@@ -8,9 +8,9 @@ source (ENV['RUBYGEMS_MIRROR'] or 'https://rubygems.org')
 
 ruby '1.9.3' # prevents hard-to-diagnose errors with bundle install
 
-gem 'activemodel'       ,   '3.2.17'
-gem 'activerecord'      ,   '3.2.17'
-gem 'activesupport'     ,   '3.2.17'
+gem 'activemodel'       ,   '3.2.18'
+gem 'activerecord'      ,   '3.2.18'
+gem 'activesupport'     ,   '3.2.18'
 gem 'addressable'       ,    '2.3.6', :groups => [:test]
 gem 'allowy'            ,    '0.4.0'
 gem 'arel'              ,    '3.0.3'
@@ -22,7 +22,7 @@ gem 'bcrypt-ruby'       ,    '3.1.2'
 gem 'beefcake'          ,    '0.3.7'
 gem 'builder'           ,    '3.0.4'
 gem 'celluloid'         ,   '0.15.2', :groups => [:test]
-gem 'cf-message-bus'    ,    '0.2.0', :git => "https://github.com/ActiveState/cf-message-bus.git"
+gem 'cf-message-bus'    ,    '0.2.0', :github => "ActiveState/cf-message-bus"
 gem 'cf-registrar'      ,    '1.0.1', :github => "cloudfoundry/cf-registrar"
 gem 'cf-uaa-lib'        ,    '2.1.0', :github => "ActiveState/cf-uaa-lib", :ref => "4e44eacf9510d3ae882d6cad6969bc655d2ada5c"
 gem 'ci_reporter'       ,    '1.9.0'
@@ -38,8 +38,8 @@ gem 'daemons'           ,    '1.1.9'
 gem 'debugger'          ,    '1.6.6', :groups => [:development]
 gem 'debugger-linecache',    '1.2.0', :groups => [:development]
 gem 'debugger-ruby_core_source',    '1.3.2', :groups => [:development]
-gem 'delayed_job'       ,    '4.0.0'
-gem 'delayed_job_active_record',    '4.0.0'
+gem 'delayed_job'       ,    '4.0.1'
+gem 'delayed_job_active_record',    '4.0.1'
 gem 'descendants_tracker',    '0.0.3'
 gem 'diff-lcs'          ,    '1.2.5', :groups => [:default, :test]
 gem 'docile'            ,    '1.1.1', :groups => [:test]
@@ -56,7 +56,7 @@ gem 'fluent-logger'     ,    '0.4.7'
 gem 'fog'               ,   '1.18.0'
 gem 'formatador'        ,    '0.2.4', :groups => [:default, :test]
 gem 'futuroscope'       ,    '0.1.5'
-gem 'grape'             ,    '0.7.1', :git => "https://github.com/intridea/grape.git"
+gem 'grape'             ,    '0.7.1', :github => "intridea/grape"
 gem 'guard'             ,    '2.2.4', :groups => [:test]
 gem 'guard-rspec'       ,    '4.1.0', :groups => [:test]
 gem 'hashie'            ,    '2.1.1'
@@ -69,9 +69,9 @@ gem 'json'              ,    '1.8.1'
 gem 'json_pure'         ,    '1.8.1'
 gem 'librrd'            ,    '1.0.3'
 gem 'listen'            ,    '2.3.1', :groups => [:test]
-gem 'loggregator_emitter',    '0.0.16'
+gem 'loggregator_emitter',   '0.0.16'
 gem 'loggregator_messages', '0.0.5.pre'
-gem 'lumberjack'        , :groups => [:test]
+gem 'lumberjack'        ,    '1.0.5', :groups => [:test]
 gem 'machinist'         ,    '1.0.6', :groups => [:test]
 gem 'membrane'          ,    '1.0.0'
 gem 'method_source'     ,    '0.8.2', :groups => [:development, :test]
@@ -95,10 +95,10 @@ gem 'pg'                ,   '0.14.1', :groups => [:db, :default]
 gem 'posix-spawn'       ,    '0.3.8'
 gem 'powerpack'         ,    '0.0.9'
 gem 'pry'               , '0.9.12.6', :groups => [:development, :test]
-gem 'rack'              ,    '1.5.2', :groups => [:test, :default]
+gem 'rack'              ,    '1.5.2', :groups => [:default, :test]
 gem 'rack-accept'       ,    '0.4.5'
 gem 'rack-mount'        ,    '0.8.3'
-gem 'rack-protection'   ,    '1.5.1', :groups => [:test, :default]
+gem 'rack-protection'   ,    '1.5.1'
 gem 'rack-test'         ,    '0.6.2', :groups => [:test, :default]
 gem 'rainbow'           ,    '2.0.0'
 gem 'rake'              ,   '10.1.0'
@@ -136,15 +136,15 @@ gem 'term-ansicolor'    ,    '1.0.7'
 gem 'thin'              ,    '1.6.1'
 gem 'thor'              ,   '0.18.1', :groups => [:test]
 gem 'thread_safe'       ,    '0.1.3'
-gem 'tilt'              ,    '1.4.1', :groups => [:test, :default]
+gem 'tilt'              ,    '1.4.1'
 gem 'timecop'           ,    '0.7.1', :groups => [:test]
 gem 'timers'            ,    '1.1.0', :groups => [:test]
 gem 'trollop'           ,      '2.0'
-gem 'tzinfo'            ,    '0.3.35'
+gem 'tzinfo'            ,   '0.3.35'
 gem 'unf'               ,    '0.1.3'
 gem 'unf_ext'           ,    '0.0.6'
 gem 'uuidtools'         ,    '2.1.4'
-gem 'vcap-concurrency'  ,    '0.1.0', :git => "https://github.com/cloudfoundry/vcap-concurrency.git", :ref => "2a5b0179"
+gem 'vcap-concurrency'  ,    '0.1.0', :github => "cloudfoundry/vcap-concurrency", :ref => "2a5b0179"
 gem 'vcap_common'       ,    '3.0.0', :path => '../common'
 gem 'virtus'            ,    '1.0.0'
 gem 'vmstat'            ,    '2.1.0'
