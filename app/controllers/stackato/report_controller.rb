@@ -9,7 +9,7 @@ module VCAP::CloudController
       begin
         report_file = KatoShell.report
       rescue Exception => e
-        raise Errors::StackatoCreateReportFailed.new(e.message)
+        raise Errors::ApiError.new_from_details("StackatoCreateReportFailed", e.message)
       end
 
       report_filename = 'stackato-report.tgz'
@@ -29,7 +29,7 @@ module VCAP::CloudController
     end
 
     def add_token(token)
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       period = 60
       logger.info "Adding token #{token} expiring after #{period} seconds"
       EphemeralRedisClient.redis do |r|
@@ -43,7 +43,7 @@ module VCAP::CloudController
       EphemeralRedisClient.redis do |r|
         data = r.get redis_key_for_token(token)
         if data.nil?
-          raise Errors::StackatoCreateReportFailed.new("Invalid or expired token")
+          raise Errors::ApiError.new_from_details("StackatoCreateReportFailed", "Invalid or expired token")
         end
         r.del redis_key_for_token(token)
       end
@@ -52,7 +52,7 @@ module VCAP::CloudController
     end
 
     def get_report_with_standard_auth
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       send_report
     end
 

@@ -33,7 +33,7 @@ module VCAP::CloudController
         unless @@redis and @@redis.client.connected?
           redis_config = @@cc_config[config_key]
           unless redis_config.is_a? Hash and redis_config[:host] and redis_config[:port]
-            raise Errors::StackatoRedisClientNotConfigured.new
+            raise Errors::ApiError.new_from_details("StackatoRedisClientNotConfigured")
           end
           host = redis_config[:host].sub "127.0.0.1", VCAP.local_ip
           logger.info("Connecting to redis at #{host}:#{redis_config[:port]}")
@@ -82,7 +82,7 @@ module VCAP::CloudController
         unless @@redis and @@redis.client.connected?
           redis_config = @@cc_config[config_key]
           unless redis_config.is_a? Hash and redis_config[:host] and redis_config[:port]
-            raise Errors::StackatoRedisClientNotConfigured.new
+            raise Errors::ApiError.new_from_details("StackatoRedisClientNotConfigured")
           end
           host = redis_config[:host].sub "127.0.0.1", VCAP.local_ip
           logger.info("Connecting to redis at #{host}:#{redis_config[:port]}")

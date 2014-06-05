@@ -22,20 +22,20 @@ module VCAP::CloudController
 
     def self.validate_name(drain_name)
       if drain_name.nil?
-        raise Errors::StackatoAppDrainInvalidName.new
+        raise Errors::ApiError.new_from_details("StackatoAppDrainInvalidName")
       elsif drain_name.match(/[a-zA-Z\.\-\_]+/).nil?
-        raise Errors::StackatoAppDrainInvalidName.new
+        raise Errors::ApiError.new_from_details("StackatoAppDrainInvalidName")
       elsif drain_name.length < DRAIN_NAME_MIN_LENGTH
-        raise Errors::StackatoAppDrainNameMinLength.new(DRAIN_NAME_MIN_LENGTH)
+        raise Errors::ApiError.new_from_details("StackatoAppDrainNameMinLength", DRAIN_NAME_MIN_LENGTH)
       elsif drain_name.length > DRAIN_NAME_MAX_LENGTH
-        raise Errors::StackatoAppDrainNameMaxLength.new(DRAIN_NAME_MAX_LENGTH)
+        raise Errors::ApiError.new_from_details("StackatoAppDrainNameMaxLength", DRAIN_NAME_MAX_LENGTH)
       end
     end
 
     def self.validate_uri(uri)
       # min: x://s
       if uri.length < 5
-        raise Errors::StackatoAppDrainInvalidUri.new
+        raise Errors::ApiError.new_from_details("StackatoAppDrainInvalidUri")
       end
     end
 
@@ -54,14 +54,14 @@ module VCAP::CloudController
       # node's hostname or IP address to get to it.
       if not ["tcp", "udp"].include? uri.scheme 
         logger.warn("An user tried to create a disallowed drain: #{uri}")
-        raise Errors::StackatoAppDrainInvalidScheme.new
+        raise Errors::ApiError.new_from_details("StackatoAppDrainInvalidScheme")
       elsif not uri.port.nil? and uri.port < DRAIN_PORT_MIN
         logger.warn("An user tried to create a drain with lesser ports: #{uri}")
-        raise Errors::StackatoAppDrainPortMax.new(DRAIN_PORT_MIN)
+        raise Errors::ApiError.new_from_details("StackatoAppDrainPortMax", DRAIN_PORT_MIN)
       elsif uri.scheme.nil?
-        raise Errors::StackatoAppDrainMissingScheme.new
+        raise Errors::ApiError.new_from_details("StackatoAppDrainMissingScheme")
       elsif uri.host.nil?
-        raise Errors::StackatoAppDrainMissingHost.new
+        raise Errors::ApiError.new_from_details("StackatoAppDrainMissingHost")
       end
 
       # keep only host:port from URI, the rest must be discarded.
@@ -89,7 +89,7 @@ module VCAP::CloudController
       drain_id = globally_unique_drain_id(app, drain_name)
       old = Kato::Config.get("logyard", "drains/#{drain_id}")
       unless old.nil?
-        raise Errors::StackatoAppDrainExists.new
+        raise Errors::ApiError.new_from_details("StackatoAppDrainExists")
       end
 
       logger.info("Creating a drain #{drain_id} => #{uri}")
@@ -99,7 +99,7 @@ module VCAP::CloudController
     def self.delete(app, drain_name)
       drain_id = globally_unique_drain_id(app, drain_name)
       if Kato::Config.get("logyard", "drains/#{drain_id}").nil?
-        raise Errors::StackatoAppDrainNotExists.new
+        raise Errors::ApiError.new_from_details("StackatoAppDrainNotExists")
       end
       logger.info("Deleting drain #{drain_id}")
       Kato::Config.del("logyard", "drains/#{drain_id}")

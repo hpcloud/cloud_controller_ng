@@ -9,7 +9,7 @@ module VCAP::CloudController
 
     # Return `kato process list` as JSON
     def get_components
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
 
       node_ids = Kato::Cluster::Manager.node_ids
       nodes = {}
@@ -33,23 +33,23 @@ module VCAP::CloudController
             nodes[node_id][underscore_process_name(process_name)] = :ROGUE
           end
         rescue KatoSupervisordNotRunningException => e
-          raise Errors::StackatoSupervisordNotRunning.new(node_id, e.message)
+          raise Errors::ApiError.new_from_details("StackatoSupervisordNotRunning", node_id, e.message)
         end
       end
       Yajl::Encoder.encode(nodes)
     end
 
     def put_component(node_id, component_name)
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       check_maintenance_mode
       action = params["action"]
 
       if not ["start", "stop", "restart"].include? action
-        raise Errors::StackatoComponentUpdateInvalid.new("action", action)
-      elsif not node_id or not (Kato::Config.get("node") || {}).has_key? node_id
-        raise Errors::StackatoComponentUpdateInvalid.new("node", node_id)
+        raise Errors::ApiError.new_from_details("StackatoComponentUpdateInvalid", "action", action)
+      elsif not node_id or not (Kato::Config.get("node") || {}).has_key?(node_id)
+        raise Errors::ApiError.new_from_details("StackatoComponentUpdateInvalid", "node", node_id)
       elsif not component_name =~ /^\w+$/
-        raise Errors::StackatoComponentUpdateInvalid.new("component", component_name)
+        raise Errors::ApiError.new_from_details("StackatoComponentUpdateInvalid", "component", component_name)
       end
 
       logger.info("#{action} #{component_name} (#{node_id})")
@@ -73,7 +73,7 @@ module VCAP::CloudController
           end
         rescue Exception => e
           if e.message == "BAD_NAME: " + component_name
-            raise Errors::StackatoComponentUpdateInvalid.new("component", component_name)
+            raise Errors::ApiError.new_from_details("StackatoComponentUpdateInvalid", "component", component_name)
           else
             raise
           end

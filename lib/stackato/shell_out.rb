@@ -1,5 +1,3 @@
-require 'vcap/errors'
-
 # TODO: obviate shell_out.rb and kato_shell.rb in favour of moving long-
 # running tasks to kato-daemon (targetting Iggy)
 
@@ -44,7 +42,7 @@ class ShellOut
     retval = output.join('')
     unless success
       logger.error "#{command} : #{retval}"
-      raise Errors::ShellOutFailure.new(errmsg)
+      raise Errors::ApiError.new_from_details("ShellOutFailure", errmsg)
     end
     retval
   end

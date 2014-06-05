@@ -41,7 +41,7 @@ module VCAP::CloudController
     # }
     #
     def list
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       available_node_role_names =
         Kato::Cluster::RoleManager::available_role_names
       nodes = {}
@@ -64,10 +64,10 @@ module VCAP::CloudController
     # [ "controller", "router" ]
     #
     def get_node(node_id)
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       node = Kato::Config.get("node", node_id)
       unless node
-        raise Errors::StackatoNodeDoesNotExists.new(node_id)
+        raise Errors::ApiError.new_from_details("StackatoNodeDoesNotExists", node_id)
       end
       node_roles = node["roles"].keys rescue []
       Yajl::Encoder.encode(node_roles)
@@ -77,10 +77,10 @@ module VCAP::CloudController
     # [ "controller", "router" ]
     #
     def update_node(node_id)
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       check_maintenance_mode
       unless Kato::Config.get("node", node_id)
-        raise Errors::StackatoNodeDoesNotExists.new(node_id)
+        raise Errors::ApiError.new_from_details("StackatoNodeDoesNotExists", node_id)
       end
       node_roles = Yajl::Parser.parse(body)
       logger.info("Updating roles for node #{node_id} to #{node_roles}")
@@ -96,7 +96,7 @@ module VCAP::CloudController
           node.rm_roles(remove_node_roles)
         end
       rescue KatoBadParamsException => e
-        raise Errors::StackatoClusterRolesNodeUpdateError.new(e.message)
+        raise Errors::ApiError.new_from_details("StackatoClusterRolesNodeUpdateError", e.message)
       end
       [204, {}, nil]
     end

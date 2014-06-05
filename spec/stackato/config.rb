@@ -3,7 +3,6 @@ module VCAP; end
 
 require 'stackato/spec_helper'
 require 'cloud_controller/stackato/config'
-require 'vcap/errors'
 
 describe VCAP::CloudController::StackatoConfig do
 

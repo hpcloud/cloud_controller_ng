@@ -9,14 +9,14 @@ module VCAP::CloudController
     do_define_attributes
 
     def create
-      raise Errors::NotAuthenticated unless user
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthenticated") unless user
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       check_maintenance_mode
       create_core
     end
 
     def enumerate
-      raise Errors::NotAuthenticated unless user
+      raise Errors::ApiError.new_from_details("NotAuthenticated") unless user
       query_json = params["q"] || ''
       query = QueryUserMessage.decode(query_json)
       attributes_to_request = query.attributes

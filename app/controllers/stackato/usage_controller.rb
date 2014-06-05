@@ -38,7 +38,7 @@ module VCAP::CloudController
     end
 
     def usage
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
 
       deas = StackatoDropletAccountability.get_all_dea_stats
       cluster = map_cluster_usage(deas)

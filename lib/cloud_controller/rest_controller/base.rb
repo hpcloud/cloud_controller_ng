@@ -83,7 +83,7 @@ module VCAP::CloudController::RestController
       str = @params[param]
       Time.parse(str).localtime if str
     rescue
-      raise Errors::BadQueryParameter
+      raise Errors::ApiError.new_from_details("BadQueryParameter")
     end
 
     # Main entry point for the rest routes.  Acts as the final location
@@ -180,7 +180,7 @@ module VCAP::CloudController::RestController
     end
 
     def check_maintenance_mode
-      raise Errors::StackatoMaintenanceModeEnabled unless !Config.config[:maintenance_mode]
+      raise Errors::ApiError.new_from_details("StackatoMaintenanceModeEnabled") unless !Config.config[:maintenance_mode]
     end
 
     # hook called before +create+

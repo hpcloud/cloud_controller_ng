@@ -10,7 +10,7 @@ module VCAP::CloudController
       if formatted_zones[:resources].size == 1
         [HTTP::OK, Yajl::Encoder.encode(formatted_zones[:resources][0])]
       else
-        raise Errors::StackatoZoneDoesNotExist.new(zone_name)
+        raise Errors::ApiError.new_from_details("StackatoZoneDoesNotExist", zone_name)
       end
     end
 
@@ -22,7 +22,7 @@ module VCAP::CloudController
       if formatted_zones[:resources].size == 1
         [HTTP::OK, Yajl::Encoder.encode(formatted_zones[:resources][0])]
       else
-        raise Errors::StackatoZoneDoesNotExist.new(zone_name)
+        raise Errors::ApiError.new_from_details("StackatoZoneDoesNotExist", zone_name)
       end
     end
 

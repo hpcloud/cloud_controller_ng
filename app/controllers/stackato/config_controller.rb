@@ -20,7 +20,7 @@ module VCAP::CloudController
 
     # Gets the list of Stackato components that can be configured via the api
     def get_component_list
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       components = Kato::Config.component_ids.select { |component| !CONFIG_COMPONENTS_BLACKLIST.include?(component)}
       components = components.map { |component| {:name => component, :url => "/v2/stackato/config/components/#{URI.escape(component)}" }}
       Yajl::Encoder.encode(components)
@@ -29,11 +29,11 @@ module VCAP::CloudController
 
     # Gets the config for a specific component
     def get_component_config(component_name)
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       component_name = component_name.gsub(/\-/, '_')
-      raise Errors::StackatoComponentNotFound.new(component_name) unless !CONFIG_COMPONENTS_BLACKLIST.include?(component_name)
+      raise Errors::ApiError.new_from_details("StackatoComponentNotFound", component_name) unless !CONFIG_COMPONENTS_BLACKLIST.include?(component_name)
       component_config = Kato::Config.get(component_name)
-      raise Errors::StackatoNoConfigForComponent.new(component_name) unless component_config
+      raise Errors::ApiError.new_from_details("StackatoNoConfigForComponent", component_name) unless component_config
       component_config = deep_reject(component_config, CONFIG_KEYS_BLACKLIST)
       Yajl::Encoder.encode(component_config)
     end
@@ -41,11 +41,11 @@ module VCAP::CloudController
 
     # Updates the config for a specific component
     def update_component_config(component_name)
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       component_name = component_name.gsub(/\-/, '_')
-      raise Errors::StackatoComponentNotFound.new(component_name) unless !CONFIG_COMPONENTS_BLACKLIST.include?(component_name)
+      raise Errors::ApiError.new_from_details("StackatoComponentNotFound", component_name) unless !CONFIG_COMPONENTS_BLACKLIST.include?(component_name)
       component_config = Yajl::Parser.parse(body)
-      raise Errors::StackatoConfigUnsupportedUpdate.new(component_name, "No config provided.") unless component_config.is_a? Hash and component_config.size > 0
+      raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component_name, "No config provided.") unless component_config.is_a? Hash and component_config.size > 0
       component_config = deep_reject(component_config, CONFIG_KEYS_BLACKLIST)
       StackatoConfig.new(component_name).save(component_config)
       [204, {}, nil]
@@ -57,10 +57,10 @@ module VCAP::CloudController
     # Return whitelisted fields in any vcap configuration
     # Only cloud_controller.yml supported for now.
     def get_config
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       component_name = params["name"]
       unless component_name
-        raise Errors::StackatoNoComponentNameGiven.new
+        raise Errors::ApiError.new_from_details("StackatoNoComponentNameGiven")
       end
 
       # Ensure we have underscore component names
@@ -68,7 +68,7 @@ module VCAP::CloudController
 
       config = StackatoConfig.new(component_name).get_viewable
       unless config
-        raise Errors::StackatoNoConfigForComponent.new(component_name)
+        raise Errors::ApiError.new_from_details("StackatoNoConfigForComponent", component_name)
       end
 
       logger.info("Returning whitelist properties for #{component_name}")
@@ -76,11 +76,11 @@ module VCAP::CloudController
     end
 
     def put_config
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       component_name = params["name"]
       new_config = Yajl::Parser.parse(body)
       unless new_config.is_a? Hash and new_config.size > 0
-        raise Errors::StackatoConfigUnsupportedUpdate.new(component_name, "No config given.")
+        raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component_name, "No config given.")
       end
       logger.info("Newconfig: #{new_config}")
       StackatoConfig.new(component_name).save(new_config)

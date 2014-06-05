@@ -1,4 +1,3 @@
-require "vcap/errors"
 require "stackato/logyard"
 
 module VCAP::CloudController

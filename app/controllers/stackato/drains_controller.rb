@@ -7,7 +7,7 @@ module VCAP::CloudController
     DRAINS_BASE_URL = "/v2/drains"
 
     def list
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       drain_uris = Kato::Logyard.list_drains
       drain_statuses = Kato::Logyard.status
       drain_hash = {}
@@ -44,10 +44,10 @@ module VCAP::CloudController
     end
 
     def get(drain_name)
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       drain_statuses = Kato::Logyard.status({ :drains => [drain_name] })
       unless drain_statuses.size == 1
-        raise Errors::StackatoDrainNotExists.new(drain_name)
+        raise Errors::ApiError.new_from_details("StackatoDrainNotExists", drain_name)
       end
       drain_uri = Kato::Logyard.drain_uri(drain_name)
       drain_status = drain_statuses.values.first
@@ -65,14 +65,14 @@ module VCAP::CloudController
     end
 
     def add
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       check_maintenance_mode
       drain = Yajl::Parser.parse(body)
       unless drain["name"]
-        raise Errors::StackatoDrainAddNameRequired.new
+        raise Errors::ApiError.new_from_details("StackatoDrainAddNameRequired")
       end
       unless drain["uri"]
-        raise Errors::StackatoDrainAddUriRequired.new
+        raise Errors::ApiError.new_from_details("StackatoDrainAddUriRequired")
       end
       logger.info("Adding drain with args: #{drain}")
       Kato::Logyard.add_drain drain["name"], drain["uri"]
@@ -82,7 +82,7 @@ module VCAP::CloudController
     end
 
     def delete(name)
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       check_maintenance_mode
       logger.info("Deleting drain '#{name}'")
       response = Kato::Logyard.run_logyard_remote "delete", [name]

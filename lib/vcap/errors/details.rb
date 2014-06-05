@@ -2,12 +2,14 @@ module VCAP
   module Errors
     class Details
 
-      def self.yaml_file_path
-        File.join(File.expand_path("../../../../vendor/errors", __FILE__), "v2.yml")
+      def self.yaml_file_path(source)
+        File.join(File.expand_path("../../../../#{source}/errors", __FILE__), "v2.yml")
       end
 
       def self.details_by_code
-        YAML.load_file(yaml_file_path)
+        %w{vendor stackato}.collect do |source|
+          YAML.load_file(yaml_file_path(source))
+        end.inject(:merge)
       end
 
       def self.details_by_name

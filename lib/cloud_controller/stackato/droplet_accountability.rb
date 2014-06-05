@@ -39,7 +39,7 @@ module VCAP::CloudController
     def self.start_stats_updater
       @@stats_updater_thread ||= nil
       if @@stats_updater_thread
-        raise Errors::StackatoDropletAccountabilityStatsUpdaterAlreadyRunning.new
+        raise Errors::ApiError.new_from_details("StackatoDropletAccountabilityStatsUpdaterAlreadyRunning")
       end
       logger.info("Droplet accountability stats updater starting")
       @@stats_updater_thread = Thread.new do
@@ -53,7 +53,7 @@ module VCAP::CloudController
     def self.start_housekeeping
       @@housekeeping_thread ||= nil
       if @@housekeeping_thread
-        raise Errors::StackatoDropletAccountabilityHouseKeepingAlreadyRunning.new
+        raise Errors::ApiError.new_from_details("StackatoDropletAccountabilityHouseKeepingAlreadyRunning")
       end
       logger.info("Droplet accountability housekeeping starting")
       @@housekeeping_thread = Thread.new do

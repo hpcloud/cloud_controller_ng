@@ -51,14 +51,14 @@ module VCAP::CloudController
     def ensure_params(params, keys)
       keys.each do |key|
         unless params[key]
-          raise Errors::BadQueryParameter.new(key)
+          raise Errors::ApiError.new_from_details("BadQueryParameter", key)
         end
       end
     end
 
     def validate_app_name(app_name)
       if app_name !~ /^[a-zA-Z0-9\-]+$/
-        raise Errors::StackatoAppNameInvalid.new
+        raise Errors::ApiError.new_from_details("StackatoAppNameInvalid")
       end
     end
 
@@ -80,7 +80,7 @@ module VCAP::CloudController
     def invoke_api(path, data)
       status, body = http_post_json "http://127.0.0.1:9256#{path}", data
       if status != 200
-        raise Errors::StackatoAppStoreAPIError.new(path, status, body)
+        raise Errors::ApiError.new_from_details("StackatoAppStoreAPIError", path, status, body)
       end
       Yajl::Parser.parse(body)
     end
@@ -95,9 +95,9 @@ module VCAP::CloudController
       begin
         response = http.request(request)
       rescue Errno::ECONNREFUSED
-        raise Errors::StackatoAppStoreAPIConnectionFailed.new
+        raise Errors::ApiError.new_from_details("StackatoAppStoreAPIConnectionFailed")
       rescue Timeout::Error
-	raise Errors::StackatoAppStoreAPITimeout.new
+        raise Errors::ApiError.new_from_details("StackatoAppStoreAPITimeout")
       end
       [response.code.to_i, response.body]
     end

@@ -1,6 +1,4 @@
-
 require 'kato/config'
-require 'vcap/errors'
 require 'yaml'
 
 module VCAP::CloudController

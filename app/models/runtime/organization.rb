@@ -85,7 +85,7 @@ module VCAP::CloudController
       end
 
       if column_changed?(:is_default)
-        raise Errors::NotAuthorized unless VCAP::CloudController::SecurityContext.admin?
+        raise Errors::ApiError.new_from_details("NotAuthorized") unless VCAP::CloudController::SecurityContext.admin?
         # if this org is being made the default we need to 1) remove default from other orgs and 2) ensure the default space belong to this org
         if self.is_default
           # remove default space if it doesn't belong to this org

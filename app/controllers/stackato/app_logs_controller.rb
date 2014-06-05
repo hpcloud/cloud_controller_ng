@@ -10,7 +10,7 @@ module VCAP::CloudController
         loglines = StackatoAppLogsClient.fetch_app_loglines(app, params["num"].to_i, params["raw"], params["as_is"])
       rescue Redis::CannotConnectError => e
         logger.error(e.message)
-        raise Errors::StackatoAppLogServerNotReachable.new
+        raise Errors::ApiError.new_from_details("StackatoAppLogServerNotReachable")
       end
       if params["monolith"]
         # monolith return is used by the Web UI

@@ -149,7 +149,7 @@ module VCAP::CloudController
 
     def check_firstuser_allowed
       if StackatoLicenseHelper.get_license_accepted(Kato::Config.get("cluster", "license"))
-        raise Errors::StackatoFirstUserAlreadySetup
+        raise Errors::ApiError.new_from_details("StackatoFirstUserAlreadySetup")
       end
     end
 

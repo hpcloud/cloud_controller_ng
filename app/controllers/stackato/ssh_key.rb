@@ -11,7 +11,7 @@ module VCAP::CloudController
           :sshkey => ssh_key
         })
       else
-        raise Errors::StackatoSshKeyNotConfigured.new
+        raise Errors::ApiError.new_from_details("StackatoSshKeyNotConfigured")
       end
     end
 

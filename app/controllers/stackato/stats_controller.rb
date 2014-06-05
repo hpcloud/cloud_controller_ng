@@ -6,7 +6,7 @@ module VCAP::CloudController
 
     def get_collectd
       if !params.has_key?('host') || !params.has_key?('plugin')
-        raise Errors::StackatoRequiredParametersMissing.new('host, plugin')
+        raise Errors::ApiError.new_from_details("StackatoRequiredParametersMissing", 'host, plugin')
       end
 
       collectd = CollectdJSON.new(:rrddir => '/var/lib/collectd/rrd')

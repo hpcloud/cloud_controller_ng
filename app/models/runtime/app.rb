@@ -703,7 +703,7 @@ module VCAP::CloudController
       app_from_db = self.class.find(guid: guid)
       if app_from_db.nil?
         self.class.logger.fatal("app.find.missing", guid: guid, self: inspect)
-        raise Errors::ApplicationMissing, error_message % guid
+        raise Errors::ApiError.new_from_details("ApplicationMissing", error_message % guid)
       end
       app_from_db
     end

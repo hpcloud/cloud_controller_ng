@@ -105,7 +105,7 @@ module VCAP::CloudController
     end
 
     def add
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       check_maintenance_mode
       new_store = Yajl::Parser.parse(body)
       store_config = load_store_config
@@ -137,7 +137,7 @@ module VCAP::CloudController
     end
 
     def update(store_name)
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       check_maintenance_mode
       store_config = load_store_config
       validate_store_name(store_name)
@@ -163,7 +163,7 @@ module VCAP::CloudController
     end
 
     def delete(store_name)
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       check_maintenance_mode
       store_config = load_store_config
       validate_store_name(store_name)
@@ -175,44 +175,44 @@ module VCAP::CloudController
     def load_store_config
       store_config = Kato::Config.get("cloud_controller_ng", "app_store")
       unless store_config and store_config.is_a? Hash and store_config["stores"]
-        raise Errors::StackatoAppStoresNotConfigured.new
+        raise Errors::ApiError.new_from_details("StackatoAppStoresNotConfigured")
       end
       store_config
     end
 
     def validate_store_name(store_name)
       unless store_name.is_a? String and store_name.size > 1
-        raise Errors::StackatoAppStoreValidNameRequired.new
+        raise Errors::ApiError.new_from_details("StackatoAppStoreValidNameRequired")
       end
     end
 
     def validate_store_content_url(content_url)
       unless content_url.is_a? String and content_url.size > 1
-        raise Errors::StackatoAppStoreValidContentUrlRequired.new
+        raise Errors::ApiError.new_from_details("StackatoAppStoreValidContentUrlRequired")
       end
     end
 
     def validate_store_enabled(enabled)
       unless [false, true].include? enabled
-        raise Errors::StackatoAppStoreValidEnabledRequired.new
+        raise Errors::ApiError.new_from_details("StackatoAppStoreValidEnabledRequired")
       end
     end
 
     def validate_store_verify_ssl(enabled)
       unless [false, true].include? enabled
-        raise Errors::StackatoAppStoreValidSSLVerifyRequired.new
+        raise Errors::ApiError.new_from_details("StackatoAppStoreValidSSLVerifyRequired")
       end
     end
 
     def validate_store_not_exists(existing_stores, store_name)
       if existing_stores[store_name]
-        raise Errors::StackatoAppStoreExists.new(store_name)
+        raise Errors::ApiError.new_from_details("StackatoAppStoreExists", store_name)
       end
     end
 
     def validate_store_exists(existing_stores, store_name)
       unless existing_stores[store_name]
-        raise Errors::StackatoAppStoreDoesNotExist.new(store_name)
+        raise Errors::ApiError.new_from_details("StackatoAppStoreDoesNotExist", store_name)
       end
     end
 

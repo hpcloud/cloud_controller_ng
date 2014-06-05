@@ -5,7 +5,7 @@ module VCAP::CloudController
   class StackatoExportController < RestController::Base
 
     def export
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       file = KatoShell.export params["regen"]
       export_filename = 'stackato-export.tgz'
       if params["hostname"]
@@ -19,7 +19,7 @@ module VCAP::CloudController
     end
 
     def export_info
-      raise Errors::NotAuthorized unless roles.admin?
+      raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       Yajl::Encoder.encode({
         :export_available   => KatoShell.export_exists?,
         :export_in_progress => KatoShell.export_in_progress?
