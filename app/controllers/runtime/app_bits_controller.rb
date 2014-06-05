@@ -35,8 +35,10 @@ module VCAP::CloudController
 
       # Async requests require the jobpresenter data returned to them for validating against the /v2/jobs endpoint.
       return upload_json_data
-    rescue VCAP::CloudController::Errors::AppBitsUploadInvalid, VCAP::CloudController::Errors::AppPackageInvalid
-      app.mark_as_failed_to_stage
+      rescue VCAP::CloudController::Errors::ApiError => e
+        if e.name == "AppBitsUploadInvalid" || e.name == "AppPackageInvalid"
+          app.mark_as_failed_to_stage
+        end
       raise
     end
 

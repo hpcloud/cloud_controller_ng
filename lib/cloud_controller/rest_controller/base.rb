@@ -112,8 +112,6 @@ module VCAP::CloudController::RestController
     rescue JsonMessage::Error => e
       logger.debug("Rescued JsonMessage::Error at #{__FILE__}:#{__LINE__}\n#{e.inspect}\n#{e.backtrace.join("\n")}")
       raise VCAP::Errors::ApiError.new_from_details("MessageParseError", e)
-    rescue VCAP::Errors::InvalidRelation => e
-      raise VCAP::Errors::ApiError.new_from_details("InvalidRelation", e)
     end
 
     # Fetch the current active user.  May be nil
