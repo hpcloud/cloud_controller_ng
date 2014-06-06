@@ -220,9 +220,21 @@ renderer:
   max_inline_relations_depth: 3
 
 install_buildpacks:
-  - name: java_buildpack
-    package: buildpack_java
-  - name: ruby_buildpack
-    package: buildpack_ruby
-  - name: node_buildpack
-    package: buildpack_node
+# - name: legacy
+#   url: http://git-mirrors.activestate.com/github.com/ActiveState/stackato-buildpack-legacy.git#3075697
+  - name: java
+    url: http://github.com/cloudfoundry/java-buildpack.git#v2.1
+  - name: ruby
+    url: http://github.com/ActiveState/heroku-buildpack-ruby.git#346af52
+  - name: nodejs
+    url: http://github.com/cloudfoundry/heroku-buildpack-nodejs.git#0758a34
+  - name: python
+    url: http://github.com/ActiveState/stackato-buildpack-python.git#cbccb6a
+  - name: go
+    url: http://github.com/ActiveState/heroku-buildpack-go.git#302350c
+  - name: clojure
+    url: http://github.com/heroku/heroku-buildpack-clojure.git#71cd68f
+  - name: scala
+    url: http://github.com/heroku/heroku-buildpack-scala.git#800655c
+  - name: perl
+    url: http://github.com/ActiveState/stackato-buildpack-perl.git
