@@ -23,10 +23,12 @@ module VCAP::CloudController
     end
 
     def before_create
-      if self.total_droplets.nil? || self.total_droplets == 0
-        self.total_droplets = VCAP::CloudController::Config.config[:droplets_to_keep].to_i
-        self.total_droplets = 5 if self.total_droplets <= 0
-      end
+      ensure_total_droplets_is_positive
+      super
+    end
+
+    def after_save
+      ensure_total_droplets_is_positive
       super
     end
 
@@ -47,6 +49,13 @@ module VCAP::CloudController
 
     def self.user_visibility_filter(user)
       full_dataset_filter
+    end
+    
+    def ensure_total_droplets_is_positive
+      if self.total_droplets.nil? || self.total_droplets == 0
+        self.total_droplets = VCAP::CloudController::Config.config[:droplets_to_keep].to_i
+        self.total_droplets = 5 if self.total_droplets <= 0
+      end
     end
   end
 end
