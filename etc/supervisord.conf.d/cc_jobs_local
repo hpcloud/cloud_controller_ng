@@ -1,10 +1,10 @@
 
-[program:cc_jobs]
+[program:cc_jobs_local]
 directory=/s/code/cloud_controller_ng
 command=/opt/rubies/current/bin/bundle exec rake jobs:local
 priority=2
 redirect_stderr=true
-stdout_logfile=/s/logs/cc_jobs.log
+stdout_logfile=/s/logs/cc_jobs_local.log
 stdout_logfile_maxbytes=1MB
 stdout_logfile_backups=3
 autostart=false
