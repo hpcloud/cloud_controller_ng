@@ -414,7 +414,7 @@ module VCAP::CloudController
     end
 
     def validate_route(route)
-      objection = Errors::ApiError.new_from_details("InvalidRouteRelation", route.guid)
+      objection = Errors::InvalidRouteRelation.new(route.guid)
 
       raise objection if route.nil?
       raise objection if space.nil?
