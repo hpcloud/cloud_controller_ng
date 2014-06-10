@@ -75,7 +75,7 @@ module CloudController
           if entry.file? && !entry.symlink?
             size = entry.size # reported size (or actual size % 4GB)
             if total_size + size > disk_limit
-              raise VCAP::Errors::AppPackageInvalid, "Package may not be larger than #{disk_limit} bytes"
+              raise VCAP::Errors::ApiError.new_from_details("AppPackageInvalid", "Package may not be larger than #{disk_limit} bytes")
             end
             if check_zipfile_actual_contents_size
               actual_size = 0
@@ -83,7 +83,7 @@ module CloudController
                 while data = fd.read(read_block_size)
                   actual_size += data.size
                   if total_size + actual_size > disk_limit
-                    raise VCAP::Errors::AppPackageInvalid, "Package may not be larger than #{disk_limit} bytes"
+                    raise VCAP::Errors::ApiError.new_from_details("AppPackageInvalid", "Package may not be larger than #{disk_limit} bytes")
                   end
                 end
               end

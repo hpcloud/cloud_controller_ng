@@ -146,11 +146,11 @@ module VCAP::CloudController
       component_name = component_name.to_s
       can_write, writable_config = filter_permissible_values(new_config, PERMISSIONS[component_name], "W")
       unless can_write
-        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component_name, "Submitted non-writable config.")
+        raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component_name, "Submitted non-writable config.")
       end
       unsupported_keys = new_config.keys - writable_config.keys
       if unsupported_keys.size > 0
-        raise ::VCAP::Errors::StackatoConfigUnsupportedKeys.new(unsupported_keys)
+        raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedKeys", unsupported_keys)
       end
   
       writable_config.each do |key, value|
@@ -181,7 +181,7 @@ module VCAP::CloudController
           # Log levels taken from here
           # https://github.com/cloudfoundry/common/blob/master/vcap_logging/lib/vcap/logging.rb#L14
           unless %w{debug2 debug1 debug info warn error fatal off}.include? log_level
-            raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "invalid logging level")
+            raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "invalid logging level")
           end
           Kato::Config.set(component, "logging/level", log_level, { :must_exist => true })
         else
@@ -192,7 +192,7 @@ module VCAP::CloudController
 
     def _update__dea_ng__resources(component, key, resources)
       unless resources.key? 'memory_max_percent'
-        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Attempting to update #{component} resources with no valid key/value pairs!")
+        raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "Attempting to update #{component} resources with no valid key/value pairs!")
       end
       if resources.key? 'memory_max_percent'
         memory_max_percent = resources['memory_max_percent'].to_i
@@ -203,7 +203,7 @@ module VCAP::CloudController
   
     def _update__dea_ng__timeouts(component, key, timeouts)
       if ( !(timeouts.key? "app_startup_port_ready"))
-        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Attempting to update #{component} timeouts with no valid key/value pairs!")
+        raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "Attempting to update #{component} timeouts with no valid key/value pairs!")
       end
       if (timeouts.key? "app_startup_port_ready")
         app_startup_port_ready = timeouts["app_startup_port_ready"].to_i
@@ -226,17 +226,17 @@ module VCAP::CloudController
   
     def _update__harbor_node__port_range(component, key, port_range)
       if ( !(port_range.key? "min") && !(port_range.key? "max") )
-        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Attempting to update port_range with no valid key/value pairs!")
+        raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "Attempting to update port_range with no valid key/value pairs!")
       end
       current_min = Kato::Config.get("harbor_node", "port_range/min")
       current_max = Kato::Config.get("harbor_node", "port_range/max")
       if port_range.key? "min"
         port_range_min = port_range["min"].to_i
         if port_range_min < 1024 || port_range_min > 65535
-          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Minimum port range must be between 1024 and 65535")
+          raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "Minimum port range must be between 1024 and 65535")
         end
         if port_range_min > current_max
-          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Minimum port range must be an equal or lesser value than the current maximum port range of #{current_max}");
+          raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "Minimum port range must be an equal or lesser value than the current maximum port range of #{current_max}");
         end
         logger.info("Setting harbor_node/port_range/min to #{port_range_min}")
         Kato::Config.set("harbor_node", "port_range/min", port_range_min)
@@ -244,10 +244,10 @@ module VCAP::CloudController
       if port_range.key? "max"
         port_range_max = port_range["max"].to_i
         if port_range_max > 65535 || port_range_max < 1024
-          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Max port range must be between 1024 and 65535")
+          raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "Max port range must be between 1024 and 65535")
         end
         if port_range_max < current_min
-          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "Maximum port range must be an equal or greater value than the current minimum port range value of #{current_min}");
+          raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "Maximum port range must be an equal or greater value than the current minimum port range value of #{current_min}");
         end
         logger.info("Setting harbor_node/port_range/max to #{port_range_max}")
         Kato::Config.set("harbor_node", "port_range/max", port_range_max)
@@ -257,7 +257,7 @@ module VCAP::CloudController
     def _update_generic__positive_integer(component_id, key_path, value)
       value = value.to_i rescue nil
       if value.nil? or value <= 0
-        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component_id, "#{key_path} must be a (positive) number")
+        raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component_id, "#{key_path} must be a (positive) number")
       end
       logger.info("Setting #{component_id} #{key_path} to #{value}")
       Kato::Config.set(component_id, key_path, value)
@@ -293,7 +293,7 @@ module VCAP::CloudController
       stores.each do |store|
         store.delete_if{|key, value| key != "url" && key != "enabled"}
         unless store["url"].kind_of?(String) && store["url"].size >= min_length
-          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "url must be a string of size at least #{min_length}")
+          raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "url must be a string of size at least #{min_length}")
         end
       end
       logger.info("Setting app_store to #{stores.inspect}")
@@ -304,7 +304,7 @@ module VCAP::CloudController
       if staging_hash.key? "max_staging_runtime"
         max_staging_runtime = staging_hash["max_staging_runtime"].to_i
         if max_staging_runtime <= 0
-          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "max_staging_runtime must be a (positive) number")
+          raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "max_staging_runtime must be a (positive) number")
         end
         logger.info("Setting #{component_id} #{staging_key}/max_staging_runtime to #{max_staging_runtime}")
         Kato::Config.set(component_id, "#{staging_key}/max_staging_runtime", max_staging_runtime)
@@ -315,7 +315,7 @@ module VCAP::CloudController
       if staging_hash.key? "max_staging_duration"
         max_staging_duration = staging_hash["max_staging_duration"].to_i
         if max_staging_duration <= 0
-          raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "max_staging_duration must be a (positive) number")
+          raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "max_staging_duration must be a (positive) number")
         end
         logger.info("Setting #{component_id} #{staging_key}/max_staging_duration to #{max_staging_duration}")
         Kato::Config.set(component_id, "#{staging_key}/max_staging_duration", max_staging_duration)
@@ -374,11 +374,11 @@ module VCAP::CloudController
       if arr.is_a? Array
         arr.each do |item|
           unless (item.is_a? String and (min_length.nil? or item.size >= min_length))
-            raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "#{name} array must contain strings of size at least #{min_length}")
+            raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "#{name} array must contain strings of size at least #{min_length}")
           end
         end
       else
-        raise ::VCAP::Errors::StackatoConfigUnsupportedUpdate.new(component, "`#{name}' should be of array type")
+        raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "`#{name}' should be of array type")
       end
     end
 

@@ -27,7 +27,7 @@ describe VCAP::CloudController::StackatoConfig do
     Kato::Config.set("cloud_controller_ng", "support_address", old_support_address)
     c = VCAP::CloudController::StackatoConfig.new("cloud_controller_ng")
     lambda { c.save({ "support_address" => new_support_address }) }
-      .should raise_error VCAP::Errors::StackatoConfigUnsupportedUpdate
+      .should raise_error('VCAP::Errors::ApiError', /Updates unsupported for keys/)
   end
 
   it 'should retrieve cc "staging" keys excluding "auth"' do

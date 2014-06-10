@@ -1,5 +1,3 @@
-class VCAP::Errors::AppVersionNotFound < Exception; end
-
 module VCAP::CloudController
   class AppVersionsController < RestController::ModelController
     define_attributes do
@@ -28,7 +26,7 @@ module VCAP::CloudController
         return [204, {}, nil]
       else
         logger.warn "Unable to find version #{guid} for app"
-        raise VCAP::Errors::BadQueryParameter.new
+        raise raise Errors::ApiError.new_from_details("BadQueryParameter")
       end
     end
   end

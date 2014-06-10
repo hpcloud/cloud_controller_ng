@@ -236,18 +236,18 @@ module VCAP::CloudController
           quota_def_errors = e.errors.on(:quota_definition_id)
           name_errors = e.errors.on(:name)
           if quota_def_errors && quota_def_errors.include?(:not_authorized)
-            Errors::NotAuthorized.new(e.model.quota_definition_id)
+            Errors::ApiError.new_from_details("NotAuthorized", e.model.quota_definition_id)
           elsif name_errors && name_errors.include?(:unique)
-            Errors::OrganizationNameTaken.new(e.model.name)
+            Errors::ApiError.new_from_details("OrganizationNameTaken", e.model.name)
           else
-            Errors::OrganizationInvalid.new(e.errors.full_messages)
+            Errors::ApiError.new_from_details("OrganizationInvalid", e.errors.full_messages)
           end
         else
           guid_errors = e.errors.on(:guid)
           if guid_errors && guid_errors.include?(:unique)
-            Errors::UaaIdTaken.new(attributes["guid"])
+            Errors::ApiError.new_from_details("UaaIdTaken", attributes["guid"])
           else
-            Errors::UserInvalid.new(e.errors.full_messages)
+            Errors::ApiError.new_from_details("UserInvalid", e.errors.full_messages)
           end
         end
       end

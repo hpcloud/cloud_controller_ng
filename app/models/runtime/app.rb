@@ -414,7 +414,7 @@ module VCAP::CloudController
     end
 
     def validate_route(route)
-      objection = Errors::InvalidRouteRelation.new(route.guid)
+      objection = Errors::ApiError.new_from_details("InvalidRouteRelation", route.guid)
 
       raise objection if route.nil?
       raise objection if space.nil?
@@ -509,9 +509,9 @@ module VCAP::CloudController
         elsif self.min_instances > self.max_instances
           # Now complain if setting one breaks the requirement that min <= max
           if changed_columns.include?(:min_instances)
-            raise VCAP::Errors::AppPackageInvalid.new("specified value of min_instances: #{self.min_instances} > current value of max_instances: #{self.max_instances}")
+            raise Errors::ApiError.new_from_details("AppPackageInvalid", "specified value of min_instances: #{self.min_instances} > current value of max_instances: #{self.max_instances}")
           else
-            raise VCAP::Errors::AppPackageInvalid.new("specified value of max_instances: #{self.max_instances} > current value of min_instances: #{self.min_instances}")
+            raise Errors::ApiError.new_from_details("AppPackageInvalid", "specified value of max_instances: #{self.max_instances} > current value of min_instances: #{self.min_instances}")
           end
         end
       end
