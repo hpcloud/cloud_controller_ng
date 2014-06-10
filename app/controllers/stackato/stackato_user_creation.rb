@@ -78,24 +78,27 @@ module VCAP::CloudController
       raise e
     rescue CF::UAA::TargetError => e
       # Probably a validation error coming from the target.
-      if scim_user && scim_user['id']
-        logger.debug "Attempting to roll back UAA user..."
-        scim_client.delete :user, scim_user['id']
-      end
+      rollback_uaa_user(scim_user)
       return 400, e.info.to_json
     rescue Sequel::ValidationFailed => e
       logger.debug "Validation failed on the local user or org-- rolling back UAA user."
-      scim_client.delete :user, scim_user['id']
+      rollback_uaa_user(scim_user)
       raise e
     rescue Exception => e
       begin
         logger.debug "Error while setting up: #{e}\n#{e.backtrace[0..6].join("\n")}..."
-        logger.debug "Attempting to roll back UAA user..."
-        scim_client.delete :user, scim_user['id']
+        rollback_uaa_user(scim_user)
       rescue Exception => uaa_rollback
         logger.debug "Rolling back UAA user failed: #{uaa_rollback.inspect}"
       end
       raise e
+    end
+
+    def rollback_uaa_user(scim_user)
+      if scim_user && scim_user['id']
+        logger.debug "Attempting to roll back UAA user..."
+        scim_client.delete :user, scim_user['id']
+      end
     end
 
     def firstuser(password)
