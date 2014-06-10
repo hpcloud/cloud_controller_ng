@@ -26,7 +26,7 @@ module VCAP::CloudController
         return [204, {}, nil]
       else
         logger.warn "Unable to find version #{guid} for app"
-        raise raise Errors::ApiError.new_from_details("BadQueryParameter")
+        raise Errors::ApiError.new_from_details("BadQueryParameter")
       end
     end
   end
