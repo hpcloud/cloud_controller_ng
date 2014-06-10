@@ -45,7 +45,7 @@ module CloudController
       def self.get_disk_limit
         disk_limit_mb = Kato::Config.get("dea_ng", "staging/disk_limit_mb")
         disk_limit = (disk_limit_mb.to_i rescue 0) * 1024 * 1024
-        raise VCAP::CloudController::Errors::StackatoNoConfigForComponent.new("dea_ng::/staging/disk_limit_mb") if disk_limit == 0
+        raise Errors::ApiError.new_from_details('StackatoNoConfigForComponent', 'dea_ng::/staging/disk_limit_mb') if disk_limit == 0
         disk_limit
       end
       
