@@ -24,7 +24,7 @@ gem 'builder'           ,    '3.0.4'
 gem 'celluloid'         ,   '0.15.2', :groups => [:test]
 gem 'cf-message-bus'    ,    '0.2.0', :github => "ActiveState/cf-message-bus"
 gem 'cf-registrar'      ,    '1.0.1', :github => "cloudfoundry/cf-registrar"
-gem 'cf-uaa-lib'        ,    '2.1.0', :github => "ActiveState/cf-uaa-lib", :ref => "4e44eacf9510d3ae882d6cad6969bc655d2ada5c"
+gem 'cf-uaa-lib'        ,    '2.1.0', :github => "cloudfoundry/cf-uaa-lib", :ref => "4b94e14aa772e5b376e1be1c710aaeee7bd51a5c"
 gem 'ci_reporter'       ,    '1.9.0'
 gem 'clockwork'         ,    '0.7.0'
 gem 'cloudfront-signer' ,    '2.1.1'

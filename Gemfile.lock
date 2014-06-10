@@ -10,14 +10,6 @@ GIT
       yajl-ruby
 
 GIT
-  remote: git://github.com/ActiveState/cf-uaa-lib.git
-  revision: 4e44eacf9510d3ae882d6cad6969bc655d2ada5c
-  ref: 4e44eacf9510d3ae882d6cad6969bc655d2ada5c
-  specs:
-    cf-uaa-lib (2.1.0)
-      multi_json
-
-GIT
   remote: git://github.com/cloudfoundry/cf-registrar.git
   revision: 49850ee876652a59dbd2d73dad726b3b808bb8f9
   specs:
@@ -26,6 +18,14 @@ GIT
       eventmachine (~> 1.0.0)
       steno
       vcap-concurrency
+
+GIT
+  remote: git://github.com/cloudfoundry/cf-uaa-lib.git
+  revision: 4b94e14aa772e5b376e1be1c710aaeee7bd51a5c
+  ref: 4b94e14aa772e5b376e1be1c710aaeee7bd51a5c
+  specs:
+    cf-uaa-lib (2.1.0)
+      multi_json
 
 GIT
   remote: git://github.com/cloudfoundry/stager-client.git

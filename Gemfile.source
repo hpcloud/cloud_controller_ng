@@ -19,7 +19,7 @@ gem "httpclient"
 gem "steno", '1.1.0'
 gem "cloudfront-signer"
 gem "vcap-concurrency", :github => "cloudfoundry/vcap-concurrency", :ref => "2a5b0179"
-gem "cf-uaa-lib", "~> 2.1.0", :github => "ActiveState/cf-uaa-lib", :ref => "4e44eacf9510d3ae882d6cad6969bc655d2ada5c"
+gem "cf-uaa-lib", "~> 2.1.0", :github => "cloudfoundry/cf-uaa-lib", :ref => "4b94e14aa772e5b376e1be1c710aaeee7bd51a5c"
 gem "stager-client", "~> 0.0.02", :github => "cloudfoundry/stager-client", :ref => "04c2aee9"
 gem "cf-message-bus", :github => "ActiveState/cf-message-bus"
 gem 'cf-registrar', '~> 1.0.1', :github => "cloudfoundry/cf-registrar"
