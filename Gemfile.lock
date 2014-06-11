@@ -157,7 +157,7 @@ GEM
     equalizer (0.0.8)
     errand (0.7.3)
     eventmachine (1.0.3)
-    excon (0.28.0)
+    excon (0.33.0)
     fakefs (0.5.2)
     ffi (1.9.3)
     fluent-logger (0.4.7)
@@ -165,7 +165,7 @@ GEM
       yajl-ruby (~> 1.0)
     fog (1.18.0)
       builder
-      excon (~> 0.28.0)
+      excon (~> 0.33.0)
       formatador (~> 0.2.0)
       mime-types
       multi_json (~> 1.0)
@@ -399,7 +399,7 @@ DEPENDENCIES
   equalizer (= 0.0.8)
   errand (= 0.7.3)
   eventmachine (= 1.0.3)
-  excon (= 0.28.0)
+  excon (= 0.33.0)
   fakefs (= 0.5.2)
   ffi (= 1.9.3)
   fluent-logger (= 0.4.7)

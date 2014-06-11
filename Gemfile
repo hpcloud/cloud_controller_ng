@@ -49,11 +49,11 @@ gem 'em-socksify'       ,    '0.3.0'
 gem 'equalizer'         ,    '0.0.8'
 gem 'errand'            ,    '0.7.3'
 gem 'eventmachine'      ,    '1.0.3'
-gem 'excon'             ,   '0.28.0'
+gem 'excon'             ,   '0.33.0'
 gem 'fakefs'            ,    '0.5.2', :groups => [:test], :require => "fakefs/safe"
 gem 'ffi'               ,    '1.9.3', :groups => [:test]
 gem 'fluent-logger'     ,    '0.4.7'
-gem 'fog'               ,   '1.18.0'
+gem 'fog'               ,   '1.22.1'
 gem 'formatador'        ,    '0.2.4', :groups => [:default, :test]
 gem 'futuroscope'       ,    '0.1.5'
 gem 'grape'             ,    '0.7.1', :github => "intridea/grape"
