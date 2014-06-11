@@ -1,40 +1,6 @@
 require "fileutils"
 require "find"
 require "fog"
-require 'fog/local/models/storage/file'
-
-#!! XXX Remove me: Monkey patch Fog local blobstore to not load the uploaded file into
-# memory (send patch to Fog maintainers)
-class Fog::Storage::Local::File
-  def save(options = {})
-    requires :body, :directory, :key
-    dirs = path.split(::File::SEPARATOR)[0...-1]
-    dirs.length.times do |index|
-      dir_path = dirs[0..index].join(::File::SEPARATOR)
-      if dir_path.empty? # path starts with ::File::SEPARATOR
-        next
-      end
-      # create directory if it doesn't already exist
-      unless ::File.directory?(dir_path)
-        Dir.mkdir(dir_path)
-      end
-    end
-    file = ::File.new(path, 'wb')
-    if body.is_a?(String)
-      file.write(body)
-    elsif body.kind_of? ::File
-      FileUtils.cp(body.path, path)
-    else
-      file.write(body.read)
-    end
-    file.close
-    merge_attributes(
-      :content_length => Fog::Storage.get_body_size(body),
-      :last_modified  => ::File.mtime(path)
-    )
-    true
-  end
-end
 
 class Blobstore
   def initialize(connection_config, directory_key, cdn=nil, root_dir=nil)
