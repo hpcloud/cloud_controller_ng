@@ -34,7 +34,7 @@ module VCAP::CloudController
 
     def normalize_position_for_add(target_position, last_position)
       case
-        when target_position.nil?
+        when target_position.nil? || target_position == 0
           last_position + 1
         when target_position > last_position
           last_position + 1
