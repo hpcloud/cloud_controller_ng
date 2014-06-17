@@ -223,7 +223,7 @@ install_buildpacks:
 # - name: legacy
 #   url: http://git-mirrors.activestate.com/github.com/ActiveState/stackato-buildpack-legacy.git#3075697
   - name: java
-    url: http://github.com/cloudfoundry/java-buildpack.git#v2.1
+    url: http://github.com/cloudfoundry/java-buildpack.git#v2.3
   - name: ruby
     url: http://github.com/ActiveState/heroku-buildpack-ruby.git#346af52
   - name: nodejs
