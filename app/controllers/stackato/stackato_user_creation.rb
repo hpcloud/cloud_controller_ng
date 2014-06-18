@@ -156,9 +156,6 @@ module VCAP::CloudController
       end
     end
 
-    # TODO: This uses PUT to modify group membership. I don't believe this will work once
-    # groups are big enough that they are paginated. The proper way to do this would be
-    # with PATCH, but the cf-uaa-lib doesn't support patch currently and I need to move on.
     def modify_user_group_membership scim_user, group, add_or_remove=:+
       scim_group = scim_client.query( :group, 'filter' => %Q!displayName eq "#{group}"!, 'startIndex' => 1)["resources"].first
       raise "Group not found" unless scim_group
