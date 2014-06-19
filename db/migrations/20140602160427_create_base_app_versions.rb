@@ -12,7 +12,13 @@ Sequel.migration do
       if droplets.size > 0
         droplet_id = droplets.first[:id]
         if droplet_id
-          version_guid = SecureRandom.uuid
+          version_guid = app[:version]
+          if !version_guid
+            version_guid = SecureRandom.uuid
+            update_app = true
+          else
+            update_app = false
+          end
           now = Time.now
           self[:app_versions].insert(:guid => SecureRandom.uuid,
                                      :created_at => now,
@@ -23,7 +29,9 @@ Sequel.migration do
                                      :description => "upgraded existing application",
                                      :instances => app[:instances],
                                      :memory => app[:memory])
-          from(:apps).where(:id => app_id).update(:version => version_guid)
+          if update_app
+            from(:apps).where(:id => app_id).update(:version => version_guid)
+          end
         end
       end
     end
