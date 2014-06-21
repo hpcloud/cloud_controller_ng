@@ -9,7 +9,7 @@ module.exports =  {
     uploadLimits: {
         fields: 200,
         files: 100,
-        fileSize: process.env.UPLOAD_FILE_LIMIT || 536870912, // 512MB
+        fileSize: process.env.UPLOAD_FILE_LIMIT || 1610612736, // 1.5GB
         parts: 300
     },
     /* buildpack caches / app upload bits */
