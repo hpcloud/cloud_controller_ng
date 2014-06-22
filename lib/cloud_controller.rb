@@ -70,8 +70,8 @@ require "cloud_controller/diego/diego_client"
 require "cloud_controller/stager/stager_pool"
 require "cloud_controller/stager/staging_completion_handler"
 
-require "cloud_controller/hm9000_client"
-require "cloud_controller/hm9000_respondent"
+require "cloud_controller/health_manager_client"
+require "cloud_controller/health_manager_respondent"
 
 require "cloud_controller/task_client"
 

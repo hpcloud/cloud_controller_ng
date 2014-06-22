@@ -1,7 +1,8 @@
 module VCAP::CloudController
   class HealthManagerClient
-    def initialize(message_bus)
+    def initialize(message_bus, config)
       @message_bus = message_bus
+      @config = config # only in here for hm9000 compatibility
     end
 
     def find_crashes(app)

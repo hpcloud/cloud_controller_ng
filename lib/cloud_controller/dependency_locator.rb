@@ -19,7 +19,7 @@ module CloudController
 
     def health_manager_client
       if @config[:hm9000_noop]
-        @health_manager_client ||= HealthManagerClient.new(@message_bus)
+        @health_manager_client ||= HealthManagerClient.new(@message_bus, @config)
       else
         @health_manager_client ||= HM9000Client.new(@message_bus, @config)
       end

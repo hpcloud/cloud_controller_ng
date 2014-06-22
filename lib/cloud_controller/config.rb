@@ -241,7 +241,6 @@ module VCAP::CloudController
         stager_pool = StagerPool.new(@config, message_bus)
         dea_pool = DeaPool.new(message_bus)
 
-        health_manager_client = HealthManagerClient.new(message_bus)
         AppObserver.configure(@config, message_bus, dea_pool, stager_pool, health_manager_client)
 
         blobstore_url_generator = CloudController::DependencyLocator.instance.blobstore_url_generator
@@ -279,6 +278,10 @@ module VCAP::CloudController
       end
 
       private
+
+      def health_manager_client
+        CloudController::DependencyLocator.instance.health_manager_client
+      end
 
       def sanitize(config)
         grace_period = config[:app_bits_upload_grace_period_in_seconds]
