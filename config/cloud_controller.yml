@@ -162,13 +162,13 @@ app_store:
   default_icon: http://get.stackato.com/store/icon/default.png
   stores:
     activestate-apps:
-      content_url: http://get.stackato.com/store/3.2/activestate-apps.yaml
+      content_url: http://get.stackato.com/store/3.4/activestate-apps.yaml
       enabled: true
     drupal-distro:
-      content_url: http://get.stackato.com/store/3.2/drupal-distro.yaml
+      content_url: http://get.stackato.com/store/3.4/drupal-distro.yaml
       enabled: true
     third-party-apps:
-      content_url: http://get.stackato.com/store/3.2/third-party-apps.yaml
+      content_url: http://get.stackato.com/store/3.4/third-party-apps.yaml
       enabled: true
 
 allowed_repos:
