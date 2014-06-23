@@ -26,7 +26,7 @@ class BackgroundJobEnvironment
         # The AppObserver should be refactored and don't depend on stager and dea pools
         no_op_staging_pool = Object.new
         no_op_dea_pool = Object.new
-        health_manager_client = VCAP::CloudController::HealthManagerClient.new(message_bus)
+        health_manager_client = CloudController::DependencyLocator.instance.health_manager_client
         VCAP::CloudController::AppObserver.configure(@config, message_bus, no_op_dea_pool, no_op_staging_pool, health_manager_client)
 
         blobstore_url_generator = CloudController::DependencyLocator.instance.blobstore_url_generator
