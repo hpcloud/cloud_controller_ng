@@ -72,21 +72,23 @@ module VCAP::CloudController
       space = find_guid_and_validate_access(:read, guid)
 
       if params['return_user_provided_service_instances'] == 'true'
+        controller = UserProvidedServiceInstancesController
         model_class = ServiceInstance
         relation_name = :service_instances
       else
+        controller = ServiceInstancesController
         model_class = ManagedServiceInstance
         relation_name = :managed_service_instances
       end
 
       service_instances = Query.filtered_dataset_from_query_params(model_class,
         space.user_visible_relationship_dataset(relation_name, SecurityContext.current_user, SecurityContext.admin?),
-        ServiceInstancesController.query_parameters,
+        controller.query_parameters,
         @opts)
       service_instances.filter(space: space)
 
       collection_renderer.render_json(
-        ServiceInstancesController,
+        controller,
         service_instances,
         "/v2/spaces/#{guid}/service_instances",
         @opts,

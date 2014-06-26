@@ -116,7 +116,12 @@ module VCAP::CloudController
       logger.debug "cc.read", model: :ServiceInstance, guid: guid
 
       service_instance = find_guid_and_validate_access(:read, guid, ServiceInstance)
-      object_renderer.render_json(self.class, service_instance, @opts)
+      if service_instance.instance_of? UserProvidedServiceInstance
+        controller_class = UserProvidedServiceInstancesController
+      else
+        controller_class = self.class
+      end
+      object_renderer.render_json(controller_class, service_instance, @opts)
     end
 
     get '/v2/service_instances/:guid/permissions', :permissions
