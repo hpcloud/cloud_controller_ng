@@ -39,6 +39,10 @@ module VCAP::CloudController
             user.logged_in_at = login_timestamp
             user.save
           end
+
+          # update admin info if necessary
+          user.update_from_hash(admin: admin) if user.admin != admin
+
           return user 
         end
         
