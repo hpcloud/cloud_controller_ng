@@ -49,6 +49,14 @@ module VCAP::CloudController
       Errors::ApiError.new_from_details("ServiceInstanceNotFound", guid)
     end
 
+    def self.url_for_guid(guid)
+      if ServiceInstance.find(guid: guid).instance_of? UserProvidedServiceInstance
+        "#{ROUTE_PREFIX}/user_provided_service_instances/#{guid}"
+      else
+        super
+      end
+    end
+
     post "/v2/service_instances", :create
     def create
       json_msg = self.class::CreateMessage.decode(body)
@@ -116,12 +124,7 @@ module VCAP::CloudController
       logger.debug "cc.read", model: :ServiceInstance, guid: guid
 
       service_instance = find_guid_and_validate_access(:read, guid, ServiceInstance)
-      if service_instance.instance_of? UserProvidedServiceInstance
-        controller_class = UserProvidedServiceInstancesController
-      else
-        controller_class = self.class
-      end
-      object_renderer.render_json(controller_class, service_instance, @opts)
+      object_renderer.render_json(self.class, service_instance, @opts)
     end
 
     get '/v2/service_instances/:guid/permissions', :permissions
