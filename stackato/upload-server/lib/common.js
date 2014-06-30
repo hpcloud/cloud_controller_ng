@@ -8,6 +8,7 @@ module.exports =  {
     /* File upload limits */
     uploadLimits: {
         fields: 200,
+        fieldSize: process.env.UPLOAD_FIELDSIZE_LIMIT || 20971520, // 20MB
         files: 100,
         fileSize: process.env.UPLOAD_FILE_LIMIT || 1610612736, // 1.5GB
         parts: 300
