@@ -25,7 +25,6 @@ module VCAP::CloudController
       app.set_new_version # a rollback creates a new version, similar to Heroku
 
       app.save
-      AppObserver.updated(app)
     end
 
     def self.latest_version(app)
