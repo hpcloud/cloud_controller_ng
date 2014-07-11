@@ -57,7 +57,7 @@ module VCAP::CloudController
         if available_zones.size > 1 || available_zones.first != "default"
             partString += ". Requested placement_zone: #{@app.distribution_zone}, available placement zones: #{available_zones.join(" ")}"
         end
-        raise Errors::ApiError.new_from_details("StagingError", "no available stagers for #{partString}")
+        raise Errors::ApiError.new_from_details("StagingError", "no available stagers for #{partString}; available mem: #{staging_task_memory_mb}, disk: #{staging_task_disk_mb}")
       end
       subject = "staging.#{@stager_id}.start"
       @multi_message_bus_request = MultiResponseMessageBusRequest.new(@message_bus, subject)
