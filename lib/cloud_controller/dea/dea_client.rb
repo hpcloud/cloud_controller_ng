@@ -312,6 +312,10 @@ module VCAP::CloudController
          :autoscale_enabled].each { |k| changes[k] = app.send(k) }
         health_manager_client.update_autoscaling_fields(changes)
       end
+      
+      def request_update_advertisements
+        message_bus.publish("immediate.advertising.request")
+      end
 
       private
 
