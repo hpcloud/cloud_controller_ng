@@ -12,7 +12,7 @@ gem "sinatra", "~> 1.4"
 gem "sinatra-contrib"
 gem "yajl-ruby"
 gem "membrane", "~> 1.0.0"
-gem "grape", "0.7.1", :github => "intridea/grape"
+gem "grape", "0.7.0", :github => "intridea/grape", :ref => "df8caf7d4065a26d15db73dbdcc651e0abf06216"
 gem 'errand', '0.7.3'
 gem 'librrd', '1.0.3'
 gem "httpclient"
