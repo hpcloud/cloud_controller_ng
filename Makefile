@@ -59,7 +59,7 @@ clean:
 
 sync: rsync restart
 
-VM=$(VMNAME).local
+VM ?= $(VMNAME).local
 rsync: vmname
 	rsync -avzL ./ stackato@$(VM):/s/code/cloud_controller_ng/ $(RSYNC_EXCLUDE)
 
