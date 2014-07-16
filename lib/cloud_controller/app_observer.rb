@@ -101,11 +101,9 @@ module VCAP::CloudController
               end
               break
             rescue Errors::ApiError => e
-              raise if iter == num_tries
-              if e.name == "StagingError"
-                logger.warn("#{iter + 1}/#{num_tries}: Waiting #{delay} secs for more resources to stage #{app.name}")
-                sleep delay
-              end
+              raise if iter == num_tries || e.name != "StagingError"
+              logger.warn("#{iter + 1}/#{num_tries}: Waiting #{delay} secs for more resources to stage #{app.name}")
+              sleep delay
             end
           end
         else
