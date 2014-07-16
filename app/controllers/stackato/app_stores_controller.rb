@@ -8,7 +8,7 @@ module VCAP::CloudController
 
     APP_STORES_BASE_URL = "/v2/stackato/app_stores"
     DEFAULT_INLINE_RELATIONS_DEPTH = 0
-    PROXY_VARS = %W{https_proxy https_proxy no_proxy};
+    PROXY_VARS = %W{http_proxy https_proxy no_proxy};
 
     def list
       store_config = load_store_config
