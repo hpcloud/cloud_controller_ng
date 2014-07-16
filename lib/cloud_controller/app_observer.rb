@@ -90,7 +90,24 @@ module VCAP::CloudController
 
       def stage_if_needed(app, &success_callback)
         if app.needs_staging?
-          app.last_stager_response = stage_app(app, &success_callback)
+          # Bug 104558 - Allow for dead droplet-slots to be made available
+          num_tries = @config[:staging].fetch(:num_repeated_tries, 10)
+          delay = @config[:staging].fetch(:time_between_tries, 3)
+          (num_tries + 1).times do | iter |
+            begin
+              app.last_stager_response = stage_app(app, &success_callback)
+              if iter > 0
+                logger.info("Staged #{app.name}")
+              end
+              break
+            rescue Errors::ApiError => e
+              raise if iter == num_tries
+              if e.name == "StagingError"
+                logger.warn("#{iter + 1}/#{num_tries}: Waiting #{delay} secs for more resources to stage #{app.name}")
+                sleep delay
+              end
+            end
+          end
         else
           success_callback.call(:started_instances => 0)
         end
