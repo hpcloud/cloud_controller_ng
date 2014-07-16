@@ -1,12 +1,14 @@
 
 require "kato/config"
 require "httpclient"
+require "open-uri"
 
 module VCAP::CloudController
   class StackatoAppStoresController < RestController::Base
 
     APP_STORES_BASE_URL = "/v2/stackato/app_stores"
     DEFAULT_INLINE_RELATIONS_DEPTH = 0
+    PROXY_VARS = %W{https_proxy https_proxy no_proxy};
 
     def list
       store_config = load_store_config
@@ -57,20 +59,37 @@ module VCAP::CloudController
       }
       if fetch_content
         begin
-          if proxy_config
-            proxy = "http://#{proxy_config["host"]}:#{proxy_config["port"]}"
-            http_client = HTTPClient.new(proxy)
-            if proxy_config.has_key? "username"
-              http_client.set_proxy_auth(
-                proxy_config["username"],
-                proxy_config["password"]
-              )
-            end
-          else
-            http_client = HTTPClient.new
+
+          # setup proxy environment variables for URI.find_proxy
+          env = {}
+          PROXY_VARS.each do |name|
+            env[name] = ENV.delete(name)
+            value = proxy_config[name]
+            ENV[name] = value unless value.nil? || value.empty?
           end
-          http_client.ssl_config.verify_mode = verify_ssl(store)
-          content = http_client.get_content(store["content_url"])
+
+          uri = URI.parse( store["content_url"] )
+          begin
+            proxy = uri.find_proxy
+          rescue
+            proxy = nil
+          end
+
+          # restore proxy environment variables
+          PROXY_VARS.each do |name|
+            ENV.delete(name)
+            ENV[name] = env[name] unless env[name].nil?
+          end
+
+          proxy ||= URI.parse("")
+          http = Net::HTTP::Proxy(proxy.host, proxy.port, proxy.user, proxy.password)
+          if uri.scheme == 'https'
+            http.use_ssl = true
+            http.verify_mode = verify_ssl(store)
+          end
+
+          content = http.start(uri.host, uri.port).request_get(uri.request_uri).body
+
           # XXX:TODO:Stackato: Replace with YAML.safe_load (https://github.com/tenderlove/psych/issues/119)
           store_content = YAML.load(content)
           entity[:content] = {
