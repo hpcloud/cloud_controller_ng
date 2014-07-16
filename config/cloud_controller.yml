@@ -95,6 +95,8 @@ staging:
   timeout_in_seconds: 480 # secs
   minimum_staging_memory_mb: 1024
   minimum_staging_disk_mb: 4096
+  num_repeated_tries: 10
+  time_between_tries: 3 # secs
   
   # Check zipfiles for oversize files before unzipping them.
   # This streams zipfiles, counting the bytes of each file, because
