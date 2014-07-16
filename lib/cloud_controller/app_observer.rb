@@ -106,11 +106,6 @@ module VCAP::CloudController
         else
           DeaClient.stop(app)
           broadcast_app_updated(app)
-          if app.previous_changes[:state] == ['STARTED', 'STOPPED']
-            # get the deas to update their new states synchronously back to
-            # the CC so the advertisements are up-to-date.
-            DeaClient.request_update_advertisements
-          end
         end
       end
 

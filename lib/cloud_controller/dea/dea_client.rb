@@ -313,10 +313,6 @@ module VCAP::CloudController
         health_manager_client.update_autoscaling_fields(changes)
       end
       
-      def request_update_advertisements
-        message_bus.publish("immediate.advertising.request")
-      end
-
       private
 
       def health_manager_client
