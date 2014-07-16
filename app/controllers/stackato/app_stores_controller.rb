@@ -64,8 +64,10 @@ module VCAP::CloudController
           env = {}
           PROXY_VARS.each do |name|
             env[name] = ENV.delete(name)
-            value = proxy_config[name]
-            ENV[name] = value unless value.nil? || value.empty?
+            if proxy_config
+              value = proxy_config[name]
+              ENV[name] = value unless value.nil? || value.empty?
+            end
           end
 
           uri = URI.parse( store["content_url"] )
