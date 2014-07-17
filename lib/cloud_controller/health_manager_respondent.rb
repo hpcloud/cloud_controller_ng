@@ -66,28 +66,59 @@ module VCAP::CloudController
 
     def process_stop(payload)
       begin
-        app_id = payload.fetch("droplet")
-        version = payload.fetch("version")
+        app_guid = payload.fetch("droplet")
         instances = payload.fetch("instances")
         running = payload.fetch("running")
       rescue KeyError => e
-        Loggregator.emit_error(app_id, "Bad request from health manager: #{e.message}, payload: #{payload}")
+        Loggregator.emit_error(app_guid, "Bad request from health manager: #{e.message}, payload: #{payload}")
         logger.error "cloudcontroller.hm.malformed-request",
           :error => e.message,
           :payload => payload
         return
       end
-      should_stop, reason = instance_needs_to_stop?(app_id, version, instances, running)
-      if should_stop
-        dea_client.stop_instances(app_id, instances)
-        logger.info "cloudcontroller.health_manager.will-stop", :reason => reason, :payload => message
-      else
-        logger.info "cloudcontroller.health_manager.will-not-stop", :payload => message
+      # Pre Stackato v3.4 merge code:
+      app = App[:guid => app_guid]
+      if !app
+        stop_runaway_app(app_guid)
+      elsif stop_instances?(app, instances, running)
+        dea_client.stop_instances(app_guid, instances.keys)
       end
     end
 
-    def instance_needs_to_stop?(app_id, version, instances, running)
-      app = App[:guid => app_id]
+    def stop_runaway_app(app_id)
+      dea_client.stop(App.new(:guid => app_id))
+    end
+
+    def stop_instances?(app, instances, running)
+      instances.group_by { |_, v| v }.each do |version, versions|
+        logger.debug(" version: #{version}, versions:#{versions}")
+        instances_remaining =
+          if running.key?(version)
+            logger.debug("running[version]: #{running[version]}")
+            running[version] - versions.size
+          else
+            0
+          end
+
+        if version != app.version
+          unless (running[app.version] || 0) > 0
+            return false
+          end
+        elsif instances_remaining < app.instances && app.started?
+          Loggregator.emit_error(app.guid, "Bad request from health manager")
+          logger.error "cloudcontroller.hm.invalid-request",
+                       :instances => instances, :app => app.guid,
+                       :desired_instances => app.instances,
+                       :remaining_instances => instances_remaining
+
+          return false
+        end
+      end
+      true
+    end
+
+    def instance_needs_to_stop?(app_guid, version, instances, running)
+      app = App[:guid => app_guid]
 
       if !app
         return true, "App not found"
