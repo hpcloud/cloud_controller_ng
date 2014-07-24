@@ -38,6 +38,10 @@ module VCAP::CloudController
         elsif app.version_updated
           @health_manager_client.notify_of_new_live_version( :app_id => app.guid, :version => app.version )
           react_to_version_change(app)
+        elsif (changes.has_key?(:package_hash) &&
+               changes[:package_hash][0] &&
+               changes[:package_state] = ["STAGED", "PENDING"])
+          react_to_droplet_hash_change(app)
         elsif (changes.keys & [:min_instances, :max_instances,
                               :min_cpu_threshold, :max_cpu_threshold,
                               :autoscale_enabled]).size > 0 && @health_manager_client
@@ -140,6 +144,19 @@ module VCAP::CloudController
       def react_to_instances_change(app, delta)
         if app.started?
           DeaClient.change_running_instances(app, delta)
+          broadcast_app_updated(app)
+        end
+      end
+
+      def react_to_droplet_hash_change(app)
+        if app.started?
+          stage_if_needed(app) do |staging_result|
+            DeaClient.start(app, :instances_to_start => app.instances) # this will temporarily cause 2x instances, allowing the HM to gracefully terminate the old ones
+            @health_manager_client.notify_of_new_live_version( :app_id => app.guid, :version => app.version )
+            broadcast_app_updated(app)
+          end
+        else
+          DeaClient.stop(app)
           broadcast_app_updated(app)
         end
       end
