@@ -9,6 +9,10 @@ module VCAP::CloudController::RestController
       @@cc_config = config
     end
 
+    def self.pretty_default
+      !(ENV["RACK_ENV"] == "production")
+    end
+
     # Render an object as a hash, using export and security properties
     # set by its controller.
     #

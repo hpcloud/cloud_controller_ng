@@ -18,11 +18,11 @@ module VCAP::CloudController::RestController
     #
     # @param [Sequel::Model] obj Object to encode.
     #
-    # @option opts [Boolean] :pretty Controlls pretty formating of the encoded
+    # @option opts [Boolean] :pretty Controls pretty formatting of the encoded
     # json.  Defaults to true.
     #
     # @option opts [Integer] :inline_relations_depth Depth to recursively
-    # exapend relationships in addition to providing the URLs.
+    # expand relationships in addition to providing the URLs.
     #
     # @option opts [Integer] :max_inline Maximum number of objects to
     # expand inline in a relationship.
@@ -52,7 +52,7 @@ module VCAP::CloudController::RestController
         opts.merge(export_attrs: obj.model.export_attrs),
       )
 
-      Yajl::Encoder.encode(hash, pretty: opts.fetch(:pretty, true))
+      Yajl::Encoder.encode(hash, :pretty => opts[:pretty] == 1 ? true : PreloadedObjectSerializer.pretty_default)
     end
 
     private
