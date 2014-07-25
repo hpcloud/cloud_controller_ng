@@ -3,8 +3,11 @@ module VCAP::CloudController::RestController
   # rest api.
 
   module ObjectSerialization
-    MAX_INLINE_DEFAULT = 50
     INLINE_RELATIONS_DEFAULT = 0
+
+    def self.configure(config)
+      @@cc_config = config
+    end
 
     def self.pretty_default
       !(ENV["RACK_ENV"] == "production")
@@ -76,7 +79,7 @@ module VCAP::CloudController::RestController
 
     def self.relations_hash(controller, obj, opts, depth, parents, relations)
       inline_relations_depth = opts[:inline_relations_depth] || INLINE_RELATIONS_DEFAULT
-      max_number_of_associated_objects_to_inline = opts[:max_inline] || MAX_INLINE_DEFAULT
+      max_number_of_associated_objects_to_inline = opts[:max_inline] || @@cc_config[:max_inline_relationships]
       relationships_to_exclude = opts[:exclude_relations] ? opts[:exclude_relations].split(',') : []
       relationships_to_include = opts[:include_relations] ? opts[:include_relations].split(',') : []
 

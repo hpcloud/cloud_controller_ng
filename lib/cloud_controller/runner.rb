@@ -17,6 +17,7 @@ require_relative "stackato/app_logs_client"
 require_relative "stackato/auto_scaler_respondent"
 require_relative "stackato/deactivate_services"
 require_relative "stackato/droplet_accountability"
+require_relative "rest_controller/object_serialization"
 
 module VCAP::CloudController
   class Runner
@@ -158,6 +159,7 @@ module VCAP::CloudController
       Config.configure_components_depending_on_message_bus(message_bus)
 
       # TODO:Stackato: Move to CloudController::DependencyLocator ?
+      RestController::ObjectSerialization::configure(@config)
       EphemeralRedisClient::configure(@config)
       AppLogsRedisClient::configure(@config)
       StackatoAppLogsClient::configure(@config)
