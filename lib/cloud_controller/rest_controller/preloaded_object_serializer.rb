@@ -65,7 +65,6 @@ module VCAP::CloudController::RestController
       relationships_to_exclude = opts[:exclude_relations] ? opts[:exclude_relations].split(',') : []
       relationships_to_include = opts[:include_relations] ? opts[:include_relations].split(',') : []
 
-
       {}.tap do |res|
         parents.push(controller)
 
@@ -143,10 +142,11 @@ module VCAP::CloudController::RestController
                   to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents)
                 end
               else
-                associated_model_instances.map do |associated_model_instance|
+                response[relationship_name.to_s] = associated_model_instances.map do |associated_model_instance|
                   unless relations[associated_model_instance.guid]
                     relations[associated_model_instance.guid] = to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents, relations)
                   end
+                  associated_model_instance.guid
                 end
               end
             end
