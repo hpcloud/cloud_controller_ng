@@ -3,7 +3,6 @@ module VCAP::CloudController::RestController
     class NotLoadedAssociationError < StandardError; end
 
     INLINE_RELATIONS_DEFAULT = 0
-    MAX_INLINE_DEFAULT = 500
 
     def self.configure(config)
       @@cc_config = config
@@ -57,7 +56,7 @@ module VCAP::CloudController::RestController
 
     def relations_hash(controller, obj, opts, depth, parents)
       inline_relations_depth = opts[:inline_relations_depth] || INLINE_RELATIONS_DEFAULT
-      max_number_of_associated_objects_to_inline = opts[:max_inline] ||  @@cc_config[:max_inline_relationships] || MAX_INLINE_DEFAULT
+      max_number_of_associated_objects_to_inline = opts[:max_inline] ||  @@cc_config[:max_inline_relationships]
 
       {}.tap do |res|
         parents.push(controller)
