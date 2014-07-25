@@ -68,15 +68,22 @@ module VCAP::CloudController::RestController
       end
 
       opts[:max_inline] ||= PreloadedObjectSerializer::MAX_INLINE_DEFAULT
-      resources = dataset.all.map { |obj| @serializer.serialize(controller, obj, opts) }
+      relations_map = opts[:orphan_relations] == 1 ? {} : nil
+      resources = dataset.all.map { |obj| @serializer.serialize(controller, obj, opts, relations_map) }
 
-      Yajl::Encoder.encode({
-                               :total_results => paginated_dataset.pagination_record_count,
-                               :total_pages => paginated_dataset.page_count,
-                               :prev_url => prev_url,
-                               :next_url => next_url,
-                               :resources => resources,
-                           }, :pretty => true)
+      res = {
+          :total_results => paginated_dataset.pagination_record_count,
+          :total_pages => paginated_dataset.page_count,
+          :prev_url => prev_url,
+          :next_url => next_url,
+          :resources => resources,
+      }
+
+      if relations_map
+        res[:relations] = relations_map
+      end
+
+      Yajl::Encoder.encode(res, :pretty => true)
     end
 
     private
@@ -105,6 +112,12 @@ module VCAP::CloudController::RestController
       controller.preserve_query_parameters.each do |preseved_param|
         params[preseved_param] = request_params[preseved_param] if request_params[preseved_param]
       end
+
+      params['orphan_relations'] = opts[:orphan_relations] if opts[:orphan_relations]
+      params['order'] = opts[:order] if opts[:order]
+      params['order-by'] = opts[:order_by] if opts[:order_by]
+      params['exclude-relations'] = opts[:exclude_relations] if opts[:exclude_relations]
+      params['include-relations'] = opts[:include_relations] if opts[:include_relations]
 
       uri = Addressable::URI.parse(path)
       uri.query_values = params

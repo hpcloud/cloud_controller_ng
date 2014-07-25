@@ -29,15 +29,15 @@ module VCAP::CloudController::RestController
     # we have expanded through.
     #
     # @return [Hash] Hash encoding of the object.
-    def serialize(controller, obj, opts)
-      to_hash(controller, obj, opts, 0, [])
+    def serialize(controller, obj, opts, relations=nil)
+      to_hash(controller, obj, opts, 0, [], relations)
     end
 
     private
 
-    def to_hash(controller, obj, opts, depth, parents)
+    def to_hash(controller, obj, opts, depth, parents, relations=nil)
       obj_hash = obj.to_hash(attrs: opts.delete(:export_attrs))
-      rel_hash = relations_hash(controller, obj, opts, depth, parents)
+      rel_hash = relations_hash(controller, obj, opts, depth, parents, relations)
       entity_hash = obj_hash.merge(rel_hash)
 
       metadata_hash = {
@@ -55,7 +55,7 @@ module VCAP::CloudController::RestController
       {"metadata" => metadata_hash, "entity" => entity_hash}
     end
 
-    def relations_hash(controller, obj, opts, depth, parents)
+    def relations_hash(controller, obj, opts, depth, parents, relations)
       inline_relations_depth = opts[:inline_relations_depth] || INLINE_RELATIONS_DEFAULT
       max_number_of_associated_objects_to_inline = opts[:max_inline] ||  @@cc_config[:max_inline_relationships] || MAX_INLINE_DEFAULT
       relationships_to_exclude = opts[:exclude_relations] ? opts[:exclude_relations].split(',') : []
@@ -66,35 +66,36 @@ module VCAP::CloudController::RestController
         parents.push(controller)
 
         res.merge!(serialize_relationships(
-                       controller.to_one_relationships,
-                       relationships_to_exclude,
-                       relationships_to_include,
-                       controller,
-                       depth,
-                       obj,
-                       opts,
-                       parents,
-                       inline_relations_depth))
-
+            controller.to_one_relationships,
+            relationships_to_exclude,
+            relationships_to_include,
+            controller,
+            depth,
+            obj,
+            opts,
+            parents,
+            inline_relations_depth,
+            relations))
 
         res.merge!(serialize_relationships(
-                       controller.to_many_relationships,
-                       relationships_to_exclude,
-                       relationships_to_include,
-                       controller,
-                       depth,
-                       obj,
-                       opts,
-                       parents,
-                       inline_relations_depth,
-                       max_number_of_associated_objects_to_inline))
+            controller.to_many_relationships,
+            relationships_to_exclude,
+            relationships_to_include,
+            controller,
+            depth,
+            obj,
+            opts,
+            parents,
+            inline_relations_depth,
+            relations,
+            max_number_of_associated_objects_to_inline))
 
 
         parents.pop
       end
     end
 
-    def serialize_relationships(relationships, relationships_to_exclude, relationships_to_include, controller, depth, obj, opts, parents, inline_relations_depth, max_number_of_associated_objects_to_inline=nil)
+    def serialize_relationships(relationships, relationships_to_exclude, relationships_to_include, controller, depth, obj, opts, parents, inline_relations_depth, relations, max_number_of_associated_objects_to_inline=nil)
       response = {}
       (relationships || {}).each do |relationship_name, association|
 
@@ -123,14 +124,26 @@ module VCAP::CloudController::RestController
         if depth < inline_relations_depth && !parents.include?(associated_controller)
           if association.is_a?(ControllerDSL::ToOneAttribute)
             if associated_model_instance
-              response[relationship_name.to_s] = to_hash(
-                associated_controller, associated_model_instance, opts, depth + 1, parents)
+              if relations.nil?
+                response[relationship_name.to_s] = to_hash(
+                  associated_controller, associated_model_instance, opts, depth + 1, parents)
+              elsif !relations[associated_model_instance.guid]
+                relations[associated_model_instance.guid] = to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents, relations)
+              end
             end
           else
             associated_model_instances = get_preloaded_association_contents!(obj, association)
             if associated_model_instances.count <= max_number_of_associated_objects_to_inline
-              response[relationship_name.to_s] = associated_model_instances.map do |associated_model_instance|
-                to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents)
+              if relations == nil
+                response[relationship_name.to_s] = associated_model_instances.map do |associated_model_instance|
+                  to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents)
+                end
+              else
+                associated_model_instances.map do |associated_model_instance|
+                  unless relations[associated_model_instance.guid]
+                    relations[associated_model_instance.guid] = to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents, relations)
+                  end
+                end
               end
             end
           end
@@ -157,8 +170,8 @@ module VCAP::CloudController::RestController
   end
 
   class EntityOnlyPreloadedObjectSerializer < PreloadedObjectSerializer
-    def to_hash(controller, obj, opts, depth, parents)
-      obj.to_hash.merge(relations_hash(controller, obj, opts, depth, parents))
+    def to_hash(controller, obj, opts, depth, parents, relations=nil)
+      obj.to_hash.merge(relations_hash(controller, obj, opts, depth, parents, relations))
     end
   end
 end
