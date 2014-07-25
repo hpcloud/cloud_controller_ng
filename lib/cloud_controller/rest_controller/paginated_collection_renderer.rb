@@ -71,7 +71,7 @@ module VCAP::CloudController::RestController
         next_url = url(controller, path, paginated_dataset.next_page, page_size, order_direction, opts, request_params)
       end
 
-      opts[:max_inline] ||= PreloadedObjectSerializer::MAX_INLINE_DEFAULT
+      opts[:max_inline] ||= VCAP::CloudController::Config.config[:max_inline_relationships]
       relations_map = opts[:orphan_relations] == 1 ? {} : nil
       resources = dataset.all.map { |obj| @serializer.serialize(controller, obj, opts, relations_map) }
 
