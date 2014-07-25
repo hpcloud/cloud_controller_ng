@@ -83,7 +83,7 @@ module VCAP::CloudController::RestController
         res[:relations] = relations_map
       end
 
-      Yajl::Encoder.encode(res, :pretty => true)
+      Yajl::Encoder.encode(res, :pretty => opts[:pretty] == 1 ? true : PreloadedObjectSerializer.pretty_default)
     end
 
     private
@@ -116,6 +116,7 @@ module VCAP::CloudController::RestController
       params['orphan_relations'] = opts[:orphan_relations] if opts[:orphan_relations]
       params['order'] = opts[:order] if opts[:order]
       params['order-by'] = opts[:order_by] if opts[:order_by]
+      params['pretty'] = opts[:pretty] if opts[:pretty]
       params['exclude-relations'] = opts[:exclude_relations] if opts[:exclude_relations]
       params['include-relations'] = opts[:include_relations] if opts[:include_relations]
 
