@@ -35,6 +35,10 @@ module VCAP::CloudController::RestController
     # @option opts [Integer] :max_inline Maximum number of objects to
     # expand inline in a relationship.
     def render_json(controller, ds, path, opts, request_params)
+
+      # if no ordering was specified then fall back to the default ordering on the controller
+      opts[:order_by] = controller.default_order_by unless opts[:order_by]
+
       page = opts[:page] || 1
       order_applicator = OrderApplicator.new(opts)
       order_direction = opts[:order_direction] || 'asc'
