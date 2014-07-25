@@ -58,30 +58,52 @@ module VCAP::CloudController::RestController
     def relations_hash(controller, obj, opts, depth, parents)
       inline_relations_depth = opts[:inline_relations_depth] || INLINE_RELATIONS_DEFAULT
       max_number_of_associated_objects_to_inline = opts[:max_inline] ||  @@cc_config[:max_inline_relationships] || MAX_INLINE_DEFAULT
+      relationships_to_exclude = opts[:exclude_relations] ? opts[:exclude_relations].split(',') : []
+      relationships_to_include = opts[:include_relations] ? opts[:include_relations].split(',') : []
+
 
       {}.tap do |res|
         parents.push(controller)
 
         res.merge!(serialize_relationships(
-          controller.to_one_relationships,
-          controller, depth, obj, opts, parents,
-          inline_relations_depth,
-        ))
+                       controller.to_one_relationships,
+                       relationships_to_exclude,
+                       relationships_to_include,
+                       controller,
+                       depth,
+                       obj,
+                       opts,
+                       parents,
+                       inline_relations_depth))
+
 
         res.merge!(serialize_relationships(
-          controller.to_many_relationships,
-          controller, depth, obj, opts, parents,
-          inline_relations_depth,
-          max_number_of_associated_objects_to_inline,
-        ))
+                       controller.to_many_relationships,
+                       relationships_to_exclude,
+                       relationships_to_include,
+                       controller,
+                       depth,
+                       obj,
+                       opts,
+                       parents,
+                       inline_relations_depth,
+                       max_number_of_associated_objects_to_inline))
+
 
         parents.pop
       end
     end
 
-    def serialize_relationships(relationships, controller, depth, obj, opts, parents, inline_relations_depth, max_number_of_associated_objects_to_inline=nil)
+    def serialize_relationships(relationships, relationships_to_exclude, relationships_to_include, controller, depth, obj, opts, parents, inline_relations_depth, max_number_of_associated_objects_to_inline=nil)
       response = {}
       (relationships || {}).each do |relationship_name, association|
+
+        # Allow clients to exclude specific relationships if they're not interested in them
+        next if relationships_to_exclude.include?(relationship_name.to_s)
+
+        # Allow clients to include only specific relationships that they're interested in
+        next unless relationships_to_include.length == 0 || relationships_to_include.include?(relationship_name.to_s)
+
         associated_model = get_associated_model_class_for(obj, association.association_name)
         next unless associated_model
 
