@@ -3,7 +3,6 @@ module VCAP::CloudController::RestController
     class NotLoadedAssociationError < StandardError; end
 
     INLINE_RELATIONS_DEFAULT = 0
-    MAX_INLINE_DEFAULT = 500
 
     def self.configure(config)
       @@cc_config = config
