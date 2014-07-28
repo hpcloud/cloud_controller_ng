@@ -422,7 +422,7 @@ module VCAP::CloudController
         # Don't leak space names.  Users shouldn't see anything in other organizations.
         # Even if the existing route's space is in the current org, the current user might
         # not be a member of it, and therefore shouldn't see anything about it.
-        raise InvalidRouteRelation.new("#{route.guid}: route '#{route.host}' is already defined in another space")
+        raise Errors::InvalidRouteRelation.new("#{route.guid}: route '#{route.host}' is already defined in another space")
       end
 
       raise objection unless route.domain.usable_by_organization?(space.organization)
