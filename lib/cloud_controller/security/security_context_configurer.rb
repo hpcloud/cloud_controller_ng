@@ -33,11 +33,11 @@ module VCAP::CloudController
 
       def create_individual_org_and_space_for_new_user(token, user)
 
-        config = VCAP::CloudController::Config.config[:uaa][:new_user_strategies][:autoassign]
+        config = VCAP::CloudController::Config.config[:uaa][:new_user_strategies][:individual]
         space_name = config[:space_name] || 'default'
         quota_name = config[:quota_name]|| 'default'
         user_name = token['user_name']
-        users_org = Organization.where(:name => user_name)
+        users_org = Organization[:name => user_name]
 
         # Create the org and enforce the quota only if it didn't already exist (allows admins to manually specialize setup)
         unless users_org
@@ -50,7 +50,7 @@ module VCAP::CloudController
         users_org.save
 
         # Only create the users space if it didn't already exist
-        users_space = Space.where(:name => space_name, :organization => users_org)
+        users_space = Space[:name => space_name, :organization => users_org]
         unless users_space
           users_space = Space.create(:name => space_name, :organization => users_org)
         end
@@ -85,10 +85,10 @@ module VCAP::CloudController
             elsif new_user_strategy == 'global'
               add_user_to_global_default_org_and_space(user)
             else
-              raise "Unrecognized new user strategy #{new_user_strategy}"
+              raise "Unrecognized new user strategy '#{new_user_strategy}'"
             end
           rescue => e
-            @logger.error("Unable to assign user '#{token['user_name']}' to default org and space using strategy '#{new_user_strategy}': #{e.message}")
+            @logger.error("Unable to assign user '#{token['user_name']}' to default org and space using strategy '#{new_user_strategy}': #{e.message} : #{e.backtrace}")
           end
         end
       end
