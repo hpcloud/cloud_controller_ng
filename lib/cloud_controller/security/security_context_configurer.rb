@@ -31,13 +31,13 @@ module VCAP::CloudController
         token_information
       end
 
-      def create_default_org_and_space_for_new_user(token, user)
+      def create_individual_org_and_space_for_new_user(token, user)
 
         config = VCAP::CloudController::Config.config[:uaa][:new_user_strategies][:autoassign]
         space_name = config[:space_name]
         quota_name = config[:quota_name]
 
-        users_org = Organization.create(:name => token['email'] || token['user_name'])
+        users_org = Organization.create(:name => token['user_name'])
         users_org.quota_definition = QuotaDefinition.find(:name => quota_name || 'default')
         users_org.add_user(user)
         users_org.save
@@ -46,7 +46,7 @@ module VCAP::CloudController
         users_space.save
       end
 
-      def add_user_to_system_default_org_and_space(user)
+      def add_user_to_global_default_org_and_space(user)
         default_org = Organization.where(:is_default => true).first
         if default_org
           default_org.add_user(user)
@@ -64,10 +64,10 @@ module VCAP::CloudController
           begin
             new_user_strategy = VCAP::CloudController::Config.config[:uaa][:new_user_strategy]
 
-            if new_user_strategy == 'autoassign'
-              create_default_org_and_space_for_new_user(token, user)
+            if new_user_strategy == 'individual'
+              create_individual_org_and_space_for_new_user(token, user)
             else
-              add_user_to_system_default_org_and_space(user)
+              add_user_to_global_default_org_and_space(user)
             end
           rescue => e
             @logger.error("Unable to assign user '#{token['user_name']}' to default org and space using strategy '#{new_user_strategy}': #{e.message}")
