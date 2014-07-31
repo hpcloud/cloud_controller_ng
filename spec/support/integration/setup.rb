@@ -1,3 +1,6 @@
+STDOUT.sync = true
+STDERR.sync = true
+
 module IntegrationSetup
   CC_START_TIMEOUT = 20
   SLEEP_INTERVAL = 0.5
@@ -27,14 +30,14 @@ module IntegrationSetup
 
     FileUtils.rm(config['pid_filename']) if File.exists?(config['pid_filename'])
 
-    database_file = config["db"]["database"]["adapter"].gsub('sqlite://', '')
+    database_file = (config["db"]["database"]["adapter"] || config["db"]["database"]).gsub('sqlite://', '')
     if !opts[:preserve_database] && File.file?(database_file)
       run_cmd("rm -f #{database_file}", wait: true)
     end
 
     run_cmd("bundle exec rake db:migrate", wait: true)
     @cc_pids ||= []
-    @cc_pids << run_cmd("bin/cloud_controller -s -c #{config_file}", opts)
+    @cc_pids << run_cmd("bin/cloud_controller -s -c #{config_file} $>/s/logs/cloud_controller_ng.log", opts)
 
     info_endpoint = "http://localhost:#{config["external_port"]}/info"
 
@@ -48,6 +51,7 @@ module IntegrationSetup
   end
 
   def stop_cc
+    @cc_pids ||= []
     @cc_pids.dup.each { |pid| graceful_kill(:cc, @cc_pids.delete(pid)) }
   end
 

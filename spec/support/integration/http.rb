@@ -9,7 +9,19 @@ module IntegrationHttp
       "client_id" => Sham.guid,
       "scope" => ["cloud_controller.admin"],
     }
-    CF::UAA::TokenCoder.encode(token, :skey => "tokensecret", :algorithm => "HS256")
+    CF::UAA::TokenCoder.encode(token, :skey => VCAP::CloudController::Config.config[:uaa][:symmetric_secret], :algorithm => "HS256")
+  end
+
+  def user_token(user_id, user_name)
+    token = {
+        "aud" => "cloud_controller",
+        "user_id" => user_id,
+        "user_name" => user_name,
+        "email" => "#{user_name}@test.com",
+        "exp" => Time.now.to_i + 10_000,
+        "scope" => ["cloud_controller.admin"],
+    }
+    CF::UAA::TokenCoder.encode(token, :skey => VCAP::CloudController::Config.config[:uaa][:symmetric_secret], :algorithm => "HS256")
   end
 
   module JsonBody

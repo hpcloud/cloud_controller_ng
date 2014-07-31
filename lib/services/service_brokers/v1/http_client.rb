@@ -36,11 +36,21 @@ module VCAP::Services
           binding_options: binding_options
         }.to_json
 
-        execute(:delete, "/gateway/v1/configurations/#{instance_id}/handles/#{binding_id}", body)
+        begin
+          execute(:delete, "/gateway/v1/configurations/#{instance_id}/handles/#{binding_id}", body)
+        rescue HttpResponseError => e
+          # If the gateway was unable to delete the binding because it didn't exist then this should be a no op
+          raise e unless e.status == 404
+        end
       end
 
       def deprovision(instance_id)
-        execute(:delete, "/gateway/v1/configurations/#{instance_id}")
+        begin
+          execute(:delete, "/gateway/v1/configurations/#{instance_id}")
+        rescue HttpResponseError => e
+          # If the gateway was unable to delete the instance because it didn't exist then this should be a no op
+          raise e unless e.status == 404
+        end
       end
 
       private

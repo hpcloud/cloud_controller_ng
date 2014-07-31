@@ -12,14 +12,11 @@ info:
   support_address: "http://support.cloudfoundry.com"
   description: "Cloud Foundry sponsored by Pivotal"
 
-<<<<<<< HEAD
 # Not creating default org-- done by first user setup (disabled in 67a488b98c)
-#system_domain_organization: the-system-domain-org-name
-=======
+#system_domain_organization: my-org-name
+
 external_protocol: http
 
-system_domain_organization: the-system-domain-org-name
->>>>>>> upstream/master
 system_domain: the-system-domain.com
 app_domains:
   - customer-app-domain1.com

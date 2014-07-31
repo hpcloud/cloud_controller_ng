@@ -1,3 +1,5 @@
+require 'stackato/default_org_and_space'
+
 module VCAP::CloudController
   module Security
     class SecurityContextConfigurer
@@ -28,35 +30,38 @@ module VCAP::CloudController
         token_information
       end
 
+      def update_user_logged_in_time(token, user)
+
+        login_timestamp = Time.at(token['iat']) rescue nil
+
+        if login_timestamp && user.logged_in_at != login_timestamp
+          user.logged_in_at = login_timestamp
+          user.save
+        end
+      end
+
+      def update_user_admin_status(token, user)
+        admin = VCAP::CloudController::Roles.new(token).admin?
+        user.update_from_hash(admin: admin) if user.admin != admin
+      end
+
       def user_from_token(token)
         user_guid = token && token['user_id']
         return unless user_guid
-        admin = VCAP::CloudController::Roles.new(token).admin?
+
         user = User.find(guid: user_guid.to_s)
-        login_timestamp = Time.at(token['iat']) rescue nil
+
         if user
-          if login_timestamp && user.logged_in_at != login_timestamp
-            user.logged_in_at = login_timestamp
-            user.save
-          end
-
-          # update admin info if necessary
-          user.update_from_hash(admin: admin) if user.admin != admin
-
-          return user 
-        end
-        
-        User.db.transaction do
-          user = User.create(guid: user_guid, admin: admin, active: true, logged_in_at: login_timestamp)
-          default_org = Organization.where(:is_default => true).first
-          if default_org
-            default_org.add_user(user)
-            default_space = Space.where(:is_default => true).first
-            if default_space
-              default_space.add_developer(user)
-            end
+          VCAP::CloudController::DefaultOrgAndSpace.ensure_user_belongs_to_default_org_and_space(token, user)
+        else
+          User.db.transaction do
+            user = User.create(guid: user_guid, active: true)
+            VCAP::CloudController::DefaultOrgAndSpace.ensure_user_belongs_to_default_org_and_space(token, user)
           end
         end
+
+        update_user_logged_in_time(token, user)
+        update_user_admin_status(token, user)
 
         return user
       end

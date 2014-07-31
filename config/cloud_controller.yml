@@ -79,6 +79,11 @@ uaa:
   url: "http://localhost:8080/uaa"
   resource_id: "cloud_controller"
   symmetric_secret: "tokensecret"
+  new_user_strategy: global
+  new_user_strategies:
+    individual:
+      space_name: "default"
+      quota_name: "default"
 
 cc_partition: ng
 
