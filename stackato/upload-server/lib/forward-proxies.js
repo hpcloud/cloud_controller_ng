@@ -68,8 +68,9 @@ module.exports = {
      * @param {String} filename - The file name as originally specified by the client
      * @param {Array} resources - An array of filename/sha1 mappings to resources
      * @param {String} type - The type of resource being proxied ('application' | 'buildpack')
+     * @param {Object} options - A simple hash of name => values for misc. options
      */
-    proxyUploadToCloudController: function (req, res, filepath, filename, resources, type) {
+    proxyUploadToCloudController: function (req, res, filepath, filename, resources, options, type) {
 
         var form = {};
         form[type + '_path'] = filepath;
@@ -77,6 +78,9 @@ module.exports = {
 
         if (resources) {
             form.resources = resources;
+        }
+        for (var k in options) {
+            form[k] = options[k];
         }
 
         Request.put({

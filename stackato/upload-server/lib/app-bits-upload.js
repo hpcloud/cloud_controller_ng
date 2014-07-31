@@ -24,7 +24,8 @@ module.exports = function(req, res) {
         applicationFileName,
         called = false,
         error = false,
-        resources;
+        resources,
+        options = {};
 
     var busboy = new Busboy({
         headers: req.headers,
@@ -50,13 +51,16 @@ module.exports = function(req, res) {
         });
         busboy.on('field', function (fieldname, val, valTruncated, keyTruncated) {
             if (fieldname === 'resources') { resources = val; }
+            else if (fieldname == 'zero_download') {
+                options.zero_download = val;
+            }
         });
         busboy.on('finish', function () {
             if (error) { return; }
             if (!called) { // bug, seems to emit twice
                 if (applicationFilePath && resources) {
                     req.log.info('Handled app bits upload for filename %s stored @ file: %s', applicationFileName, applicationFilePath);
-                    ForwardProxies.proxyUploadToCloudController(req, res, applicationFilePath, applicationFileName, resources, 'application');
+                    ForwardProxies.proxyUploadToCloudController(req, res, applicationFilePath, applicationFileName, resources, options, 'application');
                     called = true;
                 } else {
                     req.log.error('Cannot process upload request: Resources / filepath attributes are not mapped');

@@ -23,6 +23,7 @@ module VCAP::CloudController
         :vendor_version => StackatoVendorConfig.vendor_version,
         :stackato => {
             :license_accepted => StackatoLicenseHelper.get_license_accepted(license),
+            :zero_downtime => true,
             :UUID => STACKATO_UUID
         }
       }
