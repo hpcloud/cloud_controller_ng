@@ -23,6 +23,8 @@ require "cloud_controller/jobs"
 require "cloud_controller/background_job_environment"
 require "cloud_controller/db_migrator"
 
+require 'stackato/default_org_and_space'
+
 module VCAP::CloudController
   include VCAP::RestAPI
 
@@ -54,20 +56,19 @@ module VCAP::CloudController
       end
 
       if uaa_id
-        user = User.find(:guid => uaa_id.to_s)
-        if user.nil?
+        user = User.find(guid: uaa_id.to_s)
+
+        if user
+          VCAP::CloudController::DefaultOrgAndSpace.ensure_user_belongs_to_default_org_and_space(token_information, user)
+        else
           User.db.transaction do
-            user = User.create(guid: token_information['user_id'], admin: current_user_admin?(token_information), active: true)
-            default_org = Organization.where(:is_default => true).first
-            if default_org
-              default_org.add_user(user)
-              default_space = Space.where(:is_default => true).first
-              if default_space
-                default_space.add_developer(user)
-              end
-            end
+            user = User.create(guid: uaa_id, active: true)
+            VCAP::CloudController::DefaultOrgAndSpace.ensure_user_belongs_to_default_org_and_space(token_information, user)
           end
         end
+
+        update_user_logged_in_time(token_information, user)
+        update_user_admin_status(token_information, user)
       end
 
       VCAP::CloudController::SecurityContext.set(user, token_information)
@@ -102,14 +103,19 @@ module VCAP::CloudController
       end
     end
 
-    def current_user_admin?(token_information)
-      if User.count.zero?
-        # TODO: evaluate if we want to continue making users admins this way
-        admin_email = config[:bootstrap_admin_email]
-        admin_email && (admin_email == token_information['email'])
-      else
-        VCAP::CloudController::Roles.new(token_information).admin?
+    def update_user_logged_in_time(token, user)
+
+      login_timestamp = Time.at(token['iat']) rescue nil
+
+      if login_timestamp && user.logged_in_at != login_timestamp
+        user.logged_in_at = login_timestamp
+        user.save
       end
+    end
+
+    def update_user_admin_status(token, user)
+      admin = VCAP::CloudController::Roles.new(token).admin?
+      user.update_from_hash(admin: admin) if user.admin != admin
     end
   end
 end
