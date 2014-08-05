@@ -55,6 +55,8 @@ describe 'Cloud Controller', type: :integration, non_transactional: true do
 
     # Configure individual orgs and spaces
     run_cmd('/home/stackato/bin/kato config set cloud_controller_ng uaa/new_user_strategy individual')
+    run_cmd('/home/stackato/bin/kato config set cloud_controller_ng uaa/new_user_strategies/individual/space_role developer')
+    run_cmd('/home/stackato/bin/kato config set cloud_controller_ng uaa/new_user_strategies/individual/organization_role user')
     stop_cc
     start_cc
 
@@ -100,6 +102,8 @@ describe 'Cloud Controller', type: :integration, non_transactional: true do
 
     # Configure individual orgs and spaces
     run_cmd('/home/stackato/bin/kato config set cloud_controller_ng uaa/new_user_strategy individual')
+    run_cmd('/home/stackato/bin/kato config set cloud_controller_ng uaa/new_user_strategies/individual/space_role developer')
+    run_cmd('/home/stackato/bin/kato config set cloud_controller_ng uaa/new_user_strategies/individual/organization_role user')
     stop_cc
     start_cc
 
@@ -137,5 +141,52 @@ describe 'Cloud Controller', type: :integration, non_transactional: true do
     expect(space.managers.map { |s| s.guid }).not_to include(user.guid)
     expect(space.auditors.map { |s| s.guid }).not_to include(user.guid)
     expect(space.developers.map { |s| s.guid }).to include(user.guid)
+  end
+
+  it 'adds new user to individual org and space with configurable roles' do
+
+    # Configure individual orgs and spaces
+    run_cmd('/home/stackato/bin/kato config set cloud_controller_ng uaa/new_user_strategy individual')
+    run_cmd('/home/stackato/bin/kato config set cloud_controller_ng uaa/new_user_strategies/individual/space_role manager')
+    run_cmd('/home/stackato/bin/kato config set cloud_controller_ng uaa/new_user_strategies/individual/organization_role manager')
+    stop_cc
+    start_cc
+
+    # Access the cc api as a 'new' user for the first time
+    user_id = Sham.guid
+    user_name = 'test_user'
+    authorized_token = {'Authorization' => "bearer #{user_token(user_id, user_name)}"}
+    make_get_request('/v2/info', authorized_token).tap do |r|
+      r.code.should == '200'
+    end
+    user = VCAP::CloudController::User[:guid => user_id]
+
+    # User should now exist
+    config = VCAP::CloudController::Config.config[:uaa][:new_user_strategies][:individual]
+    expect(user).not_to eq(nil)
+    expect(user.guid).to eq(user_id)
+
+    # Individual org and space for the user should exist
+    org = VCAP::CloudController::Organization[:name => user_name]
+    expect(org).not_to eq(nil)
+    space = VCAP::CloudController::Space[:name => config[:space_name], :organization => org]
+    expect(space).not_to eq(nil)
+
+    # User should belong to their org and space
+    expect(user).not_to eq(nil)
+    expect(user.guid).to eq(user_id)
+    expect(user.organizations.map { |o| o.guid }).to include(org.guid)
+    expect(user.managed_spaces.map { |s| s.guid }).to include(space.guid)
+
+    # User should be a manager of the org
+    expect(org.managers.map { |o| o.guid }).to include(user.guid)
+    expect(org.billing_managers.map { |o| o.guid }).not_to include(user.guid)
+    expect(org.auditors.map { |o| o.guid }).not_to include(user.guid)
+    expect(org.users.map { |o| o.guid }).to include(user.guid)
+
+    # User should be a manager of the space
+    expect(space.managers.map { |s| s.guid }).to include(user.guid)
+    expect(space.auditors.map { |s| s.guid }).not_to include(user.guid)
+    expect(space.developers.map { |s| s.guid }).not_to include(user.guid)
   end
 end
