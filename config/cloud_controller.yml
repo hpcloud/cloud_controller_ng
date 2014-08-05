@@ -77,6 +77,8 @@ uaa:
     individual:
       space_name: "default"
       quota_name: "default"
+      space_role: "developer"
+      organization_role: "user"
 
 cc_partition: ng
 
