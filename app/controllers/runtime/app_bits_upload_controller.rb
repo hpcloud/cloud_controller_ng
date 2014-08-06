@@ -15,6 +15,7 @@ module VCAP::CloudController
 
     put "#{path_guid}/bits", :upload
     def upload(guid)
+      check_maintenance_mode
       app = find_guid_and_validate_access(:update, guid)
 
       raise Errors::ApiError.new_from_details("AppBitsUploadInvalid", "missing :resources") unless params["resources"]
@@ -24,11 +25,23 @@ module VCAP::CloudController
 
       if async?
         job = Jobs::Enqueuer.new(app_bits_packer_job, queue: LocalQueue.new(config)).enqueue()
-        [HTTP::CREATED, JobPresenter.new(job).to_json]
+        upload_json_data = [HTTP::CREATED, JobPresenter.new(job).to_json]
       else
         app_bits_packer_job.perform
-        [HTTP::CREATED, "{}"]
+        upload_json_data = [HTTP::CREATED, "{}"]
       end
+
+      name = app[:name]
+      event = {
+        :user => SecurityContext.current_user,
+        :app => app,
+        :instance_index => -1,
+        :event => 'APP_DEPLOYED',
+        :message => "Queued deployment of app '#{name}'"}
+      logger.info("TIMELINE #{event.to_json}")
+
+      # Async requests require the jobpresenter data returned to them for validating against the /v2/jobs endpoint.
+      return upload_json_data
     rescue VCAP::CloudController::Errors::ApiError => e
 
       if e.name == "AppBitsUploadInvalid" || e.name == "AppPackageInvalid"
