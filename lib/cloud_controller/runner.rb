@@ -5,6 +5,8 @@ require "vcap/uaa_token_decoder"
 require "vcap/uaa_verification_key"
 require "cf_message_bus/message_bus"
 require "cf/registrar"
+require "loggregator_emitter"
+require "loggregator"
 require 'kato/local/node'
 require "kato/proc_ready"
 require "cloud_controller/globals"
@@ -90,6 +92,12 @@ module VCAP::CloudController
       DB.load_models(@config[:db], db_logger)
     end
 
+    def setup_loggregator_emitter
+      if @config[:loggregator] && @config[:loggregator][:router] && @config[:loggregator][:shared_secret]
+        Loggregator.emitter = LoggregatorEmitter::Emitter.new(@config[:loggregator][:router], LogMessage::SourceType::CLOUD_CONTROLLER, @config[:index])
+      end
+    end
+
     def development_mode?
       @config[:development_mode]
     end
@@ -159,6 +167,7 @@ module VCAP::CloudController
       setup_logging
       setup_db
       Config.configure_components(@config)
+      setup_loggregator_emitter
 
       @config[:bind_address] = Kato::Local::Node.get_local_node_id
       @config[:external_host] = Kato::Local::Node.get_local_node_id
