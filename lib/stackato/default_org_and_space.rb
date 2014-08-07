@@ -79,27 +79,22 @@ module VCAP::CloudController
         end
       end
 
-      def ensure_user_belongs_to_default_org_and_space(token, user)
+      def add_user_to_default_org_and_space(token, user)
+        begin
+          # Default to the global strategy if the config is missing
+          new_user_strategy = VCAP::CloudController::Config.config[:uaa][:new_user_strategy] || 'global'
 
-        # Use the logged_in_at property to determine if this is the user first time logging in
-        unless user.logged_in_at
-          begin
+          logger.debug("Processing new user '#{user.guid}' using strategy '#{new_user_strategy}'")
 
-            # Default to the global strategy if the config is missing
-            new_user_strategy = VCAP::CloudController::Config.config[:uaa][:new_user_strategy] || 'global'
-
-            logger.debug("Processing new user '#{user.guid}' using strategy '#{new_user_strategy}'")
-
-            if new_user_strategy == 'individual'
-              create_individual_org_and_space_for_new_user(token, user)
-            elsif new_user_strategy == 'global'
-              add_user_to_global_default_org_and_space(user)
-            else
-              raise "Unrecognized new user strategy '#{new_user_strategy}'"
-            end
-          rescue => e
-            logger.error("Unable to assign user '#{token['user_name']}' to default org and space using strategy '#{new_user_strategy}': #{e.message} : #{e.backtrace}")
+          if new_user_strategy == 'individual'
+            create_individual_org_and_space_for_new_user(token, user)
+          elsif new_user_strategy == 'global'
+            add_user_to_global_default_org_and_space(user)
+          else
+            raise "Unrecognized new user strategy '#{new_user_strategy}'"
           end
+        rescue => e
+          logger.error("Unable to assign user '#{token['user_name']}' to default org and space using strategy '#{new_user_strategy}': #{e.message} : #{e.backtrace}")
         end
       end
     end
