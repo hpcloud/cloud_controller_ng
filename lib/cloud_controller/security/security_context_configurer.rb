@@ -51,12 +51,10 @@ module VCAP::CloudController
 
         user = User.find(guid: user_guid.to_s)
 
-        if user
-          VCAP::CloudController::DefaultOrgAndSpace.ensure_user_belongs_to_default_org_and_space(token, user)
-        else
+        unless user
           User.db.transaction do
             user = User.create(guid: user_guid, active: true)
-            VCAP::CloudController::DefaultOrgAndSpace.ensure_user_belongs_to_default_org_and_space(token, user)
+            VCAP::CloudController::DefaultOrgAndSpace.add_user_to_default_org_and_space(token, user)
           end
         end
 
