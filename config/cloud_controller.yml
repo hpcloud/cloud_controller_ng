@@ -223,6 +223,7 @@ uaa_client_secret: 'some-sekret'
 
 diego: false
 
+max_inline_relationships: 500
 renderer:
   max_results_per_page: 100
   default_results_per_page: 50
