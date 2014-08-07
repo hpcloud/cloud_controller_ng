@@ -58,16 +58,13 @@ module VCAP::CloudController
       if uaa_id
         user = User.find(guid: uaa_id.to_s)
 
-        if user
-          VCAP::CloudController::DefaultOrgAndSpace.ensure_user_belongs_to_default_org_and_space(token_information, user)
-        else
+        unless user
           User.db.transaction do
             user = User.create(guid: uaa_id, active: true)
-            VCAP::CloudController::DefaultOrgAndSpace.ensure_user_belongs_to_default_org_and_space(token_information, user)
+            VCAP::CloudController::DefaultOrgAndSpace.add_user_to_default_org_and_space(token_information, user)
           end
         end
 
-        update_user_logged_in_time(token_information, user)
         update_user_admin_status(token_information, user)
       end
 
