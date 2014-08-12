@@ -122,6 +122,7 @@ module VCAP::CloudController
         start_thin_server(app)
 
         router_registrar.register_with_router
+
         ::Kato::ProcReady.i_am_ready("cloud_controller_ng")
 
         VCAP::CloudController::Varz.setup_updates
