@@ -20,7 +20,6 @@ require_relative "stackato/app_logs_client"
 require_relative "stackato/auto_scaler_respondent"
 require_relative "stackato/deactivate_services"
 require_relative "stackato/droplet_accountability"
-require_relative "stackato/repair_route_names"
 require_relative "rest_controller/preloaded_object_serializer"
 
 module VCAP::CloudController
@@ -123,11 +122,6 @@ module VCAP::CloudController
         start_thin_server(app)
 
         router_registrar.register_with_router
-        begin
-          StackatoRepairRouteNames::fix_missing_routes
-        rescue
-          logger.debug("problem in fix_missing_routes: #{$!}")
-        end
           
         ::Kato::ProcReady.i_am_ready("cloud_controller_ng")
 
