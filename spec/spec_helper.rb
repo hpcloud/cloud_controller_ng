@@ -545,6 +545,7 @@ module VCAP::CloudController::StackatoSpecHelper
     ::Kato::Config.set("aok", '/', $spec_env.aok_config)
     ::Kato::Config.set("dea_ng", '/', { :staging =>
                          { :disk_limit_mb => 2048 }})
+    ::VCAP::CloudController::RestController::PreloadedObjectSerializer::configure($spec_env.config)
   end
 end
 
