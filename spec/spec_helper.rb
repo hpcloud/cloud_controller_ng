@@ -543,6 +543,8 @@ module VCAP::CloudController::StackatoSpecHelper
     ::Kato::Config.set("cluster", "endpoint", "api.example.com", { :force => true })
     ::Kato::Config.set("cloud_controller_ng", '/', $spec_env.config)
     ::Kato::Config.set("aok", '/', $spec_env.aok_config)
+    ::Kato::Config.set("dea_ng", '/', { :staging =>
+                         { :disk_limit_mb => 2048 }})
   end
 end
 
