@@ -124,10 +124,12 @@ module VCAP::CloudController
           :log_level => "debug",
           :database_uri => db_connection_string,
           :pool_timeout => 10
-        }
+        },
+        :directories => {
+        },
       }
 
-      config_hash
+      config_hash.merge!(config_override || {})
     end
 
     def aok_config
