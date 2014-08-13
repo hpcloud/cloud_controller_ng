@@ -217,8 +217,7 @@ module VCAP::CloudController
           put "/v2/buildpacks/#{test_buildpack.guid}/bits", { :buildpack => valid_zip }, admin_headers
           authorize(staging_user, staging_password)
           get "/v2/buildpacks/#{test_buildpack.guid}/download"
-          expect(last_response.status).to eq(302)
-          expect(last_response.header['Location']).to match(/cc-buildpacks/)
+          expect(last_response.status).to eq(200)
         end
       end
     end
