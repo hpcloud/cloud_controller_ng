@@ -71,9 +71,9 @@ module VCAP::CloudController
           last_response.status.should == 404
         end
 
-        it "should return 302 for valid packages" do
+        it "should return 200 for valid packages" do
           get "/v2/apps/#{app_obj.guid}/download", {}, headers_for(developer)
-          last_response.status.should == 302
+          last_response.status.should == 200
         end
 
         it "should return 404 for non-existent apps" do
