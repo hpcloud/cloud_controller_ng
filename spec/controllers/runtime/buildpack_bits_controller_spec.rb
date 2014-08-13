@@ -88,7 +88,7 @@ module VCAP::CloudController
         end
 
         it "requires a filename as part of the upload" do
-          put "/v2/buildpacks/#{test_buildpack.guid}/bits", { :buildpack => "abc" }, admin_headers
+          put "/v2/buildpacks/#{test_buildpack.guid}/bits", { :buildpack => {:tempfile => nil} }, admin_headers
           expect(last_response.status).to eql 400
           json = Yajl::Parser.parse(last_response.body)
           expect(json['code']).to eq(290002)
