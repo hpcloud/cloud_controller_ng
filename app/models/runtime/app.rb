@@ -511,7 +511,7 @@ module VCAP::CloudController
           if changed_columns.include?(:min_instances)
             raise Errors::ApiError.new_from_details("AppPackageInvalid", "specified value of min_instances: #{self.min_instances} > current value of max_instances: #{self.max_instances}")
           else
-            raise Errors::ApiError.new_from_details("AppPackageInvalid", "specified value of max_instances: #{self.max_instances} > current value of min_instances: #{self.min_instances}")
+            raise Errors::ApiError.new_from_details("AppPackageInvalid", "specified value of max_instances: #{self.max_instances} < current value of min_instances: #{self.min_instances}")
           end
         end
       end
