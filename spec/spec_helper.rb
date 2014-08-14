@@ -542,6 +542,24 @@ module VCAP::CloudController::StackatoSpecHelper
   def self.kato_config_preload
     ::Kato::Config.set("cluster", "endpoint", "api.example.com", { :force => true })
     ::Kato::Config.set("cloud_controller_ng", '/', $spec_env.config)
+    config = ::Kato::Config.get("cloud_controller_ng")
+    if !config[:quota_definitions] || !config['quota_definitions']
+      config[:quota_definitions] = { :default => {
+          :memory_limit => 2048,
+          :total_services => 100,
+          :non_basic_services_allowed => true,
+          :total_routes => 1000,
+          :trial_db_allowed => true,
+          allow_sudo: false,
+        }}
+      ::Kato::Config.set("cloud_controller_ng", 'quota_definitions', config[:quota_definitions])
+    end
+    if !config[:droplets_to_keep] || !config['droplets_to_keep']
+      config[:droplets_to_keep] = 5
+      ::Kato::Config.set("cloud_controller_ng", 'droplets_to_keep',
+                         config[:droplets_to_keep])
+    end
+    ::VCAP::CloudController::Config.configure_components(config)
     ::Kato::Config.set("aok", '/', $spec_env.aok_config)
     ::Kato::Config.set("dea_ng", '/', { :staging =>
                          { :disk_limit_mb => 2048 }})

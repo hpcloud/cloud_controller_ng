@@ -1,6 +1,14 @@
 require "spec_helper"
 
 module VCAP::CloudController
+  config = ::Kato::Config.get("cloud_controller_ng")
+  if !config[:quota_definitions] && config['quota_definitions']
+    config[:quota_definitions] = config['quota_definitions']
+  end
+  if !config[:droplets_to_keep] && config['droplets_to_keep']
+    config[:droplets_to_keep] = config['droplets_to_keep']
+  end
+  Seeds.create_seed_quota_definitions(config)
   describe VCAP::CloudController::OrganizationsController, type: :controller do
     let(:org) { Organization.make }
     include_examples "uaa authenticated api", path: "/v2/organizations"
