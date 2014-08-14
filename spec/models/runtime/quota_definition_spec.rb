@@ -1,6 +1,14 @@
 require "spec_helper"
 
 module VCAP::CloudController
+  config = ::Kato::Config.get("cloud_controller_ng")
+  if !config[:quota_definitions] && config['quota_definitions']
+    config[:quota_definitions] = config['quota_definitions']
+  end
+  if !config[:droplets_to_keep] && config['droplets_to_keep']
+    config[:droplets_to_keep] = config['droplets_to_keep']
+  end
+  Seeds.create_seed_quota_definitions(config)
   describe VCAP::CloudController::QuotaDefinition, type: :model do
     let(:quota_definition) { QuotaDefinition.make(:allow_sudo => false,
                                                   :total_droplets => 7) }
@@ -11,7 +19,7 @@ module VCAP::CloudController
             :non_basic_services_allowed,
             :total_services,
             :total_routes,
-            :total_droplets,
+            :allow_sudo,
             :memory_limit,
         ],
         unique_attributes: [:name],
