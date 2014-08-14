@@ -34,6 +34,8 @@ describe CloudController::DropletUploader do
 
     it "deletes old droplets" do
       droplets_to_keep = 2
+      app.space.organization.quota_definition.total_droplets = droplets_to_keep
+      app.space.organization.quota_definition.save
       expect(app.droplets).to have(1).items
 
       Timecop.travel(Date.today + 2) do
@@ -57,22 +59,26 @@ describe CloudController::DropletUploader do
     end
 
     it "deletes the number of old droplets specified in droplets_to_keep" do
-      droplets_to_keep = 1
+      droplets_to_keep = 2
+      app.space.organization.quota_definition.total_droplets = droplets_to_keep
+      app.space.organization.quota_definition.save
+
       expect(app.droplets).to have(1).items
       old_droplet = app.droplets.first
 
       Timecop.travel(Date.today + 2) do
-        subject.upload(temp_file_with_content("droplet version 2").path, droplets_to_keep)
+        subject.upload(temp_file_with_content("droplet version 2").path)
         expect(app.reload.droplets).to have(droplets_to_keep).items
-        expect(app.droplets).to_not include(old_droplet)
+        expect(app.droplets).to include(old_droplet)
       end
 
       Timecop.travel(Date.today + 3) do
-        subject.upload(temp_file_with_content("droplet version 3").path, droplets_to_keep)
+        subject.upload(temp_file_with_content("droplet version 3").path)
         expect(app.reload.droplets).to have(droplets_to_keep).items
         droplet_dest = Tempfile.new("")
         app.current_droplet.download_to(droplet_dest.path)
         expect(droplet_dest.read).to eql("droplet version 3")
+        expect(app.droplets).to_not include(old_droplet)
       end
     end
   end
