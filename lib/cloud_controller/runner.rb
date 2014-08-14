@@ -12,7 +12,6 @@ require "cloud_controller/varz"
 
 require_relative "seeds"
 require_relative "message_bus_configurer"
-require_relative "stackato/repair_route_names"
 require_relative "stackato/redis_client"
 require_relative "stackato/app_logs_client"
 require_relative "stackato/auto_scaler_respondent"
