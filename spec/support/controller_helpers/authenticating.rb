@@ -19,7 +19,7 @@ module ControllerHelpers
 
       describe "must be in a block as the shared examples expect the subject to happen in a before block (which is non-idiomatic rspec)" do
         before { subject }
-        it_behaves_like "a vcap rest error response", /Invalid Auth Token/
+        it_behaves_like "a vcap rest error response", /(?:Invalid Auth Token|Authentication error)/
       end
     end
 
