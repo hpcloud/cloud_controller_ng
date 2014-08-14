@@ -317,11 +317,11 @@ module VCAP::CloudController
           Kato::Config.set("cluster", "memory_limits/free_license", free_license)
         end
       end
-      it "should return no license info" do
+      it "should have license info" do
         get "/info", {}, headers
         expect(last_response.status).to eq(200)
         hash = Yajl::Parser.parse(last_response.body)
-        hash.should_not have_key("license")
+        hash.should have_key("license")
       end
     end
   end # describe LegacyInfo, is_micro_cloud
