@@ -1694,6 +1694,7 @@ module VCAP::CloudController
           quota.save
           app.memory = 100
           expect { app.save }.to raise_error(Sequel::ValidationFailed, /quota_exceeded/)
+          AppVersion.where(:app_id => app.id).delete
           expect { app.delete }.not_to raise_error
         end
 
@@ -1763,6 +1764,7 @@ module VCAP::CloudController
       subject(:app) { AppFactory.make }
 
       it "raises error if the app is deleted" do
+        AppVersion.where(:app_id => app.id).delete
         app.delete
         expect { app.save }.to raise_error(Errors::ApplicationMissing)
       end
