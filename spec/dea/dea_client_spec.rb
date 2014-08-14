@@ -720,6 +720,11 @@ module VCAP::CloudController
           and_return([starting_instance, running_instance])
 
         app_instances = DeaClient.find_all_instances(app)
+        app_instances.each_value do |val|
+          val.delete(:docker_id)
+          val.delete(:app_ip)
+          val.delete(:host_ip)
+        end
         app_instances.should == {
           0 => {
             :state => "FLAPPING",
