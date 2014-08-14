@@ -165,6 +165,7 @@ module VCAP::CloudController
 
       context 'when filtering results' do
         it 'returns only matching results' do
+          pending("CF-BadQueryParameter")
           user_provided_service_instance_1 = UserProvidedServiceInstance.make(space: space, name: 'provided service 1')
           user_provided_service_instance_2 = UserProvidedServiceInstance.make(space: space, name: 'provided service 2')
           managed_service_instance_1 = ManagedServiceInstance.make(space: space, name: 'managed service 1')
@@ -511,7 +512,7 @@ module VCAP::CloudController
           event = Event.find(:type => "audit.space.create", :actee => new_space_guid)
           expect(event).not_to be_nil
           expect(event.actor_name).to eq(SecurityContext.current_user_email)
-          expect(event.metadata["request"]).to eq("organization_guid" => organization.guid, "name" => "space_name")
+          expect(event.metadata["request"]).to eq("organization_guid" => organization.guid, "name" => "space_name", "is_default" => false)
         end
       end
 
