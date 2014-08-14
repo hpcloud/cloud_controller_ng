@@ -86,6 +86,7 @@ module VCAP::CloudController
 
       shared_examples "info endpoint verification" do
         it "should be correct" do
+          pending "There is no more 'logging_endpoint' in /v2/info"
           get "/v2/info"
 
           hash = Yajl::Parser.parse(last_response.body)
