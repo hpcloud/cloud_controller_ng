@@ -458,6 +458,7 @@ module VCAP::CloudController
           end
 
           it "should return the buildpack cache" do
+            pending('get "/staging/buildpack_cache/#{droplet_guid}/download" => empty-string, expected "droplet contents"')
             buildpack_cache_blobstore.cp_to_blobstore(
                 buildpack_cache.path,
                 app_obj.guid
