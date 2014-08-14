@@ -1,7 +1,7 @@
 require "spec_helper"
 
 describe VCAP::CloudController::RestController::Base, type: :controller do
-  let(:logger) { double(:logger, :debug => nil, :error => nil) }
+  let(:logger) { Steno.logger('cc-rest_controller-base_spec') }
   let(:env) { {} }
   let(:params) { {} }
   let(:sinatra) { nil }
@@ -25,11 +25,6 @@ describe VCAP::CloudController::RestController::Base, type: :controller do
       it "should dispatch the request" do
         subject.should_receive(:to_s).with([:a, :b])
         subject.dispatch(:to_s, [:a, :b])
-      end
-
-      it "should log a debug message" do
-        logger.should_receive(:debug).with("cc.dispatch", endpoint: :to_s, args: [])
-        subject.dispatch(:to_s)
       end
 
       context "when there is no current user" do
@@ -89,13 +84,6 @@ describe VCAP::CloudController::RestController::Base, type: :controller do
         expect {
           subject.dispatch(:to_s)
         }.to raise_error(VCAP::Errors::ApiError, /Request invalid due to parse error/)
-      end
-
-      it "should log an error for a Model error" do
-        subject.stub(:to_s).and_raise(VCAP::Errors::InvalidRelation)
-        expect {
-          subject.dispatch(:to_s)
-        }.to raise_error(VCAP::Errors::ApiError, /Invalid relation/)
       end
 
       describe '#redirect' do
@@ -262,15 +250,6 @@ describe VCAP::CloudController::RestController::Base, type: :controller do
           configurer = VCAP::CloudController::Security::SecurityContextConfigurer.new(token_decoder)
           allow(token_decoder).to receive(:decode_token).with(header_token).and_return(token_info)
           configurer.configure(header_token)
-        end
-
-        it 'logs an error message because this error is unexpected' do
-          logger = double(:logger, error: nil, debug: nil)
-          allow(subject).to receive(:logger).and_return(logger)
-
-          subject.dispatch(:download) rescue nil
-
-          expect(logger).to have_received(:error).with('Unexpected condition: valid token with no user/client id or admin scope. Token hash: {"scope"=>["some-non-admin-scope"]}')
         end
 
         it 'raises an InvalidAuthToken error' do
