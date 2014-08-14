@@ -116,12 +116,6 @@ module VCAP::CloudController
         start_thin_server(app, config)
 
         router_registrar.register_with_router
-        begin
-          StackatoRepairRouteNames::fix_missing_routes
-        rescue
-          logger.debug("problem in fix_missing_routes: #{$!}")
-        end
-          
         ::Kato::ProcReady.i_am_ready("cloud_controller_ng")
       end
     end
