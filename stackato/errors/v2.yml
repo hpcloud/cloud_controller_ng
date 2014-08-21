@@ -260,3 +260,8 @@
   name: StackatoLicenseInvalid
   http_code: 400
   message: "The given stackato license is invalid"
+
+152:
+  name: StackatoAppMigrationValidationFailed
+  http_code: 400
+  message: "Cannot migrate application: %s"
