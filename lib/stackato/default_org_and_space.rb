@@ -47,8 +47,8 @@ module VCAP::CloudController
 
         # Create the org and enforce the quota only if it didn't already exist (allows admins to manually specialize setup)
         unless users_org
-          users_org = Organization.create(:name => user_name)
-          users_org.quota_definition = QuotaDefinition.find(:name => quota_name)
+          quota_definition = QuotaDefinition.find(:name => quota_name)
+          users_org = Organization.create(:name => user_name, :quota_definition => quota_definition)
         end
 
         # Add the user to their org
