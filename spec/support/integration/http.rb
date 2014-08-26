@@ -12,7 +12,7 @@ module IntegrationHttp
     CF::UAA::TokenCoder.encode(token, :skey => VCAP::CloudController::Config.config[:uaa][:symmetric_secret], :algorithm => "HS256")
   end
 
-  def user_token(user_id, user_name)
+  def user_token(user_id, user_name, encoded=true)
     token = {
         "aud" => "cloud_controller",
         "user_id" => user_id,
@@ -21,7 +21,11 @@ module IntegrationHttp
         "exp" => Time.now.to_i + 10_000,
         "scope" => ["cloud_controller.admin"],
     }
-    CF::UAA::TokenCoder.encode(token, :skey => VCAP::CloudController::Config.config[:uaa][:symmetric_secret], :algorithm => "HS256")
+    if encoded
+      return CF::UAA::TokenCoder.encode(token, :skey => VCAP::CloudController::Config.config[:uaa][:symmetric_secret], :algorithm => "HS256")
+    else
+      return token
+    end
   end
 
   module JsonBody
