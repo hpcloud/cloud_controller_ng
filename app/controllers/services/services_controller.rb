@@ -39,6 +39,12 @@ module VCAP::CloudController
 
     query_parameters :active, :label, :provider, :service_broker_guid
 
+    allow_unauthenticated_access only: :enumerate
+    def enumerate
+      @opts.delete(:inline_relations_depth) unless SecurityContext.valid_token?
+      super
+    end
+
     def self.translate_validation_exception(e, attributes)
       label_provider_errors = e.errors.on([:label, :provider])
       if label_provider_errors && label_provider_errors.include?(:unique)

@@ -3,7 +3,7 @@ require 'digest/md5'
 require "cloud_controller/stackato/redis_client"
 
 module VCAP::CloudController
-  class StackatoCloudeventsController < RestController::Base
+  class StackatoCloudeventsController < RestController::BaseController
 
     def get_cloudevents
       num = params["n"].to_i

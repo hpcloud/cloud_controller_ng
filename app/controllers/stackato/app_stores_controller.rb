@@ -4,7 +4,7 @@ require "httpclient"
 require "open-uri"
 
 module VCAP::CloudController
-  class StackatoAppStoresController < RestController::Base
+  class StackatoAppStoresController < RestController::BaseController
 
     APP_STORES_BASE_URL = "/v2/stackato/app_stores"
     DEFAULT_INLINE_RELATIONS_DEPTH = 0

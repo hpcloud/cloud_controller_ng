@@ -1,4 +1,4 @@
-require "cloud_controller/dea/dea_client"
+require "cloud_controller/dea/client"
 require 'uri'
 
 module VCAP::CloudController
@@ -10,8 +10,8 @@ module VCAP::CloudController
     many_to_one :space
 
     many_to_many :apps,
-      before_add: :validate_app,
-      after_add: :mark_app_routes_changed,
+      before_add:   :validate_app,
+      after_add:    :mark_app_routes_changed,
       after_remove: :mark_app_routes_changed
 
     add_association_dependencies apps: :nullify
@@ -30,8 +30,8 @@ module VCAP::CloudController
 
     def as_summary_json
       {
-        guid: guid,
-        host: host,
+        guid:   guid,
+        host:   host,
         domain: {
           guid: domain.guid,
           name: domain.name
@@ -49,8 +49,8 @@ module VCAP::CloudController
 
       errors.add(:host, :presence) if host.nil?
 
-      validates_format   /^([\w\-]+)$/, :host if (host && !host.empty?)
-      validates_unique   [:host, :domain_id]
+      validates_format /^([\w\-]+)$/, :host if (host && !host.empty?)
+      validates_unique [:host, :domain_id]
 
       main_domain = Kato::Config.get("cluster", "endpoint").gsub(/^api\./, '')
       builtin_routes = ["www", "api", "login", "ports", "aok", "logs"]
@@ -103,13 +103,13 @@ module VCAP::CloudController
       ))
 
       spaces = Space.filter(Sequel.or(
-        developers: [user],
-        auditors: [user],
-        managers: [user],
+        developers:   [user],
+        auditors:     [user],
+        managers:     [user],
         organization: orgs,
       ))
 
-      {:space => spaces}
+      { :space => spaces }
     end
 
     def register_oauth_client
@@ -163,6 +163,12 @@ module VCAP::CloudController
 
     private
 
+    def app_requires_restart
+      apps.each do |app|
+        app.restart_required = true
+      end
+    end
+
     def logger
       @logger ||= Steno.logger("cc.models.route")
     end
@@ -177,17 +183,14 @@ module VCAP::CloudController
     end
 
     def mark_app_routes_changed(app)
-      app.routes_changed = true
-      if app.dea_update_pending?
-        VCAP::CloudController::DeaClient.update_uris(app)
-      end
+      app.mark_routes_changed
     end
 
     def validate_domain
       return unless domain
 
       if (domain.shared? && !host.present?) ||
-            (space && !domain.usable_by_organization?(space.organization))
+        (space && !domain.usable_by_organization?(space.organization))
         errors.add(:domain, :invalid_relation)
       end
     end
@@ -195,7 +198,14 @@ module VCAP::CloudController
     def validate_total_routes
       return unless new? && space
 
-      unless MaxRoutesPolicy.new(space.organization).allow_more_routes?(1)
+      space_routes_policy = MaxRoutesPolicy.new(space.space_quota_definition, SpaceRoutes.new(space))
+      org_routes_policy   = MaxRoutesPolicy.new(space.organization.quota_definition, OrganizationRoutes.new(space.organization))
+
+      if space.space_quota_definition && !space_routes_policy.allow_more_routes?(1)
+        errors.add(:space, :total_routes_exceeded)
+      end
+
+      if !org_routes_policy.allow_more_routes?(1)
         errors.add(:organization, :total_routes_exceeded)
       end
     end

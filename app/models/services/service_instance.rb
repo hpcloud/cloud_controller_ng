@@ -1,3 +1,5 @@
+require 'repositories/services/service_usage_event_repository'
+
 module VCAP::CloudController
   class ServiceInstance < Sequel::Model
     class InvalidServiceBinding < StandardError; end
@@ -56,7 +58,11 @@ module VCAP::CloudController
     def validate
       validates_presence :name
       validates_presence :space
-      validates_unique [:space_id, :name]
+      validates_unique [:space_id, :name], where: (proc do |_, obj, arr|
+          vals = arr.map{|x| obj.send(x)}
+          next if vals.any?{|v| v.nil?}
+          ServiceInstance.where(arr.zip(vals))
+        end)
       validates_max_length 50, :name
     end
 
@@ -77,9 +83,16 @@ module VCAP::CloudController
       }
     end
 
+    def to_hash(opts={})
+      if !VCAP::CloudController::SecurityContext.admin? && !space.developers.include?(VCAP::CloudController::SecurityContext.current_user)
+        opts.merge!({redact: ['credentials']})
+      end
+      super(opts)
+    end
+
     def credentials=(val)
       if val
-        json = Yajl::Encoder.encode(val)
+        json = MultiJson.dump(val)
         generate_salt
         encrypted_string = VCAP::CloudController::Encryptor.encrypt(json, salt)
         super(encrypted_string)
@@ -92,11 +105,21 @@ module VCAP::CloudController
     def credentials
       return if super.blank?
       json = VCAP::CloudController::Encryptor.decrypt(super, salt)
-      Yajl::Parser.parse(json) if json
+      MultiJson.load(json) if json
     end
 
     def in_suspended_org?
       space.in_suspended_org?
+    end
+
+    def after_create
+      super
+      service_instance_usage_event_repository.created_event_from_service_instance(self)
+    end
+
+    def after_destroy
+      super
+      service_instance_usage_event_repository.deleted_event_from_service_instance(self)
     end
 
     private
@@ -109,6 +132,10 @@ module VCAP::CloudController
       if service_binding && service_binding.app.space != space
         raise InvalidServiceBinding.new(service_binding.id)
       end
+    end
+
+    def service_instance_usage_event_repository
+      @repository ||= Repositories::Services::ServiceUsageEventRepository.new
     end
   end
 end

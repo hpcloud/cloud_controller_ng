@@ -1,5 +1,6 @@
 require "securerandom"
 require_relative "app_factory"
+require_relative "../test_models"
 
 Sham.define do
   email               { |index| "email-#{index}@somedomain.com" }
@@ -24,6 +25,7 @@ Sham.define do
   instance_index      { |index| index }
   unique_id           { |index| "unique-id-#{index}" }
   status              { |_| %w[active suspended cancelled].sample(1).first }
+  error_message       { |index| "error-message-#{index}" }
 end
 
 module VCAP::CloudController
@@ -35,6 +37,15 @@ module VCAP::CloudController
     name              { Sham.name }
     quota_definition  { QuotaDefinition.make }
     status            { "active" }
+  end
+
+  Domain.blueprint do
+    name                { Sham.domain }
+  end
+
+  Droplet.blueprint do
+    app { App.make }
+    droplet_hash { Sham.guid }
   end
 
   PrivateDomain.blueprint do
@@ -220,10 +231,6 @@ module VCAP::CloudController
     timestamp         { Time.now }
   end
 
-  Task.blueprint do
-    app         { AppFactory.make }
-  end
-
   ServiceCreateEvent.blueprint do
     BillingEvent.blueprint
     space_guid        { Sham.guid }
@@ -259,6 +266,9 @@ module VCAP::CloudController
     name { Sham.name }
     key { Sham.guid }
     position { 0 }
+    enabled { true }
+    filename { Sham.name }
+    locked { false }
   end
 
   AppUsageEvent.blueprint do
@@ -272,5 +282,61 @@ module VCAP::CloudController
     space_name { Sham.name }
     buildpack_guid { Sham.guid }
     buildpack_name { Sham.name }
+  end
+
+  ServiceUsageEvent.blueprint do
+    state { "CREATED" }
+    org_guid { Sham.guid }
+    space_guid { Sham.guid }
+    space_name { Sham.name }
+    service_instance_guid { Sham.guid }
+    service_instance_name { Sham.name }
+    service_instance_type { Sham.type }
+    service_plan_guid { Sham.guid }
+    service_plan_name { Sham.name }
+    service_guid { Sham.guid }
+    service_label { Sham.label }
+  end
+
+  SecurityGroup.blueprint do
+    name { Sham.name }
+    rules do
+      [
+        {
+          "protocol" => "udp",
+          "ports" => "8080",
+          "destination" => "198.41.191.47/1",
+        }
+      ]
+    end
+    staging_default { false }
+  end
+
+  SpaceQuotaDefinition.blueprint do
+    name { Sham.name }
+    non_basic_services_allowed { true }
+    total_services { 60 }
+    total_routes { 1_000 }
+    memory_limit { 20_480 } # 20 GB
+    organization { Organization.make }
+  end
+
+  FeatureFlag.blueprint do
+    name { 'user_org_creation' }
+    enabled { false }
+    error_message { Sham.error_message }
+  end
+
+  TestModel.blueprint do
+    required_attr true
+  end
+
+  TestModelManyToOne.blueprint do
+  end
+
+  TestModelManyToMany.blueprint do
+  end
+
+  TestModelSecondLevel.blueprint do
   end
 end

@@ -8,13 +8,13 @@ module VCAP::CloudController
       org = find_guid_and_validate_access(:read, guid)
 
       logger.debug "params: #{@opts}"
-      caclulate_space_mem_usage = (@opts[:include_relations] || '').split(',').include? 'app-usage'
+      calculate_space_mem_usage = (@opts[:include_relations] || '').split(',').include? 'app-usage'
 
-      Yajl::Encoder.encode(
+      MultiJson.dump(
         :guid => org.guid,
         :name => org.name,
         :status => org.status,
-        :spaces => org.spaces.map do |space|
+        :spaces => visible_spaces(org).map do |space|
           # when we do the quota work, this and the service counts will be kept
           # as a running total so that we don't have to compute them on the
           # fly.
@@ -31,7 +31,7 @@ module VCAP::CloudController
               type = app.production ? :mem_prod_total : :mem_dev_total
               space_summary[type] += app.instances * app.memory
             end
-            if caclulate_space_mem_usage
+            if calculate_space_mem_usage
               instances = StackatoDropletAccountability.get_app_stats(app)
               instances.each do |index, instance|
                 next unless instance.fetch('stats', {}).fetch('usage', {})['mem']
@@ -40,7 +40,7 @@ module VCAP::CloudController
             end
           end
 
-          space_summary[:mem_usage] = space_mem_usage if caclulate_space_mem_usage
+          space_summary[:mem_usage] = space_mem_usage if calculate_space_mem_usage
 
           {
             :guid => space.guid,
@@ -49,6 +49,12 @@ module VCAP::CloudController
           }.merge(space_summary)
         end
       )
+    end
+
+    private
+
+    def visible_spaces(org)
+      org.user_visible_relationship_dataset(:spaces, SecurityContext.current_user, SecurityContext.admin?)
     end
   end
 end

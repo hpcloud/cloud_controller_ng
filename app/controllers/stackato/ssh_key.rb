@@ -2,7 +2,7 @@
 require "kato/config"
 
 module VCAP::CloudController
-  class StackatoSshKeyController < RestController::Base
+  class StackatoSshKeyController < RestController::BaseController
 
     def get_ssh_key
       ssh_key = Kato::Config.get("cluster", "stackato_ssh_keypair_alluser/privkey")

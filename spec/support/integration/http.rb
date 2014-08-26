@@ -66,7 +66,3 @@ module IntegrationHttp
     response
   end
 end
-
-RSpec.configure do |rspec_config|
-  rspec_config.include(IntegrationHttp, :type => :integration)
-end

@@ -4,9 +4,11 @@ require "cloud_controller/account_capacity"
 require "cloud_controller/health_manager_client"
 require "uri"
 require 'kato/config'
+require "cloud_controller/diego/traditional/staging_completion_handler"
 
 # Config template for cloud controller
 module VCAP::CloudController
+  # rubocop:disable ClassLength
   class Config < VCAP::Config
     define_schema do
       {
@@ -32,8 +34,15 @@ module VCAP::CloudController
         :app_usage_events => {
           :cutoff_age_in_days => Fixnum
         },
+        :audit_events => {
+          :cutoff_age_in_days => Fixnum
+        },
+        :failed_jobs => {
+          :cutoff_age_in_days => Fixnum
+        },
         optional(:billing_event_writing_enabled) => bool,
         :default_app_memory => Fixnum,
+        :default_app_disk_in_mb => Fixnum,
         optional(:maximum_app_disk_in_mb) => Fixnum,
         :maximum_health_check_timeout => Fixnum,
 
@@ -60,11 +69,13 @@ module VCAP::CloudController
 
         optional(:directories) => {
           optional(:tmpdir)    => String,
+          optional(:diagnostics) => String,
         },
 
         optional(:stacks_file) => String,
+        optional(:newrelic_enabled) => bool,
 
-        :db => {
+        optional(:db) => {
           optional(:database_uri) => String, # db connection string for sequel
           optional(:database) => {
             :host => String,
@@ -72,7 +83,7 @@ module VCAP::CloudController
             :user => String,
             :password => String,
             :adapter => String,
-            :database => String
+            :database => String,     # db connection string for sequel
           },
           optional(:log_level)        => String,     # debug, info, etc.
           optional(:max_connections)  => Integer,    # max connections in the connection pool
@@ -125,6 +136,23 @@ module VCAP::CloudController
         :quota_definitions => Hash,
         :default_quota_definition => String,
 
+        :security_group_definitions => [
+          {
+            "name" => String,
+            "rules" => [
+              {
+                "protocol" => String,
+                "destination" => String,
+                optional("ports") => String,
+                optional("type") => Integer,
+                optional("code") => Integer
+              }
+            ]
+          }
+        ],
+        :default_staging_security_groups => [String],
+        :default_running_security_groups => [String],
+
         :resource_pool => {
           optional(:maximum_size) => Integer,
           optional(:minimum_size) => Integer,
@@ -145,8 +173,6 @@ module VCAP::CloudController
 
         :db_encryption_key => String,
 
-        optional(:tasks_disabled) => bool,
-
         optional(:flapping_crash_count_threshold) => Integer,
 
         optional(:varz_port) => Integer,
@@ -156,6 +182,7 @@ module VCAP::CloudController
         optional(:broker_client_timeout_seconds) => Integer,
         optional(:uaa_client_name) => String,
         optional(:uaa_client_secret) => String,
+        optional(:uaa_client_scope) => String,
 
         :renderer => {
           :max_results_per_page => Integer,
@@ -180,7 +207,8 @@ module VCAP::CloudController
             optional("position") => Integer,
           }
         ],
-        optional(:app_bits_upload_grace_period_in_seconds) => Integer
+
+        optional(:app_bits_upload_grace_period_in_seconds) => Integer,
       }
     end
 
@@ -238,17 +266,27 @@ module VCAP::CloudController
 
       def configure_components_depending_on_message_bus(message_bus)
         @message_bus = message_bus
-        stager_pool = StagerPool.new(@config, message_bus)
-        dea_pool = DeaPool.new(message_bus)
+        stager_pool = Dea::StagerPool.new(@config, message_bus)
+        dea_pool = Dea::Pool.new(message_bus)
+        dependency_locator = CloudController::DependencyLocator.instance
 
-        AppObserver.configure(@config, message_bus, dea_pool, stager_pool, health_manager_client)
+        blobstore_url_generator = dependency_locator.blobstore_url_generator
 
-        blobstore_url_generator = CloudController::DependencyLocator.instance.blobstore_url_generator
-        DeaClient.configure(@config, message_bus, dea_pool, stager_pool, blobstore_url_generator)
-        diego_client = DiegoClient.new(message_bus, blobstore_url_generator)
-        StagingCompletionHandler.new(message_bus, diego_client).subscribe!
+        diego_client = dependency_locator.diego_client
+        diego_client.connect!
+
+        diego_messenger = dependency_locator.diego_messenger
+
+        Dea::Client.configure(@config, message_bus, dea_pool, stager_pool, blobstore_url_generator)
+
+        Diego::Traditional::StagingCompletionHandler.new(message_bus, diego_messenger).subscribe!
+
+        backends = StackatoBackends.new(@config, message_bus, dea_pool, stager_pool, health_manager_client)
+        AppObserver.configure(backends)
 
         LegacyBulk.configure(@config, message_bus)
+
+        BulkApi.configure(@config)
       end
 
       def config_dir
@@ -257,13 +295,20 @@ module VCAP::CloudController
 
       def run_initializers(config)
         return if @initialized
+        run_initializers_in_directory(config, '../../../config/initializers/*.rb')
+        if config[:newrelic_enabled]
+          require "newrelic_rpm"
+          run_initializers_in_directory(config, '../../../config/newrelic/initializers/*.rb')
+        end
+        @initialized = true
+      end
 
-        Dir.glob(File.expand_path('../../../config/initializers/*.rb', __FILE__)).each do |file|
+      def run_initializers_in_directory(config, path)
+        Dir.glob(File.expand_path(path, __FILE__)).each do |file|
           require file
           method = File.basename(file).sub(".rb", "").gsub("-", "_")
           CCInitializers.send(method, config)
         end
-        @initialized = true
       end
 
       def merge_defaults(config)
@@ -274,6 +319,8 @@ module VCAP::CloudController
         config[:billing_event_writing_enabled] = true if config[:billing_event_writing_enabled].nil?
         config[:skip_cert_verify] = false if config[:skip_cert_verify].nil?
         config[:app_bits_upload_grace_period_in_seconds] ||= 0
+        config[:db] ||= {}
+        config[:db][:database] ||= ENV["DB_CONNECTION_STRING"]
         sanitize(config)
       end
 

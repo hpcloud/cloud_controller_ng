@@ -1,6 +1,7 @@
 require "cloud_controller/app_observer"
 require 'digest/sha1'
 require "cloud_controller/database_uri_generator"
+require "cloud_controller/undo_app_changes"
 require "cloud_controller/errors/application_missing"
 require "cloud_controller/errors/invalid_route_relation"
 require "repositories/runtime/app_usage_event_repository"
@@ -25,8 +26,12 @@ module VCAP::CloudController
     many_to_many :routes, before_add: :validate_route, after_add: :mark_routes_changed, after_remove: :mark_routes_changed
 
     add_association_dependencies routes: :nullify, service_bindings: :destroy, events: :delete, droplets: :destroy, app_versions: :destroy
+    one_to_one :current_saved_droplet,
+      :class => "::VCAP::CloudController::Droplet",
+      :key => :droplet_hash,
+      :primary_key => :droplet_hash
 
-    default_order_by :name
+    add_association_dependencies routes: :nullify, service_bindings: :destroy, events: :delete, droplets: :destroy
 
     export_attributes :guid, :name, :production,
                       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
@@ -36,7 +41,8 @@ module VCAP::CloudController
                       :system_env_json, :distribution_zone,
                       :description, :sso_enabled, :restart_required, :autoscale_enabled,
                       :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-                      :droplet_count
+                      :droplet_count,
+                      :staging_failed_reason, :docker_image
 
     import_attributes :name, :production,
                       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
@@ -45,7 +51,8 @@ module VCAP::CloudController
                       :staging_task_id, :service_binding_guids, :route_guids, :health_check_timeout,
                       :distribution_zone,
                       :description, :sso_enabled, :autoscale_enabled,
-                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances
+                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+                      :docker_image
 
     strip_attributes :name
 
@@ -53,6 +60,7 @@ module VCAP::CloudController
 
     APP_STATES = %w[STOPPED STARTED].map(&:freeze).freeze
     PACKAGE_STATES = %w[PENDING STAGED FAILED].map(&:freeze).freeze
+    STAGING_FAILED_REASONS = %w[StagingError NoAppDetectedError BuildpackCompileFailed BuildpackReleaseFailed].map(&:freeze).freeze
 
     CENSORED_FIELDS = [:encrypted_environment_json, :command, :environment_json]
 
@@ -67,7 +75,7 @@ module VCAP::CloudController
     end
 
     # marked as true on changing the associated routes, and reset by
-    # +DeaClient.start+
+    # +Dea::Client.start+
     attr_accessor :routes_changed
 
     attr_accessor :version_description
@@ -95,7 +103,10 @@ module VCAP::CloudController
           DiskQuotaPolicy.new(self, max_app_disk_in_mb),
           MetadataPolicy.new(self, metadata_deserialized),
           MinMemoryPolicy.new(self),
-          MaxMemoryPolicy.new(self),
+          MaxMemoryPolicy.new(self, space, :space_quota_exceeded),
+          MaxMemoryPolicy.new(self, organization, :quota_exceeded),
+          MaxInstanceMemoryPolicy.new(self, organization && organization.quota_definition, :instance_memory_limit_exceeded),
+          MaxInstanceMemoryPolicy.new(self, space && space.space_quota_definition, :space_instance_memory_limit_exceeded),
           InstancesPolicy.new(self),
           HealthCheckPolicy.new(self, health_check_timeout),
           CustomBuildpackPolicy.new(self, custom_buildpacks_enabled?)
@@ -114,6 +125,7 @@ module VCAP::CloudController
 
       validates_includes PACKAGE_STATES, :package_state, :allow_missing => true
       validates_includes APP_STATES, :state, :allow_missing => true
+      validates_includes STAGING_FAILED_REASONS, :staging_failed_reason, :allow_nil => true
 
       # REFACTOR: incorporate `validate_autoscaling_settings` into upstream's
       # `validation_policies` data structure
@@ -126,14 +138,25 @@ module VCAP::CloudController
       set_new_version
     end
 
+    def after_create
+      super
+      create_app_usage_event
+    end
+
+    def after_update
+      super
+      create_app_usage_event
+    end
+
     def before_save
       if generate_start_event? && !package_hash
         raise VCAP::Errors::ApiError.new_from_details("AppPackageInvalid", "bits have not been uploaded")
       end
-      super
 
       self.stack ||= Stack.default
       self.memory ||= Config.config[:default_app_memory]
+      self.disk_quota ||= Config.config[:default_app_disk_in_mb]
+
       set_new_version if version_needs_to_be_updated?
       
       update_requires_restart
@@ -143,6 +166,13 @@ module VCAP::CloudController
 
       adjust_route_sso_clients if sso_updated?
       self.min_instances = 1 if self.min_instances.nil? # Stackato bug 103723
+
+      # make this conditional for when we remove the diego column later.
+      if self.class.columns.include?(:diego)
+        self.diego = run_with_diego?
+      end
+
+      super
     end
 
     def after_save
@@ -150,19 +180,6 @@ module VCAP::CloudController
       create_app_usage_event
       @changes = column_changes
       super
-    end
-
-    def create_app_usage_event
-      return unless app_usage_changed?
-      AppUsageEvent.create(state: state,
-                           instance_count: instances,
-                           memory_in_mb_per_instance: memory,
-                           app_guid: guid,
-                           app_name: name,
-                           org_guid: space.organization_guid,
-                           space_guid: space_guid,
-                           space_name: space.name,
-      )
     end
 
     def auditable_changes
@@ -175,7 +192,7 @@ module VCAP::CloudController
 
     def snapshot_new_version
       if force_no_snapshot
-        force_no_snapshot = false
+        self.force_no_snapshot = false
         return
       end
 
@@ -236,6 +253,14 @@ module VCAP::CloudController
           route.delete_oauth_client
         end
       end
+    end
+
+    def run_with_diego?
+      !!(environment_json && environment_json["CF_DIEGO_RUN_BETA"] == "true")
+    end
+
+    def stage_with_diego?
+      run_with_diego? || !!(environment_json && environment_json["CF_DIEGO_BETA"] == "true")
     end
 
     def version_needs_to_be_updated?
@@ -307,6 +332,14 @@ module VCAP::CloudController
       column_changed?(:buildpack)
     end
 
+    def desired_instances
+      started? ? instances : 0
+    end
+
+    def versioned_guid
+      "#{guid}-#{version}"
+    end
+
     def organization
       space && space.organization
     end
@@ -323,6 +356,7 @@ module VCAP::CloudController
     end
 
     def after_destroy
+      super
       StackatoAppDrains.delete_all self
       AppStopEvent.create_from_app(self) unless initial_value(:state) == "STOPPED" || has_stop_event_for_latest_run?
       create_app_usage_event
@@ -340,6 +374,12 @@ module VCAP::CloudController
 
     def command
       self.metadata && self.metadata["command"]
+    end
+
+    def detected_start_command
+      cmd = command
+      cmd ||= current_droplet && current_droplet.detected_start_command
+      cmd.nil? ? '' : cmd
     end
 
     def console=(c)
@@ -371,7 +411,7 @@ module VCAP::CloudController
     # doesn't play nice with the dirty plugin, and we want the dirty plugin
     # more
     def environment_json=(env)
-      json = Yajl::Encoder.encode(env)
+      json = MultiJson.dump(env)
       generate_salt
       self.encrypted_environment_json =
           VCAP::CloudController::Encryptor.encrypt(json, salt)
@@ -380,7 +420,7 @@ module VCAP::CloudController
     def environment_json
       return unless encrypted_environment_json
 
-      Yajl::Parser.parse(
+      MultiJson.load(
           VCAP::CloudController::Encryptor.decrypt(
               encrypted_environment_json, salt))
     end
@@ -581,22 +621,28 @@ module VCAP::CloudController
       routes.map(&:fqdn)
     end
 
-    def mark_as_failed_to_stage
+    def mark_as_staged
+      self.package_state = "STAGED"
+    end
+
+    def mark_as_failed_to_stage(reason="StagingError")
       app_from_db = self.class.find(:guid => guid)
       return unless app_from_db
       self.package_state = "FAILED"
+      self.staging_failed_reason = reason
       save
     end
 
     def mark_for_restaging
       self.package_state = "PENDING"
+      self.staging_failed_reason = nil
     end
 
     def buildpack
       if admin_buildpack
         return admin_buildpack
       elsif super
-        return GitBasedBuildpack.new(super)
+        return CustomBuildpack.new(super)
       end
 
       AutoDetectionBuildpack.new
@@ -618,6 +664,11 @@ module VCAP::CloudController
       buildpack.url if buildpack.custom?
     end
 
+    def docker_image=(value)
+      super
+      self.package_hash = value
+    end
+
     def package_hash=(hash)
       super(hash)
       mark_for_restaging if column_changed?(:package_hash)
@@ -628,13 +679,6 @@ module VCAP::CloudController
       super(stack)
     end
 
-    def droplet_hash=(hash)
-      if hash
-        self.package_state = "STAGED"
-      end
-      super(hash)
-    end
-
     def add_new_droplet(hash)
       self.droplet_hash = hash
       add_droplet(droplet_hash: hash)
@@ -643,13 +687,7 @@ module VCAP::CloudController
 
     def current_droplet
       return nil unless droplet_hash
-      self.droplets_dataset.filter(droplet_hash: droplet_hash).first ||
-        Droplet.new(app: self, droplet_hash: self.droplet_hash).save
-    end
-
-    def running_instances
-      return 0 unless started?
-      health_manager_client.healthy_instances(self)
+      current_saved_droplet || Droplet.new(app: self, droplet_hash: self.droplet_hash)
     end
 
     def start!
@@ -670,7 +708,7 @@ module VCAP::CloudController
 
     # returns True if we need to update the DEA's with
     # associated URL's.
-    # We also assume that the relevant methods in +DeaClient+ will reset
+    # We also assume that the relevant methods in +Dea::Client+ will reset
     # this app's routes_changed state
     # @return [Boolean, nil]
     def dea_update_pending?
@@ -683,13 +721,27 @@ module VCAP::CloudController
       begin
         AppObserver.updated(self)
       rescue Errors::ApiError => e
-        undo_changes(previous_changes)
+        UndoAppChanges.new(self).undo(previous_changes)
         raise e
       end
     end
 
     def allow_sudo?
       space && space.allow_sudo?
+    end
+
+    def to_hash(opts={})
+      if !VCAP::CloudController::SecurityContext.admin? && !space.developers.include?(VCAP::CloudController::SecurityContext.current_user)
+        opts.merge!({redact: ['environment_json', 'system_env_json']})
+      end
+      super(opts)
+    end
+
+    def mark_routes_changed(_ = nil)
+      @routes_changed = true
+
+      set_new_version
+      save
     end
 
     private
@@ -703,7 +755,7 @@ module VCAP::CloudController
       app_from_db = self.class.find(guid: guid)
       if app_from_db.nil?
         self.class.logger.fatal("app.find.missing", guid: guid, self: inspect)
-        raise Errors::ApiError.new_from_details("ApplicationMissing", error_message % guid)
+        raise Errors::ApplicationMissing, error_message % guid
       end
       app_from_db
     end
@@ -727,17 +779,6 @@ module VCAP::CloudController
         services_hash[binding[:label]] << service
       end
       {"VCAP_SERVICES" => services_hash}
-    end
-
-    def health_manager_client
-      CloudController::DependencyLocator.instance.health_manager_client
-    end
-
-    def mark_routes_changed(_)
-      @routes_changed = true
-
-      set_new_version
-      save
     end
 
     def generate_salt
@@ -765,18 +806,8 @@ module VCAP::CloudController
       false
     end
 
-
     def logger
       self.class.logger
-    end
-
-    def undo_changes(changes)
-      attrs = changes.each_with_object({}) { |(key, change), hash| hash[key] = change[0] }
-      attrs.delete(:updated_at)
-      db.transaction(savepoint: true) do
-        lock!
-        update(attrs)
-      end
     end
 
     def footprint_changed?

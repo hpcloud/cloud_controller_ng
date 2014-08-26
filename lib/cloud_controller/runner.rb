@@ -9,7 +9,7 @@ require "loggregator_emitter"
 require "loggregator"
 require 'kato/local/node'
 require "kato/proc_ready"
-require "cloud_controller/globals"
+require "cloud_controller/dea/sub_system"
 require "cloud_controller/rack_app_builder"
 require "cloud_controller/varz"
 
@@ -18,9 +18,12 @@ require_relative "message_bus_configurer"
 require_relative "stackato/redis_client"
 require_relative "stackato/app_logs_client"
 require_relative "stackato/auto_scaler_respondent"
+require_relative "stackato/backends"
 require_relative "stackato/deactivate_services"
 require_relative "stackato/droplet_accountability"
+require_relative "stackato/dea/app_stager_task"
 require_relative "rest_controller/preloaded_object_serializer"
+
 
 module VCAP::CloudController
   class Runner
@@ -29,8 +32,10 @@ module VCAP::CloudController
     def initialize(argv)
       @argv = argv
 
-      # default to production. this may be overriden during opts parsing
-      ENV["RACK_ENV"] = "production"
+      # default to production. this may be overridden during opts parsing
+      ENV["RACK_ENV"] ||= "production"
+
+      @config_file = File.expand_path("../../../config/cloud_controller.yml", __FILE__)
       parse_options!
       parse_config
 
@@ -106,26 +111,30 @@ module VCAP::CloudController
 
     def run!
       EM.run do
-        message_bus = MessageBus::Configurer.new(servers: @config[:message_bus_servers], logger: logger).go
+        begin
+          message_bus = MessageBus::Configurer.new(servers: @config[:message_bus_servers], logger: logger).go
 
-        start_cloud_controller(message_bus)
+          start_cloud_controller(message_bus)
 
-        Seeds.write_seed_data(@config) if @insert_seed_data
-        register_with_collector(message_bus)
+          Seeds.write_seed_data(@config) if @insert_seed_data
+          register_with_collector(message_bus)
 
-        globals = Globals.new(@config, message_bus)
-        globals.setup!
+          Dea::SubSystem.setup!(message_bus, @config)
 
-        builder = RackAppBuilder.new
-        app = builder.build(@config)
+          builder = RackAppBuilder.new
+          app     = builder.build(@config)
 
-        start_thin_server(app)
+          start_thin_server(app)
 
-        router_registrar.register_with_router
+          router_registrar.register_with_router
           
-        ::Kato::ProcReady.i_am_ready("cloud_controller_ng")
+          ::Kato::ProcReady.i_am_ready("cloud_controller_ng")
 
-        VCAP::CloudController::Varz.setup_updates
+          VCAP::CloudController::Varz.setup_updates
+        rescue Exception => e
+          logger.error "Encountered error: #{e}\n#{e.backtrace.join("\n")}"
+          raise e
+        end
       end
     end
 
@@ -135,6 +144,11 @@ module VCAP::CloudController
           logger.warn("Caught signal #{signal}")
           stop!
         end
+      end
+
+      trap('USR1') do
+        logger.warn("Collecting diagnostics")
+        collect_diagnostics
       end
 
       trap('USR2') do
@@ -207,7 +221,7 @@ module VCAP::CloudController
             :signals => false
         )
       else
-        @thin_server = Thin::Server.new(@config[:external_host], @config[:external_port])
+        @thin_server = Thin::Server.new(@config[:external_host], @config[:external_port], signals: false)
       end
 
       @thin_server.app = app
@@ -248,6 +262,15 @@ module VCAP::CloudController
           :logger => logger,
           :log_counter => @log_counter
       )
+    end
+
+    def collect_diagnostics
+      @diagnostics_dir ||= @config[:directories][:diagnostics]
+      @diagnostics_dir ||= Dir.mktmpdir
+      file = VCAP::CloudController::Diagnostics.collect(@diagnostics_dir)
+      logger.warn("Diagnostics written to #{file}")
+    rescue => e
+      logger.warn("Failed to capture diagnostics: #{e}")
     end
   end
 end

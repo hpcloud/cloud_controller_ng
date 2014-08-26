@@ -7,7 +7,7 @@ require 'cloud_controller/stackato/license_helper'
 require 'cloud_controller/stackato/vendor_config'
 
 module VCAP::CloudController
-  class StackatoInfoController < RestController::Base
+  class StackatoInfoController < RestController::BaseController
     allow_unauthenticated_access
 
     # API version of "kato info"

@@ -66,7 +66,7 @@ module VCAP::CloudController
 
     def self.get_all_dea_stats
       all_dea_stats = []
-      DeaClient.active_deas.each do | dea |
+      Dea::Client.active_deas.each do | dea |
         stats = self.get_dea_stats(dea.dea_id)
         stats[:dea_id] = dea.dea_id
         stats[:dea_ip] = dea.dea_ip

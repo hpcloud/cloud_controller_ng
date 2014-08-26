@@ -37,9 +37,13 @@ app_usage_events:
 audit_events:
   cutoff_age_in_days: 31
 
+failed_jobs:
+  cutoff_age_in_days: 31
+
 billing_event_writing_enabled: true
 
 default_app_memory: 1024 #mb
+default_app_disk_in_mb: 1024
 maximum_app_disk_in_mb: 2048
 
 info:
@@ -156,8 +160,6 @@ db_encryption_key: "placeholder"
 trial_db:
   guid: "78ad16cf-3c22-4427-a982-b9d35d746914"
 
-tasks_disabled: false
-
 app_logs_redis:
   host: 127.0.0.1
   port: 6464
@@ -218,8 +220,9 @@ broker_client_timeout_seconds: 60
 
 droplets_to_keep: 5
 
-uaa_client_name: 'cc_service_broker_client'
+uaa_client_name: 'cc-service-dashboards'
 uaa_client_secret: 'some-sekret'
+uaa_client_scope: openid,cloud_controller_service_permissions.read
 
 diego: false
 
@@ -230,21 +233,21 @@ renderer:
   max_inline_relations_depth: 3
 
 install_buildpacks:
-# - name: legacy
-#   url: http://git-mirrors.activestate.com/github.com/ActiveState/stackato-buildpack-legacy.git#3075697
-  - name: java
-    url: http://github.com/cloudfoundry/java-buildpack.git#v2.3
-  - name: ruby
-    url: http://github.com/ActiveState/heroku-buildpack-ruby.git#346af52
-  - name: nodejs
-    url: http://github.com/cloudfoundry/heroku-buildpack-nodejs.git#0758a34
-  - name: python
-    url: http://github.com/ActiveState/stackato-buildpack-python.git#cbccb6a
-  - name: go
-    url: http://github.com/ActiveState/heroku-buildpack-go.git#302350c
-  - name: clojure
-    url: http://github.com/heroku/heroku-buildpack-clojure.git#71cd68f
-  - name: scala
-    url: http://github.com/heroku/heroku-buildpack-scala.git#800655c
-  - name: perl
-    url: http://github.com/ActiveState/stackato-buildpack-perl.git
+  - name: java_buildpack
+    package: buildpack_java
+  - name: ruby_buildpack
+    package: buildpack_ruby
+  - name: node_buildpack
+    package: buildpack_node
+
+security_group_definitions:
+- name: dummy1
+  rules: []
+- name: dummy2
+  rules: []
+
+default_staging_security_groups:
+- dummy3
+default_running_security_groups:
+- dummy4
+

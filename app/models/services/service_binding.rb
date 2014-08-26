@@ -6,8 +6,6 @@ module VCAP::CloudController
     many_to_one :app
     many_to_one :service_instance
 
-    default_order_by  :id
-
     export_attributes :app_guid, :service_instance_guid, :credentials,
                       :binding_options, :gateway_data, :gateway_name, :syslog_drain_url
 
@@ -19,7 +17,7 @@ module VCAP::CloudController
     delegate :client, :service, :service_plan,
       to: :service_instance
 
-    plugin :after_initialize, :serialization
+    plugin :after_initialize
 
     def validate
       validates_presence :app
@@ -56,6 +54,7 @@ module VCAP::CloudController
       super(opts)
     end
 
+
     def bind!
       client.bind(self)
 
@@ -82,6 +81,7 @@ module VCAP::CloudController
 
     def before_destroy
       client.unbind(self)
+      super
     end
 
     def self.user_visibility_filter(user)
@@ -89,7 +89,7 @@ module VCAP::CloudController
     end
 
     def credentials=(val)
-      json = Yajl::Encoder.encode(val)
+      json = MultiJson.dump(val)
       generate_salt
       encrypted_string = VCAP::CloudController::Encryptor.encrypt(json, salt)
       super(encrypted_string)
@@ -99,17 +99,17 @@ module VCAP::CloudController
       encrypted_string = super
       return unless encrypted_string
       json = VCAP::CloudController::Encryptor.decrypt(encrypted_string, salt)
-      Yajl::Parser.parse(json) if json
+      MultiJson.load(json) if json
     end
 
     def gateway_data=(val)
-      val = Yajl::Encoder.encode(val)
+      val = MultiJson.dump(val)
       super(val)
     end
 
     def gateway_data
       val = super
-      val = Yajl::Parser.parse(val) if val
+      val = MultiJson.load(val) if val
       val
     end
 
@@ -124,11 +124,11 @@ module VCAP::CloudController
     DEFAULT_BINDING_OPTIONS = '{}'
 
     def binding_options
-      Yajl::Parser.parse(super || DEFAULT_BINDING_OPTIONS)
+      MultiJson.load(super || DEFAULT_BINDING_OPTIONS)
     end
 
     def binding_options=(values)
-      super(Yajl::Encoder.encode(values))
+      super(MultiJson.dump(values))
     end
 
     private

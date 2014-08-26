@@ -10,6 +10,11 @@ require "cloud_controller"
 require "irb/completion"
 require "pry"
 require "kato/local/node"
+begin
+  require File.expand_path("../../../spec/support/bootstrap/db_config.rb", __FILE__)
+rescue LoadError
+  # db_config.rb does not exist in a release, but a config with a database should exist there.
+end
 
 config_yml = File.expand_path("../../../config/cloud_controller.yml", __FILE__)
 @config = VCAP::CloudController::Config.new().class.from_file(config_yml)

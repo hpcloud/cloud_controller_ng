@@ -2,7 +2,7 @@
 require 'stackato/kato_shell'
 
 module VCAP::CloudController
-  class StackatoReportController < RestController::Base
+  class StackatoReportController < RestController::BaseController
     allow_unauthenticated_access
 
     def send_report

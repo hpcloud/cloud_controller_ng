@@ -2,7 +2,7 @@
 require "kato/logyard"
 
 module VCAP::CloudController
-  class StackatoDrainsController < RestController::Base
+  class StackatoDrainsController < RestController::BaseController
 
     DRAINS_BASE_URL = "/v2/drains"
 

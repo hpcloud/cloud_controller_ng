@@ -1,22 +1,10 @@
 module VCAP::CloudController
   class HealthManagerClient
+    APP_STATE_BULK_MAX_APPS = 50
+
     def initialize(message_bus, config)
       @message_bus = message_bus
       @config = config # only in here for hm9000 compatibility
-    end
-
-    def find_crashes(app)
-      message = { :droplet => app.guid, :state => :CRASHED }
-      request_options = { :timeout => 2 }
-      crashed_instances = hm_request("status", message, request_options).first
-      crashed_instances ? crashed_instances["instances"] : []
-    end
-
-    def find_flapping_indices(app)
-      message = { :droplet => app.guid, :version => app.version, :state => :FLAPPING }
-      request_options = { :result_count => app.instances, :timeout => 2}
-      response = hm_request("status", message, request_options).first
-      (response && response["indices"]) ? response["indices"] : []
     end
 
     def healthy_instances(apps)
@@ -46,6 +34,24 @@ module VCAP::CloudController
       else
         0
       end
+    end
+    
+    def healthy_instances_bulk(apps)
+      healthy_instances(apps)
+    end
+
+    def find_crashes(app)
+      message = { :droplet => app.guid, :state => :CRASHED }
+      request_options = { :timeout => 2 }
+      crashed_instances = hm_request("status", message, request_options).first
+      crashed_instances ? crashed_instances["instances"] : []
+    end
+
+    def find_flapping_indices(app)
+      message = { :droplet => app.guid, :version => app.version, :state => :FLAPPING }
+      request_options = { :result_count => app.instances, :timeout => 2}
+      response = hm_request("status", message, request_options).first
+      (response && response["indices"]) ? response["indices"] : []
     end
 
     def update_autoscaling_fields(args)

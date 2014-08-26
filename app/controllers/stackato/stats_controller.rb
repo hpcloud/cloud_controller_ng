@@ -2,7 +2,7 @@ require 'errand'
 require 'stackato/collectd_json'
 
 module VCAP::CloudController
-  class StackatoStatsController < RestController::Base
+  class StackatoStatsController < RestController::BaseController
 
     def get_collectd
       if !params.has_key?('host') || !params.has_key?('plugin')

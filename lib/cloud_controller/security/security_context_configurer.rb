@@ -62,6 +62,10 @@ module VCAP::CloudController
         update_user_admin_status(token, user)
 
         return user
+      rescue Sequel::ValidationFailed
+        User.find(guid: user_guid.to_s)
+      rescue Sequel::UniqueConstraintViolation
+        User.find(guid: user_guid.to_s)
       end
     end
   end

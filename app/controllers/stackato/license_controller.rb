@@ -4,7 +4,7 @@ require "kato/config"
 require 'kato/cluster/util'
 
 module VCAP::CloudController
-  class StackatoLicenseController < RestController::Base
+  class StackatoLicenseController < RestController::BaseController
     allow_unauthenticated_access
 
     def set_license

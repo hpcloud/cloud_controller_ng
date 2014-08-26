@@ -13,7 +13,6 @@ module VCAP::CloudController
     attr_reader :message_bus
 
     def initialize(config, message_bus)
-
       @logger = Steno.logger("cc.autoscaling")
       @config = config
       @message_bus = message_bus

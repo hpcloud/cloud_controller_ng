@@ -73,26 +73,10 @@ module VCAP::RestAPI
     end
 
     def parse
-      # Queries with embedded ';'s need to double-escape the ; characters.
-      # This parser treats pairs of ';'s as a single, and splits on lone ';'s
-      segments = []
-      current_segments = []
-      query.split(/((?:;;)+)/).each do |q|
-        if q =~ /\A(?:;;)+\z/
-          current_segments << ';' * (q.size / 2)
-        elsif ! q[';']
-          current_segments << q
-        else
-          sub_queries = q.split(';')
-          current_segments << sub_queries.shift
-          segments << current_segments.join("")
-          current_segments = [sub_queries.pop]
-          segments += sub_queries
-        end
-      end
-      if current_segments.size > 0
-        segments << current_segments.join("")
-      end
+      v = SecureRandom.uuid
+      query.gsub!(";;", v)
+      segments = query.split(";")
+      segments.each {|segment| segment.gsub!(v, ";")}
 
       segments.collect do |segment|
         key, comparison, value = segment.split(/(:|>=|<=|<|>| IN )/, 2)
@@ -108,25 +92,15 @@ module VCAP::RestAPI
     end
 
     def query_filter(key, comparison, val)
-
-      glob = false
       col_type = column_type(key)
-
-      case col_type
-        when :foreign_key
-          return clean_up_foreign_key(key, val)
-        when :integer
-          val = clean_up_integer(val)
-        when :boolean
-          val = clean_up_boolean(key, val)
-        when :datetime
-          val = clean_up_datetime(val)
-        when :string, :citext
-          val, glob = clean_up_string(val)
-      end
+      return clean_up_foreign_key(key, val) if col_type == :foreign_key
 
       if comparison == " IN "
-        val = val.split(",")
+        glob = false
+        val = val.split(",").collect { |value| cast_query_value(col_type, key, value) }
+      else
+        glob = [:string, :citext].include?(col_type) && val.match(/#{Regexp.escape('*')}$/)
+        val = cast_query_value(col_type, key, val)
       end
 
       if val.nil?
@@ -138,16 +112,19 @@ module VCAP::RestAPI
       end
     end
 
-    def clean_up_string(q_val)
-
-      glob = false
-
-      if q_val.match /#{Regexp.escape('*')}$/
-        q_val = q_val.gsub(/\*$/, '%')
-        glob = true
+    def cast_query_value(col_type, key, value)
+      case col_type
+      when :foreign_key
+        return clean_up_foreign_key(col_type, value)
+      when :integer
+        clean_up_integer(value)
+      when :boolean
+        clean_up_boolean(key, value)
+      when :datetime
+        clean_up_datetime(value)
+      else
+        value
       end
-
-      return q_val, glob
     end
 
     def clean_up_foreign_key(q_key, q_val)
@@ -182,10 +159,10 @@ module VCAP::RestAPI
       column = model.db_schema[q_key.to_sym]
 
       if column[:db_type] == TINYINT_TYPE
-        q_val = TINYINT_FROM_TRUE_FALSE.fetch(q_val, q_val)
+        TINYINT_FROM_TRUE_FALSE.fetch(q_val, q_val)
+      else
+        q_val == "t"
       end
-
-      q_val
     end
 
     def clean_up_datetime(q_val)
@@ -199,11 +176,7 @@ module VCAP::RestAPI
     def column_type(query_key)
       return :foreign_key if query_key =~ /(.*)_(gu)?id$/
       column = model.db_schema[query_key.to_sym]
-      if column
-        column[:type] || column[:db_type].to_sym
-      else
-        nil
-      end
+      column && (column[:type] || column[:db_type].to_sym)
     end
 
     attr_accessor :model, :access_filter, :queryable_attributes, :query

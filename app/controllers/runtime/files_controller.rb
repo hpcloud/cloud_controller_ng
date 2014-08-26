@@ -7,7 +7,7 @@ module VCAP::CloudController
     model_class_name :App
 
     get "#{path_guid}/instances/:instance_id/files", :files
-    def files(guid, search_param, path = nil, opts = {})
+    def files(guid, search_param, path = nil)
       opts = { "allow_redirect" => true }.merge(params)
       app = find_guid_and_validate_access(:read, guid)
 
@@ -69,9 +69,9 @@ module VCAP::CloudController
       match = search_param.match(/^[+]?([0-9]+)$/)
       if match
         instance = match.captures[0].to_i
-        DeaClient.get_file_uri_for_active_instance_by_index(app, path, instance)
+        Dea::Client.get_file_uri_for_active_instance_by_index(app, path, instance)
       elsif search_param.match(/^[0-9a-zA-z]+$/)
-        DeaClient.get_file_uri_by_instance_guid(app, path, search_param)
+        Dea::Client.get_file_uri_by_instance_guid(app, path, search_param)
       else
         msg = "Request failed for app: #{app.name}, path: #{path || '/'}"
         msg << " as the search_param: #{search_param} is invalid."

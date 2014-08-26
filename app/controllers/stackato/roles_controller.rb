@@ -4,7 +4,7 @@ require "kato/cluster/node"
 require "kato/exceptions"
 
 module VCAP::CloudController
-  class StackatoRolesController < RestController::Base
+  class StackatoRolesController < RestController::BaseController
 
     # Example output...
     # {
