@@ -15,6 +15,7 @@ module VCAP::CloudController
         migration_id = SecureRandom.hex(4)
 
         App.db.transaction do
+
           current_space = Space[:guid => app.space_guid]
           current_organization = Organization[:guid => current_space.organization_guid]
 
@@ -81,7 +82,7 @@ module VCAP::CloudController
           if route.apps.size != 1 || !route.apps.include?(app)
             raise Errors::ApiError.new_from_details(
                       'StackatoAppMigrationValidationFailed',
-                      "Routes used by '#{app.name}' are also being used by #{app_names(app, apps)} and cannot be migrated.")
+                      "Routes used by '#{app.name}' are also being used by #{app_names(app, route.apps)} and cannot be migrated.")
           end
         }
 
