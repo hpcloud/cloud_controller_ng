@@ -122,6 +122,8 @@ module VCAP::RestAPI
         clean_up_boolean(key, value)
       when :datetime
         clean_up_datetime(value)
+      when :string, :citext
+        clean_up_string(value)
       else
         value
       end
@@ -171,6 +173,12 @@ module VCAP::RestAPI
 
     def clean_up_integer(q_val)
       return q_val.empty? ? nil : q_val.to_i
+    end
+
+    def clean_up_string(q_val)
+      if q_val.match /#{Regexp.escape('*')}$/
+        q_val.gsub(/\*$/, '%')
+      end
     end
 
     def column_type(query_key)
