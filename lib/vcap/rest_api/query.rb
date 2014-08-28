@@ -178,6 +178,8 @@ module VCAP::RestAPI
     def clean_up_string(q_val)
       if q_val.match /#{Regexp.escape('*')}$/
         q_val.gsub(/\*$/, '%')
+      else
+        q_val
       end
     end
 
