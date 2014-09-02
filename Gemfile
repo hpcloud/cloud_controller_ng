@@ -62,7 +62,6 @@ gem 'formatador'        ,    '0.2.4', :groups => [:default, :test]
 gem 'futuroscope'       ,    '0.1.5'
 gem 'grape'             ,    '0.7.0', :github => "intridea/grape", :ref => "df8caf7d4065a26d15db73dbdcc651e0abf06216"
 gem 'guard'             ,    '2.2.4', :groups => [:test]
-gem 'guard-rspec'       ,    '4.3.1', :groups => [:test]
 gem 'hashie'            ,    '2.1.1'
 gem 'http_parser.rb'    ,    '0.6.0'
 gem 'httpclient'        ,  '2.3.4.1'
