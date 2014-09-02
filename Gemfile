@@ -11,10 +11,10 @@ ruby '1.9.3' # prevents hard-to-diagnose errors with bundle install
 gem 'activemodel'       ,   '3.2.18'
 gem 'activerecord'      ,   '3.2.18'
 gem 'activesupport'     ,   '3.2.18'
-gem 'addressable'       ,    '2.3.6', :groups => [:test]
+gem 'addressable'       ,    '2.3.6', :groups => [:default, :test]
 gem 'allowy'            ,    '0.4.0'
 gem 'arel'              ,    '3.0.3'
-gem 'ast'               ,    '1.1.0'
+gem 'ast'               ,    '1.1.0', :groups => [:test]
 gem 'atomic'            ,   '1.1.14'
 gem 'axiom-types'       ,    '0.0.5'
 gem 'backports'         ,    '3.3.5'
@@ -28,7 +28,8 @@ gem 'cf-uaa-lib'        ,    '2.1.0', :github => "cloudfoundry/cf-uaa-lib", :ref
 gem 'ci_reporter'       ,    '1.9.0'
 gem 'clockwork'         ,    '0.7.0'
 gem 'cloudfront-signer' ,    '2.1.1'
-gem 'coderay'           ,    '1.1.0', :groups => [:development, :test]
+gem 'codeclimate-test-reporter',    '0.3.0', :groups => [:test]
+gem 'coderay'           ,    '1.1.0', :groups => [:operations, :development, :test]
 gem 'coercible'         ,    '0.2.0'
 gem 'colored'           ,      '1.2'
 gem 'columnize'         ,    '0.3.6', :groups => [:development]
@@ -37,8 +38,8 @@ gem 'crack'             ,    '0.4.2', :groups => [:test]
 gem 'daemons'           ,    '1.1.9'
 gem 'debugger'          ,    '1.6.6', :groups => [:development]
 gem 'debugger-linecache',    '1.2.0', :groups => [:development]
-gem 'debugger-ruby_core_source',    '1.3.2', :groups => [:development]
-gem 'delayed_job'       ,    '4.0.1'
+gem 'debugger-ruby_core_source',    '1.3.5', :groups => [:development]
+gem 'delayed_job'       ,    '4.0.0'
 gem 'delayed_job_active_record',    '4.0.1'
 gem 'descendants_tracker',    '0.0.3'
 gem 'diff-lcs'          ,    '1.2.5', :groups => [:default, :test]
@@ -54,18 +55,22 @@ gem 'fakefs'            ,    '0.5.2', :groups => [:test], :require => "fakefs/sa
 gem 'ffi'               ,    '1.9.3', :groups => [:test]
 gem 'fluent-logger'     ,    '0.4.7'
 gem 'fog'               ,   '1.22.1'
+gem 'fog-brightbox'     ,    '0.1.1'
+gem 'fog-core'          ,   '1.22.0'
+gem 'fog-json'          ,    '1.0.0'
 gem 'formatador'        ,    '0.2.4', :groups => [:default, :test]
 gem 'futuroscope'       ,    '0.1.5'
 gem 'grape'             ,    '0.7.0', :github => "intridea/grape", :ref => "df8caf7d4065a26d15db73dbdcc651e0abf06216"
 gem 'guard'             ,    '2.2.4', :groups => [:test]
-gem 'guard-rspec'       ,    '4.1.0', :groups => [:test]
+gem 'guard-rspec'       ,    '4.3.1', :groups => [:test]
 gem 'hashie'            ,    '2.1.1'
 gem 'http_parser.rb'    ,    '0.6.0'
 gem 'httpclient'        ,  '2.3.4.1'
 gem 'i18n'              ,    '0.6.9'
 gem 'ice_nine'          ,   '0.10.0'
+gem 'inflecto'          ,    '0.0.2'
 gem 'ipaddress'         ,    '0.8.0'
-gem 'json'              ,    '1.8.1'
+gem 'json'              ,    '1.8.1', :groups => [:test]
 gem 'json_pure'         ,    '1.8.1'
 gem 'librrd'            ,    '1.0.3'
 gem 'listen'            ,    '2.3.1', :groups => [:test]
@@ -74,58 +79,65 @@ gem 'loggregator_messages', '0.0.5.pre'
 gem 'lumberjack'        ,    '1.0.5', :groups => [:test]
 gem 'machinist'         ,    '1.0.6', :groups => [:test]
 gem 'membrane'          ,    '1.0.0'
-gem 'method_source'     ,    '0.8.2', :groups => [:development, :test]
+gem 'method_source'     ,    '0.8.2', :groups => [:operations, :development, :test]
 gem 'mime-types'        ,      '2.1'
-gem 'mini_portile'      ,    '0.5.2'
+gem 'mini_portile'      ,    '0.6.0'
 gem 'msgpack'           ,    '0.5.8'
-gem 'multi_json'        ,    '1.9.2', :groups => [:default, :test]
+gem 'multi_json'        ,    '1.10.1', :groups => [:default, :test]
 gem 'multi_xml'         ,    '0.5.5'
 gem 'multipart-post'    ,    '2.0.0'
 gem 'mustache'          ,   '0.99.4'
-gem 'mysql2'            ,   '0.3.14', :groups => [:db]
+gem 'mysql2'            ,   '0.3.13', :groups => [:db]
 gem 'nats'              , '0.5.0.beta.12'
 gem 'net-scp'           ,    '1.1.2'
 gem 'net-ssh'           ,    '2.7.0'
+gem 'netaddr'           ,    '1.5.0'
 gem 'newrelic_rpm'      , '3.7.3.204'
-gem 'nokogiri'          ,    '1.6.1'
+gem 'nokogiri'          ,  '1.6.2.1'
 gem 'parallel'          ,    '1.0.0', :groups => [:test]
 gem 'parallel_tests'    ,  '0.16.10', :groups => [:test]
-gem 'parser'            ,    '2.1.4'
+gem 'parser'            ,    '2.1.4', :groups => [:test]
 gem 'pg'                ,   '0.14.1', :groups => [:db, :default]
 gem 'posix-spawn'       ,    '0.3.8'
-gem 'powerpack'         ,    '0.0.9'
-gem 'pry'               , '0.9.12.6', :groups => [:development, :test]
+gem 'powerpack'         ,    '0.0.9', :groups => [:test]
+gem 'pry'               , '0.9.12.6', :groups => [:operations, :development, :test]
 gem 'rack'              ,    '1.5.2', :groups => [:default, :test]
 gem 'rack-accept'       ,    '0.4.5'
 gem 'rack-mount'        ,    '0.8.3'
 gem 'rack-protection'   ,    '1.5.1'
 gem 'rack-test'         ,    '0.6.2', :groups => [:test, :default]
-gem 'rainbow'           ,    '2.0.0'
-gem 'rake'              ,   '10.1.0'
+gem 'rainbow'           ,    '2.0.0', :groups => [:test]
+gem 'rake'              ,   '10.3.2'
 gem 'rb-fsevent'        ,    '0.9.3', :groups => [:test]
 gem 'rb-inotify'        ,    '0.9.2', :groups => [:test]
 gem 'rbvmomi'           ,    '1.6.0'
 gem 'redis'             ,    '3.0.6'
 gem 'rfc822'            ,    '0.1.4'
-gem 'rspec'             ,   '2.14.1', :groups => [:default, :test]
-gem 'rspec-core'        ,   '2.14.8', :groups => [:default, :test]
-gem 'rspec-expectations',   '2.14.5', :groups => [:default, :test]
-gem 'rspec-instafail'   ,    '0.2.4'
-gem 'rspec-mocks'       ,   '2.14.6', :groups => [:default, :test]
-gem 'rspec_api_documentation',    '2.0.0'
-gem 'rubocop'           ,   '0.18.1'
+gem 'roodi'             ,    '4.0.0', :groups => [:development]
+gem 'rspec'             ,    '~> 3.0', :groups => [:default, :test]
+gem 'rspec-collection_matchers',    '1.0.0', :groups => [:test]
+gem 'rspec-core'        ,    '3.0.4', :groups => [:default, :test]
+gem 'rspec-expectations',    '3.0.4', :groups => [:default, :test]
+gem 'rspec-instafail'   ,    '0.2.5', :groups => [:test]
+gem 'rspec-its'         ,    '1.0.1', :groups => [:test]
+gem 'rspec-mocks'       ,    '3.0.4', :groups => [:default, :test]
+gem 'rspec-support'     ,    '3.0.4', :groups => [:default, :test]
+gem 'rspec_api_documentation', '4.1.0'
+gem 'rubocop'           ,   '0.18.1', :groups => [:test]
 gem 'ruby-hmac'         ,    '0.4.0'
 gem 'ruby-termios'      ,    '0.9.6'
+gem 'ruby_parser'       ,    '3.6.2', :groups => [:development]
 gem 'rubyzip'           ,    '1.1.0'
-gem 'safe_yaml'         ,    '1.0.1', :groups => [:test]
-gem 'sequel'            ,   '3.48.0'
-gem 'simplecov'         ,    '0.8.2', :groups => [:test]
+gem 'safe_yaml'         ,    '1.0.3', :groups => [:test]
+gem 'sequel'            ,   '4.11.0'
+gem 'sexp_processor'    ,    '4.4.3', :groups => [:development]
+gem 'simplecov'         ,    '0.9.0', :groups => [:test]
 gem 'simplecov-html'    ,    '0.8.0', :groups => [:test]
 gem 'simplecov-rcov'    ,    '0.2.3', :groups => [:test]
-gem 'sinatra'           ,    '1.4.4'
+gem 'sinatra'           ,    '1.4.3'
 gem 'sinatra-contrib'   ,    '1.4.2'
-gem 'slop'              ,    '3.5.0', :groups => [:development, :test]
-gem 'sqlite3'           ,    '1.3.7', :groups => [:db, :default]
+gem 'slop'              ,    '3.5.0', :groups => [:test, :operations, :development]
+gem 'sqlite3'           ,    '1.3.7'
 gem 'squash_ruby'       ,    '1.4.0'
 gem 'stackato-kato'     ,    '3.0.0'
 gem 'stager-client'     ,    '0.0.2', :github => "cloudfoundry/stager-client", :ref => "04c2aee9"
@@ -133,7 +145,7 @@ gem 'steno'             ,    '1.1.0'
 gem 'steno-codec-text'  ,      '0.1', :path => "../steno-codec-text"
 gem 'talentbox-delayed_job_sequel',    '4.0.0'
 gem 'term-ansicolor'    ,    '1.0.7'
-gem 'thin'              ,    '1.6.1'
+gem 'thin'              ,    '1.6.2'
 gem 'thor'              ,   '0.18.1', :groups => [:test]
 gem 'thread_safe'       ,    '0.1.3'
 gem 'tilt'              ,    '1.4.1'
@@ -148,7 +160,7 @@ gem 'vcap-concurrency'  ,    '0.1.0', :github => "cloudfoundry/vcap-concurrency"
 gem 'vcap_common'       ,    '3.0.0', :path => '../common'
 gem 'virtus'            ,    '1.0.0'
 gem 'vmstat'            ,    '2.1.0'
-gem 'webmock'           ,   '1.17.4', :groups => [:test]
-gem 'xmlparser'         ,  '0.7.2.1'
+gem 'webmock'           ,   '1.18.0', :groups => [:test]
+gem 'xmlparser'         
 gem 'yajl-ruby'         ,    '1.1.0'
 

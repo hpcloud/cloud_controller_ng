@@ -50,7 +50,7 @@ module Sinatra
           error = ::VCAP::Errors::ApiError.new_from_details("NotFound")
           presenter = ErrorPresenter.new(error, in_test_mode?)
 
-          body Yajl::Encoder.encode(presenter.error_hash)
+          body MultiJson.dump(presenter.error_hash)
         end
       end
 
@@ -66,14 +66,13 @@ module Sinatra
           logger.error(presenter.log_message)
         end
 
-        payload = Yajl::Encoder.encode(presenter.error_hash)
-
         ::VCAP::Component.varz.synchronize do
-          varz[:recent_errors] << payload
+          varz[:recent_errors] << presenter.error_hash
         end
 
         request.env['vcap_exception_body_set'] = true
 
+        payload = MultiJson.dump(presenter.error_hash)
         body payload.concat("\n")
       end
     end
@@ -127,6 +126,7 @@ module Sinatra
         end
 
         ::VCAP::Request.current_id = @request_guid
+        ::VCAP::CloudController::Diagnostics.request_received(request)
       end
 
       after do
@@ -137,6 +137,7 @@ module Sinatra
         end
         headers['Content-Type'] = 'application/json;charset=utf-8'
         headers[::VCAP::Request::HEADER_NAME] = @request_guid
+        ::VCAP::CloudController::Diagnostics.request_complete
         ::VCAP::Request.current_id = nil
         nil
       end

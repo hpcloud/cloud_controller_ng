@@ -3,7 +3,7 @@ require "yajl"
 require "cloud_controller/stackato/droplet_accountability"
 
 module VCAP::CloudController
-  class StackatoStatusController < RestController::Base
+  class StackatoStatusController < RestController::BaseController
 
     def map_zone_usage(deas, zones)
       zones_breakdown = []
@@ -43,8 +43,8 @@ module VCAP::CloudController
       deas = StackatoDropletAccountability.get_all_dea_stats
       cluster = map_cluster_usage(deas)
       stats = {
-        :placement_zones => map_zone_usage(deas, DeaClient.dea_zones), # memory usage broken down by placement zones
-        :availability_zones => map_zone_usage(deas, DeaClient.dea_availability_zones), # memory usage broken down by availability zones
+        :placement_zones => map_zone_usage(deas, Dea::Client.dea_zones), # memory usage broken down by placement zones
+        :availability_zones => map_zone_usage(deas, Dea::Client.dea_availability_zones), # memory usage broken down by availability zones
         :cluster => cluster, # memory usage summarized across the cluster
         :deas => deas, # memory usage broken down by dea,
         # Stay compatible with the old /v2/usage api by setting the :usage and :allocated properties

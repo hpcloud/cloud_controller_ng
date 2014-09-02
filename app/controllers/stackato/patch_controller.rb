@@ -2,7 +2,7 @@
 require 'stackato/kato_shell'
 
 module VCAP::CloudController
-  class StackatoPatchController < RestController::Base
+  class StackatoPatchController < RestController::BaseController
 
     def get_patch_status
       safe_get_patch_status do

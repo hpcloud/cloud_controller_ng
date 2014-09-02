@@ -1,17 +1,24 @@
 source(ENV['RUBYGEMS_MIRROR'] || "https://rubygems.org")
 
-gem "builder", "~> 3.0.0"
-gem "activesupport", "~> 3.2"
+gem 'addressable'
+gem "builder", "~> 3.0.4"
+gem "activesupport", "~> 3.2.18"
+gem 'addressable',    '2.3.6', :groups => [:test]
 gem "rake"
 gem "bcrypt-ruby"
 gem "eventmachine", "~> 1.0.3"
 gem "fog"
+gem 'i18n'
+gem 'nokogiri', '~> 1.6.2'
+gem 'unf'
+gem 'netaddr'
 gem "rfc822"
 gem "sequel", "~> 3.48"
 gem "sinatra", "~> 1.4"
 gem "sinatra-contrib"
+gem 'multi_json'
 gem "yajl-ruby"
-gem "membrane", "~> 1.0.0"
+gem "membrane", "~> 1.0"
 gem "grape", "0.7.0", :github => "intridea/grape", :ref => "df8caf7d4065a26d15db73dbdcc651e0abf06216"
 gem 'errand', '0.7.3'
 gem 'librrd', '1.0.3'
@@ -33,21 +40,26 @@ gem "loggregator_messages", "~> 0.0.4.pre"
 gem "rbvmomi"
 
 # These are outside the test group in order to run rake tasks
-gem "rspec"
+gem "rspec", '~> 3.0'
 gem "ci_reporter"
 
 group :db do
   gem "mysql2"
   gem "pg"
-  gem "sqlite3"
+end
+
+group :operations do
+  gem 'pry'
 end
 
 group :development do
   gem "debugger"
   gem "pry"
+  gem 'roodi'
 end
 
 group :test do
+  gem 'codeclimate-test-reporter', require: false
   gem "simplecov"
   gem "simplecov-rcov"
   gem "machinist", "~> 1.0.6"
@@ -57,6 +69,11 @@ group :test do
   gem "rack-test"
   gem "parallel_tests"
   gem "fakefs", :require => "fakefs/safe"
+  gem 'rspec-instafail'
+  gem 'rspec_api_documentation', "2.0.0", git: 'https://github.com/zipmark/rspec_api_documentation.git'
+  gem 'rspec-collection_matchers'
+  gem 'rspec-its'
+  gem 'rubocop'
 end
 
 gem "steno-codec-text", :path => "../steno-codec-text"

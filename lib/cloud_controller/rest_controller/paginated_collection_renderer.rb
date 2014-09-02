@@ -87,7 +87,7 @@ module VCAP::CloudController::RestController
         res[:relations] = relations_map
       end
 
-      Yajl::Encoder.encode(res, :pretty => opts[:pretty] == 1 ? true : PreloadedObjectSerializer.pretty_default)
+      MultiJson.dump(res, :pretty => opts[:pretty] == 1 ? true : PreloadedObjectSerializer.pretty_default)
     end
 
     private

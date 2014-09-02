@@ -11,14 +11,31 @@ module VCAP::CloudController
       attribute :public, Message::Boolean, default: true
     end
 
-    query_parameters :service_guid, :service_instance_guid
+    query_parameters :active, :service_guid, :service_instance_guid
 
-    # Override this method because we want to enable the concept of
-    # deleted apps. This is necessary because we have an app events table
-    # which is a foreign key constraint on apps. Thus, we can't actually delete
-    # the app itself, but instead mark it as deleted.
-    #
-    # @param [String] guid The GUID of the object to delete.
+    allow_unauthenticated_access only: :enumerate
+    def enumerate
+      return super if SecurityContext.valid_token?
+
+      single_filter = @opts[:q]
+      service_guid = single_filter.split(':')[1] if single_filter && single_filter.start_with?('service_guid')
+
+      plans = ServicePlan.where(active: true, public: true)
+      if (service_guid.present?)
+        services = Service.where(guid: service_guid)
+        plans = plans.where(service_id: services.select(:id))
+      end
+
+      @opts.delete(:inline_relations_depth)
+      collection_renderer.render_json(
+        self.class,
+        plans,
+        self.class.path,
+        @opts,
+        {}
+      )
+    end
+
     def delete(guid)
       plan = find_guid_and_validate_access(:delete, guid)
 

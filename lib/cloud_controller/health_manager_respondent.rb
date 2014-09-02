@@ -1,6 +1,6 @@
 require "steno"
 
-require File.expand_path("../dea/dea_client", __FILE__)
+require File.expand_path("../dea/client", __FILE__)
 
 module VCAP::CloudController
   class << self

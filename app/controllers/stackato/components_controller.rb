@@ -5,7 +5,7 @@ require "kato/exceptions"
 require "kato/node_process_controller"
 
 module VCAP::CloudController
-  class StackatoComponentsController < RestController::Base
+  class StackatoComponentsController < RestController::BaseController
 
     # Return `kato process list` as JSON
     def get_components

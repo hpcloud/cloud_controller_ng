@@ -38,7 +38,7 @@ module VCAP::CloudController
         info[:cc_nginx]  = Kato::Config.get("cloud_controller_ng", "nginx").fetch("use_nginx", false)
       end
       StackatoClusterConfig.update_license_info(info, license)
-      Yajl::Encoder.encode(info)
+      MultiJson.dump(info)
     end
 
     def service_info
@@ -52,7 +52,7 @@ module VCAP::CloudController
         legacy_resp[svc_type][svc.label][svc.version] = legacy_svc_encoding(svc)
       end
 
-      Yajl::Encoder.encode(legacy_resp)
+      MultiJson.dump(legacy_resp)
     end
 
     private
@@ -108,5 +108,7 @@ module VCAP::CloudController
     end
 
     setup_routes
+
+    deprecated_endpoint("/info")
   end
 end

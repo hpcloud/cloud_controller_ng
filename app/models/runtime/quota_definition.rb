@@ -5,12 +5,12 @@ module VCAP::CloudController
 
     add_association_dependencies organizations: :destroy
 
-    export_attributes :name, :non_basic_services_allowed, :total_services,
-                      :memory_limit, :trial_db_allowed, :allow_sudo,
-                      :total_routes, :total_droplets
-    import_attributes :name, :non_basic_services_allowed, :total_services,
-                      :memory_limit, :trial_db_allowed, :allow_sudo,
-                      :total_routes, :total_droplets
+    export_attributes :name, :non_basic_services_allowed, :total_services, :total_routes,
+                      :memory_limit, :trial_db_allowed, :instance_memory_limit,
+                      :allow_sudo, :total_droplets
+    import_attributes :name, :non_basic_services_allowed, :total_services, :total_routes,
+                      :memory_limit, :trial_db_allowed, :instance_memory_limit,
+                      :allow_sudo, :total_droplets
 
     def validate
       validates_presence :name
@@ -20,6 +20,7 @@ module VCAP::CloudController
       validates_presence :total_routes
       validates_presence :memory_limit
       validates_presence :allow_sudo
+      errors.add(:memory_limit, :less_than_zero) if memory_limit && memory_limit < 0
     end
 
     def before_create
@@ -42,6 +43,10 @@ module VCAP::CloudController
     def self.configure(config)
       @default_quota_name = config[:default_quota_definition]
       @config = config
+    end
+
+    def self.default_quota_name
+      @default_quota_name
     end
 
     def self.default

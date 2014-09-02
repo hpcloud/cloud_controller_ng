@@ -4,7 +4,7 @@ require 'kato/config'
 require 'cloud_controller/stackato/config'
 
 module VCAP::CloudController
-  class StackatoConfigController < RestController::Base
+  class StackatoConfigController < RestController::BaseController
 
     CONFIG_BLACKLIST = YAML.load_file(File.join(File.dirname(__FILE__), "..", "..", "..", "config", "stackato", "config_blacklist.yml"))
     CONFIG_KEYS_BLACKLIST = CONFIG_BLACKLIST["key_blacklist"]

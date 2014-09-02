@@ -8,10 +8,12 @@ module VCAP::CloudController
       to_one    :space
       to_one    :service_plan
       to_many   :service_bindings
-      attribute :dashboard_url, String, exclude_in: [:create, :update]
     end
 
-    query_parameters :name, :space_guid, :service_plan_guid, :service_binding_guid, :gateway_name
+    query_parameters :name, :space_guid, :service_plan_guid, :service_binding_guid, :gateway_name, :organization_guid
+    # added :organization_guid here for readability, it is actually implemented as a search filter
+    # in the #get_filtered_dataset_for_enumeration method because ModelControl does not support
+    # searching on parameters that are not directly associated with the model
 
     def self.default_order_by
       :name
@@ -19,30 +21,32 @@ module VCAP::CloudController
 
     def self.translate_validation_exception(e, attributes)
       space_and_name_errors = e.errors.on([:space_id, :name])
-      quota_errors = e.errors.on(:org)
+      quota_errors = e.errors.on(:quota)
       service_plan_errors = e.errors.on(:service_plan)
       service_instance_name_errors = e.errors.on(:name)
       if space_and_name_errors && space_and_name_errors.include?(:unique)
-        Errors::ApiError.new_from_details("ServiceInstanceNameTaken", attributes["name"])
+        return Errors::ApiError.new_from_details("ServiceInstanceNameTaken", attributes["name"])
       elsif quota_errors
-        if quota_errors.include?(:free_quota_exceeded)
-          Errors::ApiError.new_from_details("ServiceInstanceFreeQuotaExceeded")
-        elsif quota_errors.include?(:paid_quota_exceeded)
-          Errors::ApiError.new_from_details("ServiceInstancePaidQuotaExceeded")
-        else
-          Errors::ApiError.new_from_details("ServiceInstanceInvalid", e.errors.full_messages)
+        if quota_errors.include?(:service_instance_space_quota_exceeded)
+          return Errors::ApiError.new_from_details("ServiceInstanceSpaceQuotaExceeded")
+        elsif quota_errors.include?(:service_instance_quota_exceeded)
+          return Errors::ApiError.new_from_details("ServiceInstanceQuotaExceeded")
         end
       elsif service_plan_errors
-        Errors::ApiError.new_from_details("ServiceInstanceServicePlanNotAllowed")
+        if service_plan_errors.include?(:paid_services_not_allowed_by_space_quota)
+          return Errors::ApiError.new_from_details("ServiceInstanceServicePlanNotAllowedBySpaceQuota")
+        elsif service_plan_errors.include?(:paid_services_not_allowed_by_quota)
+          return Errors::ApiError.new_from_details("ServiceInstanceServicePlanNotAllowed")
+        end
       elsif service_instance_name_errors
         if service_instance_name_errors.include?(:max_length)
-          Errors::ApiError.new_from_details("ServiceInstanceNameTooLong")
+          return Errors::ApiError.new_from_details("ServiceInstanceNameTooLong")
         else
-          Errors::ApiError.new_from_details("ServiceInstanceNameInvalid", attributes['name'])
+          return Errors::ApiError.new_from_details("ServiceInstanceNameEmpty", attributes['name'])
         end
-      else
-        Errors::ApiError.new_from_details("ServiceInstanceInvalid", e.errors.full_messages)
       end
+
+      Errors::ApiError.new_from_details("ServiceInstanceInvalid", e.errors.full_messages)
     end
 
     def self.not_found_exception(guid)
@@ -119,7 +123,6 @@ module VCAP::CloudController
       end
     end
 
-    get "/v2/service_instances/:guid", :read
     def read(guid)
       logger.debug "cc.read", model: :ServiceInstance, guid: guid
 
@@ -139,9 +142,25 @@ module VCAP::CloudController
       end
     end
 
-    delete "/v2/service_instances/:guid", :delete
     def delete(guid)
       do_delete(find_guid_and_validate_access(:delete, guid, ServiceInstance))
+    end
+
+    def get_filtered_dataset_for_enumeration(model, ds, qp, opts)
+      single_filter = opts[:q]
+
+      if single_filter && single_filter.start_with?('organization_guid')
+        org_guid = single_filter.split(':')[1]
+
+        Query.
+          filtered_dataset_from_query_params(model, ds, qp, { q: '' }).
+          select_all(:service_instances).
+          left_join(:spaces, id: :service_instances__space_id).
+          left_join(:organizations, id: :spaces__organization_id).
+          where(:organizations__guid => org_guid)
+      else
+        super(model, ds, qp, opts)
+      end
     end
 
     define_messages

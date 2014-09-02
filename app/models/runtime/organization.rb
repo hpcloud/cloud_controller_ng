@@ -7,6 +7,9 @@ module VCAP::CloudController
     one_to_many :service_instances,
                 dataset: -> { VCAP::CloudController::ServiceInstance.filter(space: spaces) }
 
+    one_to_many :managed_service_instances,
+                dataset: -> { VCAP::CloudController::ServiceInstance.filter(space: spaces, is_gateway_service: true) }
+
     one_to_many :apps,
                 dataset: -> { App.filter(space: spaces) }
 
@@ -42,10 +45,13 @@ module VCAP::CloudController
                   end
                 }
 
+    one_to_many :space_quota_definitions
+
     add_association_dependencies spaces: :destroy,
       service_instances: :destroy,
       private_domains: :destroy,
-      service_plan_visibilities: :destroy
+      service_plan_visibilities: :destroy,
+      space_quota_definitions: :destroy
 
     define_user_group :users
     define_user_group :managers, 
@@ -55,14 +61,22 @@ module VCAP::CloudController
 
     strip_attributes  :name
 
-    default_order_by  :name
-
     export_attributes :name, :billing_enabled, :quota_definition_guid, :status, :is_default
     import_attributes :name, :billing_enabled,
                       :user_guids, :manager_guids, :billing_manager_guids,
                       :auditor_guids, :private_domain_guids, :quota_definition_guid,
                       :status, :domain_guids, :is_default
 
+    def remove_user(user)
+      raise VCAP::Errors::ApiError.new_from_details("AssociationNotEmpty", "user", "spaces in the org") unless ([user.spaces, user.audited_spaces, user.managed_spaces].flatten & spaces).empty?
+      super(user)
+    end
+
+    def remove_user_recursive(user)
+      ([user.spaces, user.audited_spaces, user.managed_spaces].flatten & spaces).each do |space|
+        user.remove_spaces space
+      end
+    end
 
     def self.user_visibility_filter(user)
       Sequel.or(
@@ -78,7 +92,6 @@ module VCAP::CloudController
     end
 
     def before_save
-      super
       if column_changed?(:billing_enabled) && billing_enabled?
         @is_billing_enabled = true
       end
@@ -101,6 +114,7 @@ module VCAP::CloudController
           Space.where(:is_default => true).update(:is_default => false)
         end
       end
+      super
     end
 
     def after_save
@@ -140,13 +154,16 @@ module VCAP::CloudController
 
     def add_default_quota
       unless quota_definition_id
+        if QuotaDefinition.default.nil?
+          err_msg = Errors::ApiError.new_from_details("QuotaDefinitionNotFound", QuotaDefinition.default_quota_name).message
+          raise Errors::ApiError.new_from_details("OrganizationInvalid", err_msg)
+        end
         self.quota_definition_id = QuotaDefinition.default.id
       end
     end
 
-    def memory_remaining
-      memory_used = apps_dataset.sum(Sequel.*(:memory, :instances)) || 0
-      quota_definition.memory_limit - memory_used
+    def has_remaining_memory(mem)
+      memory_remaining >= mem
     end
 
     def active?
@@ -179,6 +196,11 @@ module VCAP::CloudController
       unless VCAP::CloudController::SecurityContext.admin?
         errors.add(field_name, :not_authorized)
       end
+    end
+
+    def memory_remaining
+      memory_used = apps_dataset.sum(Sequel.*(:memory, :instances)) || 0
+      quota_definition.memory_limit - memory_used
     end
   end
 end

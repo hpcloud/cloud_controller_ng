@@ -3,7 +3,7 @@ module VCAP::CloudController
   class ZonesController < RestController::ModelController
 
     def zone(zone_name)
-      zones = DeaClient.dea_zones
+      zones = Dea::Client.dea_zones
 
       formatted_zones = format_zones(zones, '/v2/zones/', zone_name)
 
@@ -15,7 +15,7 @@ module VCAP::CloudController
     end
 
     def availability_zone(zone_name)
-      zones = DeaClient.dea_availability_zones
+      zones = Dea::Client.dea_availability_zones
 
       formatted_zones = format_zones(zones, '/v2/availability_zones/', zone_name)
 
@@ -27,7 +27,7 @@ module VCAP::CloudController
     end
 
     def list_zones
-      zones = DeaClient.dea_zones
+      zones = Dea::Client.dea_zones
 
       formatted_zones = format_zones(zones, '/v2/zones/')
 
@@ -35,7 +35,7 @@ module VCAP::CloudController
     end
 
     def list_availability_zone
-      zones = DeaClient.dea_availability_zones
+      zones = Dea::Client.dea_availability_zones
 
       formatted_zones = format_zones(zones, '/v2/availability_zones/')
 

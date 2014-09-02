@@ -2,7 +2,7 @@
 require 'stackato/kato_shell'
 
 module VCAP::CloudController
-  class StackatoExportController < RestController::Base
+  class StackatoExportController < RestController::BaseController
 
     def export
       raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?

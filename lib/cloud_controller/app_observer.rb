@@ -1,25 +1,22 @@
 require "cloud_controller/multi_response_message_bus_request"
 require "models/runtime/droplet_uploader"
-require "cloud_controller/diego_stager_task"
+require "cloud_controller/dea/app_stopper"
+require "cloud_controller/backends"
 
 module VCAP::CloudController
   module AppObserver
     class << self
       extend Forwardable
 
-      def configure(config, message_bus, dea_pool, stager_pool, health_manager_client)
-        @config = config
-        @message_bus = message_bus
-        @dea_pool = dea_pool
-        @stager_pool = stager_pool
-        @health_manager_client = health_manager_client
+      def configure(backends)
+        @backends = backends
       end
 
       def deleted(app)
-        AppStopper.new(@message_bus).stop(app)
+        @backends.find_one_to_run(app).stop
 
         delete_package(app) if app.package_hash
-        delete_buildpack_cache(app) if app.staged?
+        delete_buildpack_cache(app)
       end
       
       def logger
@@ -33,15 +30,14 @@ module VCAP::CloudController
         if changes.has_key?(:state)
           react_to_state_change(app)
         elsif changes.has_key?(:instances)
-          delta = changes[:instances][1] - changes[:instances][0]
-          react_to_instances_change(app, delta)
+          # changes[:instances] is reconsulted in Dea::Backend
+          react_to_instances_change(app)
         elsif app.version_updated
-          @health_manager_client.notify_of_new_live_version( :app_id => app.guid, :version => app.version )
-          react_to_version_change(app)
+          @backends.react_to_version_change(app)
         elsif (changes.has_key?(:package_hash) &&
                changes[:package_hash][0] &&
                changes[:package_state] = ["STAGED", "PENDING"])
-          react_to_droplet_hash_change(app)
+          @backends.react_to_droplet_hash_change(app)
         elsif (changes.keys & [:min_instances, :max_instances,
                               :min_cpu_threshold, :max_cpu_threshold,
                               :autoscale_enabled]).size > 0 && @health_manager_client
@@ -49,12 +45,8 @@ module VCAP::CloudController
           changes[:react] = true
           # Health manager refers to "app.guid" as "app[:appid]"
           changes[:appid] = app.guid
-          @health_manager_client.update_autoscaling_fields(changes)
+          @backends.update_autoscaling_fields(changes)
         end
-      end
-
-      def run
-        @stager_pool.register_subscriptions
       end
 
       private
@@ -69,107 +61,30 @@ module VCAP::CloudController
         Jobs::Enqueuer.new(delete_job, queue: "cc-generic").enqueue()
       end
 
-      def dependency_locator
-        CloudController::DependencyLocator.instance
-      end
-
-      def stage_app(app, &completion_callback)
-        if app.package_hash.nil? || app.package_hash.empty?
-          raise Errors::ApiError.new_from_details("AppPackageInvalid", "The app package hash is empty")
-        end
-
-        if app.buildpack.custom? && !app.custom_buildpacks_enabled?
-          raise Errors::ApiError.new_from_details("CustomBuildpacksDisabled")
-        end
-
-
-        if @config[:diego] && (app.environment_json || {})["CF_DIEGO_BETA"] == "true"
-          task = DiegoStagerTask.new(@config[:staging][:timeout_in_seconds], @message_bus, app, dependency_locator.blobstore_url_generator)
-        else
-          task = AppStagerTask.new(@config, @message_bus, app, @dea_pool, @stager_pool, dependency_locator.blobstore_url_generator)
-        end
-
-        task.stage(&completion_callback)
-      end
-
-      def stage_if_needed(app, &success_callback)
-        if app.needs_staging?
-          # Bug 104558 - Allow for dead droplet-slots to be made available
-          num_tries = @config[:staging].fetch(:num_repeated_tries, 10)
-          delay = @config[:staging].fetch(:time_between_tries, 3)
-          (num_tries + 1).times do | iter |
-            begin
-              app.last_stager_response = stage_app(app, &success_callback)
-              if iter > 0
-                logger.info("Staged #{app.name}")
-              end
-              break
-            rescue Errors::ApiError => e
-              raise if iter == num_tries || e.name != "StagingError"
-              logger.warn("#{iter + 1}/#{num_tries}: Waiting #{delay} secs for more resources to stage #{app.name}")
-              sleep delay
-            end
-          end
-        else
-          success_callback.call(:started_instances => 0)
-        end
-      end
-
       def react_to_state_change(app)
-        if app.started?
-          stage_if_needed(app) do |staging_result|
-            started_instances = staging_result[:started_instances] || 0
-            DeaClient.start(app, :instances_to_start => app.instances - started_instances)
-            broadcast_app_updated(app)
-          end
+        if !app.started?
+          @backends.find_one_to_run(app).stop
+          return
+        end
+
+        staging_backend = @backends.find_one_to_stage(app)
+        app.mark_for_restaging if staging_backend.requires_restage?
+
+        if app.needs_staging?
+          @backends.validate_app_for_staging(app)
+          staging_backend.stage
         else
-          DeaClient.stop(app)
-          broadcast_app_updated(app)
+          @backends.find_one_to_run(app).start
         end
       end
 
-      def react_to_version_change(app)
+      def react_to_instances_change(app)
         if app.started?
-          stage_if_needed(app) do |staging_result|
-            DeaClient.start(app, :instances_to_start => app.instances) # this will temporarily cause 2x instances, allowing the HM to gracefully terminate the old ones
-            broadcast_app_updated(app)
-          end
-        else
-          DeaClient.stop(app)
-          broadcast_app_updated(app)
+          @backends.find_one_to_run(app).scale
+          @backends.broadcast_app_updated(app)
         end
       end
-
-
-      def react_to_instances_change(app, delta)
-        if app.started?
-          DeaClient.change_running_instances(app, delta)
-          broadcast_app_updated(app)
-        end
-      end
-
-      def react_to_droplet_hash_change(app)
-        if app.started?
-          stage_if_needed(app) do |staging_result|
-            DeaClient.start(app, :instances_to_start => app.instances) # this will temporarily cause 2x instances, allowing the HM to gracefully terminate the old ones
-            @health_manager_client.notify_of_new_live_version( :app_id => app.guid, :version => app.version )
-            broadcast_app_updated(app)
-          end
-        else
-          DeaClient.stop(app)
-          broadcast_app_updated(app)
-        end
-      end
-
-      def react_to_package_state_change(app)
-        stage_if_needed(app) do |_|
-          broadcast_app_updated(app)
-        end
-      end
-
-      def broadcast_app_updated(app)
-        @message_bus.publish("droplet.updated", droplet: app.guid)
-      end
+      
     end
   end
 end

@@ -2,7 +2,7 @@
 require "kato/local/node"
 
 module VCAP::CloudController
-  class StackatoNodeIdController < RestController::Base
+  class StackatoNodeIdController < RestController::BaseController
     allow_unauthenticated_access
 
     def get_node_id

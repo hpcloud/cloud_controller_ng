@@ -39,8 +39,10 @@ module VCAP::CloudController::RestController
     private
 
     def to_hash(controller, obj, opts, depth, parents, relations=nil)
-      obj_hash = obj.to_hash(attrs: opts.delete(:export_attrs))
+      export_attrs = opts.delete(:export_attrs)
+
       rel_hash = relations_hash(controller, obj, opts, depth, parents, relations)
+      obj_hash = obj.to_hash(attrs: export_attrs)
       entity_hash = obj_hash.merge(rel_hash)
 
       metadata_hash = {
@@ -135,7 +137,7 @@ module VCAP::CloudController::RestController
             end
           else
             associated_model_instances = get_preloaded_association_contents!(obj, association)
-            if associated_model_instances.count <= max_number_of_associated_objects_to_inline
+            if max_number_of_associated_objects_to_inline.nil? || associated_model_instances.count <= max_number_of_associated_objects_to_inline
               if relations == nil
                 response[relationship_name.to_s] = associated_model_instances.map do |associated_model_instance|
                   to_hash(associated_controller, associated_model_instance, opts, depth + 1, parents)

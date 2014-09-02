@@ -55,7 +55,7 @@ resource "Apps", :type => :api do
       EOD
 
       client.put "/v2/apps/#{guid}", Yajl::Encoder.encode(buildpack: buildpack), headers
-      status.should == 201
+      parsed_response.status.should == 201
       standard_entity_response parsed_response, :app, :buildpack => buildpack
 
       audited_event VCAP::CloudController::Event.find(:type => "audit.app.update", :actee => guid)
@@ -73,7 +73,7 @@ resource "Apps", :type => :api do
       EOD
 
       client.put "/v2/apps/#{guid}", Yajl::Encoder.encode(buildpack: buildpack), headers
-      status.should == 201
+      parsed_response.status.should == 201
       standard_entity_response parsed_response, :app, :buildpack => admin_buildpack.name
 
       audited_event VCAP::CloudController::Event.find(:type => "audit.app.update", :actee => guid)

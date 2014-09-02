@@ -57,8 +57,6 @@ module VCAP::CloudController
     add_association_dependencies spaces: :nullify
     add_association_dependencies managed_spaces: :nullify
 
-    default_order_by  :id
-
     export_attributes :admin, :active, :default_space_guid, :guid, :username
 
     import_attributes :guid, :admin, :active, :username,
@@ -112,6 +110,12 @@ module VCAP::CloudController
 
     def active?
       active
+    end
+
+    def remove_spaces(space)
+      remove_space space
+      remove_managed_space space
+      remove_audited_space space
     end
 
     def self.user_visibility_filter(_)

@@ -6,7 +6,21 @@ module VCAP::CloudController
       app.space.developers.include?(context.user)
     end
 
-    alias :update? :create?
-    alias :delete? :create?
+    def update?(app)
+      create?(app)
+    end
+
+    def delete?(app)
+      create?(app)
+    end
+
+    def read_env?(app)
+     return true if admin_user?
+     app.space.developers.include?(context.user)
+    end
+
+    def read_env_with_token?(app)
+      read_with_token?(app)
+    end
   end
 end

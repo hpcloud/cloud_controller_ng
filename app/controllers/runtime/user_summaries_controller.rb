@@ -14,7 +14,7 @@ module VCAP::CloudController
       end
 
       user = find_guid_and_validate_access(:read, guid)
-      Yajl::Encoder.encode UserSummaryPresenter.new(user).to_hash
+      MultiJson.dump UserSummaryPresenter.new(user).to_hash
     end
   end
 end
