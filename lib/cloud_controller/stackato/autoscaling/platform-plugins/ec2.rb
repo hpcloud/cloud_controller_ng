@@ -50,7 +50,7 @@ class EC2Plugin < Plugin
               :flavor_id => get_config["instance_type"],
               :image_id => get_config["template_id"],
               :key_name => get_config["keypair"],
-              :security_groups => get_config["security_groups"],
+              :security_group_ids => get_config["security_group_ids"],
               :user_data_encoded => user_data,
               :tags => tags
         )

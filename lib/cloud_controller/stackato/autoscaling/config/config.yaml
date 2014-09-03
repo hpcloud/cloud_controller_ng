@@ -97,7 +97,7 @@ platform_config:
     compute:
       region: us-west-2
 
-    security_group: [ "stackato" ]
+    security_group_ids: [ "stackato" ]
     keypair: <KEYPAIR NAME>
 
     tags:
