@@ -1,5 +1,6 @@
 require "cloud_controller/dea/app_stopper"
 require "cloud_controller/dea/file_uri_result"
+require "stackato/logyard"
 
 module VCAP::CloudController
   module Dea
