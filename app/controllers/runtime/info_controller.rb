@@ -40,8 +40,10 @@ module VCAP::CloudController
         info[:user] = user.guid
         info[:stackato][:cc_nginx] = cc_nginx
         info[:maintenance_mode] = Config.config[:maintenance_mode]
+        if user.admin?
+          StackatoClusterConfig.update_license_info(info, license)
+        end
       end
-      StackatoClusterConfig.update_license_info(info, license)
 
       MultiJson.dump(info)
     end
