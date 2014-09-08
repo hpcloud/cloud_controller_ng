@@ -31,9 +31,7 @@ ifdef PKG_NPM_REGISTRY
     NPM_INSTALL_ARGS := $(addprefix --registry $(PKG_NPM_REGISTRY) , $(NPM_INSTALL_ARGS))
 endif
 
-#QQQ: Reinstate this one
-# RSYNC_EXCLUDE=--exclude=.git* --exclude=/Makefile --exclude=/.stackato-pkg --exclude=/debian --exclude=/etc --exclude=/spec
-RSYNC_EXCLUDE=--exclude=.git* --exclude=/Makefile --exclude=/.stackato-pkg --exclude=/debian --exclude=/etc
+RSYNC_EXCLUDE=--exclude=.git* --exclude=/Makefile --exclude=/.stackato-pkg --exclude=/debian --exclude=/etc --exclude=/spec
 
 all:
 	@ true
