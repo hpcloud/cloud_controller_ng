@@ -62,7 +62,7 @@ module VCAP::CloudController
             :UUID => STACKATO_UUID
         }
       }
-      if user.admin? || true
+      if user.admin?
         StackatoClusterConfig.update_license_info(info, license)
       end
       Yajl::Encoder.encode(info)
