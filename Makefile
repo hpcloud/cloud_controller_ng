@@ -97,6 +97,12 @@ install-test-deps:
 	sed -i.bak s/^BUNDLE_WITHOUT:/#BUNDLE_WITHOUT:/ .bundle/config
 	bundle install
 
+# xxx: Sep '14 - cc_ng tests currently rely on spec_helper.rb from kato/spec-common
+install-spec-common:
+	git clone 'http://git-mirrors.activestate.com/github.com/ActiveState/kato.git' /home/stackato/stackato/katotwo
+	cp /home/stackato/stackato/katotwo/spec-common /home/stackato/stackato/kato
+	rm -rf /home/stackato/stackato/katotwo
+
 # Modified from http://docker.readthedocs.org/en/v0.7.3/examples/postgresql_service/
 install-local-psql:
 	sudo apt-get update
@@ -111,4 +117,4 @@ install-local-psql:
 
 
 # Runs tests assuming a Sentinel-based install is on the machine and psql needs to be installed.
-config-ci: install-test-deps install-local-psql
+config-ci: install-spec-common install-test-deps install-local-psql
