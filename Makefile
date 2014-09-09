@@ -93,7 +93,11 @@ dev-push:
 # Make sure to set DB_CONNECTION to the created database - i.e if running on a full VM:
 # - export DB_CONNECTION="postgres://postgres:`kato config get stackato_rest db/database/password`@localhost:5432"
 unit-test:
+ifndef DB_CONNECTION
+	DB_CONNECTION="postgres://postgres:postgres@localhost:5432" bundle exec rspec spec/unit
+else
 	bundle exec rspec spec/unit
+endif
 
 install-test-deps:
 	sed -i.bak s/^BUNDLE_WITHOUT:/#BUNDLE_WITHOUT:/ .bundle/config
@@ -108,14 +112,12 @@ install-spec-common:
 # Modified from http://docker.readthedocs.org/en/v0.7.3/examples/postgresql_service/
 install-local-psql:
 	sudo apt-get update
-	sudo apt-get -y install python-software-properties software-properties-common wget vim
 	wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
 	echo "deb http://apt.postgresql.org/pub/repos/apt/ precise-pgdg main" | sudo tee --append /etc/apt/sources.list.d/pgdg.list
 	sudo apt-get update
 	-sudo apt-get -y install postgresql-9.3 postgresql-client-9.3 postgresql-contrib-9.3
 	sudo su - postgres -c "psql -U postgres -d postgres -c \"alter user postgres with password 'postgres';\""
 	sudo su - postgres -c "psql -U postgres -d postgres -c \"create database cc_test;\""
-	export DB_CONNECTION="postgres://postgres:postgres@localhost:5432"
 
 
 # Runs tests assuming a Sentinel-based install is on the machine and psql needs to be installed.
