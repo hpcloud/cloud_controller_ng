@@ -84,3 +84,33 @@ endif
 dev-push:
 	rsync -rtv --exclude .stackato-pkg --exclude .git \
 		. stackato@${TARGET}:/s/code/cloud_controller_ng
+
+# Test targets
+
+# Runs tests assuming everything has been setup on the machine.
+# Make sure to set DB_CONNECTION to the created database - i.e if running on a full VM:
+# - export DB_CONNECTION="postgres://postgres:`kato config get stackato_rest db/database/password`@localhost:5432"
+unit-test:
+	bundle exec rspec spec/unit
+
+install-test-deps:
+	sed -i.bak s/^BUNDLE_WITHOUT:/#BUNDLE_WITHOUT:/ .bundle/config
+	bundle install
+
+install-spec-common:
+	git clone 'git@github.com:ActiveState/kato.git' /home/stackato/stackato/kato
+
+# Modified from http://docker.readthedocs.org/en/v0.7.3/examples/postgresql_service/
+install-local-psql:
+	apt-get update
+	apt-get -y install python-software-properties software-properties-common wget vim
+	wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+	echo "deb http://apt.postgresql.org/pub/repos/apt/ precise-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+	apt-get update
+	-apt-get -y install postgresql-9.3 postgresql-client-9.3 postgresql-contrib-9.3
+	su - postgres -c "psql -U postgres -d postgres -c \"alter user postgres with password 'postgres';\""
+	su - postgres -c "psql -U postgres -d postgres -c \"create database cc_test;\""
+	export DB_CONNECTION="postgres://postgres:postgres@localhost:5432"
+
+# Runs tests assuming a Sentinel-based install is on the machine and psql needs to be installed.
+config-ci: install-spec-common install-test-deps install-local-psql
