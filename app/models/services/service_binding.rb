@@ -56,8 +56,12 @@ module VCAP::CloudController
 
 
     def bind!
-      client.bind(self)
-
+      begin
+        client.bind(self)
+      rescue Errno::ECONNREFUSED
+        raise VCAP::Errors::ApiError.new_from_details("ServiceInstanceInvalid",
+                                          bind_failure_suggestion($!.message))
+      end
       begin
         save
       rescue => e
@@ -80,7 +84,12 @@ module VCAP::CloudController
     end
 
     def before_destroy
-      client.unbind(self)
+      begin
+        client.unbind(self)
+      rescue Errno::ECONNREFUSED
+        raise VCAP::Errors::ApiError.new_from_details("ServiceBindingNotFound",
+                                          bind_failure_suggestion($!.message))
+      end
       super
     end
 
@@ -137,6 +146,10 @@ module VCAP::CloudController
       client.unbind(self)
     rescue => unbind_e
       logger.error "Unable to unbind #{self}: #{unbind_e}"
+    end
+
+    def bind_failure_suggestion(msg)
+      return "#{msg}: is the database service currently enabled?"
     end
 
   end
