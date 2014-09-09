@@ -97,9 +97,6 @@ install-test-deps:
 	sed -i.bak s/^BUNDLE_WITHOUT:/#BUNDLE_WITHOUT:/ .bundle/config
 	bundle install
 
-install-spec-common:
-	git clone 'git@github.com:ActiveState/kato.git' /home/stackato/stackato/kato
-
 # Modified from http://docker.readthedocs.org/en/v0.7.3/examples/postgresql_service/
 install-local-psql:
 	apt-get update
@@ -111,6 +108,7 @@ install-local-psql:
 	su - postgres -c "psql -U postgres -d postgres -c \"alter user postgres with password 'postgres';\""
 	su - postgres -c "psql -U postgres -d postgres -c \"create database cc_test;\""
 	export DB_CONNECTION="postgres://postgres:postgres@localhost:5432"
+	
 
 # Runs tests assuming a Sentinel-based install is on the machine and psql needs to be installed.
-config-ci: install-spec-common install-test-deps install-local-psql
+config-ci: install-test-deps install-local-psql
