@@ -89,12 +89,12 @@ dev-push:
 
 # Test targets
 
-# Runs tests assuming everything has been setup on the machine.
-# Make sure to set DB_CONNECTION to the created database - i.e if running on a full VM:
-# - export DB_CONNECTION="postgres://postgres:`kato config get stackato_rest db/database/password`@localhost:5432"
+# Runs tests assuming everything has been setup on the machine:
+# - spec-common is at ../../kato/spec-common
+# - DB_CONNECTION env var is set to an available psql database (with cc_test table available - see README.md)
 unit-test:
 ifndef DB_CONNECTION
-	DB_CONNECTION="postgres://postgres:postgres@localhost:5432" bundle exec rspec spec/unit
+	PATH="/home/stackato/stackato/kato/bin:${PATH}" DB_CONNECTION="postgres://postgres:postgres@localhost:5432" bundle exec rspec spec/unit
 else
 	bundle exec rspec spec/unit
 endif
