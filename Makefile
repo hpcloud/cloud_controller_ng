@@ -93,12 +93,8 @@ dev-push:
 # - spec-common is at ../../kato/spec-common
 # - DB_CONNECTION env var is set to an available psql database (with cc_test table available - see README.md)
 unit-test:
-ifdef JENKINS_BUILD
-	mkdir -p /home/stackato/stackato/logs
-	sudo ln -s /home/stackato/stackato /s
-endif
 ifndef DB_CONNECTION
-	PATH="/home/stackato/stackato/kato/bin:${PATH}" DB_CONNECTION="postgres://postgres:postgres@localhost:5432" bundle exec rspec spec/unit
+	DB_CONNECTION="postgres://postgres:postgres@localhost:5432" bundle exec rspec spec/unit
 else
 	bundle exec rspec spec/unit
 endif
