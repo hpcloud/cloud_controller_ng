@@ -6,6 +6,11 @@ module TestConfig
     @config = load(overrides)
   end
 
+  # Returns true if the AUTOMATED_BUILD env-var is set and we are running in a CI instance.
+  def self.automated_build?
+    ENV['AUTOMATED_BUILD']
+  end
+
   def self.reset
     TestConfig.override({})
   end
@@ -16,7 +21,8 @@ module TestConfig
 
   def self.load(overrides={})
     config = defaults.merge(overrides)
-    config_hash = ::Kato::Util.symbolize_keys(kato_config)
+    config_yaml = automated_build? ? yaml_config(File.join(Paths::CONFIG, 'cloud_controller.yml')) : kato_config
+    config_hash = ::Kato::Util.symbolize_keys(config_yaml)
 
     config_override = {
       :db => {
@@ -34,7 +40,8 @@ module TestConfig
   end
   
   def self.aok_config
-    config_hash = ::Kato::Util.symbolize_keys(kato_config('aok'))
+    config_yaml = automated_build? ? yaml_config(nil) : kato_config('aok')
+    config_hash = ::Kato::Util.symbolize_keys(config_yaml)
     return config_hash
   end
 
@@ -63,6 +70,15 @@ module TestConfig
       return YAML.load(config_yaml)
     else
       return {}
+    end
+  end
+
+  # Loads config from a given filepath, used during automated testing where loading via kato isn't possible
+  def self.yaml_config(filepath)
+    if filepath.nil?
+      {}
+    else
+      return YAML.load_file(filepath)
     end
   end
 
