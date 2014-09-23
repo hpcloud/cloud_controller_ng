@@ -15,8 +15,10 @@ class Fog::Storage::Local::File
         next
       end
       # create directory if it doesn't already exist
-      unless ::File.directory?(dir_path)
+      begin
         Dir.mkdir(dir_path)
+      rescue ::Errno::EEXIST
+        raise unless ::File.directory?(dir_path)
       end
     end
     file = ::File.new(path, 'wb')
