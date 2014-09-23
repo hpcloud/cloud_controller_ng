@@ -72,18 +72,29 @@ class Blobstore
     end
   end
 
-  def cp_to_blobstore(source_path, destination_key)
+  def cp_to_blobstore(source_path, destination_key, retries=2)
     start = Time.now
     logger.info("blobstore.cp-start", destination_key: destination_key, source_path: source_path, bucket: @directory_key)
     size = -1
 
     File.open(source_path) do |file|
       size = file.size
-      files.create(
-        :key => partitioned_key(destination_key),
-        :body => file,
-        :public => local?,
-      )
+      begin
+        files.create(
+          :key => partitioned_key(destination_key),
+          :body => file,
+          :public => local?,
+        )
+      rescue SystemCallError => e # work around https://github.com/fog/fog/issues/3137
+        logger.debug("blobstore.cp-retry",
+                    error: e,
+                    destination_key: destination_key,
+                    remaining_retries: retries
+                    )
+        retries -= 1
+        retry unless retries < 0
+        raise e
+      end
     end
 
     duration = Time.now - start
