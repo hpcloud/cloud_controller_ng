@@ -17,7 +17,7 @@ module VCAP::CloudController
       to_one     :space_quota_definition,  optional_in: :create
     end
 
-    query_parameters :name, :organization_guid, :developer_guid, :app_guid
+    query_parameters :name, :organization_guid, :developer_guid, :manager_guid, :app_guid
 
     deprecated_endpoint "#{path_guid}/domains"
 
