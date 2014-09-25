@@ -53,7 +53,7 @@ module.exports = function(req, res) {
             if (!called) { // bug, seems to emit twice
                 if (buildpackFilePath) {
                     req.log.info('Handled buildpack upload for filename %s stored @ file: %s', buildpackFileName, buildpackFilePath);
-                    ForwardProxies.proxyUploadToCloudController(req, res, buildpackFilePath, buildpackFileName, resources, 'buildpack');
+                    ForwardProxies.proxyUploadToCloudController(req, res, buildpackFilePath, buildpackFileName, resources, {}, 'buildpack');
                     called = true;
                 } else {
                     req.log.error('Cannot process buildpack upload request: filepath attribute is not not mapped');
