@@ -48,6 +48,12 @@ module VCAP::CloudController::RestController
       @opts    = common_params.parse(params)
       @sinatra = sinatra
 
+      if @opts[:query_as_user] && @opts[:query_as_user] == 'true'
+        if user && roles
+          roles.admin = false
+        end
+      end
+
       inject_dependencies(dependencies)
     end
 

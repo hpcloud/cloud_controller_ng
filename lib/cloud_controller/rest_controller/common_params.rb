@@ -24,6 +24,7 @@ module VCAP::CloudController::RestController
         ["q", String],
         ["order-direction", String], # "asc" (default) / "desc"
         ["order-by", String],
+        ['query-as-user',           String  ],
 
       ].each do |key, klass|
         val = params[key]
