@@ -159,15 +159,6 @@ module VCAP::CloudController
 
     def self.housekeeping
       logger.debug2 "Housekeeping iteration..."
-      deas = redis { |r| r.smembers "deas" }
-      deas.each do |dea|
-        logger.debug2 "Housekeeping for dea:#{dea}"
-        dea_exists = redis { |r| r.exists("dea:#{dea}") }
-        unless dea_exists
-          redis { |r| r.srem("deas", dea) }
-        end
-      end
-
       droplet_ids = redis { |r| r.smembers("droplets") }
       droplet_ids.each do |droplet_id|
         instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
@@ -265,7 +256,6 @@ module VCAP::CloudController
     end
 
     def self.handle_dea_status(msg)
-      redis { |r| r.sadd("deas", msg["id"]) }
       redis { |r| r.hmset(
           "dea:#{msg["id"]}",
           "ip", msg["ip"],
