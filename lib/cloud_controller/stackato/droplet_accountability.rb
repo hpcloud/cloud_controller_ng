@@ -161,20 +161,36 @@ module VCAP::CloudController
       logger.debug2 "Housekeeping iteration..."
       droplet_ids = redis { |r| r.smembers("droplets") }
       droplet_ids.each do |droplet_id|
-        instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
-        logger.debug2 "Housekeeping for droplet droplet_id:#{droplet_id} instance_ids:#{instance_ids}"
-        if ((instance_ids.is_a? Array) && (instance_ids.count > 0))
-          instance_ids.each do |instance_id|
-            droplet_exists = redis { |r| r.exists("droplet:#{droplet_id}:instance:#{instance_id}") }
-            unless droplet_exists
-              redis { |r| r.srem("droplet:#{droplet_id}:instances", instance_id) }
+        redis do |r|
+          r.watch("droplet:#{droplet_id}:instances") do
+            instance_ids = r.smembers("droplet:#{droplet_id}:instances")
+            logger.debug2 "Housekeeping for droplet droplet_id:#{droplet_id} instance_ids:#{instance_ids}"
+            if ((instance_ids.is_a? Array) && (instance_ids.count > 0))
+              instance_ids.each do |instance_id|
+                r.watch("droplet:#{droplet_id}:instance:#{instance_id}") do
+                  droplet_exists = r.exists("droplet:#{droplet_id}:instance:#{instance_id}")
+                  unless droplet_exists
+                    r.multi do |m|
+                      m.srem("droplet:#{droplet_id}:instances", instance_id)
+                    end
+                  end
+                end
+              end
+              r.unwatch
+            else
+              r.multi do |m|
+                m.del("droplet:#{droplet_id}:instances")
+                m.srem("droplets", droplet_id)
+              end
             end
           end
-        else
-          redis { |r| r.del("droplet:#{droplet_id}:instances") }
-          redis { |r| r.srem("droplets", droplet_id) }
         end
       end
+
+    rescue Redis::BaseConnectionError
+      logger.debug2 "Redis connection error in housekeeping, ignoring"
+    rescue Redis::CommandError
+      logger.exception "Redis command error in housekeeping: #{$!}"
     end
 
     def self.update_stats_for_all_droplets
