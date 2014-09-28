@@ -63,7 +63,8 @@ module VCAP::CloudController
       validates_format DOMAIN_REGEX, :name
       validates_length_range 3..255, :name
 
-      errors.add(:name, :overlapping_domain) if overlaps_domain_in_other_org?
+      # See bug #105244 This is intentionally disabled.
+      # errors.add(:name, :overlapping_domain) if overlaps_domain_in_other_org?
     end
 
     def overlaps_domain_in_other_org?
