@@ -33,7 +33,7 @@ module VCAP::CloudController
       unless [200, 206, 416].include? http_response.status
         msg = "Request failed for app: #{app.name}, search_param: #{search_param}"
         msg << " as there was an error retrieving the files."
-
+        logger.error("#{msg} For uri:'#{info.file_uri_v2}', headers:#{headers} => http status #{http_response.status}")
         raise Errors::ApiError.new_from_details("FileError", msg)
       end
 
