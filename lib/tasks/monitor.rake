@@ -13,7 +13,8 @@ namespace :monitor do
     end
   end
   
-  def check_threshold_ratio(threshold_ratio, default_threshold_ratio, logger)
+  def get_threshold_ratio(current_threshold_ratio, default_threshold_ratio, logger)
+    threshold_ratio = Kato::Config.get('cloud_controller_ng', 'resource_monitoring/threshold_ratio') || current_threshold_ratio
     msg = nil
     begin
       if threshold_ratio > 1.0
@@ -27,7 +28,7 @@ namespace :monitor do
     if msg
       logger.warn(msg)
       threshold_ratio = default_threshold_ratio
-      Kato::Config.set('cloud_controller_ng', 'resource_monitoring/max_rss_size', threshold_ratio)
+      Kato::Config.set('cloud_controller_ng', 'resource_monitoring/threshold_ratio', threshold_ratio)
     end
     return threshold_ratio
   end
@@ -59,10 +60,7 @@ namespace :monitor do
           # Update these params on every run to avoid requiring restarting the process on config changes.
           vmsize_limit = Kato::Config.get('cloud_controller_ng', 'resource_monitoring/max_vm_size') || vmsize_limit
           rss_limit = Kato::Config.get('cloud_controller_ng', 'resource_monitoring/max_rss_size') || rss_limit
-          threshold_ratio =
-              check_threshold_ratio(Kato::Config.get('cloud_controller_ng', 'resource_monitoring/threshold_ratio') ||
-                                                  threshold_ratio,
-                                    DEFAULT_THRESHOLD_RATIO, logger)
+          threshold_ratio = get_threshold_ratio(threshold_ratio, DEFAULT_THRESHOLD_RATIO, logger)
           
           msg_tail = "VmSize #{vmsize.delimited}/#{vmsize_limit.delimited}, VmRSS #{rss.delimited}/#{rss_limit.delimited}"
           if vmsize > vmsize_limit * threshold_ratio || rss > rss_limit * threshold_ratio
