@@ -12,6 +12,8 @@ module VCAP::CloudController
       to_many    :spaces
     end
 
+    query_parameters :name, :organization_guid
+
     def self.translate_validation_exception(e, attributes)
       name_errors = e.errors.on([:organization_id, :name])
       if name_errors && name_errors.include?(:unique)
