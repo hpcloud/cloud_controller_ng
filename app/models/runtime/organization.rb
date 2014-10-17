@@ -96,7 +96,11 @@ module VCAP::CloudController
         @is_billing_enabled = true
       end
 
-      if column_changed?(:is_default)
+      # Only an admin can change the is_default property of an organization, if the 'user_org_creation' FeatureFlag is
+      # enabled we still need to allow for org creation while disallowing the user to change the is_default property.
+      user_org_creation_enabled = FeatureFlag.enabled?('user_org_creation')
+      if column_changed?(:is_default) && (!user_org_creation_enabled ||
+          user_org_creation_enabled && VCAP::CloudController::SecurityContext.admin?)
         raise Errors::ApiError.new_from_details("NotAuthorized") unless VCAP::CloudController::SecurityContext.admin?
         # if this org is being made the default we need to 1) remove default from other orgs and 2) ensure the default space belong to this org
         if self.is_default
