@@ -6,7 +6,12 @@ require "bundler"
 require "bundler/setup"
 
 
-require File.expand_path("../../../../kato/spec-common/spec_helper.rb", __FILE__)
+begin
+  require File.expand_path("../../../../kato/spec-common/spec_helper.rb", __FILE__)
+rescue LoadError
+  # When running locally, kato is likely to be checked out next to cloud_controller_ng
+  require File.expand_path("../../../kato/spec-common/spec_helper.rb", __FILE__)
+end
 
 if ENV["CODECLIMATE_REPO_TOKEN"] && ENV["COVERAGE"]
   require "codeclimate-test-reporter"
