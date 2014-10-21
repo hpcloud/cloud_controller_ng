@@ -299,12 +299,14 @@ module VCAP::CloudController
     let(:license_checking) { Kato::Config.get("cluster", "license_checking") }
     let(:no_license_required) { Kato::Config.get('cluster', 'memory_limits/no_license_required') }
     let(:free_license) { Kato::Config.get('cluster', 'memory_limits/free_license') }
+    let(:cluster_version) { Kato::Config.get('cluster', 'config/version') }
 #=begin
     describe "for a user on a microcloud" do
       before do
         Kato::Config.set("cluster", "license_checking", true)
         Kato::Config.set("cluster", "memory_limits/no_license_required", 4)
         Kato::Config.set("cluster", "memory_limits/free_license", 20)
+        Kato::Config.set('cluster', 'config/version', '3.5.0') # Needs to be > 3.2.1
       end
       after do
         if license_checking
@@ -316,26 +318,31 @@ module VCAP::CloudController
         if free_license
           Kato::Config.set("cluster", "memory_limits/free_license", free_license)
         end
+        if cluster_version
+          Kato::Config.set('cluster', 'config/version', cluster_version)
+        end
+
       end
       it "should have license info" do
         get "/info", {}, headers
         expect(last_response.status).to eq(200)
         hash = Yajl::Parser.parse(last_response.body)
-        hash.should have_key("license")
+        expect(hash).to have_key("license")
       end
     end
   end # describe LegacyInfo, is_micro_cloud
 
   describe VCAP::CloudController::StackatoLicenseController, type: :controller do
     let(:current_user) { make_user_with_default_space(:admin => true) }
+    let(:non_admin_user) { make_user_with_default_space }
 
     attr_accessor :headers
 
     before(:each, admin: true) do
-      self.headers = headers_for(current_user, admin_scope: true)
+      self.headers = headers_for(current_user)
     end
     before(:each, admin: false) do
-      self.headers = headers_for(current_user, admin_scope: false)
+      self.headers = headers_for(non_admin_user)
     end
 
     before(:each) do

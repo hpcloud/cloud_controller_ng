@@ -3,8 +3,6 @@ require "stackato/spec_helper"
 
 module VCAP::CloudController
   describe VCAP::CloudController::AppsController, type: :controller do
-    before { configure_stacks }
-
     before(:all) do
       Kato::Config.set('cloud_controller_ng', '/maintenance_mode', true)
     end
@@ -31,8 +29,8 @@ module VCAP::CloudController
       context "when in maintenance mode" do
         it "should fail when in maintenance mode" do
           create_app
-          last_response.status.should eq(503)
-          last_response.body.should match(/Maintenance mode is enabled/)
+          expect(last_response.status).to eq(503)
+          expect(last_response.body).to match(/Maintenance mode is enabled/)
         end
       end
     end
@@ -52,8 +50,8 @@ module VCAP::CloudController
 
           it "should set to provided value" do
             update_app
-            last_response.status.should eq(503)
-            last_response.body.should match(/Maintenance mode is enabled/)
+            expect(last_response.status).to eq(503)
+            expect(last_response.body).to match(/Maintenance mode is enabled/)
           end
         end
       end
@@ -66,8 +64,8 @@ module VCAP::CloudController
 
           it "should work" do
             update_app
-            last_response.status.should eq(503)
-            last_response.body.should match(/Maintenance mode is enabled/)
+            expect(last_response.status).to eq(503)
+            expect(last_response.body).to match(/Maintenance mode is enabled/)
           end
 
         end
@@ -81,8 +79,8 @@ module VCAP::CloudController
 
           it "should fail when in maintenance mode" do
             update_app
-            last_response.status.should eq(503)
-            last_response.body.should match(/Maintenance mode is enabled/)
+            expect(last_response.status).to eq(503)
+            expect(last_response.body).to match(/Maintenance mode is enabled/)
           end
         end
 
@@ -95,8 +93,8 @@ module VCAP::CloudController
 
           it "should fail when in maintenance mode" do
             update_app
-            last_response.status.should eq(503)
-            last_response.body.should match(/Maintenance mode is enabled/)
+            expect(last_response.status).to eq(503)
+            expect(last_response.body).to match(/Maintenance mode is enabled/)
           end
         end
       end
@@ -113,8 +111,8 @@ module VCAP::CloudController
 
       it "should fail" do
         delete_app
-        last_response.status.should eq(503)
-        last_response.body.should match(/Maintenance mode is enabled/)
+        expect(last_response.status).to eq(503)
+        expect(last_response.body).to match(/Maintenance mode is enabled/)
       end
     end
 
@@ -132,8 +130,8 @@ module VCAP::CloudController
           end
 
           stage_app
-          last_response.status.should eq(503)
-          last_response.body.should match(/Maintenance mode is enabled/)
+          expect(last_response.status).to eq(503)
+          expect(last_response.body).to match(/Maintenance mode is enabled/)
         end
       end
     end
@@ -174,8 +172,8 @@ module VCAP::CloudController
           )
         end
         add_route(route)
-        last_response.status.should eq(503)
-        last_response.body.should match(/Maintenance mode is enabled/)
+        expect(last_response.status).to eq(503)
+        expect(last_response.body).to match(/Maintenance mode is enabled/)
       end
     end
   end
