@@ -35,7 +35,7 @@ module VCAP::CloudController
         info[:user]   = user.guid
         info[:limits] = account_capacity
         info[:usage]  = account_usage if has_default_space?
-        info[:cc_nginx]  = Kato::Config.get("cloud_controller_ng", "nginx").fetch("use_nginx", false)
+        info[:cc_nginx]  = config.fetch(:nginx, {}).fetch(:use_nginx, false)
         if user.admin?
           StackatoClusterConfig.update_license_info(info, license)
         end

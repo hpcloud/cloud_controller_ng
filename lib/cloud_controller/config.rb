@@ -221,6 +221,7 @@ module VCAP::CloudController
       def from_file(file_name)
         config = super(file_name)
         merge_defaults(config)
+        apply_stackato_overrides(config)
       end
 
       def from_redis(config_overrides = {})
@@ -228,6 +229,7 @@ module VCAP::CloudController
         config.update(config_overrides)
         merge_defaults(config)
         validate_upgraded_config(config)
+        apply_stackato_overrides(config)
       end
 
       attr_reader :config, :message_bus
@@ -377,8 +379,19 @@ module VCAP::CloudController
             # XXX: This might blitz some changes by CC runtime.
             #      Change CC to not save in-process state in config.
             config.merge!(new_config)
+            apply_stackato_overrides(config)
           end
         end
+      end
+
+      def apply_stackato_overrides(config)
+        if config.fetch(:nginx, {}).fetch(:use_nginx, false)
+          # logging is unavailable at this point
+          puts "Stackato does not support nginx/use_nginx; disabling it."
+          config[:nginx][:use_nginx] = false
+        end
+
+        config
       end
 
     end

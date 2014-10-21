@@ -11,7 +11,6 @@ module VCAP::CloudController
     get "/v2/info", :read
     def read
       license = Kato::Config.get("cluster", "license")
-      cc_nginx = Kato::Config.get("cloud_controller_ng", "nginx").fetch("use_nginx", false)
       info = {
         name: @config[:info][:name],
         build: @config[:info][:build],
@@ -38,7 +37,7 @@ module VCAP::CloudController
       end
       if user
         info[:user] = user.guid
-        info[:stackato][:cc_nginx] = cc_nginx
+        info[:stackato][:cc_nginx] = @config.fetch(:nginx, {}).fetch(:use_nginx, false)
         info[:maintenance_mode] = Config.config[:maintenance_mode]
         if user.admin?
           StackatoClusterConfig.update_license_info(info, license)
