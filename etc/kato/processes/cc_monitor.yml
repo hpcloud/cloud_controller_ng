@@ -1,0 +1,4 @@
+---
+name: cc_monitor
+roles:
+  - controller

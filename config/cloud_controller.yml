@@ -113,6 +113,11 @@ quota_definitions:
 
 default_quota_definition: default
 
+resource_monitoring:
+  max_vm_size: 4294967296
+  max_rss_size: 2147483648
+  threshold_ratio: 0.95
+
 resource_pool:
   resource_directory_key: "cc-resources"
   fog_connection:
