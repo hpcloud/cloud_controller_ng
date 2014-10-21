@@ -21,7 +21,7 @@ module TestConfig
 
   def self.load(overrides={})
     config = defaults.merge(overrides)
-    config_yaml = automated_build? ? yaml_config(File.join(Paths::CONFIG, 'cloud_controller.yml')) : kato_config
+    config_yaml = automated_build? ? kato_config_from_file : kato_config
     config_hash = ::Kato::Util.symbolize_keys(config_yaml)
 
     config_override = {
@@ -64,12 +64,21 @@ module TestConfig
     VCAP::CloudController::Stack.populate
   end
 
+  def self.kato_config_from_file
+    yaml_config(File.join(Paths::CONFIG, 'cloud_controller.yml'))
+  end
+
   def self.kato_config(component = "cloud_controller_ng")
-    config_yaml = `kato config get #{component} --yaml`.strip
-    if config_yaml != ""
-      return YAML.load(config_yaml)
-    else
-      return {}
+    begin
+      config_yaml = `kato config get #{component} --yaml`.strip
+      if config_yaml != ""
+        return YAML.load(config_yaml)
+      else
+        return {}
+      end
+    rescue NoMethodError
+      # `kato config get` returned nil, load the config from file instead
+      Kato::Config.get(component) || kato_config_from_file
     end
   end
 
