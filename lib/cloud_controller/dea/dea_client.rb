@@ -24,7 +24,7 @@ module VCAP::CloudController
   end
 
   module DeaClient
-    class FileUriResult < Struct.new(:file_uri_v1, :file_uri_v2, :credentials)
+    class FileUriResult < Struct.new(:file_uri_v1, :file_uri_v2, :credentials, :host_ip)
       def initialize(opts = {})
         if opts[:file_uri_v2]
           self.file_uri_v2 = opts[:file_uri_v2]
@@ -34,6 +34,9 @@ module VCAP::CloudController
         end
         if opts[:credentials]
           self.credentials = opts[:credentials]
+        end
+        if opts[:host_ip]
+          self.host_ip = opts[:host_ip]
         end
       end
     end
@@ -384,6 +387,7 @@ module VCAP::CloudController
           result = FileUriResult.new
           if instance_found["file_uri_v2"]
             result.file_uri_v2 = instance_found["file_uri_v2"]
+            result.host_ip = instance_found["host_ip"]
           end
 
           uri_v1 = [instance_found["file_uri"], instance_found["staged"], "/", path].join("")
