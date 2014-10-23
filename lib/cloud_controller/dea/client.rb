@@ -309,6 +309,7 @@ module VCAP::CloudController
             result = FileUriResult.new
             if instance_found["file_uri_v2"]
               result.file_uri_v2 = instance_found["file_uri_v2"]
+              result.host_ip = instance_found["host_ip"]
             end
 
             uri_v1 = [instance_found["file_uri"], instance_found["staged"], "/", path].join("")
