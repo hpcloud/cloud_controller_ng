@@ -18,15 +18,15 @@ module VCAP::CloudController
       if range
         headers["Range"] = range
       end
-
+      
       http_response = nil
       # new VMC and new DEA, let's hand out the directory server url.
       # We sadly still have to serve the files through CC otherwise
       uri = info.file_uri_v2
-      if opts["allow_redirect"] == true
+      if opts["allow_redirect"] == true # cli_request? == true
         uri = add_tail(uri) if params.include?("tail")
         return [HTTP::FOUND, {"Location" => uri}, nil]
-      else
+      else # web_console_request? == true
         if info.host_ip && !info.host_ip.empty?
           if (v2_port = Kato::Config.get('dea_ng', 'directory_server/v2_port'))
             uri.sub!(/^(http:\/\/)[a-zA-Z0-9]{32}\..*?(\/instance_paths\/.*)/, '\1' + "#{info.host_ip}:#{v2_port}" + '\2')
