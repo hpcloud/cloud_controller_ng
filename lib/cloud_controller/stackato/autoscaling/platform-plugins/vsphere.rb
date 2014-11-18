@@ -81,10 +81,16 @@ class VSpherePlugin < Plugin
         vx  = RbVmomi::VIM
         vim = get_conn
 
-        dc = vim.serviceInstance.find_datacenter(get_config['datacenter']) or
-            log "Invalid datacenter specified in vCenter config"
-        vm = dc.find_vm(get_config['template']) or
-            log "Invalid source VM specified in vCenter config"
+        dc = vim.serviceInstance.find_datacenter(get_config['datacenter'])
+        if !dc
+          log "Invalid datacenter #{get_config['datacenter']} specified in vCenter config"
+          return
+        end
+        vm = dc.find_vm(get_config['template'])
+        if !vm
+          log "Invalid source VM #{get_config['template']} specified in vCenter config"
+          return
+        end
 
         clusters = []
         config_clusters = get_config.fetch('clusters', nil)
@@ -98,16 +104,12 @@ class VSpherePlugin < Plugin
         resources = clusters if clusters.length > 0
 
         use_hosts = available_hosts(resources, get_config.fetch('host_whitelist', []))
-        dest_host = nil
 
         if use_hosts.length < 1
           log "No available vsphere hosts to start instance"
           return
         else
-
           # Use a host that is not at capacity or incapable
-          #dest_host = nil  #vcenter_scale_parameters()
-
           # Round robin the hosts
           if @host_index.nil?
             @host_index = 0
@@ -122,8 +124,10 @@ class VSpherePlugin < Plugin
           config_spec.numCPUs = get_config['numCPUs'] if get_config['numCPUs']
           config_spec.memoryMB = get_config['memoryMB'] if get_config['memoryMB']
 
+          dest_host = use_hosts[@host_index]
           if dest_host.nil?
-            dest_host = use_hosts[@host_index]
+            log "No destination host at use_hosts[#{@host_index}]"
+            return
           end
 
           # VM relocation specification
@@ -189,7 +193,7 @@ class VSpherePlugin < Plugin
                   vm.CloneVM_Task(:folder => vm_folder, :name => dest_vm_name, :spec => spec)
               end
           rescue Exception => e
-              log " Error cloning vm (#{dest_vm_name}): #{e.msg} #{e.backtrace.inspect}"
+              log " Error cloning vm (#{dest_vm_name}): #{e.message} #{e.backtrace.inspect}"
           end
         end
     end
