@@ -31,6 +31,8 @@ class AutoScaler
   end
 
   def register_plugins
+    # Experiment shows this is 10 x faster than doing
+    # ObjectSpace.each_object(Plugin) ... (4 msec on vsphere vs 45 msec)
     Object.constants.each do |klass|
       const = Kernel.const_get(klass)
       if const.respond_to?(:superclass) and const.superclass == Plugin
