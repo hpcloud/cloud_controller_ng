@@ -25,6 +25,7 @@ module VCAP::CloudController
       uri = info.file_uri_v2
       if opts["allow_redirect"] == true # cli_request? == true
         uri = add_tail(uri) if params.include?("tail")
+        uri.sub!(/^http:/, 'https:')
         return [HTTP::FOUND, {"Location" => uri}, nil]
       else # web_console_request? == true
         if info.host_ip && !info.host_ip.empty?
