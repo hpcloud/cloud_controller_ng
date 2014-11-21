@@ -160,11 +160,10 @@ module VCAP::RestAPI
     def clean_up_boolean(q_key, q_val)
       column = model.db_schema[q_key.to_sym]
 
-      if column[:db_type] == TINYINT_TYPE
-        TINYINT_FROM_TRUE_FALSE.fetch(q_val, q_val)
-      else
-        q_val == "t"
+      if column[:db_type] == TINYINT_TYPE || column[:db_type] == :boolean
+        q_val = TINYINT_FROM_TRUE_FALSE.fetch(q_val, q_val)
       end
+      q_val
     end
 
     def clean_up_datetime(q_val)
