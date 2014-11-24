@@ -272,7 +272,7 @@ module VCAP::CloudController
       #
       # this is to indicate that the running state of an application has changed,
       # and that the system should converge on this new version.
-      (column_changed?(:state) || column_changed?(:memory) || column_changed?(:droplet_hash)) && started?
+      (column_changed?(:state) || column_changed?(:memory) || (column_changed?(:droplet_hash) && column_change(:droplet_hash)[0])) && started?
     end
 
     def set_new_version
