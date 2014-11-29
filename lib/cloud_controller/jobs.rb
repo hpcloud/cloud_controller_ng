@@ -15,8 +15,11 @@ require "jobs/exception_catching_job"
 require "jobs/request_job"
 require "jobs/timeout_job"
 
+require "kato/local/node"
+
 class LocalQueue < Struct.new(:config)
+  NODE_ID = Kato::Local::Node.get_local_node_id
   def to_s
-    "cc-#{config[:name]}-#{config[:index]}"
+    "cc-" + NODE_ID
   end
 end
