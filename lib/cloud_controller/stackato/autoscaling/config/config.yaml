@@ -135,6 +135,22 @@ platform_config:
     #datastores: "Datastore name"
     template: <TEMPLATE NAME>
 
+    # Note on the template field: this needs to include any folders
+    # the target template is in. For example, if the datacenter contains
+    # the following setup:
+    #
+    # vcenter
+    # + Our Data Center
+    #   + various folders and templates...
+    #   + ...
+    #   + outer
+    #     + inner
+    #       ...
+    #       dea-template
+    #
+    # To access dea-template, the template field should be:
+    # outer/inner/dea-template
+
     # Start the scaled VM with the following resource configuration
     # Default: template settings.
 
