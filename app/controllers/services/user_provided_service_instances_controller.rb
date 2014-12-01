@@ -11,6 +11,8 @@ module VCAP::CloudController
       to_many :service_bindings
     end
 
+    query_parameters :name, :space_guid
+
     def self.translate_validation_exception(e, attributes)
       space_and_name_errors = e.errors.on([:space_id, :name])
       if space_and_name_errors && space_and_name_errors.include?(:unique)
