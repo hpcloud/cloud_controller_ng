@@ -51,11 +51,12 @@ vm_name_prefix: "Auto-Scaled"
 # ###################################
 platform_config:
   HPCS:
-    # az-1.region-a.geo-1
-    # az-2.region-a.geo-1
-    # az-3.region-a.geo-1
+    # Older APIs require an availability zone:
+    #   az-1.region-a.geo-1
+    # For v2 API use just your region:
+    #   region-a.geo-1
     compute:
-      zone: az-1.region-a.geo-1
+      zone: region-a.geo-1
       api_version: v2
 
     # HPCS account credentials
@@ -77,7 +78,10 @@ platform_config:
     security_groups: [ "stackato" ]
     keypair: <KEYPAIR NAME>
 
-    user_data: [ "this will be Base64 encoded"]
+    # specify networks
+    networks: [ "<NETWORK ID>" ]
+
+    user_data: [ "this will be Base64 encoded" ]
 
     # Personality (file injection customization)
     # File mappings here will be added to the new server
