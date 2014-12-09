@@ -51,6 +51,7 @@ class HPCSPlugin < Plugin
               :image_id => get_config["template_id"],
               :key_name => get_config["keypair"],
               :security_groups => get_config["security_groups"],
+              :networks => get_config["networks"],
               :tags => get_config.fetch("tags", {}),
               :config_drive => config_drive,
               :user_data_encoded => user_data,
