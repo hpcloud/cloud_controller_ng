@@ -224,9 +224,11 @@ module VCAP::CloudController
         )
         instance.save_changes
       elsif binding
+        # xxx: bug 105573:
+        # Keep the string storing format and handle the hash conversion in service_binding_presenter instead.
         binding.set(
-          :configuration => req.configuration,
-          :credentials => req.credentials,
+          :configuration => req.configuration.to_s,
+          :credentials => req.credentials.to_s,
         )
         binding.save_changes
       else
