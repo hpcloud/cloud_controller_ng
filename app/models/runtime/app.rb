@@ -594,7 +594,7 @@ module VCAP::CloudController
     end
 
     def needs_staging?
-      package_hash && !staged? && started? && instances > 0 && !docker_image
+      package_hash && !staged? && started? && instances > 0
     end
 
     def staged?
@@ -634,7 +634,11 @@ module VCAP::CloudController
     end
 
     def mark_for_restaging
-      self.package_state = "PENDING"
+      if docker_image
+        self.package_state = "STAGED"
+      else
+        self.package_state = "PENDING"
+      end
       self.staging_failed_reason = nil
     end
 
