@@ -594,7 +594,7 @@ module VCAP::CloudController
     end
 
     def needs_staging?
-      package_hash && !staged? && started? && instances > 0
+      package_hash && !staged? && started? && instances > 0 && !docker_image
     end
 
     def staged?

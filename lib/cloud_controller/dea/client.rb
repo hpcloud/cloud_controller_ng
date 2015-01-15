@@ -152,7 +152,7 @@ module VCAP::CloudController
         def start_instance_at_index(app, index)
           start_message = Dea::StartAppMessage.new(app, index, config, @blobstore_url_generator)
 
-          unless start_message.has_app_package?
+          unless start_message.has_app_package? || start_message.has_docker_image?
             logger.error "dea-client.no-package-found", guid: app.guid
             raise Errors::ApiError.new_from_details("AppPackageNotFound", app.guid)
           end

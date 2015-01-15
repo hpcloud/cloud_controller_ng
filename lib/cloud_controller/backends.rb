@@ -11,7 +11,7 @@ module VCAP::CloudController
     end
 
     def validate_app_for_staging(app)
-      if app.docker_image.present? && !@config[:diego]
+      if false && app.docker_image.present? && !@config[:diego]
         raise Errors::ApiError.new_from_details("DiegoDisabled")
       end
 
