@@ -40,6 +40,7 @@ module VCAP::CloudController
       expect(hash['authorization_endpoint']).to eq(TestConfig.config[:uaa][:url])
       expect(hash['token_endpoint']).to eq(TestConfig.config[:uaa][:url])
       expect(hash['allow_debug']).to eq(TestConfig.config.fetch(:allow_debug, true))
+      expect(hash['applog_endpoint']).to eq("ws://logs.#{TestConfig.config[:system_domain]}")
     end
 
     it "includes login url when configured" do
@@ -47,6 +48,22 @@ module VCAP::CloudController
       get "/info", {}, {}
       hash = MultiJson.load(last_response.body)
       expect(hash['authorization_endpoint']).to eq("login_url")
+    end
+
+    it "Allows override of applog endpoint" do
+      real_kato_config_get = Kato::Config.method(:get)
+      allow(Kato::Config)
+        .to receive(:get) do |*args|
+          case args
+          when ['applog_endpoint', 'hostname']
+            "example.test"
+          else
+            real_kato_config_get.call(*args)
+          end
+        end
+      get "/info", {}, {}
+      hash = MultiJson.load(last_response.body)
+      expect(hash['applog_endpoint']).to eq("ws://example.test")
     end
 
     describe "account capacity" do
