@@ -1,5 +1,6 @@
 require "uaa/info"
 require 'httpclient'
+require 'stackato/token_utils'
 
 module VCAP
   class UaaTokenDecoder
@@ -30,27 +31,13 @@ module VCAP
         token = decode_token_with_asymmetric_key(auth_token)
       end
 
-      # Validate the decoded token against the check_token endpoint
-      if token
-        begin
-          info = CF::UAA::Info.new(config[:url])
-          username = config[:resource_id]
-          password = Kato::Config.get('cloud_controller_ng', 'aok/client_secret')
-          token_data = auth_token.sub('bearer ', '')
-          result = info.decode_token(username, password, token_data, 'access_token')
-
-          # Check if the access token has been set inactive and throw as necessary.
-          if result['access_token']['active'] == false
-            raise CF::UAA::TokenExpired.new('Access Token is no longer active')
-          end
-          puts "result: #{result}"
-        rescue Exception => e
-          if e.class == CF::UAA::TokenExpired
-            raise e
-          else
-            @logger.warn "Unable to validate auth token against AOK\n#{e.message}"
-          end
-        end
+      # Validate the decoded token if token validation is enabled
+      if VCAP::CloudController::Config.config[:aok][:enable_token_validation]
+        VCAP::CloudController::TokenUtils.validate_token(auth_token,
+                                                         'access_token',
+                                                         config[:url],
+                                                         config[:resource_id],
+                                                         VCAP::CloudController::Config.config[:aok][:client_secret])
       end
 
       token

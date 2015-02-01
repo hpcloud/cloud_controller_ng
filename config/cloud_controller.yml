@@ -256,3 +256,5 @@ default_staging_security_groups:
 default_running_security_groups:
 - dummy4
 
+aok:
+  enable_token_validation: true
