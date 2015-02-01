@@ -31,7 +31,7 @@ module VCAP::CloudController
           if e.class == CF::UAA::TokenExpired
             raise e
           else
-            @logger.warn "Unable to validate auth token against AOK\n#{e.message}"
+            logger.warn "Unable to validate auth token against AOK\n#{e.message}"
           end
         end
       end
