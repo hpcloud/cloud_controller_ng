@@ -214,8 +214,6 @@ GEM
       rb-inotify (>= 0.9)
     loggregator_emitter (3.0.0)
       beefcake (~> 0.3.7)
-    loggregator_messages (0.1.0.pre)
-      beefcake (~> 0.3.7)
     lumberjack (1.0.9)
     machinist (1.0.6)
     membrane (1.0.0)
@@ -413,7 +411,6 @@ DEPENDENCIES
   i18n
   librrd (= 1.0.3)
   loggregator_emitter (~> 3.0.0)
-  loggregator_messages (~> 0.1.0.pre)
   machinist (~> 1.0.6)
   membrane (~> 1.0)
   multi_json
