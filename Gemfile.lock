@@ -354,6 +354,10 @@ GEM
       fluent-logger
       grape
       yajl-ruby (~> 1.0)
+    talentbox-delayed_job_sequel (4.0.0)
+      delayed_job (~> 4.0.0)
+      sequel (>= 3.38, < 5.0)
+      tzinfo
     term-ansicolor (1.0.7)
     thin (1.6.2)
       daemons (>= 1.0.9)
@@ -441,6 +445,7 @@ DEPENDENCIES
   stager-client (~> 0.0.02)!
   steno (= 1.1.0)
   steno-codec-text!
+  talentbox-delayed_job_sequel (= 4.0.0)
   timecop
   unf
   vcap-concurrency!
