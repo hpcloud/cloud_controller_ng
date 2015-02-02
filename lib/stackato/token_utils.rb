@@ -20,7 +20,7 @@ module VCAP::CloudController
         # Validate the decoded oauth token against the check_token endpoint
         begin
           info = CF::UAA::Info.new(url)
-          token_data = oauth_token.sub('bearer ', '')
+          token_data = oauth_token.sub(/^bearer /i, '')
           result = info.decode_token(username, password, token_data, token_type)
 
           # Check if the access token has been set inactive and throw as necessary.
