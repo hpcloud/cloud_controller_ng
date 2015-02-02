@@ -27,9 +27,9 @@ module VCAP::CloudController
           if result['access_token']['active'] == false
             raise CF::UAA::TokenExpired.new('Access Token is no longer active')
           end
-        rescue Exception => e
+        rescue => e
           if e.class == CF::UAA::TokenExpired
-            raise e
+            raise
           else
             logger.warn "Unable to validate auth token against AOK\n#{e.message}"
           end
