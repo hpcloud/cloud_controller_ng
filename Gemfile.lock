@@ -61,7 +61,7 @@ GIT
       virtus (>= 1.0.0)
 
 PATH
-  remote: vendor/cache/common
+  remote: ../common
   specs:
     vcap_common (3.0.0)
       addressable (~> 2.2)
@@ -81,7 +81,7 @@ PATH
       yajl-ruby
 
 PATH
-  remote: vendor/cache/steno-codec-text
+  remote: ../steno-codec-text
   specs:
     steno-codec-text (0.1)
       steno (~> 1.1.0)
@@ -535,5 +535,5 @@ DEPENDENCIES
   virtus (= 1.0.0)
   vmstat (= 2.1.0)
   webmock (= 1.18.0)
-  xmlparser (= 0.7.2.1)
+  xmlparser
   yajl-ruby (= 1.1.0)
