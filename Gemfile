@@ -53,7 +53,6 @@ end
 
 group :development do
   gem "debugger"
-  gem "pry"
   gem 'roodi'
 end
 
