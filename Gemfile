@@ -3,7 +3,6 @@ source(ENV['RUBYGEMS_MIRROR'] || "https://rubygems.org")
 gem "builder", "~> 3.0.4"
 gem "activesupport", "~> 3.2.18"
 gem 'addressable',    '2.3.6', :groups => [:test]
-gem "rake"
 gem "bcrypt-ruby"
 gem "eventmachine", "~> 1.0.3"
 gem "fog"
@@ -35,6 +34,13 @@ gem "delayed_job_active_record", "~> 4.0"
 gem "loggregator_emitter", "~> 3.0.0"
 gem 'talentbox-delayed_job_sequel',    '4.0.0'
 gem 'futuroscope', '0.1.5'
+gem 'uuidtools', '2.1.4'
+gem 'em-http-request', '1.1.2'
+gem 'vmstat', '2.1.0'
+gem 'multipart-post', '2.0.0'
+gem 'posix-spawn', '0.3.8'
+gem 'squash_ruby', '1.4.0'
+gem 'rake', '10.3.2'
 
 # Auto scaling
 gem "rbvmomi"
