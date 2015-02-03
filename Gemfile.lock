@@ -406,6 +406,7 @@ DEPENDENCIES
   eventmachine (~> 1.0.3)
   fakefs
   fog
+  futuroscope (= 0.1.5)
   grape (= 0.7.0)!
   guard-rspec
   httpclient

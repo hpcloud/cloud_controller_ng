@@ -34,6 +34,7 @@ gem "allowy"
 gem "delayed_job_active_record", "~> 4.0"
 gem "loggregator_emitter", "~> 3.0.0"
 gem 'talentbox-delayed_job_sequel',    '4.0.0'
+gem 'futuroscope', '0.1.5'
 
 # Auto scaling
 gem "rbvmomi"
