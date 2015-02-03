@@ -28,7 +28,7 @@ gem "vcap-concurrency", :github => "cloudfoundry/vcap-concurrency", :ref => "2a5
 gem "cf-uaa-lib", "~> 2.1.0", :github => "cloudfoundry/cf-uaa-lib", :ref => "4b94e14aa772e5b376e1be1c710aaeee7bd51a5c"
 gem "stager-client", "~> 0.0.02", :github => "cloudfoundry/stager-client", :ref => "04c2aee9"
 gem "cf-message-bus","0.2.0", :github => "ActiveState/cf-message-bus"
-gem 'cf-registrar', "1.0.1", :github => "cloudfoundry/cf-registrar"
+gem 'cf-registrar', "1.0.1", :github => "cloudfoundry/cf-registrar", :ref => "49850ee876652a59dbd2d"
 gem 'vcap_common', :path => '../common'
 gem "allowy"
 gem "delayed_job_active_record", "~> 4.0"
