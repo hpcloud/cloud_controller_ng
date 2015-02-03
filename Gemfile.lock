@@ -12,6 +12,7 @@ GIT
 GIT
   remote: git://github.com/cloudfoundry/cf-registrar.git
   revision: 49850ee876652a59dbd2d73dad726b3b808bb8f9
+  ref: 49850ee876652a59dbd2d
   specs:
     cf-registrar (1.0.1)
       cf-message-bus
@@ -182,6 +183,7 @@ GEM
     fog-json (1.0.0)
       multi_json (~> 1.0)
     formatador (0.2.4)
+    futuroscope (0.1.5)
     guard (2.11.1)
       formatador (>= 0.2.4)
       listen (~> 2.7)
@@ -337,6 +339,7 @@ GEM
     stackato-kato (3.0.0)
       colored (= 1.2)
       docopt (= 0.5.0)
+      futuroscope (~> 0.1.5)
       ipaddress (= 0.8.0)
       mustache (= 0.99.4)
       pg (= 0.14.1)
@@ -403,6 +406,7 @@ DEPENDENCIES
   eventmachine (~> 1.0.3)
   fakefs
   fog
+  futuroscope (= 0.1.5)
   grape (= 0.7.0)!
   guard-rspec
   httpclient
