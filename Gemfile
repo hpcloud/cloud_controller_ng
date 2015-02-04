@@ -3,7 +3,6 @@ source(ENV['RUBYGEMS_MIRROR'] || "https://rubygems.org")
 gem "builder", "~> 3.0.4"
 gem "activesupport", "~> 3.2.18"
 gem 'addressable',    '2.3.6', :groups => [:test]
-gem "rake"
 gem "bcrypt-ruby"
 gem "eventmachine", "~> 1.0.3"
 gem "fog"
@@ -28,12 +27,20 @@ gem "vcap-concurrency", :github => "cloudfoundry/vcap-concurrency", :ref => "2a5
 gem "cf-uaa-lib", "~> 2.1.0", :github => "cloudfoundry/cf-uaa-lib", :ref => "4b94e14aa772e5b376e1be1c710aaeee7bd51a5c"
 gem "stager-client", "~> 0.0.02", :github => "cloudfoundry/stager-client", :ref => "04c2aee9"
 gem "cf-message-bus","0.2.0", :github => "ActiveState/cf-message-bus"
-gem 'cf-registrar', "1.0.1", :github => "cloudfoundry/cf-registrar"
+gem 'cf-registrar', "1.0.1", :github => "cloudfoundry/cf-registrar", :ref => "49850ee876652a59dbd2d"
 gem 'vcap_common', :path => '../common'
 gem "allowy"
 gem "delayed_job_active_record", "~> 4.0"
 gem "loggregator_emitter", "~> 3.0.0"
-gem "loggregator_messages", "~> 0.1.0.pre"
+gem 'talentbox-delayed_job_sequel',    '4.0.0'
+gem 'futuroscope', '0.1.5'
+gem 'uuidtools', '2.1.4'
+gem 'em-http-request', '1.1.2'
+gem 'vmstat', '2.1.0'
+gem 'multipart-post', '2.0.0'
+gem 'posix-spawn', '0.3.8'
+gem 'squash_ruby', '1.4.0'
+gem 'rake', '10.3.2'
 
 # Auto scaling
 gem "rbvmomi"
@@ -53,7 +60,6 @@ end
 
 group :development do
   gem "debugger"
-  gem "pry"
   gem 'roodi'
 end
 
