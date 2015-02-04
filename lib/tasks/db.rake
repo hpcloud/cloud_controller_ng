@@ -4,7 +4,7 @@ ENV['DB_TEST_USER'] ||= 'postgres'
 ENV['DB_TEST_PASSWORD'] ||= '7o0j493ehp'
 ENV['DB_TEST_DATABASE'] ||= 'cc_test'
 ENV['DB_TEST_HOSTNAME'] ||= 'localhost'
-ENV['DB_TEST_PORT'] ||= 5432
+ENV['DB_TEST_PORT'] ||= "5432"
 ENV['PGPASSWORD'] ||= ENV['DB_TEST_PASSWORD']
 
 namespace :db do
