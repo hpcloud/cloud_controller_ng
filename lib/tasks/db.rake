@@ -1,5 +1,12 @@
 require "steno/codec/text"
 
+ENV['DB_TEST_USER'] ||= 'postgres'
+ENV['DB_TEST_PASSWORD'] ||= '7o0j493ehp'
+ENV['DB_TEST_DATABASE'] ||= 'cc_test'
+ENV['DB_TEST_HOSTNAME'] ||= 'localhost'
+ENV['DB_TEST_PORT'] ||= 5432
+ENV['PGPASSWORD'] ||= ENV['DB_TEST_PASSWORD']
+
 namespace :db do
   desc "Create a Sequel migration in ./db/migrate"
   task :create_migration do
@@ -54,8 +61,8 @@ end
 
     case ENV["DB"]
       when "postgres"
-        sh "psql -U postgres -c 'create database #{DbConfig.name};'"
-        sh "psql -U postgres -d #{DbConfig.name} -c 'CREATE EXTENSION IF NOT EXISTS citext'"
+        sh "psql -U postgres -h #{ENV['DB_TEST_HOSTNAME']} -c 'create database #{DbConfig.name};'"
+        sh "psql -U postgres -h #{ENV['DB_TEST_HOSTNAME']} -d #{DbConfig.name} -c 'CREATE EXTENSION IF NOT EXISTS citext'"
       when "mysql"
         if ENV["TRAVIS"] == "true"
           sh "mysql -e 'create database #{DbConfig.name};' -u root"
@@ -72,7 +79,7 @@ end
 
     case ENV["DB"]
       when "postgres"
-        sh "psql -U postgres -c 'drop database if exists #{DbConfig.name};'"
+        sh "psql -U postgres -h #{ENV['DB_TEST_HOSTNAME']} -c 'drop database if exists #{DbConfig.name};'"
       when "mysql"
         if ENV["TRAVIS"] == "true"
           sh "mysql -e 'drop database if exists #{DbConfig.name};' -u root"
