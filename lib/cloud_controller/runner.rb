@@ -98,10 +98,11 @@ module VCAP::CloudController
     end
 
     def setup_loggregator_emitter
-      # xxx: As of 14-08-06 Stackato doesn't use Loggregator so we make sure to never initialize the emitter here
-      return true
       if @config[:loggregator] && @config[:loggregator][:router] && @config[:loggregator][:shared_secret]
-        Loggregator.emitter = LoggregatorEmitter::Emitter.new(@config[:loggregator][:router], LogMessage::SourceType::CLOUD_CONTROLLER, @config[:index])
+        Loggregator.emitter = LoggregatorEmitter::Emitter.new(@config[:loggregator][:router], "API", @config[:index], @config[:loggregator][:shared_secret])
+        Steno.logger("cc.runner").info("Initializing Loggregator emitter to point to #{@config[:loggregator][:router]}")
+      else
+        Steno.logger("cc.runner").warn("Unable to initialize Loggregator emitter due to missing configurations")
       end
     end
 
