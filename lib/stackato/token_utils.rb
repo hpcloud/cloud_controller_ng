@@ -21,10 +21,10 @@ module VCAP::CloudController
         begin
           info = CF::UAA::Info.new(url)
           token_data = oauth_token.sub(/^bearer /i, '')
-          result = info.decode_token(username, password, token_data, token_type)
+          result = info.check_token(username, password, token_data, token_type)
 
           # Check if the access token has been set inactive and throw as necessary.
-          if result['access_token']['active'] == false
+          if result['active'] == false
             raise CF::UAA::TokenExpired.new('Access Token is no longer active')
           end
         rescue => e
