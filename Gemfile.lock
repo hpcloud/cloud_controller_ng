@@ -20,9 +20,9 @@ GIT
       vcap-concurrency
 
 GIT
-  remote: git://github.com/cloudfoundry/cf-uaa-lib.git
-  revision: 4b94e14aa772e5b376e1be1c710aaeee7bd51a5c
-  ref: 4b94e14aa772e5b376e1be1c710aaeee7bd51a5c
+  remote: git://github.com/ActiveState/cf-uaa-lib.git
+  revision: 65b93402ec6b928f31bb7a281bb5675d1fcc23cc
+  ref: 65b93402ec6b928f31bb7a281bb5675d1fcc23cc
   specs:
     cf-uaa-lib (2.1.0)
       multi_json
