@@ -243,6 +243,12 @@ module VCAP::CloudController
 
       def staging_completion(stager_response)
         instance_was_started_by_dea = !!stager_response.droplet_hash
+
+        if instance_was_started_by_dea && @app.docker_image
+          # in this case droplet_hash is actually the 12-char docker id
+          @app.add_new_droplet(stager_response.droplet_hash)
+        end
+
         @app.mark_as_staged
         @app.update_detected_buildpack(stager_response.detected_buildpack, stager_response.buildpack_key)
         @dea_pool.mark_app_started(:dea_id => @stager_id, :app_id => @app.guid) if instance_was_started_by_dea
