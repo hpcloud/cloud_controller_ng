@@ -126,6 +126,7 @@ module VCAP::CloudController
             upload_uri:                   @blobstore_url_generator.droplet_upload_url(@app),
             buildpack_cache_download_uri: @blobstore_url_generator.buildpack_cache_download_url(@app),
             buildpack_cache_upload_uri:   @blobstore_url_generator.buildpack_cache_upload_url(@app),
+            docker_image:                 @app.docker_image,
             start_message:                start_app_message,
             admin_buildpacks:             admin_buildpacks,
             egress_network_rules:         staging_egress_rules,

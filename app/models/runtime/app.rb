@@ -634,11 +634,7 @@ module VCAP::CloudController
     end
 
     def mark_for_restaging
-      if docker_image
-        self.package_state = "STAGED"
-      else
-        self.package_state = "PENDING"
-      end
+      self.package_state = "PENDING"
       self.staging_failed_reason = nil
     end
 
