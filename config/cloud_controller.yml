@@ -64,8 +64,8 @@ logging:
   level: debug
 
 loggregator:
-  router: "127.0.0.1:3456"
-  shared_secret: "loggregatorsecret"
+  router: "127.0.0.1:51160"
+  shared_secret: "shared_secret"
   url: "ws://loggregator.vcap.me:80"
 
 db:
