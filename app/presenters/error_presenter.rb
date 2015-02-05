@@ -7,6 +7,14 @@ class ErrorPresenter
     @test_mode    = test_mode
   end
 
+  def log_cookie
+    @error_hasher.log_cookie
+  end
+
+  def not_publically_displayable
+    @error_hasher.not_publically_displayable
+  end
+
   def client_error?
     response_code >= 400 && response_code <= 499
   end
