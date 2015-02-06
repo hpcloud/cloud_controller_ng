@@ -4,7 +4,7 @@ describe ErrorHasher do
   def expect_generic_message(sanitized_hash)
     expect(sanitized_hash["error_code"]).to eq("UnknownError")
     expect(sanitized_hash["code"]).to eq(10001)
-    expect(sanitized_hash["description"]).to match(/\AAn unknown error occurred.( Please contact your adminstrator, specifying error tracker ID \d+ along with this message.)?\Z/)
+    expect(sanitized_hash["description"]).to match(/\AAn unknown error occurred. Please contact your adminstrator, specifying error tracker ID \d+ along with this message.\Z/)
   end
 
   subject(:error_hasher) { ErrorHasher.new(error) }
@@ -125,7 +125,7 @@ describe ErrorHasher do
       it "returns a default hash" do
         expect(unsanitized_hash["error_code"]).to eq("UnknownError")
         expect(unsanitized_hash["code"]).to eq(10001)
-        expect(unsanitized_hash["description"]).to match(/\A(?:An unknown error occurred.|No error. Please contact your adminstrator, specifying error tracker ID \d+ along with this message.)\Z/)
+        expect(unsanitized_hash["description"]).to match(/\ANo error. Please contact your adminstrator, specifying error tracker ID \d+ along with this message.\Z/)
       end
     end
 
