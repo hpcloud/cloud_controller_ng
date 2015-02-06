@@ -1,3 +1,20 @@
+## Instructions for running spec tests
+
+The setup and running of these tests has been automated as follows:
+
+* Create a Stackato v3.4.2 microcloud instance
+* Connect to (ssh) and/or login to the Stackato instance
+* Run these commands:
+
+    git clone git@github.com:ActiveState/cloud_controller_ng --branch=300170-fix-specs
+    cd cloud_controller_ng
+    ./spec/setup-test-env.sh
+    ./spec/test-all.sh
+
+
+===> Old doc follows. Will be updating this as tests are fixed.
+
+
 ## Intent of each kind of test
 
 NOTE: This list is incomplete. Please enhance it as you can
