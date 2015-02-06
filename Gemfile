@@ -160,6 +160,6 @@ gem 'vcap_common'       ,    '3.0.0', :path => '../common'
 gem 'virtus'            ,    '1.0.0'
 gem 'vmstat'            ,    '2.1.0'
 gem 'webmock'           ,   '1.18.0', :groups => [:test]
-gem 'xmlparser'         
+gem 'xmlparser'         ,  '0.7.2.1'
 gem 'yajl-ruby'         ,    '1.1.0'
 
