@@ -21,8 +21,8 @@ GIT
 
 GIT
   remote: git://github.com/ActiveState/cf-uaa-lib.git
-  revision: 65b93402ec6b928f31bb7a281bb5675d1fcc23cc
-  ref: 65b93402ec6b928f31bb7a281bb5675d1fcc23cc
+  revision: 237a9f6cae9d552833056c941a4304e3f9ae7a9c
+  ref: 237a9f6cae9d552833056c941a4304e3f9ae7a9c
   specs:
     cf-uaa-lib (2.1.0)
       multi_json
