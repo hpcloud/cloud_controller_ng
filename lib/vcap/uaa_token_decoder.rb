@@ -1,4 +1,6 @@
 require "uaa/info"
+require 'httpclient'
+require 'stackato/token_utils'
 
 module VCAP
   class UaaTokenDecoder
@@ -24,10 +26,21 @@ module VCAP
       return unless token_format_valid?(auth_token)
 
       if symmetric_key
-        decode_token_with_symmetric_key(auth_token)
+        token = decode_token_with_symmetric_key(auth_token)
       else
-        decode_token_with_asymmetric_key(auth_token)
+        token = decode_token_with_asymmetric_key(auth_token)
       end
+
+      # Validate the decoded token if token validation is enabled
+      if VCAP::CloudController::Config.config[:aok][:enable_token_validation]
+        VCAP::CloudController::TokenUtils.validate_token(auth_token,
+                                                         'access_token',
+                                                         config[:url],
+                                                         config[:resource_id],
+                                                         VCAP::CloudController::Config.config[:aok][:client_secret])
+      end
+
+      token
     rescue CF::UAA::TokenExpired => e
       @logger.warn("Token expired")
       raise BadToken.new(e.message)
