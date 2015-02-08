@@ -18,7 +18,7 @@ gem "builder", "3.0.4"
 gem 'celluloid', '0.15.2'
 gem "cf-message-bus","0.2.0", :github => "ActiveState/cf-message-bus"
 gem 'cf-registrar', "1.0.1", :github => "cloudfoundry/cf-registrar", :ref => "49850ee876652a59dbd2d"
-gem 'cf-uaa-lib',    '3.1.0', :github => "ActiveState/cf-uaa-lib", :ref => "237a9f6cae9d552833056c941a4304e3f9ae7a9c"
+gem 'cf-uaa-lib',    '2.1.0', :github => "ActiveState/cf-uaa-lib", :ref => "237a9f6cae9d552833056c941a4304e3f9ae7a9c"
 gem "ci_reporter", '1.9.0'
 gem 'clockwork', '0.7.0'
 gem 'cloudfront-signer', '2.1.1'
@@ -127,7 +127,7 @@ end
 group :development do
   gem 'debugger', '1.6.6'
   gem 'debugger-linecache', '1.2.0'
-  gem 'debugger-ruby_core_source', '1.3.5' 
+  gem 'debugger-ruby_core_source', '1.3.5'
   gem 'roodi', '4.0.0'
   gem 'columnize', '0.3.6'
   gem 'ruby_parser', '3.6.2'
