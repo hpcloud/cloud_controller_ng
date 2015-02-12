@@ -132,6 +132,9 @@ module VCAP::CloudController
       if first_space_name and not first_space_name.empty?
         space = Space.create_from_hash({:name => first_space_name, :organization_guid => org.guid, :manager_guids => [@new_user.guid]})
       end
+
+      # The EULA must have been accepted via the console to perform first user set up
+      Kato::Config.set('cluster', 'eula_accepted', true)
       
       if !Kato::Config.get("cluster", "license")
         logger.info("SETUP: storing the license key in config")

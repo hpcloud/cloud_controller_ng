@@ -12,6 +12,7 @@ module VCAP::CloudController
 
     def info
       license = Kato::Config.get("cluster", "license")
+      applog_endpoint = Kato::Config.get("applog_endpoint", "hostname") || "logs.#{config[:system_domain]}"
       info = {
         :name        => config[:info][:name],
         :build       => config[:info][:build],
@@ -20,7 +21,7 @@ module VCAP::CloudController
         :description => config[:info][:description],
         :authorization_endpoint => config[:login] ? config[:login][:url] : config[:uaa][:url],
         :token_endpoint => config[:uaa][:url],
-        :applog_endpoint => "ws://logs.#{config[:system_domain]}",
+        :applog_endpoint => "ws://#{applog_endpoint}",
         :allow_debug => config.fetch(:allow_debug, true),
         :vendor_version => StackatoVendorConfig.vendor_version,
         :stackato => {
