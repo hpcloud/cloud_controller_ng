@@ -17,8 +17,8 @@ module VCAP::CloudController
         let(:fingerprints) { double(:fingerprints) }
         let(:package_blobstore) { double(:package_blobstore) }
         let(:global_app_bits_cache) { double(:global_app_bits_cache) }
-        let(:tmpdir) { "/tmp/special_temp" }
-        let(:max_package_size) { 256 }
+        let(:tmpdir) { VCAP::CloudController::Config.config[:directories][:tmpdir] }
+        let(:max_package_size) { 512 * 1024 * 1024 }
 
         before do
           TestConfig.override({:directories => {:tmpdir => tmpdir}, :packages => TestConfig.config[:packages].merge(:max_package_size => max_package_size)})
