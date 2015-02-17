@@ -107,6 +107,10 @@ module CloudController
       )
     end
 
+    def docker_registry
+      return "#{config[:external_host]}:5000"
+    end
+
     def app_event_repository
       @app_event_repository ||= Repositories::Runtime::AppEventRepository.new
     end

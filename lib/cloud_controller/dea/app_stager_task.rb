@@ -32,13 +32,14 @@ module VCAP::CloudController
       attr_reader :config
       attr_reader :message_bus
 
-      def initialize(config, message_bus, app, dea_pool, stager_pool, blobstore_url_generator)
+      def initialize(config, message_bus, app, dea_pool, stager_pool, blobstore_url_generator, docker_registry)
         @config = config
         @message_bus = message_bus
         @app = app
         @dea_pool = dea_pool
         @stager_pool = stager_pool
         @blobstore_url_generator = blobstore_url_generator
+        @docker_registry = docker_registry
       end
 
       def task_id
@@ -127,6 +128,7 @@ module VCAP::CloudController
             buildpack_cache_download_uri: @blobstore_url_generator.buildpack_cache_download_url(@app),
             buildpack_cache_upload_uri:   @blobstore_url_generator.buildpack_cache_upload_url(@app),
             docker_image:                 @app.docker_image,
+            docker_registry:              @docker_registry,
             start_message:                start_app_message,
             admin_buildpacks:             admin_buildpacks,
             egress_network_rules:         staging_egress_rules,
@@ -155,7 +157,7 @@ module VCAP::CloudController
       end
 
       def start_app_message
-        msg = Dea::StartAppMessage.new(@app, 0, @config, @blobstore_url_generator)
+        msg = Dea::StartAppMessage.new(@app, 0, @config, @blobstore_url_generator, @docker_registry)
         msg[:sha1] = nil
         msg
       end

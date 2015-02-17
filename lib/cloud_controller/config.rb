@@ -273,13 +273,14 @@ module VCAP::CloudController
         dependency_locator = CloudController::DependencyLocator.instance
 
         blobstore_url_generator = dependency_locator.blobstore_url_generator
+        docker_registry = dependency_locator.docker_registry
 
         diego_client = dependency_locator.diego_client
         diego_client.connect!
 
         diego_messenger = dependency_locator.diego_messenger
 
-        Dea::Client.configure(@config, message_bus, dea_pool, stager_pool, blobstore_url_generator)
+        Dea::Client.configure(@config, message_bus, dea_pool, stager_pool, blobstore_url_generator, docker_registry)
 
         Diego::Traditional::StagingCompletionHandler.new(message_bus, diego_messenger).subscribe!
 

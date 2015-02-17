@@ -11,12 +11,13 @@ module VCAP::CloudController
 
         attr_reader :config, :message_bus, :dea_pool, :stager_pool, :message_bus
 
-        def configure(config, message_bus, dea_pool, stager_pool, blobstore_url_generator)
+        def configure(config, message_bus, dea_pool, stager_pool, blobstore_url_generator, docker_registry)
           @config = config
           @message_bus = message_bus
           @dea_pool = dea_pool
           @stager_pool = stager_pool
           @blobstore_url_generator = blobstore_url_generator
+          @docker_registry = docker_registry
         end
 
         def start(app, options={})
@@ -150,7 +151,7 @@ module VCAP::CloudController
         end
 
         def start_instance_at_index(app, index)
-          start_message = Dea::StartAppMessage.new(app, index, config, @blobstore_url_generator)
+          start_message = Dea::StartAppMessage.new(app, index, config, @blobstore_url_generator, @docker_registry)
 
           unless start_message.has_app_package? || start_message.has_docker_image?
             logger.error "dea-client.no-package-found", guid: app.guid
