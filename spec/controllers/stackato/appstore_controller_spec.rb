@@ -6,15 +6,15 @@ require "controllers/stackato/appstore_controller"
 describe VCAP::CloudController::StackatoAppStoreController do
 
 
-  let(:steno_config) { Steno::Config.new(:sinks   => [Steno::Sink::IO.for_file("/dev/null")], 
+  let(:steno_config) { Steno::Config.new(:sinks   => [Steno::Sink::IO.for_file("/dev/null")],
                                          :codec   => Steno::Codec::Json.new,
                                          :context => Steno::Context::ThreadLocal.new) }
   let(:logger) { Steno.init(steno_config)
                  Steno.logger("test") }
-  let(:controller) {  
-    allow_any_instance_of(VCAP::CloudController::RestController::ModelController).to receive( 
+  let(:controller) {
+    allow_any_instance_of(VCAP::CloudController::RestController::ModelController).to receive(
       :inject_dependencies ) { nil }
-    VCAP::CloudController::StackatoAppStoreController.new( {}, logger, {}, {}, nil ) 
+    VCAP::CloudController::StackatoAppStoreController.new( {}, logger, {}, {}, nil )
   }
 
   describe :app_create do
@@ -175,7 +175,7 @@ describe VCAP::CloudController::StackatoAppStoreController do
     context 'called with a valid path' do
       it 'should work' do
         allow(controller).to receive(:http_post_json) { [200, '{ "hello": "world" }'] }
-        expect{ controller.invoke_api( "/create", "" ) }.not_to raise_error 
+        expect{ controller.invoke_api( "/create", "" ) }.not_to raise_error
       end
     end
 
@@ -192,8 +192,8 @@ describe VCAP::CloudController::StackatoAppStoreController do
       it 'should receive a valid return code' do
         stub_request(:post, "http://127.0.0.1/").
           with(:body => "\"foo=1\"",
-               :headers => {'Accept'=>'*/*', 
-                            'Content-Type'=>'application/json', 
+               :headers => {'Accept'=>'*/*',
+                            'Content-Type'=>'application/json',
                             'User-Agent'=>'Ruby'}).
           to_return(:status => 200, :body => "", :headers => {})
         expect( controller.http_post_json( "http://127.0.0.1", "foo=1" ) ).to eq([200, nil])
@@ -204,8 +204,8 @@ describe VCAP::CloudController::StackatoAppStoreController do
       it 'should catch the error and raise n StackatoAppStoreAPIConnectionFailed error' do
         stub_request(:post, "http://127.0.0.1/").
           with(:body => "\"foo=1\"",
-               :headers => {'Accept'=>'*/*', 
-                            'Content-Type'=>'application/json', 
+               :headers => {'Accept'=>'*/*',
+                            'Content-Type'=>'application/json',
                             'User-Agent'=>'Ruby'}).
           to_raise(Errno::ECONNREFUSED)
         expect{ controller.http_post_json( "http://127.0.0.1", "foo=1" ) }.to raise_error( Errors::ApiError, /Could not connect to the AppStore API./)
@@ -214,8 +214,8 @@ describe VCAP::CloudController::StackatoAppStoreController do
       it 'should catch the error and raise StackatoAppStoreAPITimeout error' do
         stub_request(:post, "http://127.0.0.1/").
           with(:body => "\"foo=1\"",
-               :headers => {'Accept'=>'*/*', 
-                            'Content-Type'=>'application/json', 
+               :headers => {'Accept'=>'*/*',
+                            'Content-Type'=>'application/json',
                             'User-Agent'=>'Ruby'}).
           to_timeout
         expect{ controller.http_post_json( "http://127.0.0.1", "foo=1" ) }.to raise_error( Errors::ApiError, /There was a timeout communicating with the AppStore API./)
