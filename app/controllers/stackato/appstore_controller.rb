@@ -1,7 +1,7 @@
 # Controller to interact with a locally running Stackato AppStore backend.
 
 module VCAP::CloudController
-  rest_controller :StackatoAppStoreController do
+  rest_controller :StackatoAppStore do
     path_base "appstore"
     model_class_name :App
 

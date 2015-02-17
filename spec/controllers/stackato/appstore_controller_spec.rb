@@ -3,7 +3,7 @@ require "stackato/spec_helper"
 require "steno"
 require "controllers/stackato/appstore_controller"
 
-describe VCAP::CloudController::StackatoAppStoreControllerController do
+describe VCAP::CloudController::StackatoAppStoreController do
 
 
   let(:steno_config) { Steno::Config.new(:sinks   => [Steno::Sink::IO.for_file("/dev/null")], 
@@ -14,7 +14,7 @@ describe VCAP::CloudController::StackatoAppStoreControllerController do
   let(:controller) {  
     allow_any_instance_of(VCAP::CloudController::RestController::ModelController).to receive( 
       :inject_dependencies ) { nil }
-    VCAP::CloudController::StackatoAppStoreControllerController.new( {}, logger, {}, {}, nil ) 
+    VCAP::CloudController::StackatoAppStoreController.new( {}, logger, {}, {}, nil ) 
   }
 
   describe :app_create do
