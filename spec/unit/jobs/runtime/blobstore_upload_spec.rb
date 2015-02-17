@@ -21,15 +21,11 @@ module VCAP::CloudController
 
       describe "#perform" do
         it "uploads the file to the blobstore" do
-          if !blobstore.exists?(blobstore_key)
-            # if it already exists, like on repeated runs, this test will fail.
-            expect {
-              $stderr.puts("QQQ: before, blobstore.exists?(blobstore_key:#{blobstore_key}) => #{blobstore.exists?(blobstore_key)}")
-              job.perform
-            }.to change {
-              blobstore.exists?(blobstore_key)
-            }.to(true)
-          end
+          expect {
+            job.perform
+          }.to change {
+            blobstore.exists?(blobstore_key)
+          }.to(true)
         end
 
         it "cleans up the file at the end" do
