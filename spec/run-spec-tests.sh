@@ -18,9 +18,15 @@ export DB_CONNECTION="postgres://$DB_TEST_USER@$DB_TEST_HOSTNAME:$DB_TEST_PORT"
 export DB_CONNECTION_STRING="postgres://$DB_TEST_USER@$DB_TEST_HOSTNAME:$DB_TEST_PORT/$DB_TEST_DATABASE"
 export PGPASSWORD="$DB_TEST_PASSWORD"
 
+test_results="../test-results"
+
 # bundle exec rake spec
 
-specs=($(find spec -type f | grep '_spec\.rb$'))
+if [ "$#" -gt 0 ]; then
+  specs=("$@")
+else
+  specs=($(find spec -type f | grep '_spec\.rb$'))
+fi
 
 # Add a timer
 # Log results
@@ -33,14 +39,29 @@ for spec in "${specs[@]}"; do
 
   file="${spec#spec/}"
   dir=$(dirname $file)
-  mkdir -p pass/$dir
-  echo "* Running spec/$file"
+
+  temp_dir="$test_results"/temp/"$dir"
+  pass_dir="$test_results"/pass/"$dir"
+  fail_dir="$test_results"/fail/"$dir"
+  temp_file="$test_results"/temp/"$file"
+  pass_file="$test_results"/pass/"$file"
+  fail_file="$test_results"/fail/"$file"
+
+  mkdir -p "$temp_dir"
+
+  printf "* Running spec/$file - "
 
   rc=0
-  bundle exec rspec $spec &> pass/$file || rc=$?
-  if [[ $rc -ne 0 ]]; then
-    mkdir -p fail/$dir
-    mv pass/$file fail/$file
-    rmdir --ignore-fail-on-non-empty pass/$dir
+  bundle exec rspec "$spec" &> "$temp_file" || rc=$?
+  if [[ $rc -eq 0 ]]; then
+    echo "PASS ($pass_file)"
+    mkdir -p "$pass_dir"
+    mv "$temp_file" "$pass_file"
+  else
+    echo "FAIL ($fail_file)"
+    mkdir -p "$fail_dir"
+    mv "$temp_file" "$fail_file"
   fi
 done
+
+rm -fr "$test_results/temp"
