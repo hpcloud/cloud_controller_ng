@@ -444,6 +444,13 @@ module VCAP::CloudController
                 :configuration => [],
                 :credentials   => { foo: 'bar' }
             ).encode, json_headers(@auth_header)
+	    if last_response.status >= 500
+	      body = MultiJson.load(last_response.body) rescue {}
+              if (body['description']["Real HTTP connections are disabled"] rescue false)
+                # The stub_request suggestion is hidden in the response body!
+                puts body['description']
+              end
+            end
             expect(last_response.status).to eq(200)
           end
 
