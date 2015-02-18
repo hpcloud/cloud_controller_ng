@@ -21,6 +21,7 @@ module VCAP::CloudController
 
       describe "#perform" do
         it "uploads the file to the blobstore" do
+          blobstore.delete(blobstore_key)
           expect {
             job.perform
           }.to change {
