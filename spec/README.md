@@ -2,14 +2,16 @@
 
 The setup and running of these tests has been automated as follows:
 
-* Create a Stackato v3.4.2 microcloud instance
-* Connect to (ssh) and/or login to the Stackato instance
-* Run these commands:
+Run these commands:
 
     git clone git@github.com:ActiveState/cloud_controller_ng --branch=300170-fix-specs
     cd cloud_controller_ng
-    ./spec/setup-test-env.sh
-    ./spec/test-all.sh
+    ./spec/stackato/setup-test-env.sh
+    ./spec/stackato/run-spec-tests.sh
+
+Note: This has only been tested on Ubuntu Linux.
+
+
 
 
 ===> Old doc follows. Will be updating this as tests are fixed.
@@ -21,28 +23,32 @@ NOTE: This list is incomplete. Please enhance it as you can
 
 ### spec/acceptance
 
-These test the full Cloud Controller stack, while stubbing out any external services. The intent is that
-integration tests that would otherwise end up in spec/controllers should go here. This folder is distinct
-from spec/integration, because those tests actually spin up CC in a separate process along with other
-components like UAA. As it is generally more convenient to use WebMock to represent external services, these
-tests run the controller in-process.
+These test the full Cloud Controller stack, while stubbing out any external
+services. The intent is that integration tests that would otherwise end up in
+spec/controllers should go here. This folder is distinct from
+spec/integration, because those tests actually spin up CC in a separate
+process along with other components like UAA. As it is generally more
+convenient to use WebMock to represent external services, these tests run the
+controller in-process.
 
 #### spec/acceptance/broker_api_compatibility
 
-These tests ensure that, as we add new minor versions to the
-[v2 Service Broker API](http://docs.cloudfoundry.org/services/api.html), Cloud Controller
-continues to work with all previous minor versions. As each minor version builds on the functionality
-of its predecessors, the test for each minor version tests ONLY the changes introduced in that minor version.
-The intent is that these tests should not have to be changed as we add
-new minor versions of the Service Broker API. To enforce this, the broker_api_versions_spec.rb will fail
-whenver the content of any of the api tests changes.
+These tests ensure that, as we add new minor versions to the [v2 Service
+Broker API](http://docs.cloudfoundry.org/services/api.html), Cloud Controller
+continues to work with all previous minor versions. As each minor version
+builds on the functionality of its predecessors, the test for each minor
+version tests ONLY the changes introduced in that minor version. The intent
+is that these tests should not have to be changed as we add new minor versions
+of the Service Broker API. To enforce this, the broker_api_versions_spec.rb
+will fail whenver the content of any of the api tests changes.
 
-These tests only exercise the happy path, make minimal assertions against the CC API
-(usually only that the response is not a failure), and assert mostly that the correct requests are
-sent to the service broker.
+These tests only exercise the happy path, make minimal assertions against the
+CC API (usually only that the response is not a failure), and assert mostly
+that the correct requests are sent to the service broker.
 
-Due to the fact that new optional fields will be added
-to requests sent to the broker in the future, any assertions on request parameters should that the
-expected keys are **included**, not that the exact set of fields is sent. For example, assert that
-a provision request includes the plan_id, but do not assert that the exact set of keys present in
-version 2.1 are sent, as this test will break as later minor versions are added.
+Due to the fact that new optional fields will be added to requests sent to the
+broker in the future, any assertions on request parameters should that the
+expected keys are **included**, not that the exact set of fields is sent. For
+example, assert that a provision request includes the plan_id, but do not
+assert that the exact set of keys present in version 2.1 are sent, as this
+test will break as later minor versions are added.
