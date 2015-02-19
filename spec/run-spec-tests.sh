@@ -18,6 +18,8 @@ export DB_CONNECTION="postgres://$DB_TEST_USER@$DB_TEST_HOSTNAME:$DB_TEST_PORT"
 export DB_CONNECTION_STRING="postgres://$DB_TEST_USER@$DB_TEST_HOSTNAME:$DB_TEST_PORT/$DB_TEST_DATABASE"
 export PGPASSWORD="$DB_TEST_PASSWORD"
 
+export STACKATO_SKIP_WARN_REDUNDANCY=1
+
 test_results="../test-results"
 
 # bundle exec rake spec
