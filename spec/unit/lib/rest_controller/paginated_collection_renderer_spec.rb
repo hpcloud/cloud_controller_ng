@@ -20,6 +20,8 @@ module VCAP::CloudController::RestController
     let(:max_results_per_page) { 100_000 }
     let(:max_inline_relations_depth) { 100_000 }
 
+    before(:each) { VCAP::CloudController::SecurityContext.set(nil) }
+
     describe '#render_json' do
       let(:opts) do
         {
