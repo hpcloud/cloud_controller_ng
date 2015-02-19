@@ -38,6 +38,12 @@ module VCAP::CloudController
         it "creates a user" do
           expect {
             make_request
+            if last_response.status >= 500
+              description = (MultiJson.load(last_response.body)['description']) rescue ""
+              if description['Real HTTP connections are disabled']
+                puts description
+              end
+            end
           }.to change { VCAP::CloudController::User.count }.by(1)
 
           user = VCAP::CloudController::User.last
