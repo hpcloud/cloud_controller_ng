@@ -37,10 +37,35 @@ else
   specs=($(find spec -type f | grep '_spec\.rb$'))
 fi
 
-# Add a timer
-# Log results
-# Run in parallel
-# Add support for a list of test patterns
+if [ ${#specs[@]} -gt 1 ]; then
+  use_log=true
+else
+  use_log=false
+fi
+
+log() {
+  echo "$1"
+  if $use_log; then
+    echo "$1" >> "$test_results/log"
+  fi
+}
+log_after() {
+  end_time="$(date +%s)"
+  if $use_log; then
+    log "  $1 - $(( end_time - start_time ))s - $2"
+  fi
+}
+if $use_log; then
+  rm -f "$test_results/log"
+  begin_time="$(date +%s)"
+  log "Start spec: $(date)"
+  log ""
+fi
+
+# TODO:
+# - Run in parallel
+total_pass=0
+total_fail=0
 for spec in "${specs[@]}"; do
   # XXX This test hangs currently:
   [ "$spec" != spec/unit/lib/background_job_environment_spec.rb ] ||
@@ -58,19 +83,35 @@ for spec in "${specs[@]}"; do
 
   mkdir -p "$temp_dir"
 
-  printf "* Running spec/$file - "
+  log "* Running spec/$file"
 
+  start_time="$(date +%s)"
   rc=0
   bundle exec rspec "$spec" &> "$temp_file" || rc=$?
   if [[ $rc -eq 0 ]]; then
-    echo "PASS ($pass_file)"
+    log_after PASS "$pass_file"
     mkdir -p "$pass_dir"
     mv "$temp_file" "$pass_file"
+    ((++total_pass))
   else
-    echo "FAIL ($fail_file)"
+    log_after FAIL "$fail_file"
     mkdir -p "$fail_dir"
     mv "$temp_file" "$fail_file"
+    ((++total_fail))
   fi
 done
+
+if $use_log; then
+  log ""
+  log "Total spec: $((total_pass + total_fail))"
+  log "Total pass: $total_pass"
+  log "Total fail: $total_fail"
+  end_time="$(date +%s)"
+  dur=$(( end_time - begin_time ))
+  hours=$(( dur / 3600 ))
+  mins=$(( dur % 3600 / 60 ))
+  secs=$(( dur % 3600 % 60 ))
+  log "Total time: $hours hours, $mins mins, $secs secs"
+fi
 
 rm -fr "$test_results/temp"
