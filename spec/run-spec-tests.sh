@@ -10,6 +10,7 @@ export DB_TEST_PASSWORD="$(
     grep -E '^    password: [0-9a-z]{10}$' |
     sed 's/.* //'
 )"
+export LESS=-EiXm
 export DB_TEST_DATABASE=cc_test
 export DB_TEST_HOSTNAME=localhost
 export DB_TEST_PORT=5432
@@ -19,6 +20,12 @@ export DB_CONNECTION_STRING="postgres://$DB_TEST_USER@$DB_TEST_HOSTNAME:$DB_TEST
 export PGPASSWORD="$DB_TEST_PASSWORD"
 
 export STACKATO_SKIP_WARN_REDUNDANCY=1
+
+create_cc_test_done_file=/tmp/done_create_database_cc_test
+if [ ! -e $create_cc_test_done_file ]; then
+  echo 'create database cc_test;' | psql -U postgres -h localhost -p 5432
+  touch $create_cc_test_done_file
+fi
 
 test_results="../test-results"
 
