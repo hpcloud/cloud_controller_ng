@@ -397,20 +397,26 @@ module VCAP::CloudController
                 subject
               end
 
-              context "when the app bits were changed as well" do
-                before do
-                  app.mark_for_restaging
-                end
-
-                let(:package_hash) { "something new" }
-
-                it "should start more instances of the old version" do
-                  expect(message_bus).to receive(:publish) { |subject, message|
-                    expect(message).to include({
-                                                   sha1: "initial-droplet-hash"
-                                               })
-                  }.exactly(3).times.ordered
-                  subject
+              if !File.exists?("/home/stackato/stackato")
+                # Stackato code in cc/lib/cc/stackato/backends.rb calls
+                # broadcast_app_updated, which throws off this calculation.
+                # A separate test for it is in
+                # ./stackato/app_observer_spec.rb
+                context "when the app bits were changed as well" do
+                  before do
+                    app.mark_for_restaging
+                  end
+  
+                  let(:package_hash) { "something new" }
+  
+                  it "should start more instances of the old version" do
+                    expect(message_bus).to receive(:publish) { |subject, message|
+                      expect(message).to include({
+                                                     sha1: "initial-droplet-hash"
+                                                 })
+                    }.exactly(3).times.ordered
+                    subject
+                  end
                 end
               end
             end
