@@ -48,7 +48,7 @@ make-symlinks() {
     set -x
     cd vendor/errors
     [ -e v2.yml ] ||
-      ln -s /s/code/cloud_controller_ng/vendor/errors/v2.yml
+      ln -s ../../spec/errors-v2.yml v2.yml
   )
 }
 
