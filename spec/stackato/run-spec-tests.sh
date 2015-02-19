@@ -5,11 +5,28 @@ set -e
 # PGPASSFILE content:
 # localhost:5432:cc_test:postgres:7o0j493ehp
 export DB_TEST_USER=postgres
-export DB_TEST_PASSWORD="$(
-  kato config get cloud_controller_ng |
-    grep -E '^    password: [0-9a-z]{10}$' |
-    sed 's/.* //'
-)"
+if type kato &>/dev/null; then
+  export DB_TEST_PASSWORD="$(
+    kato config get cloud_controller_ng |
+      grep -E '^    password: [0-9a-z]{10}$' |
+      sed 's/.* //'
+  )"
+else
+  [ -n "$DB_TEST_PASSWORD" ] || die "
+You need to:
+
+  export DB_TEST_PASSWORD=<postgres-user-password>
+
+If you don't know the password, do this:
+
+  sudo -u postgres psql postgres
+  \\password postgres
+
+Enter a new password when prompted and exit with ctl-d.
+
+"
+  export DB_TEST_PASSWORD
+fi
 export LESS=-EiXm
 export DB_TEST_DATABASE=cc_test
 export DB_TEST_HOSTNAME=localhost
@@ -31,10 +48,13 @@ test_results="../test-results"
 
 # bundle exec rake spec
 
-if [ "$#" -gt 0 ]; then
-  specs=("$@")
-else
+if [ "$#" -eq 0 ]; then
+  bundle exec rspec
+  exit 0
+elif [ "$1" == --all ]; then
   specs=($(find spec -type f | grep '_spec\.rb$'))
+else
+  specs=("$@")
 fi
 
 if [ ${#specs[@]} -gt 1 ]; then

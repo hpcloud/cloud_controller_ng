@@ -11,7 +11,19 @@ Run these commands:
 
 Note: This has only been tested on Ubuntu Linux.
 
+The `run-spec-tests.sh` runs all the spec tests in a normal way but with the
+needed environment set up. That command should be used in automated runs and
+CI setups.
 
+To run the tests individually for dev:
+
+    ./spec/stackato/run-spec-tests.sh --all
+
+or to run specific tests:
+
+    ./spec/stackato/run-spec-tests.sh <spec/file/path>...
+
+This will put results into ../test-results/ for easier analysis.
 
 
 ===> Old doc follows. Will be updating this as tests are fixed.

@@ -14,6 +14,7 @@ set -e
 main() {
   chdir-to-ccng-repo
   sanity-check
+  setup-env
 
   clone-necessary-repos
   make-symlinks
@@ -48,7 +49,7 @@ make-symlinks() {
     set -x
     cd vendor/errors
     [ -e v2.yml ] ||
-      ln -s ../../spec/errors-v2.yml v2.yml
+      ln -s ../../spec/stackato/errors-v2.yml v2.yml
   )
 }
 
@@ -59,14 +60,38 @@ sanity-check() {
   # Make sure we are on the right branch for now:
   [ "$branch" == 300170-fix-specs ] ||
     die "You should have branch '300170-fix-specs' checked out"
+  type ruby &>/dev/null ||
+    die "You don't have 'ruby' installed. Install version '1.9.3p484'."
+  [[ "$(ruby -v)" =~ \ 1\.9\.3p484\  ]] ||
+    die "You need version ruby version '1.9.3p484'."
+  type gem &>/dev/null ||
+    die "You don't have 'gem' installed."
+  type bundle &>/dev/null ||
+    die "You don't have 'bundle' installed. Try: 'gem install bundle'."
+  type psql &>/dev/null ||
+    die "You don't have 'psql' installed. Try: 'sudo apt-get install postgresql-client-common postgresql-client-9.3'."
+  [ -e /usr/include/rrd.h ] ||
+    die "Missing dep 'librrd-dev'. Try: 'sudo apt-get install librrd-dev'"
+  [ -e /usr/include/mysql/ ] ||
+    die "Missing dep 'libmysqlclient-dev'. Try: 'sudo apt-get install libmysqlclient-dev'"
+  [ -e /usr/include/postgresql/libpq-fe.h ] ||
+    die "Missing dep 'libpq-dev'. Try: 'sudo apt-get install libpq-dev'"
+  [ -e /usr/include/sqlite3.h ] ||
+    die "Missing dep 'libsqlite3-dev'. Try: 'sudo apt-get install libsqlite3-dev'"
+  [ -e /etc/init.d/postgresql ] ||
+    die "Missing dep 'postgresql-common'. Try: 'sudo apt-get install postgresql postgresql-common postgresql-contrib'"
+}
+
+setup-env() {
+  export KATO_DEV=1
 }
 
 # Make sure we start off in the right directory:
 chdir-to-ccng-repo() {
-  cd "$(cd "$(dirname $0)/.."; pwd)"
+  cd "$(cd "$(dirname $0)/../.."; pwd)"
   [ -d .git ] &&
-    [ -f "spec/$(basename $0)" ] ||
-    die "Can't determine cc_ng location."
+    [ -f "spec/stackato/$(basename $0)" ] ||
+    die "Can't determine cloud_controller_ng location."
 }
 
 die() { echo "$@" >&2; exit 1; }
