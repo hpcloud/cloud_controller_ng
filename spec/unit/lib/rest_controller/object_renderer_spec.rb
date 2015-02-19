@@ -27,6 +27,7 @@ module VCAP::CloudController::RestController
       context 'when asked inline_relations_depth equals to max inline_relations_depth' do
         before { renderer_opts.merge!(max_inline_relations_depth: 10) }
         before { opts.merge!(inline_relations_depth: 10) }
+        before { VCAP::CloudController::SecurityContext.set(nil) }
 
         it 'renders json response' do
           result = subject.render_json(controller, instance, opts)
@@ -37,6 +38,7 @@ module VCAP::CloudController::RestController
       context 'when asked inline_relations_depth is less than max inline_relations_depth' do
         before { renderer_opts.merge!(max_inline_relations_depth: 10) }
         before { opts.merge!(inline_relations_depth: 9) }
+        before { VCAP::CloudController::SecurityContext.set(nil) }
 
         it 'renders json response' do
           result = subject.render_json(controller, instance, opts)
