@@ -19,6 +19,7 @@ module VCAP::CloudController
             app.current_droplet.update_start_command("fake-start-command-#{i}")
             app.add_route(Route.make(space: app.space))
           end
+          VCAP::CloudController::SecurityContext.set(nil)
         end
 
         it "returns apps that have the desired data" do
