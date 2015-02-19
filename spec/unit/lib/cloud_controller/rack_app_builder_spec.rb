@@ -12,7 +12,10 @@ module VCAP::CloudController
       TestConfig.override({
         :nginx => {
           :use_nginx => use_nginx,
-        }
+        },
+        :logging => {
+          :file => "/tmp/test_config.log",
+        },
       })
 
       allow(Rack::CommonLogger).to receive(:new)
