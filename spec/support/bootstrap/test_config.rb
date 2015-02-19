@@ -20,7 +20,6 @@ module TestConfig
   end
 
   def self.load(overrides={})
-    config = defaults.merge(overrides)
     config_yaml = automated_build? ? kato_config_from_file : kato_config
     config_hash = ::Kato::Util.symbolize_keys(config_yaml)
 
@@ -34,7 +33,7 @@ module TestConfig
       },
     }
 
-    config_hash.merge!(config_override || {})
+    config_hash.merge!(config_override.merge(overrides))
     configure_components(config_hash)
     config_hash
   end
