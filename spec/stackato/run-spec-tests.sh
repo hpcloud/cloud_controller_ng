@@ -2,6 +2,8 @@
 
 set -e
 
+die() { echo "$@" >&2; exit 1; }
+
 # PGPASSFILE content:
 # localhost:5432:cc_test:postgres:7o0j493ehp
 export DB_TEST_USER=postgres
@@ -36,6 +38,7 @@ export DB_CONNECTION="postgres://$DB_TEST_USER@$DB_TEST_HOSTNAME:$DB_TEST_PORT"
 export DB_CONNECTION_STRING="postgres://$DB_TEST_USER@$DB_TEST_HOSTNAME:$DB_TEST_PORT/$DB_TEST_DATABASE"
 export PGPASSWORD="$DB_TEST_PASSWORD"
 
+export AUTOMATED_BUILD=1
 export STACKATO_SKIP_WARN_REDUNDANCY=1
 
 create_cc_test_done_file=/tmp/done_create_database_cc_test

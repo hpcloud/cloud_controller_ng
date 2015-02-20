@@ -44,6 +44,9 @@ make-symlinks() {
     [ -e common ] || ln -s ../../../vcap-common common
     [ -e steno-codec-text ] || ln -s ../../../steno-codec-text
   )
+  if [ -f vendor/errors ]; then
+    rm vendor/errors
+  fi
   mkdir -p vendor/errors
   (
     set -x
@@ -53,7 +56,12 @@ make-symlinks() {
   )
 }
 
-bundle-install() { bundle install; }
+bundle-install() {
+  if [ -z "$(grep stackato-kato Gemfile | grep path)" ]; then
+    patch -p1 < spec/stackato/Gemfile.patch
+  fi
+  bundle install
+}
 
 sanity-check() {
   local branch="$(git rev-parse --abbrev-ref HEAD)"
@@ -69,7 +77,7 @@ sanity-check() {
   type bundle &>/dev/null ||
     die "You don't have 'bundle' installed. Try: 'gem install bundle'."
   type psql &>/dev/null ||
-    die "You don't have 'psql' installed. Try: 'sudo apt-get install postgresql-client-common postgresql-client-9.3'."
+    die "You don't have 'psql' installed. Try: 'sudo apt-get install postgresql-client-common postgresql-client-9.x'."
   [ -e /usr/include/rrd.h ] ||
     die "Missing dep 'librrd-dev'. Try: 'sudo apt-get install librrd-dev'"
   [ -e /usr/include/mysql/ ] ||
