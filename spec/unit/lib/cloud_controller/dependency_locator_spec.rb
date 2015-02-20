@@ -8,6 +8,7 @@ describe CloudController::DependencyLocator do
 
   describe "#health_manager_client" do
     it "should return the hm9000 client" do
+      pending("TODO: run this test when Stackato moves to HM9000")
       expect(locator.health_manager_client).to be_an_instance_of(VCAP::CloudController::Dea::HM9000::Client)
     end
   end
