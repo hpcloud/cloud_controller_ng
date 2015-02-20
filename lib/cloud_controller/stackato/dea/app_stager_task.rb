@@ -3,6 +3,14 @@ require 'cloud_controller/dea/app_stager_task'
 module VCAP::CloudController
   module Dea
     class StackatoAppStagerTask < AppStagerTask
+
+      def stage(&completion_callback)
+        find_stager_retry
+        if !@stager_id
+          no_stager_error(available_placement_zones)
+        end
+        stage_rest(&completion_callback)
+      end
     
       def available_placement_zones
         available_zones = []

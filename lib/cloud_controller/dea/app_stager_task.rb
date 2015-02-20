@@ -66,18 +66,25 @@ module VCAP::CloudController
       def stage(&completion_callback)
         find_stager_retry
         if !@stager_id
-          parts = ["stack #{@app.stack.name}", "mem #{@app.memory}"]
-          if @app.distribution_zone && @app.distribution_zone != "default"
-            partString = parts.join(", ") + ", and zone #{@app.distribution_zone}"
-          else
-            partString = parts.join(" and ")
-          end
-          available_zones = available_placement_zones
-          if available_zones.size > 1 || available_zones.first != "default"
-              partString += ". Requested placement_zone: #{@app.distribution_zone}, available placement zones: #{available_zones.join(" ")}"
-          end
-          raise Errors::ApiError.new_from_details("StagingError", "no available stagers for #{partString}; available mem: #{staging_task_memory_mb}, disk: #{staging_task_disk_mb}")
+          no_stager_error([])
         end
+        stage_rest(&completion_callback)
+      end
+
+      def no_stager_error(available_zones)
+        parts = ["stack #{@app.stack.name}", "mem #{@app.memory}"]
+        if @app.distribution_zone && @app.distribution_zone != "default"
+          partString = parts.join(", ") + ", and zone #{@app.distribution_zone}"
+        else
+          partString = parts.join(" and ")
+        end
+        if available_zones.size > 1 || available_zones.first != "default"
+          partString += ". Requested placement_zone: #{@app.distribution_zone}, available placement zones: #{available_zones.join(" ")}"
+        end
+        raise Errors::ApiError.new_from_details("StagingError", "no available stagers for #{partString}; available mem: #{staging_task_memory_mb}, disk: #{staging_task_disk_mb}")
+      end
+      
+      def stage_rest(&completion_callback)
         subject = "staging.#{@stager_id}.start"
         @multi_message_bus_request = MultiResponseMessageBusRequest.new(@message_bus, subject)
 
