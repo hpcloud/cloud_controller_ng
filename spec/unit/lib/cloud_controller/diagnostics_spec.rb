@@ -124,13 +124,13 @@ module VCAP::CloudController
         end
 
         it "captures thread information" do
-          expect(data[:threads]).to_not be_nil
-          expect(data[:threads].empty?).to be false
+          expect(data[:threads] || data["threads"]).to_not be_nil
+          expect((data[:threads] || data["threads"]).empty?).to be false
         end
 
         it "captures varz information" do
-          expect(data[:varz]).to_not be_nil
-          expect(data[:varz].empty?).to be false
+          expect(data[:varz] || data["varz"]).to_not be_nil
+          expect((data[:varz] || data["varz"]).empty?).to be false
         end
       end
     end
