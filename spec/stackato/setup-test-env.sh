@@ -64,10 +64,6 @@ bundle-install() {
 }
 
 sanity-check() {
-  local branch="$(git rev-parse --abbrev-ref HEAD)"
-  # Make sure we are on the right branch for now:
-  [ "$branch" == 300170-fix-specs ] ||
-    die "You should have branch '300170-fix-specs' checked out"
   type ruby &>/dev/null ||
     die "You don't have 'ruby' installed. Install version '1.9.3p484'."
   [[ "$(ruby -v)" =~ \ 1\.9\.3p484\  ]] ||
