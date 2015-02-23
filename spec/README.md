@@ -30,7 +30,7 @@ best to set these prereqs up first. From a brand new Ubuntu 14.04 instance:
 
     git clone https://github.com/ActiveState/cloud_controller_ng
     cd cloud_controller_ng
-    git checkout 300170-fix-specs 
+    git checkout 300170-standalone
 
     git clone https://github.com/sstephenson/rbenv.git ~/.rbenv
     git clone https://github.com/sstephenson/ruby-build.git ~/.rbenv/plugins/ruby-build
