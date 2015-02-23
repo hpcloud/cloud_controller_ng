@@ -44,16 +44,6 @@ make-symlinks() {
     [ -e common ] || ln -s ../../../vcap-common common
     [ -e steno-codec-text ] || ln -s ../../../steno-codec-text
   )
-  if [ -f vendor/errors ]; then
-    rm vendor/errors
-  fi
-  mkdir -p vendor/errors
-  (
-    set -x
-    cd vendor/errors
-    [ -e v2.yml ] ||
-      ln -s ../../spec/stackato/errors-v2.yml v2.yml
-  )
 }
 
 bundle-install() {
