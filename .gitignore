@@ -13,7 +13,7 @@ doc
 *.rbc
 *.swp
 *.pid
-vendor
+vendor/*
 !vendor/errors
 .DS_Store
 .ruby-version
