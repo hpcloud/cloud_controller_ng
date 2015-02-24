@@ -3,11 +3,9 @@
 #------------------------------------------------------------------------------
 # This script will setup everything need to run the spec tests for this repo.
 #
-# It is assumed that this repo will be cloned and setup on a working Stackato
-# v3.4.2 (or higher) instance.
-#
 # The script can be run repeatedly. It will try to only do things that haven't
-# been done yet.
+# been done yet. Many things will just be verified and you will be instructed
+# what to do if the verifications fail.
 #------------------------------------------------------------------------------
 set -e
 
@@ -55,25 +53,46 @@ bundle-install() {
 
 sanity-check() {
   type ruby &>/dev/null ||
-    die "You don't have 'ruby' installed. Install version '1.9.3p484'."
+    die "You don't have 'ruby' installed.
+Install version '1.9.3p484'.
+"
   [[ "$(ruby -v)" =~ \ 1\.9\.3p484\  ]] ||
-    die "You need version ruby version '1.9.3p484'."
+    die "You need version ruby version '1.9.3p484'.
+See spec/README.md for how to use rbenv to get this.
+"
   type gem &>/dev/null ||
     die "You don't have 'gem' installed."
   type bundle &>/dev/null ||
-    die "You don't have 'bundle' installed. Try: 'gem install bundle'."
+    die "You don't have 'bundle' installed.
+Try: 'gem install bundler'.
+"
   type psql &>/dev/null ||
-    die "You don't have 'psql' installed. Try: 'sudo apt-get install postgresql-client-common postgresql-client-9.x'."
+    die "You don't have 'psql' installed.
+Try: 'sudo apt-get install postgresql-client-common postgresql-client-9.x'.
+
+Note: postgresql-client-9.x could be 9.1 or 9.3 on Ubuntu 14.04
+      You'll need to check which one.
+"
   [ -e /usr/include/rrd.h ] ||
-    die "Missing dep 'librrd-dev'. Try: 'sudo apt-get install librrd-dev'"
+    die "Missing dep 'librrd-dev'.
+Try: 'sudo apt-get install librrd-dev'
+"
   [ -e /usr/include/mysql/ ] ||
-    die "Missing dep 'libmysqlclient-dev'. Try: 'sudo apt-get install libmysqlclient-dev'"
+    die "Missing dep 'libmysqlclient-dev'.
+Try: 'sudo apt-get install libmysqlclient-dev'
+"
   [ -e /usr/include/postgresql/libpq-fe.h ] ||
-    die "Missing dep 'libpq-dev'. Try: 'sudo apt-get install libpq-dev'"
+    die "Missing dep 'libpq-dev'.
+Try: 'sudo apt-get install libpq-dev'
+"
   [ -e /usr/include/sqlite3.h ] ||
-    die "Missing dep 'libsqlite3-dev'. Try: 'sudo apt-get install libsqlite3-dev'"
+    die "Missing dep 'libsqlite3-dev'.
+Try: 'sudo apt-get install libsqlite3-dev'
+"
   [ -e /etc/init.d/postgresql ] ||
-    die "Missing dep 'postgresql-common'. Try: 'sudo apt-get install postgresql postgresql-common postgresql-contrib'"
+    die "Missing dep 'postgresql-common'.
+Try: 'sudo apt-get install postgresql postgresql-common postgresql-contrib'
+"
 }
 
 setup-env() {

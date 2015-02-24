@@ -37,7 +37,7 @@ best to set these prereqs up first. From a brand new Ubuntu 14.04 instance:
     export PATH="$HOME/.rbenv/bin:$PATH"
     eval "$(rbenv init -)"
     rbenv install 1.9.3-p484
-    rbenv local 1.9.3-p484
+    rbenv global 1.9.3-p484
     gem install bundle
 
     ./spec/stackato/setup-test-env.sh
