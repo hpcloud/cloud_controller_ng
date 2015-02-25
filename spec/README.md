@@ -34,8 +34,9 @@ best to set these prereqs up first. From a brand new Ubuntu 14.04 instance:
 
     git clone https://github.com/sstephenson/rbenv.git ~/.rbenv
     git clone https://github.com/sstephenson/ruby-build.git ~/.rbenv/plugins/ruby-build
-    export PATH="$HOME/.rbenv/bin:$PATH"
-    eval "$(rbenv init -)"
+    echo 'export PATH="$HOME/.rbenv/bin:$PATH"' >> ~/.bashrc
+    echo 'eval "$(rbenv init -)"' >> ~/.bashrc
+    exec bash
     rbenv install 1.9.3-p484
     rbenv global 1.9.3-p484
     gem install bundle
