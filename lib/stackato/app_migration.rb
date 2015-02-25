@@ -70,7 +70,7 @@ module VCAP::CloudController
         if is_moving_org
           domains.each { |domain|
             apps = domain.routes.map { |route| route.apps }.flatten.uniq
-            if apps.size != 1 || !apps.include?(app)
+            if apps.size != 1 || !apps.map(&:id).include?(app.id)
               raise Errors::ApiError.new_from_details(
                         'StackatoAppMigrationValidationFailed',
                         "Domains used by '#{app.name}' are also being used by #{app_names(app, apps)} and cannot be migrated.")
@@ -79,7 +79,7 @@ module VCAP::CloudController
         end
 
         routes.each { |route|
-          if route.apps.size != 1 || !route.apps.include?(app)
+          if route.apps.size != 1 || !route.apps.map(&:id).include?(app.id)
             raise Errors::ApiError.new_from_details(
                       'StackatoAppMigrationValidationFailed',
                       "Routes used by '#{app.name}' are also being used by #{app_names(app, route.apps)} and cannot be migrated.")
