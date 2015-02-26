@@ -20,13 +20,13 @@ module VCAP::CloudController
     context 'organization manager (defensive)' do
       before { org.add_manager(user) }
       it_behaves_like :no_access
-      it { is_expected.not_to be_able_to :index, VCAP::CloudController::ServiceBroker }
+      it { is_expected.not_to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
     end
 
     context 'organization user (defensive)' do
       before { org.add_user(user) }
       it_behaves_like :no_access
-      it { is_expected.not_to be_able_to :index, VCAP::CloudController::ServiceBroker }
+      it { is_expected.not_to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
     end
 
     context 'user in a different organization (defensive)' do
@@ -36,7 +36,7 @@ module VCAP::CloudController
       end
 
       it_behaves_like :no_access
-      it { is_expected.not_to be_able_to :index, VCAP::CloudController::ServiceBroker }
+      it { is_expected.not_to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
     end
 
     context 'manager in a different organization (defensive)' do
@@ -46,14 +46,14 @@ module VCAP::CloudController
       end
 
       it_behaves_like :no_access
-      it { is_expected.not_to be_able_to :index, VCAP::CloudController::ServiceBroker }
+      it { is_expected.not_to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
     end
 
     context 'a user that isnt logged in (defensive)' do
       let(:user) { nil }
       let(:roles) { double(:roles, :admin? => false, :none? => true, :present? => false) }
       it_behaves_like :no_access
-      it { is_expected.not_to be_able_to :index, VCAP::CloudController::ServiceBroker }
+      it { is_expected.not_to allow_op_on_object :index, VCAP::CloudController::ServiceBroker }
     end
   end
 end
