@@ -3,7 +3,7 @@ module VCAP::CloudController
     def self.clear
       Thread.current[:vcap_user] = nil
       Thread.current[:vcap_token] = nil
-      Thread.current[:vcap_roles] = nil
+      Thread.current[:vcap_roles] = VCAP::CloudController::Roles.new(nil)
     end
 
     def self.set(user, token = nil)
