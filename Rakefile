@@ -1,6 +1,7 @@
 $:.unshift(File.expand_path("../lib", __FILE__))
 $:.unshift(File.expand_path("../app", __FILE__))
 
+ENV['AUTOMATED_BUILD'] ||= '1'
 ENV["BUNDLE_GEMFILE"] ||= File.expand_path("../Gemfile", __FILE__)
 require "bundler/setup"
 
