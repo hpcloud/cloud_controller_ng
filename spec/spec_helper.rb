@@ -80,6 +80,8 @@ RSpec.configure do |rspec_config|
 
     stub_v1_broker
     VCAP::CloudController::SecurityContext.clear
+
+    UAARequests.stub_all
   end
 
   rspec_config.around :each do |example|

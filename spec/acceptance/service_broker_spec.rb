@@ -64,12 +64,7 @@ describe 'Service Broker' do
       }]
   }}
 
-  before(:each) { 
-    setup_cc 
-
-    # Stubbing all the calls to scim
-    UAARequests.stub_all
-  }
+  before(:each) { setup_cc }
 
   def build_service(attrs={})
     @index ||= 0
