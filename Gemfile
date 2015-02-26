@@ -13,7 +13,7 @@ gem 'atomic', '1.1.14'
 gem 'axiom-types', '0.0.5'
 gem 'backports', '3.3.5'
 gem "bcrypt-ruby", '3.1.2'
-gem 'beefcake', '0.3.7'
+gem 'beefcake', '~> 1.0.0'
 gem "builder", "3.0.4"
 gem 'celluloid', '0.15.2'
 gem "cf-message-bus","0.2.0", :github => "ActiveState/cf-message-bus"
@@ -53,7 +53,7 @@ gem 'inflecto', '0.0.2'
 gem 'ipaddress', '0.8.0'
 gem 'json_pure', '1.8.1'
 gem 'librrd', '1.0.3'
-gem 'loggregator_emitter', '~> 3.0.0'
+gem 'loggregator_emitter', '~> 4.0.0'
 gem 'membrane', '1.0.0'
 gem 'method_source', '0.8.2', :groups => [:operations, :development, :test]
 gem 'mime-types', '2.1'
