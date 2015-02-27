@@ -107,6 +107,14 @@ module TestConfig
                 :aws_secret_access_key => "fake_secret_access_key",
             },
         },
+        :buildpacks => {
+            :buildpack_directory_key => "cc-buildpacks",
+            :fog_connection => {
+                :provider => "AWS",
+                :aws_access_key_id => "fake_aws_key_id",
+                :aws_secret_access_key => "fake_secret_access_key",
+            },
+        },
 
         :db => DbConfig.config
     )
