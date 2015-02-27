@@ -74,10 +74,10 @@ module VCAP::CloudController
         space.add_developer(user)
       end
 
-      it { is_expected.to be_able_to :create, object }
-      it { is_expected.to be_able_to :read, object }
-      it { is_expected.not_to be_able_to :update, object }
-      it { is_expected.to be_able_to :delete, object }
+      it { is_expected.to allow_op_on_object :create, object }
+      it { is_expected.to allow_op_on_object :read, object }
+      it { is_expected.not_to allow_op_on_object :update, object }
+      it { is_expected.to allow_op_on_object :delete, object }
 
       context 'when the organization is suspended' do
         before { allow(object).to receive(:in_suspended_org?).and_return(true) }
