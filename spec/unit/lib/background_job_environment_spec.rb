@@ -17,6 +17,7 @@ describe BackgroundJobEnvironment do
       allow(VCAP::CloudController::DB).to receive(:load_models)
       allow(Thread).to receive(:new).and_yield
       allow(EM).to receive(:run).and_yield
+      allow(Kato::Config).to receive(:watch).and_yield({})
     end
 
     it "loads models" do
@@ -31,7 +32,7 @@ describe BackgroundJobEnvironment do
 
     it "configures app observer with null stager and dea pool" do
       expect(VCAP::CloudController::AppObserver).to receive(:configure).with(
-        instance_of(VCAP::CloudController::Backends)
+        instance_of(VCAP::CloudController::StackatoBackends)
       )
       background_job_environment.setup_environment
     end
