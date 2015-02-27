@@ -21,22 +21,8 @@ module TestConfig
 
   def self.load(overrides={})
     config = defaults.merge(overrides)
-    config_yaml = automated_build? ? kato_config_from_file : kato_config
-    config_hash = ::Kato::Util.symbolize_keys(config_yaml)
-
-    config_override = {
-      :db => {
-        :log_level => "debug",
-        :database_uri => db_connection_string,
-        :pool_timeout => 10
-      },
-      :directories => {
-      },
-    }
-
-    config_hash.merge!(config_override || {})
-    configure_components(config_hash)
-    config_hash
+    configure_components(config)
+    config
   end
   
   def self.aok_config
