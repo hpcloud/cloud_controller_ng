@@ -9,9 +9,38 @@ module VCAP::CloudController
       let(:user) { make_user_for_space(app_obj.space) }
       let(:developer) { make_developer_for_space(app_obj.space) }
       let(:developer2) { make_developer_for_space(app_obj_without_pkg.space) }
+      
+      let(:workspace) { Dir.mktmpdir }
+      let(:blobstore_config) do
+        {
+          :packages => {
+            :fog_connection => {
+              :provider => "Local",
+              :local_root => Dir.mktmpdir("packages", workspace)
+            },
+            :app_package_directory_key => "cc-packages",
+          },
+          :resource_pool => {
+            :resource_directory_key => "cc-resources",
+            :fog_connection => {
+              :provider => "Local",
+              :local_root => Dir.mktmpdir("resourse_pool", workspace)
+            }
+          },
+          :buildpacks => {
+            :resource_directory_key => "cc-buildpacks",
+            :fog_connection => {
+              :provider => "Local",
+              :local_root => Dir.mktmpdir("buildpacks", workspace)
+            }
+          },
+        }
+      end
 
       before do
+        Fog.unmock!
         TestConfig.config
+        TestConfig.override(blobstore_config)
         tmpdir = Dir.mktmpdir
         zipname = File.join(tmpdir, "test.zip")
         TestZip.create(zipname, 10, 1024)
@@ -20,36 +49,6 @@ module VCAP::CloudController
       end
 
       context "when app is local" do
-        let(:workspace) { Dir.mktmpdir }
-        let(:blobstore_config) do
-          {
-            :packages => {
-              :fog_connection => {
-                :provider => "Local",
-                :local_root => Dir.mktmpdir("packages", workspace)
-              },
-              :app_package_directory_key => "cc-packages",
-            },
-            :resource_pool => {
-              :resource_directory_key => "cc-resources",
-              :fog_connection => {
-                :provider => "Local",
-                :local_root => Dir.mktmpdir("resourse_pool", workspace)
-              }
-            },
-          }
-        end
-
-        before do
-          Fog.unmock!
-          TestConfig.override(blobstore_config)
-          guid = app_obj.guid
-          tmpdir = Dir.mktmpdir
-          zipname = File.join(tmpdir, "test.zip")
-          TestZip.create(zipname, 10, 1024)
-          Jobs::Runtime::AppBitsPacker.new(guid, zipname, []).perform
-        end
-
         context "when using nginx" do
           it "redirects to correct nginx URL" do
             get "/v2/apps/#{app_obj.guid}/download", {}, headers_for(developer)
