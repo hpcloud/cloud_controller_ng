@@ -192,6 +192,18 @@ allowed_repos:
   - "deb mirror://mirrors.ubuntu.com/mirrors.txt precise-updates main restricted universe multiverse"
   - "deb http://security.ubuntu.com/ubuntu precise-security main universe"
 
+docker_apps:
+  require_sudo: true
+  allow_any_registry: true
+  allowed_registries: []
+# docker hub if there is no "." or ":" before the first slash (after removing "user:pass@"
+# - cloudfoundry/
+# - user:pass@mycompany
+# - example.com
+# - user:pass@host:port
+# - user:pass@host:port/
+# - user:pass@host:port/group/
+
 app_uris:
   # Allow applications to register URIs that are outside your domain.
   reserved_list: []
