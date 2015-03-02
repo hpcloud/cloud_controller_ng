@@ -55,7 +55,6 @@ module VCAP::CloudController
           before { TestConfig.override(:info => { :custom => { :foo => "bar", :baz => "foobar" } }) }
 
           it "contains the custom fields" do
-            pending "Stackato doesn't pass config fields to /v2/info?"
             get "/v2/info"
 
             hash = MultiJson.load(last_response.body)
