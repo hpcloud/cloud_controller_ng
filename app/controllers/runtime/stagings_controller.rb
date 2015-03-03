@@ -117,7 +117,7 @@ module VCAP::CloudController
           safe_path = Pathname.new(params["droplet_path"]).cleanpath.to_s
           # value is hardcoded into the nginx config for now. No real need to
           # expose this node local upload op.
-          raise if not safe_path.start_with? "/var/stackato/data/cloud_controller_ng/tmp/staged_droplet_uploads/"
+          check_path_in_expected_directory(safe_path)
           safe_path
         elsif (tempfile = get_from_hash_tree(params, "upload", "droplet", :tempfile))
           tempfile.path
@@ -146,5 +146,10 @@ module VCAP::CloudController
         raise ApiError.new_from_details("StagingError", "content md5 did not match")
       end
     end
+    
+    def check_path_in_expected_directory(safe_path)
+      raise if not safe_path.start_with? "/var/stackato/data/cloud_controller_ng/tmp/staged_droplet_uploads/"
+    end
+
   end
 end

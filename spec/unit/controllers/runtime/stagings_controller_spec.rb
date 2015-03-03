@@ -59,9 +59,11 @@ module VCAP::CloudController
 
     let(:app_obj) { AppFactory.make :droplet_hash => nil } # explicitly unstaged app
 
+
     before do
       Fog.unmock!
       TestConfig.override(staging_config)
+      allow_any_instance_of(StagingsController).to receive(:check_path_in_expected_directory)
     end
 
     after { FileUtils.rm_rf(workspace) }
