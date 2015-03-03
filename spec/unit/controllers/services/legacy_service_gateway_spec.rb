@@ -14,6 +14,10 @@ module VCAP::CloudController
         VCAP::Services::Api::ServiceOfferingRequest.new(defaults.merge(attrs))
       end
 
+      before do
+        allow_any_instance_of(User).to receive(:cache_username)
+      end
+
       describe "POST services/v1/offerings" do
         let(:path) { "services/v1/offerings" }
 
@@ -71,7 +75,6 @@ module VCAP::CloudController
           o = build_offering
           o.extra = extra_data
           post path, o.encode, json_headers(auth_header)
-
           expect(last_response.status).to eq(200)
           service = Service[:label => "foobar", :provider => "core"]
           expect(service.extra).to eq(extra_data)
