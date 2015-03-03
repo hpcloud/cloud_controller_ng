@@ -49,7 +49,7 @@ module VCAP::CloudController
       it "finds the config value" do
         post "/v2/quota_definitions", Yajl::Encoder.encode(quota_attributes), json_headers(headers)
         expect(last_response.status).to eq(201)
-        JSON.parse(last_response.body)["entity"]["total_droplets"].should == total_droplets
+        expect(JSON.parse(last_response.body)["entity"]["total_droplets"]).to eq total_droplets
       end
     end
     
