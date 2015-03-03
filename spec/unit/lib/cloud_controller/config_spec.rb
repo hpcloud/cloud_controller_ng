@@ -159,7 +159,7 @@ module VCAP::CloudController
       end
 
       it "sets up the app manager" do
-        expect(AppObserver).to receive(:configure).with(instance_of(VCAP::CloudController::Backends))
+        expect(AppObserver).to receive(:configure).with(instance_of(VCAP::CloudController::StackatoBackends))
 
         Config.configure_components(@test_config)
         Config.configure_components_depending_on_message_bus(message_bus)
