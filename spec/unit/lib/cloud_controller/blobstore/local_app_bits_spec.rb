@@ -47,7 +47,7 @@ module CloudController
 
         context "when the zip file is pointing to a non existent file" do
           it "does not unzip anything" do
-            expect(File).to receive(:exists?).with(compressed_zip_path).and_return(false)
+            allow(File).to receive(:exists?).with(compressed_zip_path).and_return(false)
             expect(SafeZipper).not_to receive(:unzip)
             LocalAppBits.from_compressed_bits(compressed_zip_path, tmp_dir) do |local_app_bits|
               expect(local_app_bits.storage_size).to eq 0
