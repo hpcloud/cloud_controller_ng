@@ -137,11 +137,6 @@ module VCAP::CloudController
             expect(decoded_response["code"]).to eq(120001)
             expect(decoded_response["description"]).to match(/service is invalid: postgres-invalid/)
           end
-
-          it "wrap test so it can be marked pending" do
-            #pending("AUTH: not authorized to add a service")
-            it_behaves_like "a vcap rest error response", /service instance name is taken: duplicate/
-          end
         end
       end
 
@@ -187,15 +182,7 @@ module VCAP::CloudController
         describe "with a valid name" do
           it "should reduce the services count by 1" do
             delete "/services/#{@svc.name}", {}, headers_for(user)
-          end
-
-          it "should return success" do
-            #pending("AUTH: not permitted to delete the service")
             expect(last_response.status).to eq(200)
-          end
-
-          it "should reduce the services count by 1" do
-            #pending("AUTH: not permitted to delete the service")
             expect(ManagedServiceInstance.count).to eq(@num_instances_before - 1)
           end
         end
