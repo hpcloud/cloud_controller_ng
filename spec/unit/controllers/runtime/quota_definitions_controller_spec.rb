@@ -16,8 +16,8 @@ module VCAP::CloudController
           total_routes: {type: "integer", required: true},
           memory_limit: {type: "integer", required: true},
           instance_memory_limit: {type: "integer", required: false, default: -1},
-          total_droplets: {type: "integer", required: false, default: 5},
-          allow_sudo: {type: "bool", required: false, default: true},
+          total_droplets: {type: "integer", required: false, default: 0},
+          allow_sudo: {type: "bool", required: false, default: false},
         })
       end
 
