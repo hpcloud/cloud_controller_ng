@@ -302,6 +302,7 @@ describe CloudController::DependencyLocator do
     let(:sender) { double("sender") }
     it "returns the correct sender when using ngx" do
       config[:nginx][:use_nginx] = true
+      config[:stackato_upload_handler][:enabled] = false
       expect(CloudController::BlobSender::NginxLocalBlobSender).to receive(:new).and_return(sender)
       expect(locator.blob_sender).to eq(sender)
     end
