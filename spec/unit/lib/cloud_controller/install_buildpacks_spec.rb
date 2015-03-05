@@ -26,8 +26,7 @@ module VCAP::CloudController
 
       it "enqueues a job to install a buildpack" do
         expect(Jobs::Runtime::BuildpackInstaller).to receive(:new).with("buildpack1", "abuildpack.zip", {}).and_return(job)
-        expect(Jobs::Enqueuer).to receive(:new).with(job, queue: instance_of(LocalQueue)).and_return(enqueuer)
-        expect(enqueuer).to receive(:enqueue)
+        expect(job).to receive(:perform)
         expect(Dir).to receive(:[]).with("/var/vcap/packages/mybuildpackpkg/*.zip").and_return(["abuildpack.zip"])
         expect(File).to receive(:file?).with("abuildpack.zip").and_return(true)
 
@@ -81,8 +80,7 @@ module VCAP::CloudController
 
         it "uses the file override" do
           expect(Jobs::Runtime::BuildpackInstaller).to receive(:new).with("buildpack1", "another.zip", {}).and_return(job)
-          expect(Jobs::Enqueuer).to receive(:new).with(job, queue: instance_of(LocalQueue)).and_return(enqueuer)
-          expect(enqueuer).to receive(:enqueue)
+          expect(job).to receive(:perform)
           expect(File).to receive(:file?).with("another.zip").and_return(true)
 
           installer.install(TestConfig.config[:install_buildpacks])
@@ -98,8 +96,7 @@ module VCAP::CloudController
           TestConfig.config[:install_buildpacks][0].delete("package")
 
           expect(Jobs::Runtime::BuildpackInstaller).to receive(:new).with("buildpack1", "another.zip", {}).and_return(job)
-          expect(Jobs::Enqueuer).to receive(:new).with(job, queue: instance_of(LocalQueue)).and_return(enqueuer)
-          expect(enqueuer).to receive(:enqueue)
+          expect(job).to receive(:perform)
           expect(File).to receive(:file?).with("another.zip").and_return(true)
 
           installer.install(TestConfig.config[:install_buildpacks])
@@ -145,6 +142,7 @@ module VCAP::CloudController
         it "passes optional attributes to the job" do
           expect(Jobs::Runtime::BuildpackInstaller).to receive(:new).
             with("buildpack1", "abuildpack.zip",{:enabled => true, :locked =>false, :position=>5}).and_return(job)
+          expect(job).to receive(:perform)
           expect(Dir).to receive(:[]).with("/var/vcap/packages/mybuildpackpkg/*.zip").and_return(["abuildpack.zip"])
           expect(File).to receive(:file?).with("abuildpack.zip").and_return(true)
 
