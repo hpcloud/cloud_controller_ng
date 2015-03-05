@@ -12,6 +12,7 @@ GIT
 GIT
   remote: git://github.com/cloudfoundry/cf-registrar.git
   revision: 49850ee876652a59dbd2d73dad726b3b808bb8f9
+  ref: 49850ee876652a59dbd2d
   specs:
     cf-registrar (1.0.1)
       cf-message-bus
@@ -81,6 +82,23 @@ PATH
       yajl-ruby
 
 PATH
+  remote: vendor/cache/kato
+  specs:
+    stackato-kato (3.0.0)
+      colored (= 1.2)
+      docopt (= 0.5.0)
+      futuroscope (~> 0.1.5)
+      ipaddress (= 0.8.0)
+      mustache (= 0.99.4)
+      pg (= 0.14.1)
+      redis (= 3.0.6)
+      ruby-termios (= 0.9.6)
+      sqlite3 (= 1.3.7)
+      term-ansicolor (= 1.0.7)
+      xmlparser (= 0.7.2.1)
+      yajl-ruby (= 1.2.1)
+
+PATH
   remote: vendor/cache/steno-codec-text
   specs:
     steno-codec-text (0.1)
@@ -112,7 +130,7 @@ GEM
       ice_nine (~> 0.9)
     backports (3.3.5)
     bcrypt-ruby (3.1.2)
-    beefcake (0.3.7)
+    beefcake (1.0.0)
     builder (3.0.4)
     celluloid (0.15.2)
       timers (~> 1.1.0)
@@ -134,12 +152,6 @@ GEM
     crack (0.4.2)
       safe_yaml (~> 1.0.0)
     daemons (1.1.9)
-    debugger (1.6.6)
-      columnize (>= 0.3.1)
-      debugger-linecache (~> 1.2.0)
-      debugger-ruby_core_source (~> 1.3.2)
-    debugger-linecache (1.2.0)
-    debugger-ruby_core_source (1.3.5)
     delayed_job (4.0.0)
       activesupport (>= 3.0, < 4.1)
     delayed_job_active_record (4.0.1)
@@ -159,13 +171,13 @@ GEM
       eventmachine (>= 1.0.0.beta.4)
     equalizer (0.0.8)
     errand (0.7.3)
-    eventmachine (1.0.3)
+    eventmachine (1.0.7)
     excon (0.33.0)
     fakefs (0.5.2)
     ffi (1.9.3)
     fluent-logger (0.4.7)
       msgpack (>= 0.4.4, < 0.6.0, != 0.5.3, != 0.5.2, != 0.5.1, != 0.5.0)
-      yajl-ruby (~> 1.0)
+      yajl-ruby (~> 1.2)
     fog (1.22.1)
       fog-brightbox
       fog-core (~> 1.22)
@@ -207,10 +219,10 @@ GEM
       celluloid (>= 0.15.2)
       rb-fsevent (>= 0.9.3)
       rb-inotify (>= 0.9)
-    loggregator_emitter (0.0.16)
-      beefcake (~> 0.3.7)
+    loggregator_emitter (4.0.0)
+      beefcake (~> 1.0.0)
     loggregator_messages (0.0.5.pre)
-      beefcake (~> 0.3.7)
+      beefcake (~> 1.0.0)
     lumberjack (1.0.5)
     machinist (1.0.6)
     membrane (1.0.0)
@@ -329,23 +341,10 @@ GEM
     sqlite3 (1.3.7)
     squash_ruby (1.4.0)
       json
-    stackato-kato (3.0.0)
-      colored (= 1.2)
-      docopt (= 0.5.0)
-      futuroscope (~> 0.1.5)
-      ipaddress (= 0.8.0)
-      mustache (= 0.99.4)
-      pg (= 0.14.1)
-      redis (= 3.0.6)
-      ruby-termios (= 0.9.6)
-      sqlite3 (= 1.3.7)
-      term-ansicolor (= 1.0.7)
-      xmlparser (= 0.7.2.1)
-      yajl-ruby (= 1.1.0)
     steno (1.1.0)
       fluent-logger
       grape
-      yajl-ruby (~> 1.0)
+      yajl-ruby (~> 1.2)
     talentbox-delayed_job_sequel (4.0.0)
       delayed_job (~> 4.0.0)
       sequel (>= 3.38, < 5.0)
@@ -377,7 +376,7 @@ GEM
       addressable (>= 2.3.6)
       crack (>= 0.3.2)
     xmlparser (0.7.2.1)
-    yajl-ruby (1.1.0)
+    yajl-ruby (1.2.1)
 
 PLATFORMS
   ruby
@@ -385,7 +384,7 @@ PLATFORMS
 DEPENDENCIES
   activemodel (= 3.2.18)
   activerecord (= 3.2.18)
-  activesupport (= 3.2.18)
+  activesupport (~> 3.2.18)
   addressable (= 2.3.6)
   allowy (= 0.4.0)
   arel (= 3.0.3)
@@ -394,12 +393,12 @@ DEPENDENCIES
   axiom-types (= 0.0.5)
   backports (= 3.3.5)
   bcrypt-ruby (= 3.1.2)
-  beefcake (= 0.3.7)
+  beefcake (~> 1.0.0)
   builder (= 3.0.4)
   celluloid (= 0.15.2)
   cf-message-bus (= 0.2.0)!
   cf-registrar (= 1.0.1)!
-  cf-uaa-lib (= 2.1.0)!
+  cf-uaa-lib (~> 2.1.0)!
   ci_reporter (= 1.9.0)
   clockwork (= 0.7.0)
   cloudfront-signer (= 2.1.1)
@@ -411,9 +410,6 @@ DEPENDENCIES
   cookiejar (= 0.3.0)
   crack (= 0.4.2)
   daemons (= 1.1.9)
-  debugger (= 1.6.6)
-  debugger-linecache (= 1.2.0)
-  debugger-ruby_core_source (= 1.3.5)
   delayed_job (= 4.0.0)
   delayed_job_active_record (= 4.0.1)
   descendants_tracker (= 0.0.3)
@@ -424,7 +420,7 @@ DEPENDENCIES
   em-socksify (= 0.3.0)
   equalizer (= 0.0.8)
   errand (= 0.7.3)
-  eventmachine (= 1.0.3)
+  eventmachine (~> 1.0.3)
   excon (= 0.33.0)
   fakefs (= 0.5.2)
   ffi (= 1.9.3)
@@ -448,7 +444,7 @@ DEPENDENCIES
   json_pure (= 1.8.1)
   librrd (= 1.0.3)
   listen (= 2.3.1)
-  loggregator_emitter (= 0.0.16)
+  loggregator_emitter (~> 4.0.0)
   loggregator_messages (= 0.0.5.pre)
   lumberjack (= 1.0.5)
   machinist (= 1.0.6)
@@ -485,7 +481,7 @@ DEPENDENCIES
   rb-fsevent (= 0.9.3)
   rb-inotify (= 0.9.2)
   rbvmomi (= 1.6.0)
-  redis (= 3.0.6)
+  redis (~> 3.0.4)
   rfc822 (= 0.1.4)
   roodi (= 4.0.0)
   rspec (~> 3.0)
@@ -508,13 +504,13 @@ DEPENDENCIES
   simplecov (= 0.9.0)
   simplecov-html (= 0.8.0)
   simplecov-rcov (= 0.2.3)
-  sinatra (= 1.4.3)
+  sinatra (~> 1.4.3)
   sinatra-contrib (= 1.4.2)
   slop (= 3.5.0)
   sqlite3 (= 1.3.7)
   squash_ruby (= 1.4.0)
-  stackato-kato (= 3.0.0)
-  stager-client (= 0.0.2)!
+  stackato-kato!
+  stager-client (~> 0.0.02)!
   steno (= 1.1.0)
   steno-codec-text (= 0.1)!
   talentbox-delayed_job_sequel (= 4.0.0)
@@ -535,5 +531,5 @@ DEPENDENCIES
   virtus (= 1.0.0)
   vmstat (= 2.1.0)
   webmock (= 1.18.0)
-  xmlparser (= 0.7.2.1)
-  yajl-ruby (= 1.1.0)
+  xmlparser
+  yajl-ruby (= 1.2.1)

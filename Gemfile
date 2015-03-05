@@ -10,21 +10,21 @@ ruby '1.9.3' # prevents hard-to-diagnose errors with bundle install
 
 gem 'activemodel'       ,   '3.2.18'
 gem 'activerecord'      ,   '3.2.18'
-gem 'activesupport'     ,   '3.2.18'
+gem "activesupport", '~> 3.2.18'
 gem 'addressable'       ,    '2.3.6', :groups => [:default, :test]
 gem 'allowy'            ,    '0.4.0'
 gem 'arel'              ,    '3.0.3'
-gem 'ast'               ,    '1.1.0', :groups => [:test]
+gem 'ast'               ,    '1.1.0'
 gem 'atomic'            ,   '1.1.14'
 gem 'axiom-types'       ,    '0.0.5'
 gem 'backports'         ,    '3.3.5'
 gem 'bcrypt-ruby'       ,    '3.1.2'
-gem 'beefcake'          ,    '0.3.7'
+gem 'beefcake'          ,    '~> 1.0.0'
 gem 'builder'           ,    '3.0.4'
-gem 'celluloid'         ,   '0.15.2', :groups => [:test]
+gem 'celluloid'         ,   '0.15.2'
 gem 'cf-message-bus'    ,    '0.2.0', :github => "ActiveState/cf-message-bus"
-gem 'cf-registrar'      ,    '1.0.1', :github => "cloudfoundry/cf-registrar"
-gem 'cf-uaa-lib'        ,    '2.1.0', :github => "cloudfoundry/cf-uaa-lib", :ref => "4b94e14aa772e5b376e1be1c710aaeee7bd51a5c"
+gem 'cf-registrar'      ,    '1.0.1', :github => "cloudfoundry/cf-registrar", :ref => "49850ee876652a59dbd2d"
+gem 'cf-uaa-lib'        ,    '~> 2.1.0', :github => "cloudfoundry/cf-uaa-lib", :ref => "4b94e14aa772e5b376e1be1c710aaeee7bd51a5c"
 gem 'ci_reporter'       ,    '1.9.0'
 gem 'clockwork'         ,    '0.7.0'
 gem 'cloudfront-signer' ,    '2.1.1'
@@ -36,9 +36,6 @@ gem 'columnize'         ,    '0.3.6', :groups => [:development]
 gem 'cookiejar'         ,    '0.3.0'
 gem 'crack'             ,    '0.4.2', :groups => [:test]
 gem 'daemons'           ,    '1.1.9'
-gem 'debugger'          ,    '1.6.6', :groups => [:development]
-gem 'debugger-linecache',    '1.2.0', :groups => [:development]
-gem 'debugger-ruby_core_source',    '1.3.5', :groups => [:development]
 gem 'delayed_job'       ,    '4.0.0'
 gem 'delayed_job_active_record',    '4.0.1'
 gem 'descendants_tracker',    '0.0.3'
@@ -49,7 +46,7 @@ gem 'em-http-request'   ,    '1.1.2'
 gem 'em-socksify'       ,    '0.3.0'
 gem 'equalizer'         ,    '0.0.8'
 gem 'errand'            ,    '0.7.3'
-gem 'eventmachine'      ,    '1.0.3'
+gem 'eventmachine'      ,    '~> 1.0.3'
 gem 'excon'             ,   '0.33.0'
 gem 'fakefs'            ,    '0.5.2', :groups => [:test], :require => "fakefs/safe"
 gem 'ffi'               ,    '1.9.3', :groups => [:test]
@@ -73,7 +70,7 @@ gem 'json'              ,    '1.8.1', :groups => [:test]
 gem 'json_pure'         ,    '1.8.1'
 gem 'librrd'            ,    '1.0.3'
 gem 'listen'            ,    '2.3.1', :groups => [:test]
-gem 'loggregator_emitter',   '3.0.0'
+gem 'loggregator_emitter',   '~> 4.0.0'
 gem 'loggregator_messages', '0.0.5.pre'
 gem 'lumberjack'        ,    '1.0.5', :groups => [:test]
 gem 'machinist'         ,    '1.0.6', :groups => [:test]
@@ -110,7 +107,7 @@ gem 'rake'              ,   '10.3.2'
 gem 'rb-fsevent'        ,    '0.9.3', :groups => [:test]
 gem 'rb-inotify'        ,    '0.9.2', :groups => [:test]
 gem 'rbvmomi'           ,    '1.6.0'
-gem 'redis'             ,    '3.0.6'
+gem 'redis'             ,    '~> 3.0.4'
 gem 'rfc822'            ,    '0.1.4'
 gem 'roodi'             ,    '4.0.0', :groups => [:development]
 gem 'rspec'             ,    '~> 3.0', :groups => [:default, :test]
@@ -133,13 +130,13 @@ gem 'sexp_processor'    ,    '4.4.3', :groups => [:development]
 gem 'simplecov'         ,    '0.9.0', :groups => [:test]
 gem 'simplecov-html'    ,    '0.8.0', :groups => [:test]
 gem 'simplecov-rcov'    ,    '0.2.3', :groups => [:test]
-gem 'sinatra'           ,    '1.4.3'
+gem 'sinatra'           ,    '~> 1.4.3'
 gem 'sinatra-contrib'   ,    '1.4.2'
 gem 'slop'              ,    '3.5.0', :groups => [:test, :operations, :development]
 gem 'sqlite3'           ,    '1.3.7'
 gem 'squash_ruby'       ,    '1.4.0'
 gem 'stackato-kato'     ,    '3.0.0'
-gem 'stager-client'     ,    '0.0.2', :github => "cloudfoundry/stager-client", :ref => "04c2aee9"
+gem 'stager-client'     ,    '~> 0.0.02', :github => "cloudfoundry/stager-client", :ref => "04c2aee9"
 gem 'steno'             ,    '1.1.0'
 gem 'steno-codec-text'  ,      '0.1', :path => "../steno-codec-text"
 gem 'talentbox-delayed_job_sequel',    '4.0.0'
@@ -161,5 +158,5 @@ gem 'virtus'            ,    '1.0.0'
 gem 'vmstat'            ,    '2.1.0'
 gem 'webmock'           ,   '1.18.0', :groups => [:test]
 gem 'xmlparser'         
-gem 'yajl-ruby'         ,    '1.1.0'
+gem 'yajl-ruby'         ,    '1.2.1'
 
