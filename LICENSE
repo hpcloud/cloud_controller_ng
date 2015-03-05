@@ -280,7 +280,7 @@ SECTION 1: BSD-STYLE, MIT-STYLE, OR SIMILAR STYLE LICENSES
    >>> virtus-0.5.5
    >>> vmstat-2.0.0
    >>> webmock-1.12.3
-   >>> yajl-ruby-1.1.0
+   >>> yajl-ruby-1.2.1
 
 
 
@@ -2112,7 +2112,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
->>> yajl-ruby-1.1.0
+>>> yajl-ruby-1.2.1
 
 Copyright (c) 2008-2011 Brian Lopez - http://github.com/brianmario
 
