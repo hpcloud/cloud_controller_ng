@@ -112,7 +112,7 @@ gem 'uuidtools', '2.1.5'
 gem 'vcap-concurrency', '0.1.0', :github => 'cloudfoundry/vcap-concurrency', :ref => '2a5b0179'
 gem 'virtus', '1.0.0'
 gem 'vmstat', '2.1.0'
-gem 'yajl-ruby', '1.1.0'
+gem 'yajl-ruby'         ,    '1.2.1'
 gem 'xmlparser', '0.7.2.1'
 
 
