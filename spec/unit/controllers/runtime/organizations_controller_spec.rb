@@ -36,7 +36,7 @@ module VCAP::CloudController
           billing_manager_guids: {type: "[string]"},
           auditor_guids: {type: "[string]"},
           app_event_guids: {type: "[string]"},
-          is_default: {type: "bool" },
+          is_default: {type: "bool", default: false },
         })
       end
 
