@@ -73,7 +73,7 @@ gem 'json'              ,    '1.8.1', :groups => [:test]
 gem 'json_pure'         ,    '1.8.1'
 gem 'librrd'            ,    '1.0.3'
 gem 'listen'            ,    '2.3.1', :groups => [:test]
-gem 'loggregator_emitter',   '0.0.16'
+gem 'loggregator_emitter',   '3.0.0'
 gem 'loggregator_messages', '0.0.5.pre'
 gem 'lumberjack'        ,    '1.0.5', :groups => [:test]
 gem 'machinist'         ,    '1.0.6', :groups => [:test]
