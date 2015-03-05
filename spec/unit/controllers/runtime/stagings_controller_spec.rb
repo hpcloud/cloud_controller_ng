@@ -62,6 +62,7 @@ module VCAP::CloudController
     before do
       Fog.unmock!
       TestConfig.override(staging_config)
+      allow_any_instance_of(VCAP::CloudController::StagingsController).to receive(:prevent_local_access)
     end
 
     after { FileUtils.rm_rf(workspace) }
