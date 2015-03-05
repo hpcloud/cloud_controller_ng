@@ -41,16 +41,14 @@ module VCAP::CloudController
         }
 
         expect(Jobs::Runtime::BuildpackInstaller).to receive(:new).with("buildpack1", "abuildpack.zip", {}).ordered.and_return(job)
-        expect(Jobs::Enqueuer).to receive(:new).with(job, queue: instance_of(LocalQueue)).ordered.and_return(enqueuer)
+        expect(job).to receive(:perform)
         expect(Dir).to receive(:[]).with("/var/vcap/packages/mybuildpackpkg/*.zip").and_return(["abuildpack.zip"])
         expect(File).to receive(:file?).with("abuildpack.zip").and_return(true)
 
         expect(Jobs::Runtime::BuildpackInstaller).to receive(:new).with("buildpack2", "otherbp.zip", {}).ordered.and_return(job2)
-        expect(Jobs::Enqueuer).to receive(:new).with(job2, queue: instance_of(LocalQueue)).ordered.and_return(enqueuer)
+        expect(job2).to receive(:perform)
         expect(Dir).to receive(:[]).with("/var/vcap/packages/myotherpkg/*.zip").and_return(["otherbp.zip"])
         expect(File).to receive(:file?).with("otherbp.zip").and_return(true)
-
-        expect(enqueuer).to receive(:enqueue).twice
 
         installer.install(TestConfig.config[:install_buildpacks])
       end
