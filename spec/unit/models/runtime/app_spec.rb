@@ -1069,12 +1069,16 @@ module VCAP::CloudController
           expect(app).to_not be_valid
         end
         it "should not allow negative min_instances" do
-          app.max_instances = -10
-          expect(app).to_not be_valid
+          expect {
+            app.max_instances = -10
+            app.validate
+          }.to raise_error(VCAP::Errors::ApiError, /max_instances.*<.*min_instances/)
         end
         it "should not allow negative max_instances" do
-          app.max_instances = -10
-          expect(app).to_not be_valid
+          expect {
+            app.max_instances = -10
+            app.validate
+          }.to raise_error(VCAP::Errors::ApiError, /max_instances.*<.*min_instances/)
         end
         it "should not allow too-small max_instances" do
           app.min_instances = 10
