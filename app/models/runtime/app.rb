@@ -25,13 +25,12 @@ module VCAP::CloudController
     many_to_one :stack
     many_to_many :routes, before_add: :validate_route, after_add: :mark_routes_changed, after_remove: :mark_routes_changed
 
-    add_association_dependencies routes: :nullify, service_bindings: :destroy, events: :delete, droplets: :destroy, app_versions: :destroy
     one_to_one :current_saved_droplet,
       :class => "::VCAP::CloudController::Droplet",
       :key => :droplet_hash,
       :primary_key => :droplet_hash
+    add_association_dependencies routes: :nullify, service_bindings: :destroy, events: :delete, droplets: :destroy, app_versions: :destroy
 
-    add_association_dependencies routes: :nullify, service_bindings: :destroy, events: :delete, droplets: :destroy
 
     export_attributes :guid, :name, :production,
                       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
