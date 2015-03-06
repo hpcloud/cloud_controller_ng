@@ -387,6 +387,9 @@ module VCAP::CloudController
                                     :environment_json, :memory, :instances, :disk_quota,
                                     :state, :command, :console, :debug,
                                     :staging_task_id, :service_binding_guids, :route_guids, :health_check_timeout,
+                                    :distribution_zone,
+                                    :description, :sso_enabled, :autoscale_enabled,
+                                    :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
                                     :docker_image }
     end
 
