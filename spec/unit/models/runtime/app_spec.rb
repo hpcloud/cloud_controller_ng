@@ -1606,7 +1606,7 @@ module VCAP::CloudController
           app = AppFactory.make(package_hash: "abc", state: "STARTED")
           expect {
             app.update(state: "STOPPED")
-          }.to change { AppUsageEvent.count }.by(1)
+          }.to change { AppUsageEvent.count }.by(2)
           event = AppUsageEvent.last
           expect(event).to match_app(app)
         end
@@ -1635,7 +1635,7 @@ module VCAP::CloudController
           app = AppFactory.make(package_hash: "abc", state: "STARTED")
           expect {
             app.update(memory: 2)
-          }.to change { AppUsageEvent.count }.by(1)
+          }.to change { AppUsageEvent.count }.by(2)
           event = AppUsageEvent.last
           expect(event).to match_app(app)
         end
@@ -1670,7 +1670,7 @@ module VCAP::CloudController
           )
           expect {
             app.update(state: "STARTED")
-          }.to change {AppUsageEvent.count}.by(1)
+          }.to change {AppUsageEvent.count}.by(2)
           event = AppUsageEvent.last
           expect(event.buildpack_guid).to eq(buildpack.guid)
           expect(event).to match_app(app)
