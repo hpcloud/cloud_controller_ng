@@ -113,6 +113,7 @@ module VCAP::CloudController
         end
 
         it "disallows removing all the managers" do
+          # This test is pending due to bug 104204: this is a flawed upstream requirement.
           pending("No exception raised when trying to remove all managers")
           u1, u2 = [User.make, User.make]
           org.manager_guids = [u1.guid, u2.guid]
