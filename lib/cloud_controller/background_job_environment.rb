@@ -31,7 +31,8 @@ class BackgroundJobEnvironment
         VCAP::CloudController::AppObserver.configure(backends)
 
         blobstore_url_generator = CloudController::DependencyLocator.instance.blobstore_url_generator
-        VCAP::CloudController::Dea::Client.configure(@config, message_bus, no_op_dea_pool, no_op_staging_pool, blobstore_url_generator)
+        docker_registry = CloudController::DependencyLocator.instance.docker_registry
+        VCAP::CloudController::Dea::Client.configure(@config, message_bus, no_op_dea_pool, no_op_staging_pool, blobstore_url_generator, docker_registry)
       end
     end
   end
