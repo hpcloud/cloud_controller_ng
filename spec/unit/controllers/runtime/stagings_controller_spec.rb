@@ -483,8 +483,11 @@ module VCAP::CloudController
             original_staging_config.merge({:nginx => {:use_nginx => false}})
           end
 
+          before do
+            TestConfig.override(staging_config.merge({:stackato_upload_handler => {:enabled => false}}))
+          end
+
           it "should return the buildpack cache" do
-            pending('get "/staging/buildpack_cache/#{droplet_guid}/download" => empty-string, expected "droplet contents"')
             buildpack_cache_blobstore.cp_to_blobstore(
                 buildpack_cache.path,
                 app_obj.guid
