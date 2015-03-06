@@ -1072,7 +1072,7 @@ module VCAP::CloudController
         it "should not allow too-small max_instances" do
           app.min_instances = 10
           app.max_instances = 9
-          app.should_not be_valid
+          expect(app).not_to be_valid
         end
       end
 
