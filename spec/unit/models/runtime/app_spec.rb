@@ -1653,7 +1653,7 @@ module VCAP::CloudController
           app = AppFactory.make(buildpack: "https://example.com/repo.git", state: "STOPPED")
           expect {
             app.update(state: "STARTED")
-          }.to change {AppUsageEvent.count}.by(1)
+          }.to change {AppUsageEvent.count}.by(2)
           event = AppUsageEvent.last
           expect(event.buildpack_name).to eq("https://example.com/repo.git")
           expect(event).to match_app(app)
