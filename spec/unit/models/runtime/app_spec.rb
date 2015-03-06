@@ -308,11 +308,12 @@ module VCAP::CloudController
           end
 
           it "can delete an app that somehow has exceeded its memory quota" do
+            pending("dependent app_versions should be deleted")
             quota.memory_limit = 32
             quota.save
             app.memory = 100
             app.save(validate: false)
-            AppVersion.where(:app_id => app.id).delete
+            #AppVersion.where(:app_id => app.id).delete
             expect(app.reload).to_not be_valid
             expect { app.delete }.not_to raise_error
           end
@@ -1966,11 +1967,12 @@ module VCAP::CloudController
         end
 
         it "can delete an app that somehow has exceeded its memory quota" do
+          pending("dependent app_versions should be deleted")
           quota.memory_limit = 32
           quota.save
           app.memory = 100
           expect { app.save }.to raise_error(Sequel::ValidationFailed, /quota_exceeded/)
-          AppVersion.where(:app_id => app.id).delete
+          #AppVersion.where(:app_id => app.id).delete
           expect { app.delete }.not_to raise_error
         end
 
@@ -2040,7 +2042,8 @@ module VCAP::CloudController
       subject(:app) { AppFactory.make }
 
       it "raises error if the app is deleted" do
-        AppVersion.where(:app_id => app.id).delete
+        pending("dependent app_versions should be deleted")
+        #AppVersion.where(:app_id => app.id).delete
         app.delete
         expect { app.save }.to raise_error(Errors::ApplicationMissing)
       end
