@@ -312,6 +312,7 @@ module VCAP::CloudController
             quota.save
             app.memory = 100
             app.save(validate: false)
+            AppVersion.where(:app_id => app.id).delete
             expect(app.reload).to_not be_valid
             expect { app.delete }.not_to raise_error
           end
