@@ -376,11 +376,15 @@ module VCAP::CloudController
     end
 
     describe "Serialization" do
-      it { is_expected.to export_attributes :name, :production,
+      it { is_expected.to export_attributes :guid, :name, :production,
                                     :space_guid, :stack_guid, :buildpack, :detected_buildpack,
                                     :environment_json, :memory, :instances, :disk_quota,
                                     :state, :version, :command, :console, :debug,
-                                    :staging_task_id, :package_state, :health_check_timeout,
+                                    :staging_task_id, :package_state, :package_hash, :health_check_timeout,
+                                    :system_env_json, :distribution_zone,
+                                    :description, :sso_enabled, :restart_required, :autoscale_enabled,
+                                    :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+                                    :droplet_count,
                                     :staging_failed_reason, :docker_image }
       it { is_expected.to import_attributes :name, :production,
                                     :space_guid, :stack_guid, :buildpack, :detected_buildpack,
