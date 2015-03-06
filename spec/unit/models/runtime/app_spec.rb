@@ -26,6 +26,13 @@ module VCAP::CloudController
       matching_validitor = subject.validation_policies.select { |validator| validator.is_a?(validator_class) }
       expect(matching_validitor).to be_empty
     end
+    
+    def act_as_cf_admin(&block)
+      allow(VCAP::CloudController::SecurityContext).to receive_messages(:admin? => true)
+      block.call
+    ensure
+      allow(VCAP::CloudController::SecurityContext).to receive(:admin?).and_call_original
+    end
 
     before do
       client = double('broker client', unbind: nil, deprovision: nil)
@@ -285,12 +292,6 @@ module VCAP::CloudController
         end
 
         context "app update" do
-          def act_as_cf_admin(&block)
-            allow(VCAP::CloudController::SecurityContext).to receive_messages(:admin? => true)
-            block.call
-          ensure
-            allow(VCAP::CloudController::SecurityContext).to receive(:admin?).and_call_original
-          end
 
           let(:org) { Organization.make(:quota_definition => quota) }
           let(:space) { Space.make(:organization => org) }
