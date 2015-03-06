@@ -1617,7 +1617,7 @@ module VCAP::CloudController
           app = AppFactory.make(package_hash: "abc", state: "STARTED")
           expect {
             app.update(instances: 2)
-          }.to change { AppUsageEvent.count }.by(1)
+          }.to change { AppUsageEvent.count }.by(2)
           event = AppUsageEvent.last
           expect(event).to match_app(app)
         end
