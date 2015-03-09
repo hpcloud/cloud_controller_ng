@@ -1606,6 +1606,7 @@ module VCAP::CloudController
           expect {
             app.update(state: "STARTED")
           }.to change { AppUsageEvent.count }.by(2)
+          # Bug 301141: Stackato's app.after_save event creates another event
           event = AppUsageEvent.last
           expect(event).to match_app(app)
         end
@@ -1617,6 +1618,7 @@ module VCAP::CloudController
           expect {
             app.update(state: "STOPPED")
           }.to change { AppUsageEvent.count }.by(2)
+          # Bug 301141: Stackato's app.after_save event creates another event
           event = AppUsageEvent.last
           expect(event).to match_app(app)
         end
@@ -1628,6 +1630,7 @@ module VCAP::CloudController
           expect {
             app.update(instances: 2)
           }.to change { AppUsageEvent.count }.by(2)
+          # Bug 301141: Stackato's app.after_save event creates another event
           event = AppUsageEvent.last
           expect(event).to match_app(app)
         end
@@ -1646,6 +1649,7 @@ module VCAP::CloudController
           expect {
             app.update(memory: 2)
           }.to change { AppUsageEvent.count }.by(2)
+          # Bug 301141: Stackato's app.after_save event creates another event
           event = AppUsageEvent.last
           expect(event).to match_app(app)
         end
@@ -1664,6 +1668,7 @@ module VCAP::CloudController
           expect {
             app.update(state: "STARTED")
           }.to change {AppUsageEvent.count}.by(2)
+          # Bug 301141: Stackato's app.after_save event creates another event
           event = AppUsageEvent.last
           expect(event.buildpack_name).to eq("https://example.com/repo.git")
           expect(event).to match_app(app)
@@ -1681,6 +1686,7 @@ module VCAP::CloudController
           expect {
             app.update(state: "STARTED")
           }.to change {AppUsageEvent.count}.by(2)
+          # Bug 301141: Stackato's app.after_save event creates another event
           event = AppUsageEvent.last
           expect(event.buildpack_guid).to eq(buildpack.guid)
           expect(event).to match_app(app)
