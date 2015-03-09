@@ -79,6 +79,7 @@ module VCAP::CloudController
         if space && space.domains_dataset.filter(:id => domain.id).count < 1
           errors.add(:domain, :invalid_relation)
         end
+        validate_domain
       end
 
       validate_total_routes
