@@ -59,15 +59,17 @@ module VCAP::CloudController
       reserved_domains.push(URI(Kato::Config.get("cloud_controller_ng", "uaa/url")).host)
 
       if domain
-        reserved_domains.each do |rdomain|
-          if rdomain == fqdn
-            errors.add(:host, :reserved_host)
-            break
+        if host
+          reserved_domains.each do |rdomain|
+            if rdomain == fqdn
+              errors.add(:host, :reserved_host)
+              break
+            end
           end
-        end
 
-        if fqdn == main_domain
-          errors.add(:host, :reserved_host)
+          if fqdn == main_domain
+            errors.add(:host, :reserved_host)
+          end
         end
 
         unless domain.wildcard
