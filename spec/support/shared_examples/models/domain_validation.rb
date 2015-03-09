@@ -105,7 +105,10 @@ module VCAP::CloudController
           subject.name = "FoO.CoM"
         end
 
-        it { is_expected.not_to be_valid }
+        it { 
+          pending("bug 105244: Allow overlapping domains")
+          is_expected.not_to be_valid
+        }
       end
 
       context "when the name is foo.com and another org has bar.foo.com" do
