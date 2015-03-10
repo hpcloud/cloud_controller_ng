@@ -44,7 +44,7 @@ describe BackgroundJobEnvironment do
 
     it "configures app observer with null stager and dea pool" do
       expect(VCAP::CloudController::AppObserver).to receive(:configure).with(
-        instance_of(VCAP::CloudController::Backends)
+        instance_of(VCAP::CloudController::StackatoBackends)
       )
       background_job_environment.setup_environment
     end
