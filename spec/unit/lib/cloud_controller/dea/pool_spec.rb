@@ -122,7 +122,7 @@ module VCAP::CloudController
 
           subject.process_advertise_message(dea_advertise_msg.merge( "placement_properties" => { "availability_zone" => "az1" } ))
           subject.process_advertise_message(dea_advertise_msg.merge( "placement_properties" => { "availability_zone" => "az2" }, "id" => "dea-in-other-az" ))
-          expect(subject.find_dea(mem: 256, stack: "stack", app_id: "app-id").should).to eq "dea-in-other-az"
+          expect(subject.find_dea(mem: 256, stack: "stack", app_id: "app-id")).to eq "dea-in-other-az"
         end
       end
 
