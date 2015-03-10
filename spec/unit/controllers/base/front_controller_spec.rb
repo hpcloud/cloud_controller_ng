@@ -46,6 +46,7 @@ module VCAP::CloudController
         end
 
         it "sets security context to the user" do
+          VCAP::CloudController::SecurityContext.set(nil, token_info)
           make_request
           expect(VCAP::CloudController::SecurityContext.current_user).to eq VCAP::CloudController::User.last
           expect(VCAP::CloudController::SecurityContext.token["user_id"]).to eq user_id
@@ -67,6 +68,7 @@ module VCAP::CloudController
 
         it "sets security context to the user" do
           make_request
+          VCAP::CloudController::SecurityContext.set(nil, token_info)
           expect(VCAP::CloudController::SecurityContext.current_user).to eq VCAP::CloudController::User.last
           expect(VCAP::CloudController::SecurityContext.token["client_id"]).to eq user_id
         end
