@@ -79,8 +79,12 @@ module VCAP::CloudController
         end
 
         it "starts thin server on set up bind address" do
+          config = test_config
+          config[:nginx][:use_nginx] = false
+          config[:stackato_upload_handler][:enabled] = false
+          TestConfig.override(config)
           allow(subject).to receive(:start_thin_server).and_call_original
-          expect(VCAP).to receive(:local_ip).and_return("some_local_ip")
+          expect(Kato::Local::Node).to receive(:get_local_node_id).and_return("some_local_ip").exactly(3).times
           expect(Thin::Server).to receive(:new).with("some_local_ip", 8181, { signals: false }).and_return(double(:thin_server).as_null_object)
           subject.run!
         end
