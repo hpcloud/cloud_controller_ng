@@ -405,6 +405,10 @@ module VCAP::CloudController
                 let(:package_hash) { "something new" }
 
                 it "should start more instances of the old version" do
+                  # bug 301177 - Our version of react_to_instances_change calls
+                  # @backends.broadcast_app_updated(app) which accounts for one
+                  # more call to publish.
+                  allow_any_instance_of(VCAP::CloudController::StackatoBackends).to receive(:broadcast_app_updated)
                   expect(message_bus).to receive(:publish) { |subject, message|
                     expect(message).to include({
                                                    sha1: "initial-droplet-hash"
