@@ -14,6 +14,7 @@ module VCAP::CloudController
 
         before do
           allow(token_decoder).to receive(:decode_token).with(auth_token).and_return(token_information)
+          allow_any_instance_of(User).to receive(:cache_username)
         end
 
         it 'initially clears the security context token' do
