@@ -3,6 +3,9 @@ require "spec_helper"
 describe UploadHandler do
   let(:key) { "application" }
   subject(:uploader) { UploadHandler.new(config) }
+  before do
+    allow_any_instance_of(UploadHandler).to receive(:using_stackato_upload_handler?).and_return(true)
+  end
 
   context "Nginx mode" do
     let(:config) { { nginx: { use_nginx: true } } }
