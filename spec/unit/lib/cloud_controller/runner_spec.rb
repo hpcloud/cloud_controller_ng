@@ -66,6 +66,7 @@ module VCAP::CloudController
         end
 
         it "sets up loggregator emitter" do
+          pending("Unpend this test wants the loggregator work is merged in")
           loggregator_emitter = double(:loggregator_emitter)
           expect(LoggregatorEmitter::Emitter).to receive(:new).and_return(loggregator_emitter)
           expect(Loggregator).to receive(:emitter=).with(loggregator_emitter)
