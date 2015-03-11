@@ -416,8 +416,9 @@ module VCAP::CloudController
     end
 
     # On startup, log as WARN any redundancy in configuration methods or permissions
-    find_redundant_permissions
-    find_redundant_updaters
-
+    unless ENV['STACKATO_SKIP_WARN_REDUNDANCY']
+      find_redundant_permissions
+      find_redundant_updaters
+    end
   end
 end
