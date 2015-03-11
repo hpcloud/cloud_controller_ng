@@ -6,6 +6,12 @@ module VCAP::CloudController
     let(:config_file) { File.new(valid_config_file_path) }
     let(:message_bus) { CfMessageBus::MockMessageBus.new }
     let(:registrar) { Cf::Registrar.new({}) }
+    let(:test_config) {
+      config = YAML.load_file(valid_config_file_path)
+      config[:autoscaling] ||= {:enabled => false}
+      config[:autoscaling][:config_file] = File.expand_path('../../../../../lib/cloud_controller/stackato/autoscaling/config/config.yaml', __FILE__)
+      TestConfig.override(config)
+    }
 
     let(:argv) { [] }
 
@@ -19,6 +25,7 @@ module VCAP::CloudController
       allow(registrar).to receive_messages(:message_bus => message_bus)
       allow(registrar).to receive(:register_with_router)
       allow(VCAP::CloudController::StackatoDropletAccountability).to receive(:start)
+      allow(VCAP::CloudController::Config).to receive(:from_redis).and_return(test_config)
     end
 
     subject do
@@ -174,7 +181,7 @@ module VCAP::CloudController
 
           context "when the 'default' quota is missing from the config file" do
             let(:config_file) do
-              config = YAML.load_file(valid_config_file_path)
+              config = test_config
               config["quota_definitions"].delete("default")
               file = Tempfile.new("config")
               file.write(YAML.dump(config))
@@ -191,7 +198,7 @@ module VCAP::CloudController
 
           context "when the app domains include the system domain" do
             let(:config_file) do
-              config = YAML.load_file(valid_config_file_path)
+              config = test_config
               config["app_domains"].push("the-system-domain.com")
               file = Tempfile.new("config")
               file.write(YAML.dump(config))
@@ -397,7 +404,7 @@ module VCAP::CloudController
 
       context "when the diagnostics directory is not configured" do
         let(:config_file) do
-          config = YAML.load_file(valid_config_file_path)
+          config = test_config
           config[:directories] ||= {}
           config[:directories][:diagnostics] = "diagnostics/dir"
           file = Tempfile.new("config")

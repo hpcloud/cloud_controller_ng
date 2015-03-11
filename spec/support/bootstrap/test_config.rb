@@ -20,7 +20,12 @@ module TestConfig
   end
 
   def self.load(overrides={})
-    config = defaults.merge(overrides)
+    config = defaults.merge({:db => {
+                                :log_level => "debug",
+                                :database_uri => db_connection_string,
+                                :pool_timeout => 10
+                              },
+                            }).merge(overrides)
     configure_components(config)
     config
   end
