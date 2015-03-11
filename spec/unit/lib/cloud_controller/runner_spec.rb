@@ -18,6 +18,7 @@ module VCAP::CloudController
       allow(VCAP::PidFile).to receive(:new) { double(:pidfile, unlink_at_exit: nil) }
       allow(registrar).to receive_messages(:message_bus => message_bus)
       allow(registrar).to receive(:register_with_router)
+      allow(VCAP::CloudController::StackatoDropletAccountability).to receive(:start)
     end
 
     subject do
