@@ -139,7 +139,7 @@ module VCAP::CloudController
           end
 
           it "wrap test so it can be marked pending" do
-            #pending("AUTH: not authorized to add a service")
+            pending("AUTH: not authorized to add a service")
             it_behaves_like "a vcap rest error response", /service instance name is taken: duplicate/
           end
         end
