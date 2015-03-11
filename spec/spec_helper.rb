@@ -55,6 +55,7 @@ RSpec.configure do |rspec_config|
   rspec_config.include ModelCreation
 
   rspec_config.include ServiceBrokerHelpers
+  rspec_config.include StackatoHelpers
   rspec_config.include ControllerHelpers, type: :controller, :file_path => EscapedPath.join(%w[spec unit controllers])
   rspec_config.include ControllerHelpers, type: :api
   rspec_config.include ControllerHelpers, :file_path => EscapedPath.join(%w[spec acceptance])
@@ -79,6 +80,7 @@ RSpec.configure do |rspec_config|
     TestConfig.reset
 
     stub_v1_broker
+    stub_stackato_additions
     VCAP::CloudController::SecurityContext.clear
 
     UAARequests.stub_all
