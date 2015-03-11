@@ -38,6 +38,7 @@ module VCAP::CloudController
     describe "#run!" do
       shared_examples "running Cloud Controller" do
         it "creates a pidfile" do
+          pending("Stackato doesn't create a pidfile")
           expect(VCAP::PidFile).to receive(:new).with("/tmp/cloud_controller.pid")
           subject.run!
         end
