@@ -54,5 +54,14 @@ module UAARequests
       with(:headers => {'Accept'=>'*/*', 'Authorization'=>'token-type access-token', 'User-Agent'=>'Ruby'}).
       to_return(:status => 200, :body => "", :headers => {})
 
+
+    WebMock::API.stub_request(:delete, %r"http://localhost:8080/uaa/oauth/clients/host-\d+.test.example.com-[-\da-f]{36}\z").
+      with(:headers => {'Accept'=>'*/*',
+             'Authorization'=>'token-type access-token',
+             'User-Agent'=>'Ruby'}).
+      to_return(
+        :status => 200, 
+        :body => "",
+        :headers => {})
   end
 end
