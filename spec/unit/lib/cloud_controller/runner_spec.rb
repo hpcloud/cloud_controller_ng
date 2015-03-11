@@ -109,6 +109,7 @@ module VCAP::CloudController
         end
 
         it "starts handling health-manager requests" do
+          # XXX: Remove this test once we implement HM9000
           hmrespondent = double(:hmrespondent)
           expect(HealthManagerRespondent).to receive(:new).with(Dea::Client, message_bus).and_return(hmrespondent)
           expect(hmrespondent).to receive(:handle_requests)
@@ -160,11 +161,13 @@ module VCAP::CloudController
             end
 
             it "should load quota definitions" do
-              expect(QuotaDefinition.count).to eq(2)
+              config = test_config
+              expect(QuotaDefinition.count).to eq(config[:quota_definitions].keys.size)
               default = QuotaDefinition[:name => "default"]
               expect(default.non_basic_services_allowed).to eq(true)
               expect(default.total_services).to eq(100)
-              expect(default.memory_limit).to eq(10240)
+              # Merge note: This value is 10240 upstream, has been changed many times.
+              expect(default.memory_limit).to eq(2048)
             end
 
             it "creates the system domain organization" do
