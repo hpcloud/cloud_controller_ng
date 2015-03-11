@@ -101,9 +101,17 @@ module VCAP::CloudController
         end
 
         it "starts handling hm9000 requests" do
+          pending("XXX: Reinstate this test once we implement HM9000")
           hm9000respondent = double(:hm9000respondent)
           expect(Dea::HM9000::Respondent).to receive(:new).with(Dea::Client, message_bus).and_return(hm9000respondent)
           expect(hm9000respondent).to receive(:handle_requests)
+          subject.run!
+        end
+
+        it "starts handling health-manager requests" do
+          hmrespondent = double(:hmrespondent)
+          expect(HealthManagerRespondent).to receive(:new).with(Dea::Client, message_bus).and_return(hmrespondent)
+          expect(hmrespondent).to receive(:handle_requests)
           subject.run!
         end
 
