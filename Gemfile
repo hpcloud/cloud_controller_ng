@@ -165,7 +165,7 @@ end
 if ENV["STACKATO_DEV"] and File.directory? '../kato'
   gem 'stackato-kato', :path => '../kato'
 else
-  gem 'stackato-kato', '~> 3.0.0'
+  gem 'stackato-kato', '~> 3.0.0', :git => "git://github.com/ActiveState/kato.git"
 end
 
 if ENV["STACKATO_DEV"] and File.directory? '../steno-codec-text'
