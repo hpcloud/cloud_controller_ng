@@ -2,7 +2,10 @@ require "spec_helper"
 
 module VCAP::CloudController
   describe VCAP::CloudController::Seeds do
-    let(:config) { TestConfig.config.clone }
+    let(:config) {
+      TestConfig.override({:system_domain_organization => "the-system_domain-org-name",})
+      TestConfig.config.clone
+    }
 
     describe ".create_seed_stacks" do
       it "populates stacks" do
