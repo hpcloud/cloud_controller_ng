@@ -162,20 +162,21 @@ group :test do
   gem 'webmock', '1.18.0'
 end
 
-if ENV["STACKATO_DEV"] and File.directory? '../kato'
+
+if ENV['STACKATO_DEV'] && File.directory?('../kato')
   gem 'stackato-kato', :path => '../kato'
 else
-  gem 'stackato-kato', '~> 3.0.0', :git => "git://github.com/ActiveState/kato.git"
+  gem 'stackato-kato', '~> 3.0.0'
 end
 
-if ENV["STACKATO_DEV"] and File.directory? '../steno-codec-text'
+if ENV['STACKATO_DEV'] && File.directory?('../steno-codec-text')
   gem 'steno-codec-text', :path => '../steno-codec-text'
 else
-  gem 'steno-codec-text', '0.1', :git => "git://github.com/ActiveState/steno-codec-text.git" 
+  gem 'steno-codec-text', '0.1', :github => "ActiveState/steno-codec-text" 
 end
 
-if ENV["STACKATO_DEV"] and File.directory? '../common'
+if ENV['STACKATO_DEV'] && File.directory?('../common')
   gem 'vcap_common', '3.0.0', :path => '../common'
 else
-  gem 'vcap_common', '~> 3.0.0', :git => "git://github.com/cloudfoundry/vcap-common.git"
+  gem 'vcap_common', '~> 3.0.0', :github => "ActiveState/vcap-common"
 end
