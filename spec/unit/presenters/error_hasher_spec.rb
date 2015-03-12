@@ -1,6 +1,12 @@
 require "spec_helper"
 
 describe ErrorHasher do
+  def expect_generic_message(sanitized_hash)
+    expect(sanitized_hash["error_code"]).to eq("UnknownError")
+    expect(sanitized_hash["code"]).to eq(10001)
+    expect(sanitized_hash["description"]).to match(/\AAn unknown error occurred. Please contact your adminstrator, specifying error tracker ID \d+ along with this message.\Z/)
+  end
+
   subject(:error_hasher) { ErrorHasher.new(error) }
 
   let(:unknown_error) do
@@ -117,11 +123,9 @@ describe ErrorHasher do
       let(:error) { nil }
 
       it "returns a default hash" do
-        expect(unsanitized_hash).to eq({
-                                         "error_code" => "UnknownError",
-                                         "description" => "An unknown error occurred.",
-                                         "code" => 10001,
-                                       })
+        expect(unsanitized_hash["error_code"]).to eq("UnknownError")
+        expect(unsanitized_hash["code"]).to eq(10001)
+        expect(unsanitized_hash["description"]).to match(/\ANo error. Please contact your adminstrator, specifying error tracker ID \d+ along with this message.\Z/)
       end
     end
 
@@ -146,9 +150,7 @@ describe ErrorHasher do
       let(:error) { to_h_error }
 
       it "returns the default hash" do
-        expect(sanitized_hash).to eq({"error_code"=>"UnknownError",
-                                      "description"=>"An unknown error occurred.",
-                                      "code"=>10001})
+        expect_generic_message(sanitized_hash)
       end
     end
 
@@ -177,11 +179,7 @@ describe ErrorHasher do
       let(:error) { nil }
 
       it "returns a default hash" do
-        expect(sanitized_hash).to eq({
-                                       "error_code" => "UnknownError",
-                                       "description" => "An unknown error occurred.",
-                                       "code" => 10001,
-                                     })
+        expect_generic_message(sanitized_hash)
       end
     end
 
@@ -189,9 +187,7 @@ describe ErrorHasher do
       let(:error) { unknown_error }
 
       it "uses a standard convention by default" do
-        expect(sanitized_hash).to eq({"code"=>10001,
-                                      "description"=>"An unknown error occurred.",
-                                      "error_code"=>"UnknownError"})
+        expect_generic_message(sanitized_hash)
       end
     end
 
