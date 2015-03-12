@@ -10,7 +10,8 @@ module VCAP::CloudController
       config = YAML.load_file(valid_config_file_path)
       config[:autoscaling] ||= {:enabled => false}
       config[:autoscaling][:config_file] = File.expand_path('../../../../../lib/cloud_controller/stackato/autoscaling/config/config.yaml', __FILE__)
-      TestConfig.override(config)
+      config[:hm9000_noop] = true
+      TestConfig.override(config, valid_config_file_path)
     }
 
     let(:argv) { [] }
@@ -26,6 +27,7 @@ module VCAP::CloudController
       allow(registrar).to receive(:register_with_router)
       allow(VCAP::CloudController::StackatoDropletAccountability).to receive(:start)
       allow(VCAP::CloudController::Config).to receive(:from_redis).and_return(test_config)
+      allow_any_instance_of(VCAP::CloudController::Runner).to receive(:parse_config_from_redis).and_return(TestConfig.config)
     end
 
     subject do
@@ -162,15 +164,15 @@ module VCAP::CloudController
 
             it "should load quota definitions" do
               config = test_config
-              expect(QuotaDefinition.count).to eq(config[:quota_definitions].keys.size)
               default = QuotaDefinition[:name => "default"]
               expect(default.non_basic_services_allowed).to eq(true)
               expect(default.total_services).to eq(100)
-              # Merge note: This value is 10240 upstream, has been changed many times.
-              expect(default.memory_limit).to eq(2048)
+              expect(default.memory_limit).to eq(10240)
             end
 
             it "creates the system domain organization" do
+              config = test_config
+              expect(Organization.count).to eq(1)
               expect(Organization.last.name).to eq("the-system-domain-org-name")
               expect(Organization.last.quota_definition.name).to eq("default")
             end
@@ -307,7 +309,7 @@ module VCAP::CloudController
         allow_any_instance_of(Runner).to receive(:deprecation_warning)
       end
 
-      subject { Runner.new(argv_options) }
+      subject {Runner.new(argv_options)}
 
       it "should set ENV['RACK_ENV'] to production" do
         ENV.delete('RACK_ENV')

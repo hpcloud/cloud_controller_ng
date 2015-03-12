@@ -2,8 +2,8 @@ require "support/bootstrap/db_config"
 require "support/paths"
 
 module TestConfig
-  def self.override(overrides)
-    @config = load(overrides)
+  def self.override(overrides, config_file=nil)
+    @config = load(overrides, config_file)
   end
 
   # Returns true if the AUTOMATED_BUILD env-var is set and we are running in a CI instance.
@@ -19,8 +19,8 @@ module TestConfig
     @config ||= load
   end
 
-  def self.load(overrides={})
-    config = defaults.merge({:db => {
+  def self.load(overrides={}, config_file=nil)
+    config = defaults(config_file).merge({:db => {
                                 :log_level => "debug",
                                 :database_uri => db_connection_string,
                                 :pool_timeout => 10
@@ -82,8 +82,11 @@ module TestConfig
     end
   end
 
-  def self.defaults
-    config_file = File.join(Paths::CONFIG, "cloud_controller.yml")
+  def self.get_config_file
+    File.join(Paths::CONFIG, "cloud_controller.yml")
+  end
+  def self.defaults(default_file=nil)
+    config_file = default_file || get_config_file
     config_hash = VCAP::CloudController::Config.from_file(config_file)
 
     config_hash.update(
