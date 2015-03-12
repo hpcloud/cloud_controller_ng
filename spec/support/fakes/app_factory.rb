@@ -9,6 +9,10 @@ module VCAP
         attributes = defaults.merge(attributes)
 
         app = VCAP::CloudController::App.make(attributes)
+        if !app.updated_at
+          app.updated_at = Time.now
+          app.save
+        end
         # app.add_new_droplet(app.droplet_hash) if app.droplet_hash
 
         App.find(id: app.id)
