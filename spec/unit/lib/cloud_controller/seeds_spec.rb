@@ -151,7 +151,10 @@ module VCAP::CloudController
             mock_logger = double
             allow(Steno).to receive(:logger).and_return(mock_logger)
 
-            expect(mock_logger).to receive(:warn).with("seeds.system-domain-organization.collision", existing_quota_name: "runaway")
+            # Merge note: Bug 101481:
+            # Seeds#create_seed_organizations does something only
+            # when there are no organizations, so no dup-org msgs will be issued
+            expect(mock_logger).to receive(:warn).with("seeds.system-domain-organization.collision", existing_quota_name: "runaway").exactly(0).times
 
             Seeds.create_seed_organizations(config)
           end
