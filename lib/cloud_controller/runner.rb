@@ -92,6 +92,12 @@ module VCAP::CloudController
       @config = Config.from_file(@config_file)
     end
 
+    def parse_options_from_file(config_file)
+      # This code needed for bug 301178 (runner_spec tests failing with custom config-files
+      @config_file = config_file
+      parse_config_from_config_file
+    end
+
     def setup_logging
       steno_config = Steno::Config.to_config_hash(@config[:logging])
       steno_config[:codec] = Steno::Codec::Text.new

@@ -211,6 +211,7 @@ module VCAP::CloudController
             end
 
             it "raises an exception" do
+              subject.parse_options_from_file(config_file)
               expect {
                 subject.run!
               }.to raise_error(ArgumentError, /Missing .*default.* quota/)
@@ -228,6 +229,7 @@ module VCAP::CloudController
             end
 
             it "creates the system domain as a private domain" do
+              subject.parse_options_from_file(config_file)
               subject.run!
               domain = Domain.find(:name => "the-system-domain.com")
               expect(domain.owning_organization).to be_nil
@@ -435,6 +437,7 @@ module VCAP::CloudController
         end
 
         it "uses the configured directory" do
+          subject.parse_options_from_file(config_file)
           expect(Dir).not_to receive(:mktmpdir)
           expect(subject).to receive(:collect_diagnostics).and_call_original
           expect(::VCAP::CloudController::Diagnostics).to receive(:collect).with("diagnostics/dir")
