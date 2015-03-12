@@ -62,7 +62,7 @@ GIT
       virtus (>= 1.0.0)
 
 PATH
-  remote: ../common
+  remote: vendor/cache/common
   specs:
     vcap_common (3.0.0)
       addressable (~> 2.2)
@@ -82,7 +82,7 @@ PATH
       yajl-ruby
 
 PATH
-  remote: ../steno-codec-text
+  remote: vendor/cache/steno-codec-text
   specs:
     steno-codec-text (0.1)
       steno (~> 1.1.0)
