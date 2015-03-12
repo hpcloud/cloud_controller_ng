@@ -146,11 +146,9 @@ describe 'Sinatra::VCAP', type: :controller do
 
     it 'should return 500' do
       expect(last_response.status).to eq(500)
-      expect(decoded_response).to eq({
-                                       'code' => 10001,
-                                       'error_code' => 'UnknownError',
-                                       'description' => 'An unknown error occurred.'
-                                     })
+      expect(decoded_response['code']).to eq(10001)
+      expect(decoded_response['error_code']).to eq('UnknownError')
+      expect(decoded_response['description']).to match(/\AAn unknown error occurred\./)
     end
 
     it 'should add an entry to varz recent errors' do
