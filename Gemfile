@@ -80,8 +80,6 @@ gem 'rack-test', '0.6.2', :groups => [:test, :default]
 gem 'rake', '10.3.2'
 gem 'redis', '~> 3.0.4'
 gem 'rfc822', '0.1.4'
-gem 'rspec-mocks', '3.0.4', :groups => [:default, :test]
-gem 'rspec-support', '3.0.4', :groups => [:default, :test]
 gem 'ruby-hmac', '0.4.0'
 gem 'ruby-termios', '0.9.6'
 gem 'rubyzip', '1.1.0'
@@ -93,7 +91,6 @@ gem 'sqlite3'           ,    '1.3.7'
 gem 'squash_ruby'       ,    '1.4.0'
 gem 'stager-client', '~> 0.0.02', :github => 'cloudfoundry/stager-client', :ref => '04c2aee9'
 gem 'steno', '1.1.0'
-gem 'steno-codec-text', '0.1', :path => '../steno-codec-text'
 gem 'talentbox-delayed_job_sequel', '4.0.0'
 gem 'term-ansicolor', '1.0.7'
 gem 'thin', '1.6.2'
@@ -105,7 +102,6 @@ gem 'unf', '0.1.3'
 gem 'unf_ext', '0.0.6'
 gem 'uuidtools', '2.1.4'
 gem 'vcap-concurrency', '0.1.0', :github => 'cloudfoundry/vcap-concurrency', :ref => '2a5b0179'
-gem 'vcap_common', '3.0.0', :path => '../common'
 gem 'virtus', '1.0.0'
 gem 'vmstat', '2.1.0'
 gem 'yajl-ruby', '1.1.0'
@@ -115,6 +111,14 @@ gem 'rbvmomi', '1.6.0'
 
 # These are outside the test group in order to run rake tasks
 gem 'rspec', '~> 3.0'
+gem 'rspec-core'        ,   '3.0.4', :groups => [:default, :test]
+gem 'rspec-expectations',   '3.0.4', :groups => [:default, :test]
+gem 'rspec-instafail'   ,    '0.2.5', :groups => [:default, :test]
+gem 'rspec-its'        ,    '1.0.1', :groups => [:default, :test]
+gem 'rspec_api_documentation',    '4.1.0'
+gem 'rspec-mocks', '3.0.4', :groups => [:default, :test]
+gem 'rspec-collection_matchers', '1.0.0', :groups => [:default, :test]
+gem 'rspec-support', '3.0.4', :groups => [:default, :test]
 
 group :db do
   gem 'mysql2', '0.3.13'
@@ -125,9 +129,9 @@ group :operations do
 end
 
 group :development do
-  gem 'debugger', '1.6.6'
-  gem 'debugger-linecache', '1.2.0'
-  gem 'debugger-ruby_core_source', '1.3.5'
+#  gem 'debugger', '1.6.6'
+#  gem 'debugger-linecache', '1.2.0'
+#  gem 'debugger-ruby_core_source', '1.3.5'
   gem 'roodi', '4.0.0'
   gem 'columnize', '0.3.6'
   gem 'ruby_parser', '3.6.2'
@@ -157,8 +161,20 @@ group :test do
   gem 'webmock', '1.18.0'
 end
 
-if ENV["KATO_DEV"] and File.directory? '../kato'
+if ENV["STACKATO_DEV"] and File.directory? '../kato'
   gem 'stackato-kato', :path => '../kato'
 else
   gem 'stackato-kato', '~> 3.0.0'
+end
+
+if ENV["STACKATO_DEV"] and File.directory? '../steno-codec-text'
+  gem 'steno-codec-text', :path => '../steno-codec-text'
+else
+  gem 'steno-codec-text', '0.1'
+end
+
+if ENV["STACKATO_DEV"] and File.directory? '../common'
+  gem 'vcap_common', '3.0.0', :path => '../common'
+else
+  gem 'vcap_common', '~> 3.0.0'
 end
