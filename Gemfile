@@ -177,5 +177,5 @@ end
 if ENV["STACKATO_DEV"] and File.directory? '../common'
   gem 'vcap_common', '3.0.0', :path => '../common'
 else
-  gem 'vcap_common', '~> 3.0.0', :git => "gitolite@gitolite.activestate.com:vcap-common"
+  gem 'vcap_common', '~> 3.0.0', :git => "git://github.com/cloudfoundry/vcap-common.git"
 end
