@@ -2,7 +2,10 @@ require "spec_helper"
 
 module VCAP::CloudController
   describe VCAP::CloudController::Seeds do
-    let(:config) { TestConfig.config.clone }
+    let(:config) {
+      TestConfig.override({:system_domain_organization => "the-system_domain-org-name",})
+      TestConfig.config.clone
+    }
 
     describe ".create_seed_stacks" do
       it "populates stacks" do
@@ -102,7 +105,7 @@ module VCAP::CloudController
       context "when system domain organization is missing in the configuration" do
         it "does not create an organization" do
           config_without_org = config.clone
-          #config_without_org.delete(:system_domain_organization)
+          config_without_org.delete(:system_domain_organization)
 
           expect {
             Seeds.create_seed_organizations(config_without_org)
@@ -148,7 +151,10 @@ module VCAP::CloudController
             mock_logger = double
             allow(Steno).to receive(:logger).and_return(mock_logger)
 
-            expect(mock_logger).to receive(:warn).with("seeds.system-domain-organization.collision", existing_quota_name: "runaway")
+            # Merge note: Bug 101481:
+            # Seeds#create_seed_organizations does something only
+            # when there are no organizations, so no dup-org msgs will be issued
+            expect(mock_logger).to receive(:warn).with("seeds.system-domain-organization.collision", existing_quota_name: "runaway").exactly(0).times
 
             Seeds.create_seed_organizations(config)
           end

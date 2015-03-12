@@ -1,3 +1,4 @@
+require "spec_helper"
 module VCAP::CloudController
   shared_examples_for "domain validation" do
     context "when the name is not present" do
@@ -104,7 +105,10 @@ module VCAP::CloudController
           subject.name = "FoO.CoM"
         end
 
-        it { is_expected.not_to be_valid }
+        it { 
+          pending("bug 105244: Allow overlapping domains")
+          is_expected.not_to be_valid
+        }
       end
 
       context "when the name is foo.com and another org has bar.foo.com" do
@@ -124,7 +128,10 @@ module VCAP::CloudController
           subject.name = "bar.foo.com"
         end
 
-        it { is_expected.not_to be_valid }
+        it {
+          pending("bug 105244: Allow overlapping domains")
+          is_expected.not_to be_valid
+        }
       end
 
       context "when the name is baz.bar.foo.com and another org has bar.foo.com" do
@@ -133,7 +140,10 @@ module VCAP::CloudController
           subject.name = "baz.bar.foo.com"
         end
 
-        it { is_expected.not_to be_valid }
+        it { 
+          pending("bug 105244: Allow overlapping domains")
+          is_expected.not_to be_valid
+        }
       end
 
       context "when the name is bar.foo.com and foo.com is a shared domain" do
@@ -142,7 +152,10 @@ module VCAP::CloudController
           subject.name = "bar.foo.com"
         end
 
-        it { is_expected.not_to be_valid }
+        it {
+          pending("bug 105244: Allow overlapping domains; and this will be allowed in cf200")
+          is_expected.not_to be_valid
+        }
       end
 
       context "when the name is baz.bar.foo.com and bar.foo.com is a shared domain" do
@@ -151,7 +164,10 @@ module VCAP::CloudController
           subject.name = "baz.bar.foo.com"
         end
 
-        it { is_expected.not_to be_valid }
+        it { 
+          pending("bug 105244: Allow overlapping domains; and this will be allowed in cf200")
+          is_expected.not_to be_valid
+        }
       end
     end
   end

@@ -26,8 +26,7 @@ module VCAP::CloudController
 
       it "enqueues a job to install a buildpack" do
         expect(Jobs::Runtime::BuildpackInstaller).to receive(:new).with("buildpack1", "abuildpack.zip", {}).and_return(job)
-        expect(Jobs::Enqueuer).to receive(:new).with(job, queue: instance_of(LocalQueue)).and_return(enqueuer)
-        expect(enqueuer).to receive(:enqueue)
+        expect(job).to receive(:perform)
         expect(Dir).to receive(:[]).with("/var/vcap/packages/mybuildpackpkg/*.zip").and_return(["abuildpack.zip"])
         expect(File).to receive(:file?).with("abuildpack.zip").and_return(true)
 
@@ -41,16 +40,14 @@ module VCAP::CloudController
         }
 
         expect(Jobs::Runtime::BuildpackInstaller).to receive(:new).with("buildpack1", "abuildpack.zip", {}).ordered.and_return(job)
-        expect(Jobs::Enqueuer).to receive(:new).with(job, queue: instance_of(LocalQueue)).ordered.and_return(enqueuer)
+        expect(job).to receive(:perform)
         expect(Dir).to receive(:[]).with("/var/vcap/packages/mybuildpackpkg/*.zip").and_return(["abuildpack.zip"])
         expect(File).to receive(:file?).with("abuildpack.zip").and_return(true)
 
         expect(Jobs::Runtime::BuildpackInstaller).to receive(:new).with("buildpack2", "otherbp.zip", {}).ordered.and_return(job2)
-        expect(Jobs::Enqueuer).to receive(:new).with(job2, queue: instance_of(LocalQueue)).ordered.and_return(enqueuer)
+        expect(job2).to receive(:perform)
         expect(Dir).to receive(:[]).with("/var/vcap/packages/myotherpkg/*.zip").and_return(["otherbp.zip"])
         expect(File).to receive(:file?).with("otherbp.zip").and_return(true)
-
-        expect(enqueuer).to receive(:enqueue).twice
 
         installer.install(TestConfig.config[:install_buildpacks])
       end
@@ -83,8 +80,7 @@ module VCAP::CloudController
 
         it "uses the file override" do
           expect(Jobs::Runtime::BuildpackInstaller).to receive(:new).with("buildpack1", "another.zip", {}).and_return(job)
-          expect(Jobs::Enqueuer).to receive(:new).with(job, queue: instance_of(LocalQueue)).and_return(enqueuer)
-          expect(enqueuer).to receive(:enqueue)
+          expect(job).to receive(:perform)
           expect(File).to receive(:file?).with("another.zip").and_return(true)
 
           installer.install(TestConfig.config[:install_buildpacks])
@@ -100,8 +96,7 @@ module VCAP::CloudController
           TestConfig.config[:install_buildpacks][0].delete("package")
 
           expect(Jobs::Runtime::BuildpackInstaller).to receive(:new).with("buildpack1", "another.zip", {}).and_return(job)
-          expect(Jobs::Enqueuer).to receive(:new).with(job, queue: instance_of(LocalQueue)).and_return(enqueuer)
-          expect(enqueuer).to receive(:enqueue)
+          expect(job).to receive(:perform)
           expect(File).to receive(:file?).with("another.zip").and_return(true)
 
           installer.install(TestConfig.config[:install_buildpacks])
@@ -140,13 +135,21 @@ module VCAP::CloudController
         end
 
         it "the config is valid" do
+          # Merge note: stackato's :db/:database is declared to be an optional hash, upstream is a string,
+          # but in lib/cloud_controller/config.rb we declare
+          # :database/:db to be String, but set it to a string:
+          # config[:db][:database] ||= ENV["DB_CONNECTION_STRING"]
           TestConfig.config[:nginx][:instance_socket] = "mysocket"
+          if !TestConfig.config.fetch(:db,{})[:database].kind_of?(Hash)
+            TestConfig.config[:db].delete(:database)
+          end
           Config.schema.validate(TestConfig.config)
         end
 
         it "passes optional attributes to the job" do
           expect(Jobs::Runtime::BuildpackInstaller).to receive(:new).
             with("buildpack1", "abuildpack.zip",{:enabled => true, :locked =>false, :position=>5}).and_return(job)
+          expect(job).to receive(:perform)
           expect(Dir).to receive(:[]).with("/var/vcap/packages/mybuildpackpkg/*.zip").and_return(["abuildpack.zip"])
           expect(File).to receive(:file?).with("abuildpack.zip").and_return(true)
 

@@ -7,12 +7,17 @@ module VCAP::CloudController
     end
 
     let (:use_nginx) { false }
+    let(:tmpfile) { Tempfile.new("") }
 
     before do
       TestConfig.override({
         :nginx => {
           :use_nginx => use_nginx,
-        }
+        },
+        :logging => {
+          # value taken from upstream config/cloud_controller.yml
+          :file => "/tmp/cloud_controller.log"
+        },
       })
 
       allow(Rack::CommonLogger).to receive(:new)

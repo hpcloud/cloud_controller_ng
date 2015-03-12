@@ -44,8 +44,8 @@ module VCAP::CloudController
     end
 
     describe "Serialization" do
-      it { is_expected.to export_attributes :name, :non_basic_services_allowed, :total_services, :total_routes, :memory_limit, :trial_db_allowed, :instance_memory_limit }
-      it { is_expected.to import_attributes :name, :non_basic_services_allowed, :total_services, :total_routes, :memory_limit, :trial_db_allowed, :instance_memory_limit }
+      it { is_expected.to export_attributes :name, :non_basic_services_allowed, :total_services, :total_routes, :memory_limit, :trial_db_allowed, :instance_memory_limit, :allow_sudo, :total_droplets}
+      it { is_expected.to import_attributes :name, :non_basic_services_allowed, :total_services, :total_routes, :memory_limit, :trial_db_allowed, :instance_memory_limit, :allow_sudo, :total_droplets }
     end
 
     describe ".default" do

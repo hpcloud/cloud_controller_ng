@@ -1,6 +1,7 @@
 source(ENV['RUBYGEMS_MIRROR'] || "https://rubygems.org")
 
-ruby '1.9.3' # prevents hard-to-diagnose errors with bundle install
+# prevents hard-to-diagnose errors with bundle install
+ruby '1.9.3'
 
 gem 'activemodel', '3.2.18'
 gem 'activerecord', '3.2.18'

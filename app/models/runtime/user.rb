@@ -88,14 +88,6 @@ module VCAP::CloudController
         # User doesn't exist in AOK. This shouldn't happen but it will crop up if the user is being created in the CC before AOK.
       rescue CF::UAA::BadResponse  # Bug 105615
         # Do nothing
-      rescue
-        # WebMock is defined only when running tests, so guard its use
-        if $!.class == (WebMock::NetConnectNotAllowedError rescue nil)
-          # Happens in the specs. Just mock the username
-          self.username = 'testuser'
-        else
-          raise
-        end
       end
     end
 

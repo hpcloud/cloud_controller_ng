@@ -20,7 +20,7 @@ module VCAP::CloudController
     let(:blobstore_url_generator) { CloudController::DependencyLocator.instance.blobstore_url_generator }
 
     let(:options) { {} }
-    subject(:staging_task) { Dea::AppStagerTask.new(config_hash, message_bus, app, dea_pool, stager_pool, blobstore_url_generator) }
+    subject(:staging_task) { Dea::StackatoAppStagerTask.new(config_hash, message_bus, app, dea_pool, stager_pool, blobstore_url_generator) }
 
     let(:first_reply_json_error) { nil }
     let(:task_streaming_log_url) { "task-streaming-log-url" }

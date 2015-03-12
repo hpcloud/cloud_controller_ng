@@ -228,9 +228,9 @@ module VCAP::CloudController
     end
 
     describe "Serialization" do
-      it { is_expected.to export_attributes :name, :organization_guid, :space_quota_definition_guid }
+      it { is_expected.to export_attributes :name, :organization_guid, :is_default, :space_quota_definition_guid }
       it { is_expected.to import_attributes :name, :organization_guid, :space_quota_definition_guid,
-                                            :developer_guids, :manager_guids, :auditor_guids, :security_group_guids }
+                                            :developer_guids, :manager_guids, :auditor_guids, :is_default, :security_group_guids }
     end
 
     describe "#in_suspended_org?" do
@@ -367,12 +367,15 @@ module VCAP::CloudController
         it "to be the default space and update organization if set" do
           space.is_default = true
           expect(space.organization.is_default).to eq(false)
-          act_as_cf_admin do
+          begin
+            allow(VCAP::CloudController::SecurityContext).to receive_messages(:admin? => true)
             space.save
+          ensure
+            allow(VCAP::CloudController::SecurityContext).to receive(:admin?).and_call_original
           end
           space.organization.reload
           expect(space.organization.is_default).to eq(true)
-          expect(space.is_default).to be_true
+          expect(space.is_default).to eq(true)
         end
     end
   end

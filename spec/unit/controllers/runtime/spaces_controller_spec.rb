@@ -28,7 +28,7 @@ module VCAP::CloudController
           event_guids: {type: "[string]"},
           security_group_guids: {type: "[string]"},
           space_quota_definition_guid: {type: "string"},
-          is_default: {type: "bool"},
+          is_default: {type: "bool", default: false},
         })
       end
 

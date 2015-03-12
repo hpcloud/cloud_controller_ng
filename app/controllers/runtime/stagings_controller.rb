@@ -115,13 +115,17 @@ module VCAP::CloudController
       @upload_path ||=
         if get_from_hash_tree(config, :nginx, :use_nginx) || get_from_hash_tree(config, :stackato_upload_handler, :enabled)
           safe_path = Pathname.new(params["droplet_path"]).cleanpath.to_s
-          # value is hardcoded into the nginx config for now. No real need to
-          # expose this node local upload op.
-          raise if not safe_path.start_with? "/var/stackato/data/cloud_controller_ng/tmp/staged_droplet_uploads/"
+          prevent_local_access safe_path
           safe_path
         elsif (tempfile = get_from_hash_tree(params, "upload", "droplet", :tempfile))
           tempfile.path
         end
+    end
+
+    def prevent_local_access safe_path
+      # value is hardcoded into the nginx config for now. No real need to
+      # expose this node local upload op.
+      raise if not safe_path.start_with? "/var/stackato/data/cloud_controller_ng/tmp/staged_droplet_uploads/"
     end
 
     def get_from_hash_tree(hash, *path)

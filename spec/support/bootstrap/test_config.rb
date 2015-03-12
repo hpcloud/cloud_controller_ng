@@ -2,8 +2,8 @@ require "support/bootstrap/db_config"
 require "support/paths"
 
 module TestConfig
-  def self.override(overrides)
-    @config = load(overrides)
+  def self.override(overrides, config_file=nil)
+    @config = load(overrides, config_file)
   end
 
   # Returns true if the AUTOMATED_BUILD env-var is set and we are running in a CI instance.
@@ -19,24 +19,15 @@ module TestConfig
     @config ||= load
   end
 
-  def self.load(overrides={})
-    config = defaults.merge(overrides)
-    config_yaml = automated_build? ? kato_config_from_file : kato_config
-    config_hash = ::Kato::Util.symbolize_keys(config_yaml)
-
-    config_override = {
-      :db => {
-        :log_level => "debug",
-        :database_uri => db_connection_string,
-        :pool_timeout => 10
-      },
-      :directories => {
-      },
-    }
-
-    config_hash.merge!(config_override || {})
-    configure_components(config_hash)
-    config_hash
+  def self.load(overrides={}, config_file=nil)
+    config = defaults(config_file).merge({:db => {
+                                :log_level => "debug",
+                                :database_uri => db_connection_string,
+                                :pool_timeout => 10
+                              },
+                            }).merge(overrides)
+    configure_components(config)
+    config
   end
   
   def self.aok_config
@@ -91,8 +82,11 @@ module TestConfig
     end
   end
 
-  def self.defaults
-    config_file = File.join(Paths::CONFIG, "cloud_controller.yml")
+  def self.get_config_file
+    File.join(Paths::CONFIG, "cloud_controller.yml")
+  end
+  def self.defaults(default_file=nil)
+    config_file = default_file || get_config_file
     config_hash = VCAP::CloudController::Config.from_file(config_file)
 
     config_hash.update(
@@ -115,6 +109,14 @@ module TestConfig
         },
         :droplets => {
             :droplet_directory_key => "cc-droplets",
+            :fog_connection => {
+                :provider => "AWS",
+                :aws_access_key_id => "fake_aws_key_id",
+                :aws_secret_access_key => "fake_secret_access_key",
+            },
+        },
+        :buildpacks => {
+            :buildpack_directory_key => "cc-buildpacks",
             :fog_connection => {
                 :provider => "AWS",
                 :aws_access_key_id => "fake_aws_key_id",

@@ -8,7 +8,11 @@ describe CloudController::DependencyLocator do
 
   describe "#health_manager_client" do
     it "should return the hm9000 client" do
+      pending("Run this test once Stackato moves to HM9000")
       expect(locator.health_manager_client).to be_an_instance_of(VCAP::CloudController::Dea::HM9000::Client)
+    end
+    it "should return the HealthManager client" do
+      expect(locator.health_manager_client).to be_an_instance_of(VCAP::CloudController::HealthManagerClient)
     end
   end
 
@@ -298,12 +302,14 @@ describe CloudController::DependencyLocator do
     let(:sender) { double("sender") }
     it "returns the correct sender when using ngx" do
       config[:nginx][:use_nginx] = true
+      config[:stackato_upload_handler][:enabled] = false
       expect(CloudController::BlobSender::NginxLocalBlobSender).to receive(:new).and_return(sender)
       expect(locator.blob_sender).to eq(sender)
     end
 
     it "returns the correct sender when not using ngx" do
       config[:nginx][:use_nginx] = false
+      config[:stackato_upload_handler][:enabled] = false
       expect(CloudController::BlobSender::DefaultLocalBlobSender).to receive(:new).and_return(sender)
       expect(locator.blob_sender).to eq(sender)
     end

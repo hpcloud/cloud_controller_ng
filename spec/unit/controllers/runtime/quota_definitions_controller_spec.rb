@@ -16,8 +16,8 @@ module VCAP::CloudController
           total_routes: {type: "integer", required: true},
           memory_limit: {type: "integer", required: true},
           instance_memory_limit: {type: "integer", required: false, default: -1},
-          total_droplets: {type: "integer", required: false, default: 5},
-          allow_sudo: {type: "bool", required: false, default: true},
+          total_droplets: {type: "integer", required: false, default: 0},
+          allow_sudo: {type: "bool", required: false, default: false},
         })
       end
 
@@ -28,7 +28,9 @@ module VCAP::CloudController
           total_services: {type: "integer"},
           total_routes: {type: "integer"},
           memory_limit: {type: "integer"},
-          instance_memory_limit: {type: "integer"}
+          instance_memory_limit: {type: "integer"},
+          total_droplets: {type: "integer"},
+          allow_sudo: {type: "bool"},
         })
       end
     end
@@ -49,7 +51,7 @@ module VCAP::CloudController
       it "finds the config value" do
         post "/v2/quota_definitions", Yajl::Encoder.encode(quota_attributes), json_headers(headers)
         expect(last_response.status).to eq(201)
-        JSON.parse(last_response.body)["entity"]["total_droplets"].should == total_droplets
+        expect(JSON.parse(last_response.body)["entity"]["total_droplets"]).to eq total_droplets
       end
     end
     

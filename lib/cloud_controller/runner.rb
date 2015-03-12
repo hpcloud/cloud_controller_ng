@@ -75,12 +75,27 @@ module VCAP::CloudController
     end
 
     def parse_config
-      @config = VCAP::CloudController::Config.from_redis
+      # Merge note: refactor out the call to Config.from_redis to allow stubbing for testing
+      @config = parse_config_from_redis
     rescue Membrane::SchemaValidationError => ve
       puts "ERROR: There was a problem validating the supplied config: #{ve}"
       exit 1
     rescue => e
       exit 1
+    end
+
+    def parse_config_from_redis
+      @config = VCAP::CloudController::Config.from_redis
+    end
+
+    def parse_config_from_config_file
+      @config = Config.from_file(@config_file)
+    end
+
+    def parse_options_from_file(config_file)
+      # This code needed for bug 301178 (runner_spec tests failing with custom config-files
+      @config_file = config_file
+      parse_config_from_config_file
     end
 
     def setup_logging
