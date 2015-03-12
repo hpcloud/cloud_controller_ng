@@ -6,7 +6,7 @@ class ErrorHasher < Struct.new(:error)
   }.freeze
 
   def unsanitized_hash
-    return UNKNOWN_ERROR_HASH.dup if error.nil?
+    return traced_error_hash("No error.") if error.nil?
 
     payload = {
       "code" => 10001,
@@ -23,8 +23,17 @@ class ErrorHasher < Struct.new(:error)
     payload
   end
 
+  def traced_error_hash(payload=nil)
+    ehash = UNKNOWN_ERROR_HASH.dup
+    desc = payload || ehash["description"]
+    ehash["description"] = desc + " Please contact your adminstrator, specifying error tracker ID #{log_cookie} along with this message."
+    ehash
+  end
+
   def sanitized_hash
-    return UNKNOWN_ERROR_HASH unless api_error? or services_error?
+    if not_publically_displayable
+      return traced_error_hash
+    end
     unsanitized_hash.keep_if {|k, _| allowed_keys.include? k }
   end
 
@@ -34,6 +43,14 @@ class ErrorHasher < Struct.new(:error)
 
   def services_error?
     error.respond_to?(:source)
+  end
+
+  def not_publically_displayable
+    !api_error? && !services_error?
+  end
+
+  def log_cookie
+    @log_cookie ||= Time.now.to_i
   end
 
   private

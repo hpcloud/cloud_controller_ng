@@ -60,6 +60,9 @@ module Sinatra
 
         status(presenter.response_code)
 
+        if presenter.not_publically_displayable
+          logger.info("Administrative error tracker ##{presenter.log_cookie}")
+        end
         if presenter.client_error?
           logger.info(presenter.log_message)
         else
