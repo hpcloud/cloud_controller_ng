@@ -140,7 +140,14 @@ module VCAP::CloudController
         end
 
         it "the config is valid" do
+          # Merge note: stackato's :db/:database is declared to be an optional hash, upstream is a string,
+          # but in lib/cloud_controller/config.rb we declare
+          # :database/:db to be String, but set it to a string:
+          # config[:db][:database] ||= ENV["DB_CONNECTION_STRING"]
           TestConfig.config[:nginx][:instance_socket] = "mysocket"
+          if !TestConfig.config.fetch(:db,{})[:database].kind_of?(Hash)
+            TestConfig.config[:db].delete(:database)
+          end
           Config.schema.validate(TestConfig.config)
         end
 
