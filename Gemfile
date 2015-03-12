@@ -171,11 +171,11 @@ end
 if ENV["STACKATO_DEV"] and File.directory? '../steno-codec-text'
   gem 'steno-codec-text', :path => '../steno-codec-text'
 else
-  gem 'steno-codec-text', '0.1'
+  gem 'steno-codec-text', '0.1', :git => "git://github.com/ActiveState/steno-codec-text.git" 
 end
 
 if ENV["STACKATO_DEV"] and File.directory? '../common'
   gem 'vcap_common', '3.0.0', :path => '../common'
 else
-  gem 'vcap_common', '~> 3.0.0'
+  gem 'vcap_common', '~> 3.0.0', :git => "gitolite@gitolite.activestate.com:vcap-common"
 end
