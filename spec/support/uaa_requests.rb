@@ -63,5 +63,29 @@ module UAARequests
         :status => 200, 
         :body => "",
         :headers => {})
+
+    # stubs suggested by tests run on jenkins:
+    # controllers/services/service_brokers_controller_spec.rb:165
+    WebMock::API.stub_request(:delete, %r"http://cloud_controller:@localhost:8080/uaa/check_token").
+      with(:body => "token_type_hint=access_token&token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoidWFhLWlkLTEwIiwiZW1haWwiOiJlbWFpbC0xQHNvbWVkb21haW4uY29tIiwic2NvcGUiOlsiY2xvdWRfY29udHJvbGxlci5hZG1pbiJdLCJhdWQiOlsiY2xvdWRfY29udHJvbGxlciJdLCJleHAiOjE0MjY4ODI0MDJ9.mkS66scnqi1GN2EMIIy60ue-zP0FyWRoJSixEU8cD04",
+           :headers => {'Accept'=>'application/json;charset=utf-8',
+             'Content-Length'=>'296',
+             'User-Agent'=>'Ruby'}).
+      to_return(
+        :status => 200, 
+        :body => "",
+        :headers => {})
+
+    # controllers/services/service_brokers_controller_spec.rb:174
+    WebMock::API.stub_request(:post, %r"http://cloud_controller:@localhost:8080/uaa/check_token").
+      with(:body => %r"token_type_hint=access_token\&token=[-\w.]+",
+           :headers => {'Accept'=>'application/json;charset=utf-8',
+             'Content-Length'=>/\d+/,  # 296 ? 328 - who cares...
+             'User-Agent'=>'Ruby'}).
+      to_return(
+        :status => 200, 
+        :body => "",
+        :headers => {})
+
   end
 end
