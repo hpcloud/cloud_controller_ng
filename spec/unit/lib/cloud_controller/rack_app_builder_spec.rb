@@ -7,7 +7,6 @@ module VCAP::CloudController
     end
 
     let (:use_nginx) { false }
-    let(:tmpfile) { Tempfile.new("") }
 
     before do
       TestConfig.override({
