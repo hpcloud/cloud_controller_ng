@@ -121,6 +121,7 @@ gem 'rspec_api_documentation',    '4.1.0'
 gem 'rspec-mocks', '3.0.4', :groups => [:default, :test]
 gem 'rspec-collection_matchers', '1.0.0', :groups => [:default, :test]
 gem 'rspec-support', '3.0.4', :groups => [:default, :test]
+gem 'rspec_junit_formatter', '0.2.0', :groups => [:default, :test]
 
 group :db do
   gem 'mysql2', '0.3.13'
