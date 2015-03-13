@@ -247,6 +247,8 @@ module VCAP::CloudController
         end
 
         it "enables GC profiling" do
+          # Don't rerun CCInitializers.stackato_uuid from Config.configure_components
+          allow(::CCInitializers).to receive(:stackato_uuid)
           Config.configure_components(config)
           expect(GC::Profiler.enabled?).to eq(true)
         end
