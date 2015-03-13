@@ -106,6 +106,7 @@ gem 'vcap-concurrency', '0.1.0', :github => 'cloudfoundry/vcap-concurrency', :re
 gem 'virtus', '1.0.0'
 gem 'vmstat', '2.1.0'
 gem 'yajl-ruby', '1.1.0'
+gem 'xmlparser', '0.7.2.1'
 
 # Auto scaling
 gem 'rbvmomi', '1.6.0'
