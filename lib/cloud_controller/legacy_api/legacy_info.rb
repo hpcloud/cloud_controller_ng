@@ -21,7 +21,7 @@ module VCAP::CloudController
         :description => config[:info][:description],
         :authorization_endpoint => config[:login] ? config[:login][:url] : config[:uaa][:url],
         :token_endpoint => config[:uaa][:url],
-        :applog_endpoint => "ws://#{applog_endpoint}",
+        :applog_endpoint => "ws://#{applog_endpoint}", # to be removed once logyard is decommissioned (OP task #300040).
         :allow_debug => config.fetch(:allow_debug, true),
         :vendor_version => StackatoVendorConfig.vendor_version,
         :stackato => {
@@ -31,8 +31,10 @@ module VCAP::CloudController
         }
       }
 
+      # To be removed once stackato-client is upgraded to use the v2/info API.
+      # Mar 17, 2015, ivans.
       if @config[:loggregator] && @config[:loggregator][:url]
-        info[:loggregator_endpoint] = @config[:loggregator][:url]
+        info[:logging_endpoint] = @config[:loggregator][:url]
       end
 
       # If there is a logged in user, give out additional information
