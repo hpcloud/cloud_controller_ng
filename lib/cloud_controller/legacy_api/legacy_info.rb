@@ -31,6 +31,10 @@ module VCAP::CloudController
         }
       }
 
+      if @config[:loggregator] && @config[:loggregator][:url]
+        info[:loggregator_endpoint] = @config[:loggregator][:url]
+      end
+
       # If there is a logged in user, give out additional information
       if user
         info[:user]   = user.guid
