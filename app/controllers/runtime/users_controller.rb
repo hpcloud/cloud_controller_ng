@@ -44,6 +44,7 @@ module VCAP::CloudController
     end
 
     def enumerate
+      #XXX Can this be removed as part of upstream v179?
       raise Errors::ApiError.new_from_details("NotAuthenticated") unless user
       raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       super

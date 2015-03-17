@@ -14,6 +14,7 @@ require "jobs/enqueuer"
 require "jobs/exception_catching_job"
 require "jobs/request_job"
 require "jobs/timeout_job"
+require "jobs/local_queue"
 
 require "kato/local/node"
 

@@ -15,39 +15,37 @@ module VCAP::CloudController
     describe "Attributes" do
       it do
         expect(described_class).to have_creatable_attributes({
-          name: {type: "string", required: true},
-          organization_guid: {type: "string", required: true},
-          developer_guids: {type: "[string]"},
-          manager_guids: {type: "[string]"},
-          auditor_guids: {type: "[string]"},
-          app_guids: {type: "[string]"},
-          route_guids: {type: "[string]"},
-          domain_guids: {type: "[string]"},
-          service_instance_guids: {type: "[string]"},
-          app_event_guids: {type: "[string]"},
-          event_guids: {type: "[string]"},
-          security_group_guids: {type: "[string]"},
-          space_quota_definition_guid: {type: "string"},
-          is_default: {type: "bool", default: false},
+          name:                   { type: "string", required: true },
+          organization_guid:      { type: "string", required: true },
+          developer_guids:        { type: "[string]" },
+          manager_guids:          { type: "[string]" },
+          auditor_guids:          { type: "[string]" },
+          app_guids:              { type: "[string]" },
+          route_guids:            { type: "[string]" },
+          domain_guids:           { type: "[string]" },
+          service_instance_guids: { type: "[string]" },
+          app_event_guids:        { type: "[string]" },
+          event_guids:            { type: "[string]" },
+          security_group_guids:   { type: "[string]" },
+          is_default:             { type: "bool", default: false},
         })
       end
 
       it do
         expect(described_class).to have_updatable_attributes({
-          name: {type: "string"},
-          organization_guid: {type: "string"},
-          developer_guids: {type: "[string]"},
-          manager_guids: {type: "[string]"},
-          auditor_guids: {type: "[string]"},
-          app_guids: {type: "[string]"},
-          route_guids: {type: "[string]"},
-          domain_guids: {type: "[string]"},
-          service_instance_guids: {type: "[string]"},
-          app_event_guids: {type: "[string]"},
-          event_guids: {type: "[string]"},
-          security_group_guids: {type: "[string]"},
-          space_quota_definition_guid: {type: "string"},
-          is_default: {type: "bool"},
+          name:                   { type: "string" },
+          organization_guid:      { type: "string" },
+          developer_guids:        { type: "[string]" },
+          manager_guids:          { type: "[string]" },
+          auditor_guids:          { type: "[string]" },
+          app_guids:              { type: "[string]" },
+          route_guids:            { type: "[string]" },
+          domain_guids:           { type: "[string]" },
+          service_instance_guids: { type: "[string]" },
+          app_event_guids:        { type: "[string]" },
+          event_guids:            { type: "[string]" },
+          security_group_guids:   { type: "[string]" },
+          is_default:             { type: "bool"},
         })
       end
     end
@@ -181,13 +179,13 @@ module VCAP::CloudController
           end
 
           it 'returns the correct service_bindings_url for user-provided service instances' do
-            get "v2/spaces/#{space.guid}/service_instances", {return_user_provided_service_instances: true}, headers_for(developer)
+            get "/v2/spaces/#{space.guid}/service_instances", {return_user_provided_service_instances: true}, headers_for(developer)
 
-            user_provided_service_instance_response = decoded_response.fetch('resources').detect {|si|
+            service_instances_response = decoded_response.fetch('resources')
+            user_provided_service_instance_response = service_instances_response.detect {|si|
               si.fetch('metadata').fetch('guid') == user_provided_service_instance.guid
             }
-            expect(user_provided_service_instance_response.fetch('entity')).not_to include('service_plan_url')
-            expect(user_provided_service_instance_response.fetch('entity').fetch('service_bindings_url')).to eq("/v2/user_provided_service_instances/#{user_provided_service_instance.guid}/service_bindings")
+            expect(user_provided_service_instance_response.fetch('entity').fetch('service_bindings_url')).to include('user_provided_service_instance')
           end
         end
 

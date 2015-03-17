@@ -24,39 +24,41 @@ module VCAP::CloudController
 
     describe "Attributes" do
       it do
-        expect(described_class).to have_creatable_attributes({
-          name: {type: "string", required: true},
-          billing_enabled: {type: "bool", default: false},
-          status: {type: "string", default: "active"},
-          quota_definition_guid: {type: "string"},
-          domain_guids: {type: "[string]"},
-          private_domain_guids: {type: "[string]"},
-          user_guids: {type: "[string]"},
-          manager_guids: {type: "[string]"},
-          billing_manager_guids: {type: "[string]"},
-          auditor_guids: {type: "[string]"},
-          app_event_guids: {type: "[string]"},
-          is_default: {type: "bool", default: false },
-        })
+        expect(described_class).to have_creatable_attributes(
+          {
+            name:                  { type: "string", required: true },
+            billing_enabled:       { type: "bool", default: false },
+            status:                { type: "string", default: "active" },
+            quota_definition_guid: { type: "string" },
+            domain_guids:          { type: "[string]" },
+            private_domain_guids:  { type: "[string]" },
+            user_guids:            { type: "[string]" },
+            manager_guids:         { type: "[string]" },
+            billing_manager_guids: { type: "[string]" },
+            auditor_guids:         { type: "[string]" },
+            app_event_guids:       { type: "[string]" },
+            is_default:            { type: "bool", default: false },
+          })
       end
 
       it do
-        expect(described_class).to have_updatable_attributes({
-          name: {type: "string"},
-          billing_enabled: {type: "bool"},
-          status: {type: "string"},
-          quota_definition_guid: {type: "string"},
-          domain_guids: {type: "[string]"},
-          private_domain_guids: {type: "[string]"},
-          user_guids: {type: "[string]"},
-          manager_guids: {type: "[string]"},
-          billing_manager_guids: {type: "[string]"},
-          auditor_guids: {type: "[string]"},
-          app_event_guids: {type: "[string]"},
-          space_guids: {type: "[string]"},
-          space_quota_definition_guids: {type: "[string]" },
-          is_default: {type: "bool" },
-        })
+        expect(described_class).to have_updatable_attributes(
+          {
+            name:                         { type: "string" },
+            billing_enabled:              { type: "bool" },
+            status:                       { type: "string" },
+            quota_definition_guid:        { type: "string" },
+            domain_guids:                 { type: "[string]" },
+            private_domain_guids:         { type: "[string]" },
+            user_guids:                   { type: "[string]" },
+            manager_guids:                { type: "[string]" },
+            billing_manager_guids:        { type: "[string]" },
+            auditor_guids:                { type: "[string]" },
+            app_event_guids:              { type: "[string]" },
+            space_guids:                  { type: "[string]" },
+            space_quota_definition_guids: { type: "[string]" },
+            is_default:                   { type: "bool", default: false },
+          })
       end
     end
 
@@ -77,6 +79,27 @@ module VCAP::CloudController
             :name => 'organization',
             :path => "/v2/organizations",
             :enumerate => 1
+
+          it 'cannot update quota definition' do
+            quota = QuotaDefinition.make
+            expect(@org_a.quota_definition.guid).to_not eq(quota.guid)
+
+            put "/v2/organizations/#{@org_a.guid}", MultiJson.dump(quota_definition_guid: quota.guid), headers_a
+
+            @org_a.reload
+            expect(last_response.status).to eq(403)
+            expect(@org_a.quota_definition.guid).to_not eq(quota.guid)
+          end
+
+          it 'cannot update billing_enabled' do
+            billing_enabled_before = @org_a.billing_enabled
+
+            put "/v2/organizations/#{@org_a.guid}", MultiJson.dump(billing_enabled: !billing_enabled_before), headers_a
+
+            @org_a.reload
+            expect(last_response.status).to eq(403)
+            expect(@org_a.billing_enabled).to eq(billing_enabled_before)
+          end
         end
 
         describe "OrgUser" do
@@ -122,10 +145,8 @@ module VCAP::CloudController
 
           it 'returns FeatureDisabled' do
             post '/v2/organizations', MultiJson.dump({ name: 'my-org-name' }), headers_for(user)
-            pending("This test will fail until we switch to CloudController > v178. It is a bug in upstream.")
-            expect(last_response.status).to eq(412)
-            expect(decoded_response['error_code']).to match(/FeatureDisabled/)
-            expect(decoded_response['description']).to match(/Feature Disabled/)
+            expect(last_response.status).to eq(403)
+            expect(decoded_response['error_code']).to match(/CF-NotAuthorized/)
           end
         end
 
@@ -157,19 +178,9 @@ module VCAP::CloudController
             expect(org.users).to eq([user])
           end
         end
-
-        context 'as an admin' do
-          it 'does not add creator as an org manager' do
-            post '/v2/organizations', MultiJson.dump({ name: 'my-org-name' }), admin_headers
-
-            expect(last_response.status).to eq(201)
-            org = Organization.find(name: 'my-org-name')
-            expect(org.managers.count).to eq(0)
-          end
-        end
       end
     end
-    
+
     describe 'GET /v2/organizations/:guid/domains' do
       let(:organization) { Organization.make }
       let(:manager) { make_manager_for_org(organization) }
@@ -216,8 +227,9 @@ module VCAP::CloudController
     end
 
     describe "Removing a user from the organization" do
+      let(:mgr) { User.make }
       let(:user) { User.make }
-      let(:org) { Organization.make(:user_guids => [user.guid]) }
+      let(:org) { Organization.make(manager_guids: [mgr.guid], user_guids: [user.guid]) }
       let(:org_space_empty) { Space.make(organization: org) }
       let(:org_space_full)  { Space.make(organization: org, :manager_guids => [user.guid], :developer_guids => [user.guid], :auditor_guids => [user.guid]) }
 
@@ -228,8 +240,9 @@ module VCAP::CloudController
               org.add_space(org_space_empty)
               expect(org.users).to include(user)
               delete "/v2/organizations/#{org.guid}/users/#{user.guid}", {}, admin_headers
-              org.refresh
+              expect(last_response.status).to eql(201)
 
+              org.refresh
               expect(org.user_guids).not_to include(user)
             end
 
@@ -250,8 +263,9 @@ module VCAP::CloudController
               org.add_space(org_space_full)
               ["developers", "auditors", "managers"].each { |type| expect(org_space_full.send(type)).to include(user) }
               delete "/v2/organizations/#{org.guid}/users/#{user.guid}?recursive=true", {}, admin_headers
-              org_space_full.refresh
+              expect(last_response.status).to eql(201)
 
+              org_space_full.refresh
               ["developers", "auditors", "managers"].each { |type| expect(org_space_full.send(type)).not_to include(user) }
             end
 
@@ -259,8 +273,9 @@ module VCAP::CloudController
               org.add_space(org_space_full)
               expect(org.users).to include(user)
               delete "/v2/organizations/#{org.guid}/users/#{user.guid}?recursive=true", {}, admin_headers
-              org.refresh
+              expect(last_response.status).to eql(201)
 
+              org.refresh
               expect(org.users).not_to include(user)
             end
           end
@@ -274,6 +289,7 @@ module VCAP::CloudController
               org_2.add_space(org2_space)
               [org, org_2].each { |organization| expect(organization.users).to include(user) }
               delete "/v2/organizations/#{org.guid}/users/#{user.guid}?recursive=true", {}, admin_headers
+              expect(last_response.status).to eql(201)
 
               [org, org_2].each { |organization| organization.refresh }
               expect(org.users).not_to include(user)
@@ -286,6 +302,7 @@ module VCAP::CloudController
               ["developers", "auditors", "managers"].each { |type| expect(org_space_full.send(type)).to include(user) }
               expect(org2_space.developers).to include(user)
               delete "/v2/organizations/#{org.guid}/users/#{user.guid}?recursive=true", {}, admin_headers
+              expect(last_response.status).to eql(201)
 
               [org_space_full, org2_space].each { |space| space.refresh }
               ["developers", "auditors", "managers"].each { |type| expect(org_space_full.send(type)).not_to include(user) }

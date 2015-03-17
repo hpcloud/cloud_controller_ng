@@ -1,6 +1,8 @@
 require "steno"
 require "steno/codec/text"
 require "optparse"
+require "i18n"
+require "i18n/backend/fallbacks"
 require "vcap/uaa_token_decoder"
 require "vcap/uaa_verification_key"
 require "cf_message_bus/message_bus"
@@ -38,8 +40,14 @@ module VCAP::CloudController
       @config_file = File.expand_path("../../../config/cloud_controller.yml", __FILE__)
       parse_options!
       parse_config
+      
+      setup_i18n
 
       @log_counter = Steno::Sink::Counter.new
+    end
+
+    def setup_i18n
+      Errors::ApiError.setup_i18n(Dir[File.expand_path("../../../vendor/errors/i18n/*.yml", __FILE__)], @config[:default_locale])
     end
 
     def logger

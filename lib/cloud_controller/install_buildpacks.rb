@@ -92,8 +92,6 @@ module VCAP::CloudController
         end
 
         buildpack_job = VCAP::CloudController::Jobs::Runtime::BuildpackInstaller.new(buildpack_name, buildpack_file, buildpack)
-        # job = VCAP::CloudController::Jobs::Enqueuer.new(buildpack_job, queue: LocalQueue.new(config)).enqueue()
-        # run job synchronously so that we can safely remove the downloaded bits again
         buildpack_job.perform
         FileUtils.rm_rf(BUILDPACK_DIR)
       end

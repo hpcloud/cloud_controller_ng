@@ -45,9 +45,8 @@ module VCAP::CloudController
       it { is_expected.to have_associated :droplets }
       it do
         is_expected.to have_associated :service_bindings, associated_instance: ->(app) {
-          service_binding = ServiceBinding.make
-          service_binding.service_instance.space = app.space
-          service_binding
+          service_instance = ServiceInstance.make(space: app.space)
+          ServiceBinding.make(service_instance: service_instance)
         }
       end
       it { is_expected.to have_associated :events, class: AppEvent }
@@ -80,7 +79,7 @@ module VCAP::CloudController
       describe "org and space quota validator policies" do
         subject(:app) { AppFactory.make(:space => space) }
         let(:org) { Organization.make }
-        let(:space) { Space.make(:organization => org, space_quota_definition: SpaceQuotaDefinition.make) }
+        let(:space) { Space.make(:organization => org, space_quota_definition: SpaceQuotaDefinition.make(organization: org)) }
 
         it "validates org and space using MaxMemoryPolicy" do
           max_memory_policies = app.validation_policies.select { |policy| policy.instance_of? MaxMemoryPolicy }
@@ -606,6 +605,24 @@ module VCAP::CloudController
     end
 
     describe "bad relationships" do
+      context "when changing space" do
+        it "is allowed if there are no space related associations" do
+          app = AppFactory.make
+          expect{app.space = Space.make}.not_to raise_error
+        end
+
+        it "should fail if routes do not exist in that spaces" do
+          app = AppFactory.make
+          app.add_route(Route.make(space: app.space))
+          expect{app.space = Space.make}.to raise_error Errors::InvalidRouteRelation
+        end
+
+        it "should fail if service bindings do not exist in that space" do
+          app = ServiceBinding.make.app
+          expect{app.space = Space.make}.to raise_error ServiceBinding::InvalidAppAndServiceRelation
+        end
+      end
+
       it "should not associate an app with a route on a different space" do
         app = AppFactory.make
 
@@ -2052,6 +2069,24 @@ module VCAP::CloudController
         #AppVersion.where(:app_id => app.id).delete
         app.delete
         expect { app.save }.to raise_error(Errors::ApplicationMissing)
+      end
+    end
+
+    describe "docker_image" do
+      subject(:app) do
+        App.new
+      end
+
+      it "sets the package hash to the image name any time the image is set" do
+        expect {
+          app.docker_image = "foo/bar"
+        }.to change { app.package_hash }.to("foo/bar")
+      end
+
+      it "preserves its existing behavior as a setter" do
+        expect {
+          app.docker_image = "foo/bar"
+        }.to change { app.docker_image }.to("foo/bar")
       end
     end
 

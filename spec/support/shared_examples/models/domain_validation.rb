@@ -105,6 +105,7 @@ module VCAP::CloudController
           subject.name = "FoO.CoM"
         end
 
+        # Sometimes this passes, sometimes it fails. Haven't figured out the pattern yet.
         it { is_expected.not_to be_valid }
       end
 
