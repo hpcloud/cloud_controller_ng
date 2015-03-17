@@ -55,6 +55,7 @@ module VCAP::CloudController
       get "/info", {}, {}
       hash = MultiJson.load(last_response.body)
       expect(hash['applog_endpoint']).to eq("ws://example.test")
+      Kato::Config.set 'applog_endpoint', 'hostname', 'logs.vcap.me'
     end
 
     describe "account capacity" do
