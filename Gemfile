@@ -48,7 +48,7 @@ gem 'grape', '0.7.0', :github => 'intridea/grape', :ref => 'df8caf7d4065a26d15db
 gem 'hashie', '2.1.1'
 gem 'http_parser.rb', '0.6.0'
 gem 'httpclient', '2.3.4.1'
-gem 'i18n', '0.6.9'
+gem 'i18n', '0.6.11'
 gem 'ice_nine', '0.10.0'
 gem 'inflecto', '0.0.2'
 gem 'ipaddress', '0.8.0'
