@@ -1,8 +1,12 @@
 ---
-local_route: 127.0.0.1
-port: 8181
+diego:
+  staging: disabled
+  running: optional
+
+diego_docker:
+  false
+
 external_port: 8181
-instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 info:
   name: "vcap"
@@ -12,18 +16,12 @@ info:
   description: "Cloud Foundry sponsored by Pivotal"
 
 external_protocol: http
-external_domain: api2.vcap.me
 
-# Not creating default org-- done by first user setup (disabled in 67a488b98c)
-#system_domain_organization: the-system-domain-org-name
+system_domain_organization: the-system-domain-org-name
 system_domain: the-system-domain.com
 app_domains:
   - customer-app-domain1.com
   - customer-app-domain2.com
-
-jobs:
-  global:
-    timeout_in_seconds: 14400
 
 app_events:
   cutoff_age_in_days: 31
@@ -39,51 +37,57 @@ failed_jobs:
 
 default_app_memory: 1024 #mb
 default_app_disk_in_mb: 1024
-maximum_app_disk_in_mb: 2048
+maximum_health_check_timeout: 180
 
 uaa:
   url: "http://localhost:8080/uaa"
   resource_id: "cloud_controller"
-  symmetric_secret: "tokensecret"
 
 logging:
-  file: spec/artifacts/spec.log
-  level: debug
+  level: fatal # Keep at fatal to avoid lots of extraneous output in tests
 
 message_bus_servers:
-  - nats://127.0.0.1:4223
+  - nats://127.0.0.1:4222
 pid_filename: /tmp/cloud_controller.pid
 
 bulk_api:
   auth_user: bulk_user
   auth_password: bulk_password
 
+staging:
+  timeout_in_seconds: 120
+  auth:
+    user: user
+    password: password
+
 cc_partition: ng
 
 nginx:
   use_nginx: false
-
-stackato_upload_handler:
-  enabled: false
+  instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 quota_definitions:
   default:
-    memory_limit: 10240
-    total_services: 100
     non_basic_services_allowed: true
+    total_services: 100
     total_routes: 1000
-    allow_sudo: false
+    memory_limit: 10240
+
+  small:
+    non_basic_services_allowed: false
+    total_services: 2
+    total_routes: 1000
+    memory_limit: 512 # 0.5 GB
 
 default_quota_definition: default
 
-
 resource_pool:
-  resource_directory_key: "cc-resources"
+  resource_directory_key: cc-resources
   fog_connection:
     provider: Local
 
 packages:
-  app_package_directory_key: "cc-packages"
+  app_package_directory_key: cc-packages
   fog_connection:
     provider: Local
 
@@ -93,30 +97,36 @@ droplets:
     provider: Local
 
 buildpacks:
-  buildpack_directory_key: cc-buildpacks
+  droplet_directory_key: cc-buildpacks
   fog_connection:
     provider: Local
 
 db_encryption_key: some-key
 
-staging:
-  timeout_in_seconds: 120
-  auth:
-    user: zxsfhgjg
-    password: ZNVfdase9
-
-maximum_health_check_timeout: 180
+loggregator:
+  router: "127.0.0.1:8080"
+  shared_secret: "loggregator-secret"
 
 renderer:
   max_results_per_page: 100
   default_results_per_page: 50
-  max_inline_relations_depth: 3
 
 security_group_definitions:
-- name: non_allowed
-  rules: []
+  - name: defaults
+    rules:
+    - protocol: all
+      destination: 0.0.0.0-9.255.255.255
+    - protocol: all
+      destination: 11.0.0.0-169.253.255.255
+    - protocol: all
+      destination: 169.255.0.0-172.15.255.255
+    - protocol: all
+      destination: 172.32.0.0-192.167.255.255
+    - protocol: all
+      destination: 192.169.0.0-255.255.255.255
 
 default_staging_security_groups:
-- non_allowed
+- defaults
 default_running_security_groups:
-- non_allowed
+- defaults
+

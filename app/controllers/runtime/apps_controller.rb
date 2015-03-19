@@ -1,19 +1,20 @@
 module VCAP::CloudController
   class AppsController < RestController::ModelController
     define_attributes do
-      attribute  :buildpack,           String,     :default => nil
-      attribute  :command,             String,     :default => nil
-      attribute  :console,             Message::Boolean, :default => false
-      attribute  :docker_image,        String,     :default => nil
-      attribute  :debug,               String,     :default => nil
-      attribute  :disk_quota,          Integer,    :default => nil
-      attribute  :environment_json,    Hash,       :default => {}
-      attribute  :health_check_timeout, Integer,   :default => nil
-      attribute  :instances,           Integer,    :default => 1
-      attribute  :memory,              Integer,    :default => nil
-      attribute  :name,                String
-      attribute  :production,          Message::Boolean,    :default => false
-      attribute  :state,               String,     :default => "STOPPED"
+      attribute  :buildpack,              String,           :default => nil
+      attribute  :command,                String,           :default => nil
+      attribute  :console,                Message::Boolean, :default => false
+      attribute  :docker_image,           String,           :default => nil
+      attribute  :debug,                  String,           :default => nil
+      attribute  :disk_quota,             Integer,          :default => nil
+      attribute  :environment_json,       Hash,             :default => {}
+      attribute  :health_check_timeout,   Integer,          :default => nil
+      attribute  :instances,              Integer,          :default => 1
+      attribute  :memory,                 Integer,          :default => nil
+      attribute  :name,                   String
+      attribute  :production,             Message::Boolean, :default => false
+      attribute  :state,                  String,           :default => "STOPPED"
+      attribute  :detected_start_command, String,           :exclude_in => [:create, :update]
 
       attribute  :distribution_zone,   String,     :default => "default"
       attribute  :description,         String,     :default => ""

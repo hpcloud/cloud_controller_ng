@@ -6,7 +6,7 @@ module VCAP::CloudController
     module Docker
       describe StagingCompletionHandler do
         let(:logger) do
-          instance_double(Steno::Logger, info: nil)
+          instance_double(Steno::Logger, info: nil, error: nil, warn: nil)
         end
 
         let(:payload) do
@@ -63,6 +63,25 @@ module VCAP::CloudController
             expect(backend).to have_received(:start)
           end
 
+          context "when it receives execution metadata" do
+            let(:payload) do
+              {
+                "app_id" => app.guid,
+                "task_id" => app.staging_task_id,
+                "execution_metadata" => '"{\"cmd\":[\"start\"]}"',
+                "detected_start_command" => {"web" => "start"},
+              }
+            end
+
+            it "creates a droplet with the metadata" do
+              handler.subscribe!
+
+              app.reload
+              expect(app.current_droplet.execution_metadata).to eq('"{\"cmd\":[\"start\"]}"')
+              expect(app.current_droplet.detected_start_command).to eq("start")
+            end
+          end
+
           context "when the app_id is invalid" do
             let(:payload) do
               {
@@ -80,7 +99,7 @@ module VCAP::CloudController
             it "logs info about an unknown app for the CF operator" do
               handler.subscribe!
 
-              expect(logger).to have_received(:info).with(
+              expect(logger).to have_received(:error).with(
                 "diego.docker.staging.unknown-app",
                 :response => payload
               )
@@ -106,7 +125,7 @@ module VCAP::CloudController
             it "logs info about an invalid task id for the CF operator and returns" do
               handler.subscribe!
 
-              expect(logger).to have_received(:info).with(
+              expect(logger).to have_received(:warn).with(
                 "diego.docker.staging.not-current",
                 :response => payload,
                 :current => app.staging_task_id

@@ -3,32 +3,6 @@ require 'presenters/message_bus/service_binding_presenter'
 module VCAP::CloudController
   module Dea
     class AppStagerTask
-      class Response
-        def initialize(response)
-          @response = response
-        end
-
-        def log
-          @response["task_log"]
-        end
-
-        def streaming_log_url
-          @response["task_streaming_log_url"]
-        end
-
-        def detected_buildpack
-          @response["detected_buildpack"]
-        end
-
-        def droplet_hash
-          @response["droplet_sha1"]
-        end
-
-        def buildpack_key
-          @response["buildpack_key"]
-        end
-      end
-
       attr_reader :config
       attr_reader :message_bus
 
@@ -140,17 +114,7 @@ module VCAP::CloudController
       end
 
       def admin_buildpacks
-        Buildpack.list_admin_buildpacks.
-            select(&:enabled).
-            collect { |buildpack| admin_buildpack_entry(buildpack) }.
-            select { |entry| entry[:url] }
-      end
-
-      def admin_buildpack_entry(buildpack)
-        {
-            key: buildpack.key,
-            url: @blobstore_url_generator.admin_buildpack_download_url(buildpack)
-        }
+        AdminBuildpacksPresenter.new(@blobstore_url_generator).to_staging_message_array
       end
 
       def start_app_message
@@ -244,6 +208,7 @@ module VCAP::CloudController
         instance_was_started_by_dea = !!stager_response.droplet_hash
         @app.mark_as_staged
         @app.update_detected_buildpack(stager_response.detected_buildpack, stager_response.buildpack_key)
+        @app.current_droplet.update_detected_start_command(stager_response.detected_start_command) if @app.current_droplet
         @dea_pool.mark_app_started(:dea_id => @stager_id, :app_id => @app.guid) if instance_was_started_by_dea
 
         @completion_callback.call(:started_instances => instance_was_started_by_dea ? 1 : 0) if @completion_callback
@@ -292,6 +257,40 @@ module VCAP::CloudController
 
       def logger
         @logger ||= Steno.logger("cc.app_stager")
+      end
+
+      class Response
+        def initialize(response)
+          @response = response
+        end
+
+        def log
+          @response["task_log"]
+        end
+
+        def streaming_log_url
+          @response["task_streaming_log_url"]
+        end
+
+        def detected_buildpack
+          @response["detected_buildpack"]
+        end
+
+        def execution_metadata
+          @response["execution_metadata"]
+        end
+
+        def detected_start_command
+          @response["detected_start_command"]
+        end
+
+        def droplet_hash
+          @response["droplet_sha1"]
+        end
+
+        def buildpack_key
+          @response["buildpack_key"]
+        end
       end
     end
   end

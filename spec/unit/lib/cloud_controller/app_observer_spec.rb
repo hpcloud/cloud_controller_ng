@@ -7,7 +7,17 @@ module VCAP::CloudController
     let(:dea_pool) { double(:dea_pool, :find_dea => "dea-id", :mark_app_started => nil,
       :reserve_app_memory => nil) }
     let(:staging_timeout) { 320 }
-    let(:config_hash) { {staging: {timeout_in_seconds: staging_timeout}} }
+    let(:config_hash) {
+      {
+        staging: {
+          timeout_in_seconds: staging_timeout
+        },
+        diego: {
+          staging: 'optional',
+          running: 'optional'
+        }
+      }
+    }
     let(:blobstore_url_generator) { double(:blobstore_url_generator, :droplet_download_url => "download-url") }
     let(:tps_reporter) { double(:tps_reporter) }
     let(:diego_messenger) { Diego::Messenger.new(config_hash, message_bus, blobstore_url_generator) }
@@ -26,7 +36,7 @@ module VCAP::CloudController
 
       describe "stopping the application" do
         context "when diego enabled" do
-          let(:config_hash) { {:diego => true} }
+          let(:config_hash) { {:diego => { :staging => 'optional', :running => 'optional' } } }
           let(:environment_json) { {"CF_DIEGO_BETA" => "true", "CF_DIEGO_RUN_BETA" => "true"} }
 
           before { app.environment_json = environment_json }
@@ -97,8 +107,8 @@ module VCAP::CloudController
 
       subject { AppObserver.updated(app) }
 
-      describe "when the 'diego' flag is set" do
-        let(:config_hash) { {:diego => true} }
+      describe "when diego is enabled" do
+        let(:config_hash) { {:diego => { :staging => 'optional', :running => 'optional' }} }
 
         before do
           allow(app).to receive_messages(previous_changes: changes)
@@ -118,8 +128,10 @@ module VCAP::CloudController
             let(:changes) { {:state => "anything"} }
 
             context "when docker_image is present" do
+              let(:config_hash) { { :diego => { :staging => 'optional', :running => 'optional' }, :diego_docker => true } }
+
               before do
-                allow(app).to receive(:buildpack_specified?).and_return(true)
+                allow(app).to receive(:buildpack_specified?).and_return(false)
                 allow(app).to receive(:docker_image).and_return("fake-docker-image")
               end
 
@@ -153,7 +165,7 @@ module VCAP::CloudController
               context "when the app requires a migration from the DEA" do
                 before do
                   app.command = nil
-                  app.current_droplet.detected_start_command = ""
+                  app.current_droplet.execution_metadata = ""
                 end
 
                 it "restages the app" do
@@ -254,8 +266,8 @@ module VCAP::CloudController
         end
       end
 
-      describe "when the 'diego' flag is not set" do
-        let(:config_hash) { {:diego => false} }
+      describe "when diego is disabled" do
+        let(:config_hash) { {:diego => { :staging => 'disabled', :running => 'disabled' }} }
 
         before do
           allow(Dea::AppStagerTask).to receive(:new).

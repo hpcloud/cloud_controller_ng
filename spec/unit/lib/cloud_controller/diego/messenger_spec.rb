@@ -3,7 +3,6 @@ require "spec_helper"
 module VCAP::CloudController
   module Diego
     describe Messenger do
-      let(:enabled) { true }
       let(:message_bus) { CfMessageBus::MockMessageBus.new }
 
       let(:domain) { SharedDomain.make(name: "some-domain.com") }
@@ -34,7 +33,7 @@ module VCAP::CloudController
         Traditional::Protocol.new(blobstore_url_generator)
       end
 
-      subject(:messenger) { Messenger.new(enabled, message_bus, protocol) }
+      subject(:messenger) { Messenger.new(message_bus, protocol) }
 
       describe "staging an app" do
         it "sends a nats message with the appropriate staging subject and payload" do
@@ -66,16 +65,6 @@ module VCAP::CloudController
             messenger.send_stage_request(app)
           }.to change { app.refresh; app.staging_task_id }.to("unique-staging-task-id")
         end
-
-        context "when the operator has disabled diego" do
-          let(:enabled) { false }
-
-          it "explodes with an API error that is propagated to cf users" do
-            expect {
-              messenger.send_stage_request(app)
-            }.to raise_error(VCAP::Errors::ApiError, /Diego has not been enabled/)
-          end
-        end
       end
 
       describe "desiring an app" do
@@ -87,7 +76,8 @@ module VCAP::CloudController
             "file_descriptors" => app.file_descriptors,
             "droplet_uri" => "app_uri",
             "stack" => app.stack.name,
-            "start_command" => "./some-detected-command",
+            "start_command" => app.command,
+            "execution_metadata" => "the-staging-metadata",
             "environment" => Environment.new(app).as_json,
             "num_instances" => expected_instances,
             "routes" => ["some-route.some-domain.com", "some-other-route.some-domain.com"],
@@ -99,8 +89,9 @@ module VCAP::CloudController
         let(:expected_instances) { 3 }
 
         before do
+          app.command = "./the-custom-command"
           app.add_new_droplet("lol")
-          app.current_droplet.update_start_command("./some-detected-command")
+          app.current_droplet.update_execution_metadata("the-staging-metadata")
           app.state = "STARTED"
         end
 
@@ -111,19 +102,6 @@ module VCAP::CloudController
           nats_message = message_bus.published_messages.first
           expect(nats_message[:subject]).to eq("diego.desire.app")
           expect(nats_message[:message]).to match_json(expected_message)
-        end
-
-        context "with a custom start command" do
-          before { app.command = "/a/custom/command"; app.save }
-          before { expected_message['start_command'] = "/a/custom/command" }
-
-          it "sends a message with the custom start command" do
-            messenger.send_desire_request(app)
-
-            nats_message = message_bus.published_messages.first
-            expect(nats_message[:subject]).to eq("diego.desire.app")
-            expect(nats_message[:message]).to match_json(expected_message)
-          end
         end
 
         context "when the app is not started" do
@@ -139,16 +117,6 @@ module VCAP::CloudController
             nats_message = message_bus.published_messages.first
             expect(nats_message[:subject]).to eq("diego.desire.app")
             expect(nats_message[:message]).to match_json(expected_message)
-          end
-        end
-
-        context "when the operator has disabled diego" do
-          let(:enabled) { false }
-
-          it "explodes with an API error that is propagated to cf users" do
-            expect {
-              messenger.send_desire_request(app)
-            }.to raise_error(VCAP::Errors::ApiError, /Diego has not been enabled/)
           end
         end
       end

@@ -14,7 +14,7 @@ resource "Apps", :type => :api do
     parameter :guid, "The guid of the App"
   end
 
-  shared_context "updatable_fields" do |opts|
+  shared_context "fields" do |opts|
     field :name, "The name of the app.", required: opts[:required], example_values: ["my_super_app"]
     field :memory, "The amount of memory each instance should have. In megabytes.", required: opts[:required], example_values: [1_024, 512]
     field :instances, "The number of instances of the app to run. To ensure optimal availability, ensure there are at least 2 instances.", required: opts[:required], example_values: [2, 6, 10]
@@ -22,6 +22,7 @@ resource "Apps", :type => :api do
     field :space_guid, "The guid of the associated space.", required: opts[:required], example_values: [Sham.guid]
     field :stack_guid, "The guid of the associated stack.", default: "Uses the default system stack."
     field :state, "The current desired state of the app. One of STOPPED or STARTED.", default: "STOPPED", valid_values: %w[STOPPED STARTED] # nice to validate this eventually..
+    field :detected_start_command, "The command detected by the buildpack during staging.", read_only: true
     field :command, "The command to start an app after it is staged (e.g. 'rails s -p $PORT' or 'java com.org.Server $PORT')."
     field :buildpack, "Buildpack to build the app. 3 options: a) Blank means autodetection; b) A Git Url pointing to a buildpack; c) Name of an installed buildpack.", default: "", example_values: ["", "https://github.com/virtualstaticvoid/heroku-buildpack-r.git", "an_example_installed_buildpack"]
     field :health_check_timeout, "Timeout for health checking of an staged app when starting up"
@@ -33,13 +34,17 @@ resource "Apps", :type => :api do
   end
 
   describe "Standard endpoints" do
+    include_context "fields", required: false
     standard_model_list :app, VCAP::CloudController::AppsController
     standard_model_get :app, nested_associations: [:stack, :space]
     standard_model_delete_without_async :app
 
     before do
       allow(VCAP::CloudController::Config.config).to receive(:[]).with(anything).and_call_original
-      allow(VCAP::CloudController::Config.config).to receive(:[]).with(:diego).and_return true
+      allow(VCAP::CloudController::Config.config).to receive(:[]).with(:diego).and_return(
+        staging: 'optional',
+        running: 'optional',
+      )
       allow(VCAP::CloudController::Config.config).to receive(:[]).with(:diego_docker).and_return true
     end
 
@@ -49,7 +54,7 @@ resource "Apps", :type => :api do
     end
 
     post "/v2/apps/" do
-      include_context "updatable_fields", required: true
+      include_context "fields", required: true
       example "Creating an App" do
         space_guid = VCAP::CloudController::Space.make.guid
         client.post "/v2/apps", MultiJson.dump(required_fields.merge(space_guid: space_guid), pretty: true), headers
@@ -81,7 +86,7 @@ resource "Apps", :type => :api do
 
     put "/v2/apps/:guid" do
       include_context "guid_parameter"
-      include_context "updatable_fields", required: false
+      include_context "fields", required: false
       example "Updating an App" do
         new_attributes = {name: 'new_name'}
 
@@ -105,7 +110,6 @@ resource "Apps", :type => :api do
       let(:associated_service_binding_guid) { associated_service_binding.guid }
 
       standard_model_list :service_binding, VCAP::CloudController::ServiceBindingsController, outer_model: :app
-      nested_model_associate :service_binding, :app
       nested_model_remove :service_binding, :app
     end
 

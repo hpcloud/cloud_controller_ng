@@ -48,9 +48,8 @@ module VCAP::CloudController
                       :staging_task_id, :package_state, :package_hash, :health_check_timeout,
                       :system_env_json, :distribution_zone,
                       :description, :sso_enabled, :restart_required, :autoscale_enabled,
-                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-                      :droplet_count,
-                      :staging_failed_reason, :docker_image, :package_updated_at
+                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances, :droplet_count,
+                      :staging_failed_reason, :docker_image, :package_updated_at, :detected_start_command
 
     import_attributes :name, :production,
                       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
@@ -65,6 +64,8 @@ module VCAP::CloudController
     strip_attributes :name
 
     serialize_attributes :json, :metadata
+
+    encrypt :environment_json, salt: :salt, column: :encrypted_environment_json
 
     APP_STATES = %w[STOPPED STARTED].map(&:freeze).freeze
     PACKAGE_STATES = %w[PENDING STAGED FAILED].map(&:freeze).freeze
@@ -118,7 +119,7 @@ module VCAP::CloudController
           InstancesPolicy.new(self),
           HealthCheckPolicy.new(self, health_check_timeout),
           CustomBuildpackPolicy.new(self, custom_buildpacks_enabled?),
-          DockerPolicy.new(self, Config.config[:diego], Config.config[:diego_docker]),
+          DockerPolicy.new(self),
       ]
     end
 
@@ -265,6 +266,7 @@ module VCAP::CloudController
     end
 
     def run_with_diego?
+      return true if Config.config[:diego][:running] == "required"
       !!(environment_json && environment_json["CF_DIEGO_RUN_BETA"] == "true")
     end
 
@@ -385,10 +387,12 @@ module VCAP::CloudController
       self.metadata && self.metadata["command"]
     end
 
+    def execution_metadata
+      (current_droplet && current_droplet.execution_metadata) || ""
+    end
+
     def detected_start_command
-      cmd = command
-      cmd ||= current_droplet && current_droplet.detected_start_command
-      cmd.nil? ? '' : cmd
+      (current_droplet && current_droplet.detected_start_command) || ""
     end
 
     def console=(c)
@@ -433,6 +437,27 @@ module VCAP::CloudController
           VCAP::CloudController::Encryptor.decrypt(
               encrypted_environment_json, salt))
     end
+
+	#--
+	# NK. we are keeping the old methods for storing and retrieving environment
+	# variables with encryption. the following code if from v186 which
+	# seems to have dropped encryption. we need to investigage and possibly
+	# start using this code. I disable aliases so that the old code gets
+	# executed where setters and getters for environment_json are called
+	
+  def environment_json_with_serialization=(env)
+     self.environment_json_without_serialization = MultiJson.dump(env)
+  end
+  # alias_method_chain :environment_json=, "serialization"
+
+  def environment_json_with_serialization
+    string = environment_json_without_serialization
+    return if string.blank?
+    MultiJson.load string
+  end
+  # alias_method_chain :environment_json, "serialization"
+
+	#--
 
     def system_env_json
       vcap_services
@@ -658,7 +683,7 @@ module VCAP::CloudController
     end
 
     def buildpack_specified?
-      buildpack.is_a?(AutoDetectionBuildpack)
+      !buildpack.is_a?(AutoDetectionBuildpack)
     end
 
     def custom_buildpack_url

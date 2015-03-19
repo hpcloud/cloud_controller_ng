@@ -7,7 +7,7 @@ module VCAP::CloudController
       describe Protocol do
         before do
           allow(Config.config).to receive(:[]).with(anything).and_call_original
-          allow(Config.config).to receive(:[]).with(:diego).and_return true
+          allow(Config.config).to receive(:[]).with(:diego).and_return(staging: 'optional', running: 'optional')
           allow(Config.config).to receive(:[]).with(:diego_docker).and_return true
         end
 
@@ -74,7 +74,8 @@ module VCAP::CloudController
                 "disk_mb" => app.disk_quota,
                 "file_descriptors" => app.file_descriptors,
                 "stack" => app.stack.name,
-                "start_command" => app.detected_start_command,
+                "start_command" => app.command,
+                "execution_metadata" => app.execution_metadata,
                 "environment" => Environment.new(app).as_json,
                 "num_instances" => app.desired_instances,
                 "routes" => app.uris,
