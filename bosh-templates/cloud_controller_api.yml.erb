@@ -234,6 +234,7 @@ uaa_client_scope: <%= p("uaa.clients.cc-service-dashboards.scope") %>
 <% end %>
 
 diego: <%= p("cc.diego") %>
+diego_docker: <%= p("cc.diego_docker") %>
 
 <% if_p("ssl.skip_cert_verify") do |skip_cert_verify|%>
 skip_cert_verify: <%= skip_cert_verify %>
@@ -250,3 +251,5 @@ default_staging_security_groups: <%= p("cc.default_staging_security_groups").to_
 <% if_p("cc.feature_disabled_message") do %>
 feature_disabled_message: <%= p("cc.feature_disabled_message") %>
 <% end %>
+
+allowed_cors_domains: <%= p("cc.allowed_cors_domains").to_json %>

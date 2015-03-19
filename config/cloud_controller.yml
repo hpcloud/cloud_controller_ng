@@ -230,6 +230,7 @@ uaa_client_secret: 'some-sekret'
 uaa_client_scope: openid,cloud_controller_service_permissions.read
 
 diego: false
+diego_docker: false
 
 max_inline_relationships: 500
 renderer:

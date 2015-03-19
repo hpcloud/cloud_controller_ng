@@ -6,21 +6,21 @@ module VCAP::CloudController
     describe "Attributes" do
       it do
         expect(described_class).to have_creatable_attributes({
-          name: {type: "string", required: true},
-          credentials: {type: "hash", default: {}},
-          syslog_drain_url: {type: "string", default: ""},
-          space_guid: {type: "string", required: true},
-          service_binding_guids: {type: "[string]"}
+          name:                  { type: "string", required: true },
+          credentials:           { type: "hash", default: {} },
+          syslog_drain_url:      { type: "string", default: "" },
+          space_guid:            { type: "string", required: true },
+          service_binding_guids: { type: "[string]" }
         })
       end
 
       it do
         expect(described_class).to have_updatable_attributes({
-          name: {type: "string"},
-          credentials: {type: "hash"},
-          syslog_drain_url: {type: "string"},
-          space_guid: {type: "string"},
-          service_binding_guids: {type: "[string]"}
+          name:                  { type: "string" },
+          credentials:           { type: "hash" },
+          syslog_drain_url:      { type: "string" },
+          space_guid:            { type: "string" },
+          service_binding_guids: { type: "[string]" }
         })
       end
     end
@@ -77,41 +77,10 @@ module VCAP::CloudController
       end
     end
 
-    describe 'GET', '/v2/service_instances' do
-      let(:space) { Space.make }
-      let(:developer) { make_developer_for_space(space) }
-      let(:service_instance) { UserProvidedServiceInstance.make(gateway_name: Sham.name) }
-
-      it "provides the correct service bindings url" do
-        get "v2/service_instances/#{service_instance.guid}", {}, admin_headers
-        expect(decoded_response.fetch('entity').fetch('service_bindings_url')).to eq "/v2/user_provided_service_instances/#{service_instance.guid}/service_bindings"
+    describe "Associations" do
+      it do
+        expect(described_class).to have_nested_routes({ service_bindings: [:get, :put, :delete] })
       end
-    end
-
-    describe 'GET', '/v2/user_provided_service_instances' do
-      let(:space) { Space.make }
-      let(:developer) { make_developer_for_space(space) }
-      let(:service_instance) { UserProvidedServiceInstance.make(gateway_name: Sham.name) }
-
-      it "provides the correct service bindings url" do
-        get "v2/user_provided_service_instances/#{service_instance.guid}", {}, admin_headers
-        expect(decoded_response.fetch('entity').fetch('service_bindings_url')).to eq "/v2/user_provided_service_instances/#{service_instance.guid}/service_bindings"
-      end
-    end
-
-    it "allows creation of empty credentials with a syslog drain" do
-      space = Space.make
-      json_body = Yajl::Encoder.encode({
-        name: "name",
-        space_guid: space.guid,
-        syslog_drain_url: "syslog://example.com",
-        credentials: {}
-      })
-
-      post "/v2/user_provided_service_instances", json_body.to_s, json_headers(admin_headers)
-      expect(last_response.status).to eq 201
-
-      expect(UserProvidedServiceInstance.last.syslog_drain_url).to eq "syslog://example.com"
     end
   end
 end

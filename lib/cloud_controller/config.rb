@@ -211,7 +211,8 @@ module VCAP::CloudController
 
         optional(:app_bits_upload_grace_period_in_seconds) => Integer,
 
-        optional(:default_locale) => String
+        optional(:default_locale) => String,
+        optional(:allowed_cors_domains) => [ String ]
       }
     end
 
@@ -327,6 +328,7 @@ module VCAP::CloudController
         config[:db] ||= {}
         config[:db][:database] ||= ENV["DB_CONNECTION_STRING"]
         config[:default_locale] ||= "en_US"
+        config[:allowed_cors_domains] ||= []
         sanitize(config)
       end
 
@@ -337,9 +339,28 @@ module VCAP::CloudController
       end
 
       def sanitize(config)
+        sanitize_grace_period(config)
+        sanitize_staging_auth(config)
+        config
+      end
+
+      def sanitize_grace_period(config)
         grace_period = config[:app_bits_upload_grace_period_in_seconds]
         config[:app_bits_upload_grace_period_in_seconds] = 0 if grace_period < 0
-        config
+      end
+
+      def sanitize_staging_auth(config)
+        auth = config[:staging][:auth]
+        auth[:user] = escape_userinfo(auth[:user]) unless valid_in_userinfo?(auth[:user])
+        auth[:password] = escape_userinfo(auth[:password]) unless valid_in_userinfo?(auth[:password])
+      end
+
+      def escape_userinfo(value)
+        URI::escape(value, "%#{URI::REGEXP::PATTERN::RESERVED}") 
+      end
+
+      def valid_in_userinfo?(value)
+        URI::REGEXP::PATTERN::USERINFO.match(value)
       end
 
       def config_watch(config)

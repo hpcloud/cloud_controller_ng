@@ -1,7 +1,7 @@
 require "spec_helper"
 require "rspec_api_documentation/dsl"
 
-resource "Feature Flags (experimental)", :type => :api do
+resource "Feature Flags", :type => :api do
   let(:admin_auth_header) { admin_headers["HTTP_AUTHORIZATION"] }
 
   authenticated_request
@@ -23,7 +23,7 @@ resource "Feature Flags (experimental)", :type => :api do
       client.get "/v2/config/feature_flags", {}, headers
 
       expect(status).to eq(200)
-      expect(parsed_response.length).to eq(5)
+      expect(parsed_response.length).to eq(6)
       expect(parsed_response).to include(
         {
           'name'          => 'user_org_creation',
@@ -58,6 +58,13 @@ resource "Feature Flags (experimental)", :type => :api do
           'enabled'       => true,
           'error_message' => nil,
           'url'           => '/v2/config/feature_flags/route_creation'
+        })
+      expect(parsed_response).to include(
+        {
+          'name'          => 'service_instance_creation',
+          'enabled'       => true,
+          'error_message' => nil,
+          'url'           => '/v2/config/feature_flags/service_instance_creation'
         })
     end
   end
@@ -142,6 +149,22 @@ resource "Feature Flags (experimental)", :type => :api do
     end
   end
 
+  get "/v2/config/feature_flags/service_instance_creation" do
+    example "Get the Service Instance Creation feature flag" do
+      explanation "When enabled, a space developer can create service instances in a space. When disabled, only admin users can create service instances."
+      client.get "/v2/config/feature_flags/service_instance_creation", {}, headers
+
+      expect(status).to eq(200)
+      expect(parsed_response).to eq(
+        {
+          'name'          => 'service_instance_creation',
+          'enabled'       => true,
+          'error_message' => nil,
+          'url'           => '/v2/config/feature_flags/service_instance_creation'
+        })
+    end
+  end
+
   put "/v2/config/feature_flags/:name" do
     include_context "name_parameter"
     include_context "updatable_fields"
@@ -157,17 +180,6 @@ resource "Feature Flags (experimental)", :type => :api do
           'error_message' => nil,
           'url'           => '/v2/config/feature_flags/user_org_creation'
         })
-    end
-  end
-
-  delete "/v2/config/feature_flags/:name" do
-    include_context "name_parameter"
-
-    example "Unset a feature flag" do
-      VCAP::CloudController::FeatureFlag.create(name: "private_domain_creation", enabled: false)
-      client.delete "/v2/config/feature_flags/private_domain_creation", "{}", headers
-      expect(status).to eq(204)
-      expect(VCAP::CloudController::FeatureFlag.find(name: "private_domain_creation")).to be_nil
     end
   end
 end

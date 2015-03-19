@@ -1,6 +1,7 @@
 module VCAP::CloudController
   class Organization < Sequel::Model
     ORG_NAME_REGEX = /\A[[:alnum:][:punct:][:print:]]+\Z/.freeze
+    ORG_STATUS_VALUES = %w[active suspended]
 
     one_to_many :spaces
 
@@ -66,8 +67,8 @@ module VCAP::CloudController
     export_attributes :name, :billing_enabled, :quota_definition_guid, :status, :is_default
     import_attributes :name, :billing_enabled,
                       :user_guids, :manager_guids, :billing_manager_guids,
-                      :auditor_guids, :private_domain_guids, :quota_definition_guid,
-                      :status, :domain_guids, :is_default
+                      :auditor_guids, :private_domain_guids, :quota_definition_guid, :status,
+                      :domain_guids, :is_default
 
     def remove_user(user)
       raise VCAP::Errors::ApiError.new_from_details("AssociationNotEmpty", "user", "spaces in the org") unless ([user.spaces, user.audited_spaces, user.managed_spaces].flatten & spaces).empty?
@@ -142,6 +143,7 @@ module VCAP::CloudController
       validates_presence :name
       validates_unique   :name
       validates_format ORG_NAME_REGEX, :name
+      validates_includes ORG_STATUS_VALUES, :status, :allow_missing => true
     end
 
     def add_default_quota
@@ -177,7 +179,7 @@ module VCAP::CloudController
     private
 
     def memory_remaining
-      memory_used = apps_dataset.sum(Sequel.*(:memory, :instances)) || 0
+      memory_used = apps_dataset.where(state: 'STARTED').sum(Sequel.*(:memory, :instances)) || 0
       quota_definition.memory_limit - memory_used
     end
   end

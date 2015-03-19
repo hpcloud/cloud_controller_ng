@@ -40,12 +40,26 @@ module VCAP::CloudController
       VCAP::CloudController::Seeds.create_seed_stacks
     end
 
+    describe 'Creation' do
+      let(:app) { App.new }
+
+      it 'has a default instances' do
+        schema_default = App.db_schema[:instances][:default].to_i
+        expect(app.instances).to eq(schema_default)
+      end
+
+      it 'has a default memory' do
+        allow(VCAP::CloudController::Config.config).to receive(:[]).with(:default_app_memory).and_return(873565)
+        expect(app.memory).to eq(873565)
+      end
+    end
+
     describe "Associations" do
       it { is_expected.to have_timestamp_columns }
       it { is_expected.to have_associated :droplets }
       it do
         is_expected.to have_associated :service_bindings, associated_instance: ->(app) {
-          service_instance = ServiceInstance.make(space: app.space)
+          service_instance = ManagedServiceInstance.make(space: app.space)
           ServiceBinding.make(service_instance: service_instance)
         }
       end
@@ -74,6 +88,7 @@ module VCAP::CloudController
         expect_validator(InstancesPolicy)
         expect_validator(HealthCheckPolicy)
         expect_validator(CustomBuildpackPolicy)
+        expect_validator(DockerPolicy)
       end
 
       describe "org and space quota validator policies" do
@@ -286,10 +301,6 @@ module VCAP::CloudController
           QuotaDefinition.make(:memory_limit => 128)
         end
 
-        it "has a default requested instances" do
-          expect(App.new.requested_instances).to be
-        end
-
         context "app update" do
 
           let(:org) { Organization.make(:quota_definition => quota) }
@@ -384,7 +395,7 @@ module VCAP::CloudController
                                     :system_env_json, :distribution_zone,
                                     :description, :sso_enabled, :restart_required, :autoscale_enabled,
                                     :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-                                    :droplet_count,
+                                    :droplet_count, :package_updated_at,
                                     :staging_failed_reason, :docker_image }
       it { is_expected.to import_attributes :name, :production,
                                     :space_guid, :stack_guid, :buildpack, :detected_buildpack,
@@ -549,9 +560,10 @@ module VCAP::CloudController
             subject.droplets_dataset.destroy
           end
 
-          it "knows its current droplet" do
+          it "knows its current droplet and persists it to the database" do
             expect(subject.current_droplet).to be_instance_of(Droplet)
             expect(subject.current_droplet.droplet_hash).to eq("A-hash")
+            expect(Droplet.find(droplet_hash: "A-hash")).not_to be_nil
           end
         end
 
@@ -1170,6 +1182,14 @@ module VCAP::CloudController
         expect(app.package_hash).to eq("def")
       end
 
+      it "should set the package updated at to the current date" do
+        app.package_updated_at = nil
+        expect {
+          app.package_hash = "def"
+        }.to change { app.package_updated_at }
+        expect(app.package_hash).to_not be_nil
+      end
+
       it "should not set the state to PENDING if the hash remains the same" do
         app.package_hash = "abc"
         expect(app.package_state).to eq("STAGED")
@@ -1358,6 +1378,22 @@ module VCAP::CloudController
           it "updates the app's version" do
             expect { app.add_route(route) }.to change(app, :version)
             expect { app.remove_route(route) }.to change(app, :version)
+          end
+
+          context "audit events" do
+            let(:app_event_repository) { Repositories::Runtime::AppEventRepository.new }
+
+            before do
+              allow(Repositories::Runtime::AppEventRepository).to receive(:new).and_return(app_event_repository)
+            end
+
+            it "creates audit events for both adding routes" do
+              expect(app_event_repository).to receive(:record_map_route).ordered.and_call_original
+              expect { app.add_route(route) }.to change { Event.count }.by(1)
+
+              expect(app_event_repository).to receive(:record_unmap_route).ordered.and_call_original
+              expect { app.remove_route(route) }.to change { Event.count }.by(1)
+            end
           end
         end
       end
@@ -1598,7 +1634,7 @@ module VCAP::CloudController
 
       context "when AppObserver.updated fails" do
         let(:undo_app) {double(:undo_app_changes, :undo => true)}
-        
+
         it "should undo any change", isolation: :truncation do
           app = AppFactory.make
           allow(UndoAppChanges).to receive(:new).with(app).and_return(undo_app)
@@ -2061,17 +2097,6 @@ module VCAP::CloudController
       its(:file_descriptors) { should == 16_384 }
     end
 
-    describe "additional_memory_requested" do
-      subject(:app) { AppFactory.make }
-
-      it "raises error if the app is deleted" do
-        pending("dependent app_versions should be deleted")
-        #AppVersion.where(:app_id => app.id).delete
-        app.delete
-        expect { app.save }.to raise_error(Errors::ApplicationMissing)
-      end
-    end
-
     describe "docker_image" do
       subject(:app) do
         App.new
@@ -2079,14 +2104,98 @@ module VCAP::CloudController
 
       it "sets the package hash to the image name any time the image is set" do
         expect {
-          app.docker_image = "foo/bar"
-        }.to change { app.package_hash }.to("foo/bar")
+          app.docker_image = "foo/bar:latest"
+        }.to change { app.package_hash }.to("foo/bar:latest")
       end
 
       it "preserves its existing behavior as a setter" do
         expect {
+          app.docker_image = "foo/bar:latest"
+        }.to change { app.docker_image }.to("foo/bar:latest")
+      end
+
+      user_docker_images = [
+        "bar",
+        "foo/bar",
+        "foo/bar/baz",
+        "fake.registry.com/bar",
+        "fake.registry.com/foo/bar",
+        "fake.registry.com/foo/bar/baz",
+        "fake.registry.com:5000/bar",
+        "fake.registry.com:5000/foo/bar",
+        "fake.registry.com:5000/foo/bar/baz",
+      ]
+
+      user_docker_images.each do |partial_ref|
+        complete_ref = partial_ref + ":0.1"
+        it "keeps the user specified tag :0.1 on #{complete_ref}" do
+          expect {
+            app.docker_image = complete_ref
+          }.to change { app.docker_image }.to end_with(":0.1")
+        end
+      end
+
+      user_docker_images.each do |partial_ref|
+        complete_ref = partial_ref + ":latest"
+        it "keeps the user specified tag :latest on #{complete_ref}" do
+          expect {
+            app.docker_image = complete_ref
+          }.to change { app.docker_image }.to end_with(":latest")
+        end
+      end
+
+      user_docker_images.each do |partial_ref|
+        it "inserts the tag :latest on #{partial_ref}" do
+          expect {
+            app.docker_image = partial_ref
+          }.to change { app.docker_image }.to end_with(":latest")
+        end
+      end
+
+      it "does not allow a docker_image and an admin buildpack" do
+        admin_buildpack = VCAP::CloudController::Buildpack.make
+        app.buildpack = admin_buildpack.name
+        expect {
           app.docker_image = "foo/bar"
-        }.to change { app.docker_image }.to("foo/bar")
+          app.save
+        }.to raise_error(Sequel::ValidationFailed, /incompatible with buildpack/)
+      end
+
+      it "does not allow a docker_image and a custom buildpack" do
+        app.buildpack = "git://user@github.com:repo"
+        expect {
+          app.docker_image = "foo/bar"
+          app.save
+        }.to raise_error(Sequel::ValidationFailed, /incompatible with buildpack/)
+      end
+
+      context "when diego is disabled" do
+        before do
+          allow(Config.config).to receive(:[]).with(anything).and_call_original
+          allow(Config.config).to receive(:[]).with(:diego).and_return false
+        end
+
+        it "does not allow a docker_image" do
+          expect {
+            app.docker_image = "foo/bar"
+            app.save
+          }.to raise_error(Sequel::ValidationFailed, /not supported with diego or docker disabled/)
+        end
+      end
+
+      context "when docker is disabled" do
+        before do
+          allow(Config.config).to receive(:[]).with(anything).and_call_original
+          allow(Config.config).to receive(:[]).with(:diego).and_return true
+          allow(Config.config).to receive(:[]).with(:diego_docker).and_return false
+        end
+
+        it "does not allow a docker_image" do
+          expect {
+            app.docker_image = "foo/bar"
+            app.save
+          }.to raise_error(Sequel::ValidationFailed, /not supported with diego or docker disabled/)
+        end
       end
     end
 

@@ -75,7 +75,9 @@ module VCAP::CloudController
       raise Errors::ApiError.new_from_details("InvalidRequest") unless request_attrs
 
       # Make sure the service plan exists before checking permissions
-      find_guid(service_plan_guid, ServicePlan)
+      if ServicePlan.find(guid: service_plan_guid).nil?
+        raise Errors::ApiError.new_from_details("ServiceInstanceInvalid", "not a valid service plan")
+      end
 
       raise Errors::ApiError.new_from_details("NotAuthorized") unless current_user_can_manage_plan(service_plan_guid)
 
@@ -163,7 +165,7 @@ module VCAP::CloudController
     end
 
     def get_filtered_dataset_for_enumeration(model, ds, qp, opts)
-      single_filter = opts[:q]
+      single_filter = opts[:q][0] if opts[:q]
 
       if single_filter && single_filter.start_with?('organization_guid')
         org_guid = single_filter.split(':')[1]

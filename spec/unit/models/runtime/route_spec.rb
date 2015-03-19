@@ -11,14 +11,18 @@ module VCAP::CloudController
 
       context "changing space" do
         context "apps" do
-          it "succeeds with no apps" do
-            route = Route.make(domain: SharedDomain.make)
+          it "succeeds with no mapped apps" do
+            route = Route.make(space: AppFactory.make.space, domain: SharedDomain.make)
+
             expect { route.space = Space.make }.not_to raise_error
           end
 
-          it "fails with apps in a different space" do
-            route = Route.make(space: AppFactory.make.space)
-            expect { route.space = Space.make }.to raise_error(Domain::UnauthorizedAccessToPrivateDomain)
+          it "fails when changing the space when there are apps mapped to it" do
+            app = AppFactory.make
+            route = Route.make(space: app.space, domain: SharedDomain.make)
+            app.add_route(route)
+
+            expect { route.space = Space.make }.to raise_error(Route::InvalidAppRelation)
           end
         end
 
@@ -38,7 +42,7 @@ module VCAP::CloudController
             end
 
             it "fails if in a different organization" do
-              expect { route.space = Space.make }.to raise_error
+              expect { route.space = Space.make }.to raise_error(Domain::UnauthorizedAccessToPrivateDomain)
             end
           end
         end
@@ -335,7 +339,7 @@ module VCAP::CloudController
         route = Route.make(app_guids: [app.guid], space: app.space)
         app   = route.apps.first
 
-        expect(app).to receive(:mark_routes_changed).and_call_original
+        expect(app).to receive(:handle_remove_route).and_call_original
         route.destroy
       end
     end
@@ -347,17 +351,21 @@ module VCAP::CloudController
       end
 
       describe "when adding an app" do
-        it "marks the apps routes as changed" do
-          expect(app).to receive(:mark_routes_changed).and_call_original
-          route.add_app(app)
+        it "marks the apps routes as changed and creates an audit event" do
+          expect(app).to receive(:handle_add_route).and_call_original
+          expect {
+            route.add_app(app)
+          }.to change { Event.count }.by(1)
         end
       end
 
       describe "when removing an app" do
-        it "marks the apps routes as changed" do
+        it "marks the apps routes as changed and creates an audit event" do
           route.add_app(app)
-          expect(app).to receive(:mark_routes_changed).and_call_original
-          route.remove_app(app)
+          expect(app).to receive(:handle_remove_route).and_call_original
+          expect {
+            route.remove_app(app)
+          }.to change { Event.count }.by(1)
         end
       end
     end
