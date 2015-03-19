@@ -89,11 +89,6 @@ module VCAP::CloudController
         auditors: [user])
     end
 
-    def before_create
-      add_default_quota
-      super
-    end
-
     def before_save
       if column_changed?(:billing_enabled) && billing_enabled?
         @is_billing_enabled = true
@@ -121,6 +116,9 @@ module VCAP::CloudController
           Space.where(:is_default => true).update(:is_default => false)
         end
       end
+
+      validate_quota
+
       super
     end
 
@@ -146,16 +144,6 @@ module VCAP::CloudController
       validates_includes ORG_STATUS_VALUES, :status, :allow_missing => true
     end
 
-    def add_default_quota
-      unless quota_definition_id
-        if QuotaDefinition.default.nil?
-          err_msg = Errors::ApiError.new_from_details("QuotaDefinitionNotFound", QuotaDefinition.default_quota_name).message
-          raise Errors::ApiError.new_from_details("OrganizationInvalid", err_msg)
-        end
-        self.quota_definition_id = QuotaDefinition.default.id
-      end
-    end
-
     def has_remaining_memory(mem)
       memory_remaining >= mem
     end
@@ -177,6 +165,27 @@ module VCAP::CloudController
     end
 
     private
+
+    def validate_quota_on_create
+      return if quota_definition
+
+      if QuotaDefinition.default.nil?
+        err_msg = Errors::ApiError.new_from_details("QuotaDefinitionNotFound", QuotaDefinition.default_quota_name).message
+        raise Errors::ApiError.new_from_details("OrganizationInvalid", err_msg)
+      end
+      self.quota_definition_id = QuotaDefinition.default.id
+    end
+
+    def validate_quota_on_update
+      if column_changed?(:quota_definition_id) && quota_definition.nil?
+        err_msg = Errors::ApiError.new_from_details("QuotaDefinitionNotFound", "null").message
+        raise Errors::ApiError.new_from_details("OrganizationInvalid", err_msg)
+      end
+    end
+
+    def validate_quota
+      new? ? validate_quota_on_create : validate_quota_on_update
+    end
 
     def memory_remaining
       memory_used = apps_dataset.where(state: 'STARTED').sum(Sequel.*(:memory, :instances)) || 0
