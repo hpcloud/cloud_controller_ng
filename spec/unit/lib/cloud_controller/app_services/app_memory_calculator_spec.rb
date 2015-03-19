@@ -25,6 +25,7 @@ module VCAP::CloudController
 
         context 'and the app is already in the db' do
           it 'raises ApplicationMissing if the app no longer exists in the db' do
+            AppVersion.where(:app_id => app.id).delete
             app.delete
             expect { subject.additional_memory_requested }.to raise_error(Errors::ApplicationMissing)
           end
@@ -89,6 +90,7 @@ module VCAP::CloudController
       end
 
       it 'raises ApplicationMissing if the app no longer exists in the db' do
+        AppVersion.where(:app_id => app.id).delete
         app.delete
         expect { subject.currently_used_memory }.to raise_error(Errors::ApplicationMissing)
       end
