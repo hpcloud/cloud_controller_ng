@@ -3,8 +3,6 @@ module VCAP::CloudController
 
     one_to_many :organizations
 
-    add_association_dependencies organizations: :destroy
-
     export_attributes :name, :non_basic_services_allowed, :total_services, :total_routes,
                       :memory_limit, :trial_db_allowed, :instance_memory_limit,
                       :allow_sudo, :total_droplets
@@ -21,6 +19,13 @@ module VCAP::CloudController
       validates_presence :memory_limit
       validates_presence :allow_sudo
       errors.add(:memory_limit, :less_than_zero) if memory_limit && memory_limit < 0
+      errors.add(:instance_memory_limit, :invalid_instance_memory_limit) if instance_memory_limit && instance_memory_limit < -1
+    end
+
+    def before_destroy
+      if organizations.present?
+        raise VCAP::Errors::ApiError.new_from_details("AssociationNotEmpty", "organization", "quota definition")
+      end
     end
 
     def before_create

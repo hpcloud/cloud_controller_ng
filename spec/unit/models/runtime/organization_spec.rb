@@ -536,31 +536,51 @@ module VCAP::CloudController
       end
     end
 
-    describe "#add_default_quota" do
-      context "when the default quota exists" do
-        let (:my_quota)  { QuotaDefinition.make }
+    describe "creating an organization" do
+      context "when a quota is not specified" do
+        let(:org) {Organization.create_from_hash(name: 'myorg')}
 
-        it "uses the one provided" do
-          subject.quota_definition_id = my_quota.id
-          subject.add_default_quota
-          expect(subject.quota_definition_id).to eq(my_quota.id)
+        it "uses the default" do
+          org.save
+          expect(org.quota_definition_id).to eq(QuotaDefinition.default.id)
         end
 
-        it "uses the default when nothing is provided" do
-          subject.quota_definition_id = nil
-          subject.add_default_quota
-          expect(subject.quota_definition_id).to eq(QuotaDefinition.default.id)
+        context "when the default quota does not exist" do
+          before do
+            QuotaDefinition.default.organizations.each(&:destroy)
+            QuotaDefinition.default.destroy
+          end
+
+          it "raises an exception" do
+            expect{org.save}.to raise_error(VCAP::Errors::ApiError, /Quota Definition could not be found: default/)
+          end
         end
       end
 
-      context "when the default quota does not exist" do
-        before { QuotaDefinition.default.destroy }
+      context "when a quota is specified" do
+        let(:org) {Organization.make_unsaved(quota_definition: nil, quota_definition_guid: quota_definition_guid)}
 
-        it "raises an exception" do
-          subject.quota_definition_id = nil
-          expect { subject.add_default_quota }.to raise_exception VCAP::Errors::ApiError, /Quota Definition could not be found/
+        context "and it's valid" do
+          let(:my_quota)  { QuotaDefinition.make }
+          let(:quota_definition_guid) { my_quota.guid }
+
+          it "uses what is provided" do
+            org.save
+            expect(org.quota_definition).to eq(my_quota)
+          end
+        end
+
+        context "but it's invalid" do
+          let(:quota_definition_guid) { 'something-invalid' }
+
+          it "uses what is provided" do
+            expect{
+              org.save
+            }.to raise_error(VCAP::Errors::ApiError, /Invalid relation: Could not find VCAP::CloudController::QuotaDefinition with guid: #{quota_definition_guid}/)
+          end
         end
       end
     end
   end
 end
+

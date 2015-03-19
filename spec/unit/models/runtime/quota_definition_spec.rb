@@ -31,13 +31,22 @@ module VCAP::CloudController
       it { is_expected.to validate_presence :memory_limit }
       it { is_expected.to validate_uniqueness :name }
 
-      describe "memory_limit" do
-        it "cannot be less than zero" do
+      describe "memory_limits" do
+        it "total memory_limit cannot be less than zero" do
           quota_definition.memory_limit = -1
           expect(quota_definition).not_to be_valid
           expect(quota_definition.errors.on(:memory_limit)).to include(:less_than_zero)
 
           quota_definition.memory_limit = 0
+          expect(quota_definition).to be_valid
+        end
+
+        it "instance_memory_limit cannot be less than zero" do
+          quota_definition.instance_memory_limit = -2
+          expect(quota_definition).not_to be_valid
+          expect(quota_definition.errors.on(:instance_memory_limit)).to include(:invalid_instance_memory_limit)
+
+          quota_definition.instance_memory_limit = -1
           expect(quota_definition).to be_valid
         end
       end
@@ -55,13 +64,22 @@ module VCAP::CloudController
     end
 
     describe "#destroy" do
-      it "nullifies the organization quota definition" do
-        org = Organization.make(:quota_definition => quota_definition)
-        expect {
+      context "when there is an associated organization" do
+        it "raises an AssociationNotEmpty error" do
+          Organization.make(quota_definition: quota_definition)
+
+          expect {
+            quota_definition.destroy
+          }.to raise_error VCAP::Errors::ApiError, /Please delete the organization associations for your quota definition./
+          expect(QuotaDefinition[quota_definition.id]).to eq quota_definition
+        end
+      end
+
+      context "when there is no associated organization" do
+        it "deletes the quota_definition" do
           quota_definition.destroy
-        }.to change {
-          Organization.count(:id => org.id)
-        }.by(-1)
+          expect(QuotaDefinition[quota_definition.id]).to be_nil
+        end
       end
     end
 
