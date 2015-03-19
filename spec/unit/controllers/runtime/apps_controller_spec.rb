@@ -84,6 +84,7 @@ module VCAP::CloudController
             events:           [:get, :put, :delete],
             service_bindings: [:get, :put, :delete],
             routes:           [:get, :put, :delete],
+            app_versions:     [:get, :put, :delete],
           })
       end
 
