@@ -104,6 +104,11 @@ module VCAP::CloudController
       domain && domain.addable_to_organization!(new_space.organization)
     end
 
+    def validate_changed_space(new_space)
+      apps.each{ |app| validate(app) }
+      domain && domain.addable_to_organization!(new_space.organization)
+    end
+
     def self.user_visibility_filter(user)
       orgs = Organization.filter(Sequel.or(
         managers: [user],

@@ -174,6 +174,15 @@ module VCAP::CloudController
     active            { true }
   end
 
+  ServicePlan.blueprint(:v2) do
+    name              { Sham.name }
+    free              { false }
+    description       { Sham.description }
+    service           { Service.make(:v2) }
+    unique_id         { SecureRandom.uuid }
+    active            { true }
+  end
+
   ServicePlanVisibility.blueprint do
     service_plan { ServicePlan.make }
     organization { Organization.make }
@@ -319,6 +328,16 @@ module VCAP::CloudController
     total_routes { 1_000 }
     memory_limit { 20_480 } # 20 GB
     organization { Organization.make }
+  end
+
+  EnvironmentVariableGroup.blueprint do
+    name { "runtime" }
+    environment_json do
+      {
+        "MOTD" => "Because of your smile, you make life more beautiful.",
+        "COROPRATE_PROXY_SERVER" => "abc:8080",
+      }
+    end
   end
 
   FeatureFlag.blueprint do

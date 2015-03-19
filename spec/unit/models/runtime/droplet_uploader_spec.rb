@@ -35,6 +35,9 @@ describe CloudController::DropletUploader do
     end
 
     it "deletes old droplets" do
+      #XXX: Sometimes this test fails because the droplets' updated_at
+      # fields are reset when we access them via app.droplets_dataset
+      # Don't know why, it looks like a Sequel issue.
       droplets_to_keep = 2
       app.space.organization.quota_definition.total_droplets = droplets_to_keep
       app.space.organization.quota_definition.save
