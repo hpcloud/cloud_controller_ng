@@ -30,8 +30,6 @@ module VCAP::CloudController
             billing_enabled:       { type: "bool", default: false },
             status:                { type: "string", default: "active" },
             quota_definition_guid: { type: "string" },
-            domain_guids:          { type: "[string]" },
-            private_domain_guids:  { type: "[string]" },
             user_guids:            { type: "[string]" },
             manager_guids:         { type: "[string]" },
             billing_manager_guids: { type: "[string]" },
@@ -48,8 +46,6 @@ module VCAP::CloudController
             billing_enabled:              { type: "bool" },
             status:                       { type: "string" },
             quota_definition_guid:        { type: "string" },
-            domain_guids:                 { type: "[string]" },
-            private_domain_guids:         { type: "[string]" },
             user_guids:                   { type: "[string]" },
             manager_guids:                { type: "[string]" },
             billing_manager_guids:        { type: "[string]" },
@@ -131,6 +127,24 @@ module VCAP::CloudController
             :path => "/v2/organizations",
             :enumerate => 1
         end
+      end
+    end
+
+    describe "Associations" do
+      it do
+        expect(described_class).to have_nested_routes(
+          {
+            spaces:                  [:get, :put, :delete],
+            domains:                 [:get, :delete],
+            private_domains:         :get,
+            users:                   [:get, :put, :delete],
+            managers:                [:get, :put, :delete],
+            billing_managers:        [:get, :put, :delete],
+            auditors:                [:get, :put, :delete],
+            app_events:              [:get, :put, :delete],
+            space_quota_definitions: [:get, :put, :delete],
+          }
+        )
       end
     end
 

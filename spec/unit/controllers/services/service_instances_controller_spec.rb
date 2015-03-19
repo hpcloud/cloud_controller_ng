@@ -183,6 +183,12 @@ module VCAP::CloudController
       end
     end
 
+    describe "Associations" do
+      it do
+        expect(described_class).to have_nested_routes({ service_bindings: [:get, :put, :delete] })
+      end
+    end
+
     describe 'POST', '/v2/service_instances' do
       context 'with a v2 service' do
         let(:space) { Space.make }
@@ -359,7 +365,9 @@ module VCAP::CloudController
           end
 
           it 'returns a 404' do
-            expect(last_response.status).to eq(404)
+            expect(last_response.status).to eq(400)
+            expect(decoded_response['code']).to eq(60003)
+            expect(decoded_response['description']).to include("not a valid service plan")
           end
         end
       end
@@ -601,7 +609,7 @@ module VCAP::CloudController
       let(:developer) { make_developer_for_space(space) }
 
       context 'when the user is a member of the space this instance exists in' do
-        let(:instance)  { ServiceInstance.make(space: space) }
+        let(:instance)  { ManagedServiceInstance.make(space: space) }
 
         context 'when the user has only the cloud_controller.read scope' do
           it 'returns a JSON payload indicating they have permission to manage this instance' do
@@ -629,7 +637,7 @@ module VCAP::CloudController
       end
 
       context 'when the user is NOT a member of the space this instance exists in' do
-        let(:instance)  { ServiceInstance.make }
+        let(:instance)  { ManagedServiceInstance.make }
 
         it 'returns a JSON payload indicating the user does not have permission to manage this instance' do
           get "/v2/service_instances/#{instance.guid}/permissions", {}, json_headers(headers_for(developer))
@@ -639,7 +647,7 @@ module VCAP::CloudController
       end
 
       context 'when the user has not authenticated with Cloud Controller' do
-        let(:instance)  { ServiceInstance.make }
+        let(:instance)  { ManagedServiceInstance.make }
         let(:developer) { nil }
 
         it 'returns an error saying that the user is not authenticated' do

@@ -21,9 +21,7 @@ module VCAP::CloudController::RestController
       end
 
       context "when order_by and order_direction are unspecified" do
-        let(:opts) do
-          {}
-        end
+        let(:opts) {{}}
 
         it "orders by id in ascending order" do
           expect(sql).to eq(normalize_quotes "SELECT * FROM `test_models` ORDER BY `id` ASC")
@@ -31,29 +29,40 @@ module VCAP::CloudController::RestController
       end
 
       context "when order_by is specified" do
-        let(:opts) do
-          {order_by: "field"}
-        end
+        let(:opts) {{order_by: "field"}}
 
         it "orders by the specified column" do
           expect(sql).to eq(normalize_quotes "SELECT * FROM `test_models` ORDER BY `field` ASC")
         end
       end
 
-      context "when order_direction is specified" do
-        let(:opts) do
-          {order_direction: "desc"}
+      context "when order_by has multiple values" do
+        let(:opts) {{order_by: ["field", "id"]}}
+
+        it "orders by the specified column" do
+          expect(sql).to eq(normalize_quotes "SELECT * FROM `test_models` ORDER BY `field` ASC, `id` ASC")
         end
+      end
+
+      context "when order_direction is specified" do
+        let(:order_by) {{}}
+        let(:opts) {{order_direction: "desc"}.merge(order_by)}
 
         it "orders by id in the specified direction" do
           expect(sql).to eq(normalize_quotes "SELECT * FROM `test_models` ORDER BY `id` DESC")
         end
+
+        context "when order_by has multiple values" do
+          let(:order_by) {{order_by: ["field", "id"]}}
+
+          it "orders by the specified column" do
+            expect(sql).to eq(normalize_quotes "SELECT * FROM `test_models` ORDER BY `field` DESC, `id` DESC")
+          end
+        end
       end
 
       context "when order_direction is specified with an invalid value" do
-        let(:opts) do
-          {order_direction: "decs"}
-        end
+        let(:opts) {{order_direction: "decs"}}
 
         it "raises an error which makes sense to an api client" do
           expect { sql }.to raise_error(VCAP::Errors::ApiError)

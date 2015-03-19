@@ -155,6 +155,34 @@ module VCAP::CloudController
           expect { org.add_private_domain(domain) }.to raise_error
         end
       end
+
+      describe "status" do
+        subject(:org) { Organization.make }
+
+        it "should allow 'active' and 'suspended'" do
+          ["active", "suspended"].each do |status|
+            org.status = status
+            expect {
+              org.save
+            }.not_to raise_error
+            expect(org.status).to eq(status)
+          end
+        end
+
+        it "should not allow arbitrary status values" do
+          org.status = "unknown"
+          expect {
+            org.save
+          }.to raise_error(Sequel::ValidationFailed)
+        end
+
+        it "should not allow a nil status" do
+          org.status = nil
+          expect {
+            org.save
+          }.to raise_error(Sequel::ValidationFailed)
+        end
+      end
     end
 
     describe "Serialization" do
@@ -175,12 +203,6 @@ module VCAP::CloudController
         subject(:org) { Organization.make(status: "suspended") }
         it("is not active") { expect(org).not_to be_active }
         it("is suspended") { expect(org).to be_suspended }
-      end
-
-      describe "when status == unknown" do
-        subject(:org) { Organization.make(status: "unknown") }
-        it("is not active") { expect(org).not_to be_active }
-        it("is not suspended") { expect(org).not_to be_suspended }
       end
     end
 
@@ -249,21 +271,20 @@ module VCAP::CloudController
       end
 
       it "should return the memory available when no apps are running" do
-        org = Organization.make(:quota_definition => quota)
+        org = Organization.make(quota_definition: quota)
+        space = Space.make(organization: org)
+        AppFactory.make(space: space, memory: 200, instances: 2)
 
         expect(org.has_remaining_memory(500)).to eq(true)
         expect(org.has_remaining_memory(501)).to eq(false)
       end
 
       it "should return the memory remaining when apps are consuming memory" do
-        org = Organization.make(:quota_definition => quota)
-        space = Space.make(:organization => org)
-        AppFactory.make(:space => space,
-                        :memory => 200,
-                        :instances => 2)
-        AppFactory.make(:space => space,
-                        :memory => 50,
-                        :instances => 1)
+        org = Organization.make(quota_definition: quota)
+        space = Space.make(organization: org)
+
+        AppFactory.make(space: space, memory: 200, instances: 2, state: 'STARTED')
+        AppFactory.make(space: space, memory: 50, instances: 1, state: 'STARTED')
 
         expect(org.has_remaining_memory(50)).to eq(true)
         expect(org.has_remaining_memory(51)).to eq(false)
@@ -380,7 +401,7 @@ module VCAP::CloudController
         shared_domain = SharedDomain.make
 
         expect {
-          @eager_loaded_orgs = Organization.eager(:domains).where(id: [org1.id, org2.id]).limit(2).all
+          @eager_loaded_orgs = Organization.eager(:domains).where(id: [org1.id, org2.id]).order_by(:id).all
         }.to have_queried_db_times(/domains/i, 1)
 
         expect {

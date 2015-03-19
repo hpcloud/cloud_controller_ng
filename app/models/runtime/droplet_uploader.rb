@@ -5,8 +5,7 @@ module CloudController
       @blobstore = blobstore
     end
 
-    def upload(source_path)
-      droplets_to_keep = @app.space.organization.quota_definition.total_droplets
+    def upload(source_path, droplets_to_keep=2)
       digest = Digest::SHA1.file(source_path).hexdigest
       blobstore.cp_to_blobstore(
         source_path,
@@ -17,7 +16,7 @@ module CloudController
 
       if current_droplet_size > droplets_to_keep
         app.droplets_dataset.
-          order_by(Sequel.asc(:updated_at)).
+          order_by(Sequel.asc(:created_at)).
           limit(current_droplet_size - droplets_to_keep).destroy
       end
 

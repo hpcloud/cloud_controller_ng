@@ -11,8 +11,8 @@ module VCAP::CloudController
 
     many_to_many :apps,
       before_add:   :validate_app,
-      after_add:    :mark_app_routes_changed,
-      after_remove: :mark_app_routes_changed
+      after_add:    :handle_add_app,
+      after_remove: :handle_remove_app
 
     add_association_dependencies apps: :nullify
 
@@ -105,7 +105,7 @@ module VCAP::CloudController
     end
 
     def validate_changed_space(new_space)
-      apps.each{ |app| validate(app) }
+      apps.each{ |app| validate_app(app) }
       domain && domain.addable_to_organization!(new_space.organization)
     end
 
@@ -191,12 +191,16 @@ module VCAP::CloudController
       super
 
       loaded_apps.each do |app|
-        mark_app_routes_changed(app)
+        handle_remove_app(app)
       end
     end
 
-    def mark_app_routes_changed(app)
-      app.mark_routes_changed
+    def handle_add_app(app)
+      app.handle_add_route(self)
+    end
+
+    def handle_remove_app(app)
+      app.handle_remove_route(self)
     end
 
     def validate_domain

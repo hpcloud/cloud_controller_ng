@@ -192,9 +192,13 @@ module ApiDsl
 
     def standard_list_parameters(controller)
       if controller.query_parameters.size > 0
-        query_parameter_description = "Parameters used to filter the result set. (Format as url_encode('q=filter1_name:value;filter2_name:value'))."
+        query_parameter_description = "Parameters used to filter the result set.<br/>"
+        query_parameter_description += "Format queries as &lt;filter&gt;&lt;op&gt;&lt;value&gt;<br/>"
+        query_parameter_description += " Valid ops: : &gt;= &lt;= &lt; &gt; IN<br/>"
         query_parameter_description += " Valid filters: #{controller.query_parameters.to_a.join(", ")}"
-        request_parameter :q, query_parameter_description
+
+        examples = ["q=filter:value", "q=filter>value", "q=filter IN a,b,c"]
+        request_parameter :q, query_parameter_description, { html: true, example_values: examples }
       end
       request_parameter :page, "Page of results to fetch"
       request_parameter :pretty, "Enable pretty-printing of responses"
@@ -208,6 +212,10 @@ module ApiDsl
     end
 
     def request_parameter(name, description, options = {})
+      if options[:html]
+        options[:description_html] = description
+      end
+
       parameter name, description, options
       metadata[:request_parameters] ||= []
       metadata[:request_parameters].push(options.merge(:name => name.to_s, :description => description))

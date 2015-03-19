@@ -5,6 +5,7 @@ require "cloud_controller/undo_app_changes"
 require "cloud_controller/errors/application_missing"
 require "cloud_controller/errors/invalid_route_relation"
 require "repositories/runtime/app_usage_event_repository"
+require "presenters/message_bus/service_binding_presenter"
 
 require_relative "buildpack"
 require_relative "app_version"
@@ -13,6 +14,14 @@ module VCAP::CloudController
   # rubocop:disable ClassLength
   class App < Sequel::Model
     plugin :serialization
+    plugin :after_initialize
+
+    def after_initialize
+      default_instances = db_schema[:instances][:default].to_i
+
+      self.instances ||=  default_instances
+      self.memory ||= VCAP::CloudController::Config.config[:default_app_memory]
+    end
 
     APP_NAME_REGEX = /\A[[:print:]]+\Z/.freeze
 
@@ -23,7 +32,7 @@ module VCAP::CloudController
     many_to_one :admin_buildpack, class: VCAP::CloudController::Buildpack
     many_to_one :space, after_set: :validate_space
     many_to_one :stack
-    many_to_many :routes, before_add: :validate_route, after_add: :mark_routes_changed, after_remove: :mark_routes_changed
+    many_to_many :routes, before_add: :validate_route, after_add: :handle_add_route, after_remove: :handle_remove_route
 
     one_to_one :current_saved_droplet,
       :class => "::VCAP::CloudController::Droplet",
@@ -41,7 +50,7 @@ module VCAP::CloudController
                       :description, :sso_enabled, :restart_required, :autoscale_enabled,
                       :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
                       :droplet_count,
-                      :staging_failed_reason, :docker_image
+                      :staging_failed_reason, :docker_image, :package_updated_at
 
     import_attributes :name, :production,
                       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
@@ -108,7 +117,8 @@ module VCAP::CloudController
           MaxInstanceMemoryPolicy.new(self, space && space.space_quota_definition, :space_instance_memory_limit_exceeded),
           InstancesPolicy.new(self),
           HealthCheckPolicy.new(self, health_check_timeout),
-          CustomBuildpackPolicy.new(self, custom_buildpacks_enabled?)
+          CustomBuildpackPolicy.new(self, custom_buildpacks_enabled?),
+          DockerPolicy.new(self, Config.config[:diego], Config.config[:diego_docker]),
       ]
     end
 
@@ -133,8 +143,8 @@ module VCAP::CloudController
     end
 
     def before_create
-      super
       set_new_version
+      super
     end
 
     def after_create
@@ -479,17 +489,8 @@ module VCAP::CloudController
       end
     end
 
-    def total_requested_memory
-      requested_memory * requested_instances
-    end
-
     def custom_buildpacks_enabled?
       !VCAP::CloudController::Config.config[:disable_custom_buildpacks]
-    end
-
-    def total_existing_memory
-      return 0 if new?
-      memory * instances
     end
 
     def requested_instances
@@ -501,20 +502,6 @@ module VCAP::CloudController
       VCAP::CloudController::Config.config[:maximum_app_disk_in_mb]
     end
 
-    def requested_memory
-      memory ? memory : VCAP::CloudController::Config.config[:default_app_memory]
-    end
-
-    def additional_memory_requested
-      total_requested_memory = requested_memory * requested_instances
-
-      return total_requested_memory if new?
-
-      app = app_from_db
-      total_existing_memory = app[:memory] * app[:instances]
-      total_requested_memory - total_existing_memory
-    end
-    
     def validate_autoscaling_settings
       errors.add(:min_cpu_threshold, :invalid_value) \
         if !min_cpu_threshold.nil? && (min_cpu_threshold < 0 ||
@@ -574,6 +561,10 @@ module VCAP::CloudController
           self.instances = self.max_instances
         end
       end
+    end
+
+    def max_app_disk_in_mb
+      VCAP::CloudController::Config.config[:maximum_app_disk_in_mb]
     end
 
     # We need to overide this ourselves because we are really doing a
@@ -666,11 +657,16 @@ module VCAP::CloudController
       end
     end
 
+    def buildpack_specified?
+      buildpack.is_a?(AutoDetectionBuildpack)
+    end
+
     def custom_buildpack_url
       buildpack.url if buildpack.custom?
     end
 
     def docker_image=(value)
+      value = fill_docker_string(value)
       super
       self.package_hash = value
     end
@@ -678,6 +674,7 @@ module VCAP::CloudController
     def package_hash=(hash)
       super(hash)
       mark_for_restaging if column_changed?(:package_hash)
+      self.package_updated_at = Sequel.datetime_class.now
     end
 
     def stack=(stack)
@@ -693,7 +690,9 @@ module VCAP::CloudController
 
     def current_droplet
       return nil unless droplet_hash
-      current_saved_droplet || Droplet.new(app: self, droplet_hash: self.droplet_hash)
+      # The droplet may not be in the droplet table as we did not backfill
+      # existing droplets when creating the table.
+      current_saved_droplet || Droplet.create(app: self, droplet_hash: self.droplet_hash)
     end
 
     def start!
@@ -743,6 +742,20 @@ module VCAP::CloudController
       super(opts)
     end
 
+    def handle_add_route(route)
+      mark_routes_changed(route)
+      app_event_repository = Repositories::Runtime::AppEventRepository.new
+      app_event_repository.record_map_route(self, route, SecurityContext.current_user, SecurityContext.current_user_email)
+    end
+
+    def handle_remove_route(route)
+      mark_routes_changed(route)
+      app_event_repository = Repositories::Runtime::AppEventRepository.new
+      app_event_repository.record_unmap_route(self, route, SecurityContext.current_user, SecurityContext.current_user_email)
+    end
+
+    private
+
     def mark_routes_changed(_ = nil)
       @routes_changed = true
 
@@ -750,20 +763,20 @@ module VCAP::CloudController
       save
     end
 
-    private
+    # there's no concrete schema for what constitutes a valid docker
+    # repo/image reference online at the moment, so make a best effort to turn
+    # the passed value into a complete, plausible docker image reference:
+    # registry-name:registry-port/[scope-name/]repo-name:tag-name
+    def fill_docker_string(value)
+      segs = value.split('/')
+      if not segs.last.include?(':')
+        segs[-1] = segs.last + ':latest'
+      end
+      segs.join('/')
+    end
 
     def metadata_deserialized
       deserialized_values[:metadata]
-    end
-
-    def app_from_db
-      error_message = "Expected app record not found in database with guid %s"
-      app_from_db = self.class.find(guid: guid)
-      if app_from_db.nil?
-        self.class.logger.fatal("app.find.missing", guid: guid, self: inspect)
-        raise Errors::ApplicationMissing, error_message % guid
-      end
-      app_from_db
     end
 
     WHITELIST_SERVICE_KEYS = %W[name label tags plan credentials syslog_drain_url].freeze
