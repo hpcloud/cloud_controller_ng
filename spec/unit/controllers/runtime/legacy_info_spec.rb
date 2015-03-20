@@ -41,7 +41,8 @@ module VCAP::CloudController
       expect(hash['token_endpoint']).to eq(TestConfig.config[:uaa][:url])
       expect(hash['allow_debug']).to eq(TestConfig.config.fetch(:allow_debug, true))
       expect(hash['applog_endpoint']).to eq("ws://logs.#{TestConfig.config[:system_domain]}")
-      expect(hash['logging_endpoint']).to eq("ws://#{TestConfig.config[:system_domain]}:51101")
+      expect(hash['logging_endpoint']).to eq("ws://#{TestConfig.config[:system_domain]}:51100")
+      expect(hash['trafficcontroller_endpoint']).to eq("ws://#{TestConfig.config[:system_domain]}:51101")
     end
 
     it "includes login url when configured" do

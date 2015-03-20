@@ -31,10 +31,14 @@ module VCAP::CloudController
         }
       }
 
+      if @config[:loggregator] && @config[:loggregator][:url]
+        info[:trafficcontroller_endpoint] = @config[:loggregator][:url]
+      end
+
       # To be removed once stackato-client is upgraded to use the v2/info API.
       # Mar 17, 2015, ivans.
-      if @config[:loggregator] && @config[:loggregator][:url]
-        info[:logging_endpoint] = @config[:loggregator][:url]
+      if @config[:loggregator] && @config[:loggregator][:legacy_url]
+        info[:logging_endpoint] = @config[:loggregator][:legacy_url]
       end
 
       # If there is a logged in user, give out additional information
