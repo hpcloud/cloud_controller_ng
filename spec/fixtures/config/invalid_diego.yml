@@ -6,6 +6,7 @@ diego:
 diego_docker:
   false
 
+port: 8181
 external_port: 8181
 
 info:
@@ -64,7 +65,10 @@ cc_partition: ng
 
 nginx:
   use_nginx: false
-  instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
+  instance_socket: "/var/stackato/sys/run/cloud_controller_ng/cloud_controller.sock"
+
+stackato_upload_handler:
+  enabled: false
 
 quota_definitions:
   default:

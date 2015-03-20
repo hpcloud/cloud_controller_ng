@@ -1,7 +1,6 @@
 ---
 port: 8181
 external_port: 8181
-instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 info:
   name: "vcap"
@@ -58,6 +57,7 @@ cc_partition: ng
 
 nginx:
   use_nginx: false
+  instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 stackato_upload_handler:
   enabled: false
