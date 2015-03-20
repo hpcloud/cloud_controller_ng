@@ -402,8 +402,9 @@ module VCAP::CloudController
                                     :system_env_json, :distribution_zone,
                                     :description, :sso_enabled, :restart_required, :autoscale_enabled,
                                     :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-                                    :droplet_count, :package_updated_at, :detected_start_command,
-                                    :staging_failed_reason, :docker_image }
+                                    :droplet_count,
+                                    :staging_failed_reason, :docker_image,
+                                    :package_updated_at, :detected_start_command }
       it { is_expected.to import_attributes :name, :production,
                                     :space_guid, :stack_guid, :buildpack, :detected_buildpack,
                                     :environment_json, :memory, :instances, :disk_quota,
