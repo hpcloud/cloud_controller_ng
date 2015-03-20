@@ -67,6 +67,7 @@ loggregator:
   router: "127.0.0.1:51160"
   shared_secret: "shared_secret"
   url: "ws://loggregator.vcap.me:80"
+  legacy_url: "ws://loggregator.vcap.me:80"
 
 db:
   database:
