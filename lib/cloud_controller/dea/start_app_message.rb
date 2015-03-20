@@ -31,6 +31,7 @@ module VCAP::CloudController
         self[:debug]                = app.debug
         self[:docker_image]         = app.docker_image
         self[:docker_registry]      = docker_registry
+        self[:docker_apps_config]   = config[:docker_apps]
         self[:start_command]        = app.command
         self[:health_check_timeout] = app.health_check_timeout
         self[:sso_enabled] = app.sso_enabled
