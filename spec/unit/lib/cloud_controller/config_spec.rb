@@ -206,6 +206,7 @@ module VCAP::CloudController
                 password: 'password',
                 },
             },
+            hm9000_noop: true,
         }
       end
 
