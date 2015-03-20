@@ -14,7 +14,6 @@ module VCAP::CloudController
     define_schema do
       {
         :port => Integer,
-        :instance_socket => String,
         :external_port => Integer,
         :external_protocol => String,
         :info => {
