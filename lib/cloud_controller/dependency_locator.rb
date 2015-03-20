@@ -38,7 +38,7 @@ module CloudController
         #                        HealthManagerClient :
         #                        Dea::HM9000::Client).new(@message_bus, @config)
 
-	  # this is a migration to the new cloud controller client. we need to verify that 
+	    # this is a migration to the new cloud controller client. we need to verify that 
       # this works	
       @dependencies[:health_manager_client] || raise('health_manager_client not set')
     end
