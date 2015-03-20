@@ -48,8 +48,10 @@ module VCAP::CloudController
                       :staging_task_id, :package_state, :package_hash, :health_check_timeout,
                       :system_env_json, :distribution_zone,
                       :description, :sso_enabled, :restart_required, :autoscale_enabled,
-                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances, :droplet_count,
-                      :staging_failed_reason, :docker_image, :package_updated_at, :detected_start_command
+                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+                      :droplet_count,
+                      :staging_failed_reason, :docker_image,
+                      :package_updated_at, :detected_start_command
 
     import_attributes :name, :production,
                       :space_guid, :stack_guid, :buildpack, :detected_buildpack,
@@ -420,44 +422,17 @@ module VCAP::CloudController
       self.droplets_dataset.count
     end
 
-    # We sadly have to do this ourselves because the serialization plugin
-    # doesn't play nice with the dirty plugin, and we want the dirty plugin
-    # more
-    def environment_json=(env)
-      json = MultiJson.dump(env)
-      generate_salt
-      self.encrypted_environment_json =
-          VCAP::CloudController::Encryptor.encrypt(json, salt)
+    def environment_json_with_serialization=(env)
+      self.environment_json_without_serialization = MultiJson.dump(env)
     end
+    alias_method_chain :environment_json=, "serialization"
 
-    def environment_json
-      return unless encrypted_environment_json
-
-      MultiJson.load(
-          VCAP::CloudController::Encryptor.decrypt(
-              encrypted_environment_json, salt))
+    def environment_json_with_serialization
+      string = environment_json_without_serialization
+      return if string.blank?
+      MultiJson.load string
     end
-
-	#--
-	# NK. we are keeping the old methods for storing and retrieving environment
-	# variables with encryption. the following code if from v186 which
-	# seems to have dropped encryption. we need to investigage and possibly
-	# start using this code. I disable aliases so that the old code gets
-	# executed where setters and getters for environment_json are called
-	
-  def environment_json_with_serialization=(env)
-     self.environment_json_without_serialization = MultiJson.dump(env)
-  end
-  # alias_method_chain :environment_json=, "serialization"
-
-  def environment_json_with_serialization
-    string = environment_json_without_serialization
-    return if string.blank?
-    MultiJson.load string
-  end
-  # alias_method_chain :environment_json, "serialization"
-
-	#--
+    alias_method_chain :environment_json, "serialization"
 
     def system_env_json
       vcap_services
