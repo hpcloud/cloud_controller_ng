@@ -1,4 +1,11 @@
 ---
+diego:
+  staging: disabled
+  running: optional
+
+diego_docker:
+  false
+
 port: 8181
 external_port: 8181
 
@@ -9,8 +16,9 @@ info:
   support_address: "http://support.cloudfoundry.com"
   description: "Cloud Foundry sponsored by Pivotal"
 
-system_domain_organization: the-system-domain-org-name
 external_protocol: http
+
+system_domain_organization: the-system-domain-org-name
 system_domain: the-system-domain.com
 app_domains:
   - customer-app-domain1.com
@@ -57,7 +65,7 @@ cc_partition: ng
 
 nginx:
   use_nginx: false
-  instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
+  instance_socket: "/var/stackato/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 stackato_upload_handler:
   enabled: false
@@ -68,14 +76,12 @@ quota_definitions:
     total_services: 100
     total_routes: 1000
     memory_limit: 10240
-    allow_sudo: false
 
   small:
     non_basic_services_allowed: false
     total_services: 2
     total_routes: 1000
     memory_limit: 512 # 0.5 GB
-    allow_sudo: false
 
 default_quota_definition: default
 

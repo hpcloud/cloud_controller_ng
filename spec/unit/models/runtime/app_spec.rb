@@ -40,6 +40,13 @@ module VCAP::CloudController
       VCAP::CloudController::Seeds.create_seed_stacks
     end
 
+    it_behaves_like 'a model with an encrypted attribute' do
+      let(:value_to_encrypt) { '{"foo":"bar"}' }
+      let(:encrypted_attr) { :environment_json_without_serialization }
+      let(:storage_column) { :encrypted_environment_json }
+      let(:attr_salt) { :salt }
+    end
+
     describe 'Creation' do
       let(:app) { App.new }
 
@@ -60,7 +67,7 @@ module VCAP::CloudController
       it do
         is_expected.to have_associated :service_bindings, associated_instance: ->(app) {
           service_instance = ManagedServiceInstance.make(space: app.space)
-          ServiceBinding.make(service_instance: service_instance)
+          ServiceBinding.make(service_instance: service_instance, app: app)
         }
       end
       it { is_expected.to have_associated :events, class: AppEvent }
@@ -395,8 +402,9 @@ module VCAP::CloudController
                                     :system_env_json, :distribution_zone,
                                     :description, :sso_enabled, :restart_required, :autoscale_enabled,
                                     :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-                                    :droplet_count, :package_updated_at,
-                                    :staging_failed_reason, :docker_image }
+                                    :droplet_count,
+                                    :staging_failed_reason, :docker_image,
+                                    :package_updated_at, :detected_start_command }
       it { is_expected.to import_attributes :name, :production,
                                     :space_guid, :stack_guid, :buildpack, :detected_buildpack,
                                     :environment_json, :memory, :instances, :disk_quota,
@@ -576,6 +584,38 @@ module VCAP::CloudController
       end
     end
 
+    describe "#execution_metadata" do
+      subject do
+        App.make(
+          package_hash: "package-hash",
+          instances: 1,
+          package_state: "STAGED",
+        )
+      end
+
+      context "when the app has a current droplet" do
+        before do
+          subject.add_droplet(Droplet.new(
+            app: subject,
+            droplet_hash: "the-droplet-hash",
+            execution_metadata: "some-staging-metadata",
+          ))
+          subject.droplet_hash = "the-droplet-hash"
+        end
+
+        it "returns that droplet's staging metadata" do
+          expect(subject.execution_metadata).to eq("some-staging-metadata")
+        end
+      end
+
+      context "when the app does not have a current droplet" do
+        it "returns the empty string" do
+          expect(subject.current_droplet).to be_nil
+          expect(subject.execution_metadata).to eq("")
+        end
+      end
+    end
+
     describe "#detected_start_command" do
       subject do
         App.make(
@@ -585,26 +625,18 @@ module VCAP::CloudController
         )
       end
 
-      context "when the app has a user-specified start command" do
-        before { subject.command = "my command" }
-
-        it "returns that command" do
-          expect(subject.detected_start_command).to eq("my command")
-        end
-      end
-
       context "when the app has a current droplet" do
         before do
           subject.add_droplet(Droplet.new(
             app: subject,
             droplet_hash: "the-droplet-hash",
-            detected_start_command: "droplet's command",
+            detected_start_command: "run-my-app",
           ))
           subject.droplet_hash = "the-droplet-hash"
         end
 
         it "returns that droplet's detected start command" do
-          expect(subject.detected_start_command).to eq("droplet's command")
+          expect(subject.detected_start_command).to eq("run-my-app")
         end
       end
 
@@ -2168,51 +2200,34 @@ module VCAP::CloudController
           app.save
         }.to raise_error(Sequel::ValidationFailed, /incompatible with buildpack/)
       end
-
-      context "when diego is disabled" do
-        before do
-          allow(Config.config).to receive(:[]).with(anything).and_call_original
-          allow(Config.config).to receive(:[]).with(:diego).and_return false
-        end
-
-        it "does not allow a docker_image" do
-          expect {
-            app.docker_image = "foo/bar"
-            app.save
-          }.to raise_error(Sequel::ValidationFailed, /not supported with diego or docker disabled/)
-        end
-      end
-
-      context "when docker is disabled" do
-        before do
-          allow(Config.config).to receive(:[]).with(anything).and_call_original
-          allow(Config.config).to receive(:[]).with(:diego).and_return true
-          allow(Config.config).to receive(:[]).with(:diego_docker).and_return false
-        end
-
-        it "does not allow a docker_image" do
-          expect {
-            app.docker_image = "foo/bar"
-            app.save
-          }.to raise_error(Sequel::ValidationFailed, /not supported with diego or docker disabled/)
-        end
-      end
     end
 
     describe "diego flag" do
       subject { AppFactory.make }
 
-      it "becomes true when the CF_DIEGO_RUN_BETA environment variable is set and saved" do
-        expect(subject.diego).to eq(false)
+      context "when the CF_DIEGO_RUN_BETA environment variable is set and saved" do
+        it "becomes a diego app" do
+          expect(subject.diego).to eq(false)
 
-        subject.environment_json = {"CF_DIEGO_RUN_BETA" => "true"}
+          subject.environment_json = {"CF_DIEGO_RUN_BETA" => "true"}
 
-        expect(subject.diego).to eq(false)
+          expect(subject.diego).to eq(false)
 
-        subject.save
-        subject.refresh
+          subject.save
+          subject.refresh
 
-        expect(subject.diego).to eq(true)
+          expect(subject.diego).to eq(true)
+        end
+      end
+
+      context "when the configuration requires diego for running" do
+        before do
+          TestConfig.override(diego: { staging: "required", running: "required" })
+        end
+
+        it "gets created as a diego app" do
+          expect(subject.diego).to be(true)
+        end
       end
     end
   end

@@ -2,7 +2,6 @@
 local_route: 127.0.0.1
 port: 8181
 external_port: 8181
-instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 pid_filename: /tmp/cloud_controller.8181.pid
 
@@ -70,6 +69,7 @@ nginx:
 
 stackato_upload_handler:
   enabled: false
+  instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 quota_definitions:
   default:

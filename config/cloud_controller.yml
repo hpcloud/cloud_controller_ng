@@ -1,7 +1,6 @@
 ---
 local_route: 127.0.0.1
 port: 8181
-instance_socket: "/var/stackato/sys/run/cloud_controller_ng/cloud_controller.sock"
 pid_filename: /tmp/cloud_controller.pid
 
 # development_mode: true
@@ -56,6 +55,7 @@ info:
 
 nginx:
   use_nginx: false
+  instance_socket: "/var/stackato/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 stackato_upload_handler:
   enabled: true
@@ -229,7 +229,10 @@ uaa_client_name: 'cc-service-dashboards'
 uaa_client_secret: 'some-sekret'
 uaa_client_scope: openid,cloud_controller_service_permissions.read
 
-diego: false
+diego:
+ staging: optional # disabled|optional|required
+ running: optional # disabled|optional|required
+
 diego_docker: false
 
 max_inline_relationships: 500

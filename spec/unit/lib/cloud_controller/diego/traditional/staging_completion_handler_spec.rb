@@ -20,6 +20,8 @@ module VCAP::CloudController
         "task_id" => staged_app.staging_task_id,
         "detected_buildpack" => "INTERCAL",
         "buildpack_key" => buildpack.key,
+        "execution_metadata" => "{command: [""]}",
+        "detected_start_command" => {"web" => ""},
       }
     end
 
@@ -75,14 +77,19 @@ module VCAP::CloudController
           }.to change { staged_app.reload.staged? }.to(true)
         end
 
-        context "when a detected start command is returned" do
-          before { success_response["detected_start_command"] = "./some-start-command" }
+        context "when staging metadata is returned" do
+          before do
+            success_response["execution_metadata"] = "some-metadata"
+            success_response["detected_start_command"]["web"] = "some-command"
+          end
 
           it "updates the droplet with the returned start command" do
             publish_staging_result(success_response)
             staged_app.reload
-            expect(staged_app.current_droplet.detected_start_command).to eq("./some-start-command")
-            expect(staged_app.current_droplet.droplet_hash).to eq("lol")
+            droplet = staged_app.current_droplet
+            expect(droplet.execution_metadata).to eq("some-metadata")
+            expect(droplet.detected_start_command).to eq("some-command")
+            expect(droplet.droplet_hash).to eq("lol")
           end
         end
 
@@ -179,7 +186,7 @@ module VCAP::CloudController
           end
 
           it "logs info for the CF operator since the app may have been deleted by the CF user" do
-            expect(logger).to have_received(:info).with("diego.staging.unknown-app", response: success_response)
+            expect(logger).to have_received(:error).with("diego.staging.unknown-app", response: success_response)
           end
         end
 
@@ -195,7 +202,7 @@ module VCAP::CloudController
           end
 
           it "logs info for the CF operator since the user may have attempted a second concurrent push and returns" do
-            expect(logger).to have_received(:info).with("diego.staging.not-current", response: success_response, current: staged_app.staging_task_id)
+            expect(logger).to have_received(:warn).with("diego.staging.not-current", response: success_response, current: staged_app.staging_task_id)
           end
         end
 

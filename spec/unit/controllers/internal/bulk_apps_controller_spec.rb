@@ -132,7 +132,8 @@ module VCAP::CloudController
             "routes" => ["arsenio.lo-mein.com", "conan.doe-mane.com"],
             "droplet_uri" => "http://blobsto.re/droplet",
             "stack" => "stack-6",
-            "start_command" => "start-command-6"
+            "start_command" => "start-command-6",
+            "execution_metadata" => ""
           })
 
           last_response_app_env = last_response_app["environment"]
@@ -210,7 +211,10 @@ module VCAP::CloudController
         context "when docker is enabled" do
           before do
           allow(Config.config).to receive(:[]).with(anything).and_call_original
-          allow(Config.config).to receive(:[]).with(:diego).and_return true
+          allow(Config.config).to receive(:[]).with(:diego).and_return(
+            staging: 'optional',
+            running: 'optional',
+          )
           allow(Config.config).to receive(:[]).with(:diego_docker).and_return true
         end
 

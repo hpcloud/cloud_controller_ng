@@ -14,7 +14,6 @@ module VCAP::CloudController
     define_schema do
       {
         :port => Integer,
-        :instance_socket => String,
         :external_port => Integer,
         :external_protocol => String,
         :info => {
@@ -157,18 +156,18 @@ module VCAP::CloudController
         :resource_pool => {
           optional(:maximum_size) => Integer,
           optional(:minimum_size) => Integer,
-          optional(:resource_directory_key) => String,
+          :resource_directory_key => String,
           :fog_connection => Hash
         },
 
         :packages => {
           optional(:max_package_size) => Integer,
-          optional(:app_package_directory_key) => String,
+          :app_package_directory_key => String,
           :fog_connection => Hash
         },
 
         :droplets => {
-          optional(:droplet_directory_key) => String,
+          :droplet_directory_key => String,
           :fog_connection => Hash
         },
 
@@ -212,7 +211,22 @@ module VCAP::CloudController
         optional(:app_bits_upload_grace_period_in_seconds) => Integer,
 
         optional(:default_locale) => String,
-        optional(:allowed_cors_domains) => [ String ]
+        optional(:allowed_cors_domains) => [ String ],
+
+        optional(:diego) => {
+          optional(:staging) => enum(
+            "disabled",
+            "optional",
+            "required",
+          ),
+          optional(:running) => enum(
+            "disabled",
+            "optional",
+            "required",
+          )
+        },
+
+        optional(:dea_advertisement_timeout_in_seconds) => Integer,
       }
     end
 
@@ -224,8 +238,10 @@ module VCAP::CloudController
 
       def from_file(file_name)
         config = super(file_name)
-        merge_defaults(config)
-        apply_stackato_overrides(config)
+        merge_defaults(config).tap do |c|
+          validate!(c)
+        end
+		apply_stackato_overrides(config)
       end
 
       def from_redis(config_overrides = {})
@@ -272,20 +288,30 @@ module VCAP::CloudController
 
       def configure_components_depending_on_message_bus(message_bus)
         @message_bus = message_bus
-        stager_pool = Dea::StagerPool.new(@config, message_bus)
-        dea_pool = Dea::Pool.new(message_bus)
-        @backends = Backends.new(@config, message_bus, dea_pool, stager_pool)
         dependency_locator = CloudController::DependencyLocator.instance
+        dependency_locator.config = @config
+        hm_client =  (@config[:hm9000_noop] ?
+                       HealthManagerClient :
+                       Dea::HM9000::Client).new(@message_bus, @config)
+        dependency_locator.register(:health_manager_client, hm_client)
+        diego_client = Diego::Client.new(Diego::ServiceRegistry.new(message_bus))
+        dependency_locator.register(:diego_client, diego_client)
+        dependency_locator.register(:upload_handler, UploadHandler.new(config))
+        dependency_locator.register(:app_event_repository, Repositories::Runtime::AppEventRepository.new)
+        dependency_locator.register(:instances_reporter, CompositeInstancesReporter.new(diego_client, hm_client))
 
         blobstore_url_generator = dependency_locator.blobstore_url_generator
+        stager_pool = Dea::StagerPool.new(@config, message_bus, blobstore_url_generator)
+        dea_pool = Dea::Pool.new(@config, message_bus)
+        backends = Backends.new(@config, message_bus, dea_pool, stager_pool)
+        dependency_locator.register(:backends, backends)
 
-        diego_client = dependency_locator.diego_client
         diego_client.connect!
 
         Dea::Client.configure(@config, message_bus, dea_pool, stager_pool, blobstore_url_generator)
 
-        Diego::Traditional::StagingCompletionHandler.new(message_bus, @backends).subscribe!
-        Diego::Docker::StagingCompletionHandler.new(message_bus, @backends).subscribe!
+        Diego::Traditional::StagingCompletionHandler.new(message_bus, backends).subscribe!
+        Diego::Docker::StagingCompletionHandler.new(message_bus, backends).subscribe!
 
         backends = StackatoBackends.new(@config, message_bus, dea_pool, stager_pool, health_manager_client)
         AppObserver.configure(backends)
@@ -329,7 +355,21 @@ module VCAP::CloudController
         config[:db][:database] ||= ENV["DB_CONNECTION_STRING"]
         config[:default_locale] ||= "en_US"
         config[:allowed_cors_domains] ||= []
+        config[:diego] ||= {}
+        config[:diego][:staging] ||= "disabled"
+        config[:diego][:running] ||= "disabled"
+        config[:diego_docker] ||= false
+        config[:dea_advertisement_timeout_in_seconds] ||= 10
         sanitize(config)
+      end
+
+      def validate!(config)
+        if (config[:diego][:staging] == 'disabled' && config[:diego][:running] != 'disabled') ||
+          (config[:diego][:staging] == 'optional' && config[:diego][:running] == 'required') ||
+          (config[:diego][:running] == 'disabled' && config[:diego_docker])
+
+          raise "Invalid diego configuration"
+        end
       end
 
       private
@@ -356,7 +396,7 @@ module VCAP::CloudController
       end
 
       def escape_userinfo(value)
-        URI::escape(value, "%#{URI::REGEXP::PATTERN::RESERVED}") 
+        URI::escape(value, "%#{URI::REGEXP::PATTERN::RESERVED}")
       end
 
       def valid_in_userinfo?(value)

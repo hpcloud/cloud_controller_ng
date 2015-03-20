@@ -18,6 +18,8 @@ module VCAP::CloudController
 
     plugin :after_initialize
 
+    encrypt :credentials, salt: :salt
+
     def validate
       validates_presence :app
       validates_presence :service_instance
@@ -26,6 +28,7 @@ module VCAP::CloudController
       validate_logging_service_binding if service_instance.respond_to?(:service_plan)
 
       validate_app_and_service_instance(app, service_instance)
+      validate_cannot_change_binding
     end
 
     def validate_logging_service_binding
@@ -42,6 +45,16 @@ module VCAP::CloudController
             "'#{app.space.name}' '#{service_instance.space.name}'")
         end
       end
+    end
+
+    def validate_cannot_change_binding
+      return if new?
+
+      app_change = column_change(:app_id)
+      errors.add(:app, :invalid_relation) if app_change && app_change[0] != app_change[1]
+
+      service_change = column_change(:service_instance_id)
+      errors.add(:service_instance, :invalid_relation) if service_change && service_change[0] != service_change[1]
     end
 
     def to_hash(opts={})
@@ -94,19 +107,17 @@ module VCAP::CloudController
       {:service_instance => ServiceInstance.user_visible(user)}
     end
 
-    def credentials=(val)
-      json = MultiJson.dump(val)
-      generate_salt
-      encrypted_string = VCAP::CloudController::Encryptor.encrypt(json, salt)
-      super(encrypted_string)
+    def credentials_with_serialization=(val)
+      self.credentials_without_serialization = MultiJson.dump(val)
     end
+    alias_method_chain :credentials=, "serialization"
 
-    def credentials
-      encrypted_string = super
-      return unless encrypted_string
-      json = VCAP::CloudController::Encryptor.decrypt(encrypted_string, salt)
-      MultiJson.load(json) if json
+    def credentials_with_serialization
+      string = credentials_without_serialization
+      return if string.blank?
+      MultiJson.load string
     end
+    alias_method_chain :credentials, "serialization"
 
     def gateway_data=(val)
       val = MultiJson.dump(val)
@@ -121,10 +132,6 @@ module VCAP::CloudController
 
     def logger
       @logger ||= Steno.logger("cc.models.service_binding")
-    end
-
-    def generate_salt
-      self.salt ||= VCAP::CloudController::Encryptor.generate_salt
     end
 
     DEFAULT_BINDING_OPTIONS = '{}'

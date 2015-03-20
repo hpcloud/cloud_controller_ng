@@ -249,8 +249,8 @@ module VCAP::CloudController
 
     describe "Serialization" do
       it { is_expected.to export_attributes :name, :organization_guid, :is_default, :space_quota_definition_guid }
-      it { is_expected.to import_attributes :name, :organization_guid,
-                                            :developer_guids, :manager_guids, :auditor_guids, :is_default, :security_group_guids }
+      it { is_expected.to import_attributes :name, :organization_guid, :developer_guids, :manager_guids,
+        :auditor_guids, :is_default, :security_group_guids, :space_quota_definition_guid }
     end
 
     describe "#in_suspended_org?" do

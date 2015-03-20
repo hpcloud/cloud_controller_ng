@@ -20,14 +20,11 @@ module VCAP::CloudController
           developer_guids:        { type: "[string]" },
           manager_guids:          { type: "[string]" },
           auditor_guids:          { type: "[string]" },
-          app_guids:              { type: "[string]" },
-          route_guids:            { type: "[string]" },
           domain_guids:           { type: "[string]" },
           service_instance_guids: { type: "[string]" },
-          app_event_guids:        { type: "[string]" },
-          event_guids:            { type: "[string]" },
           security_group_guids:   { type: "[string]" },
           is_default:             { type: "bool", default: false},
+		      space_quota_definition_guid: { type: "string" },
         })
       end
 
@@ -38,12 +35,8 @@ module VCAP::CloudController
           developer_guids:        { type: "[string]" },
           manager_guids:          { type: "[string]" },
           auditor_guids:          { type: "[string]" },
-          app_guids:              { type: "[string]" },
-          route_guids:            { type: "[string]" },
           domain_guids:           { type: "[string]" },
           service_instance_guids: { type: "[string]" },
-          app_event_guids:        { type: "[string]" },
-          event_guids:            { type: "[string]" },
           security_group_guids:   { type: "[string]" },
           is_default:             { type: "bool"},
         })
@@ -140,12 +133,12 @@ module VCAP::CloudController
             developers:        [:get, :put, :delete],
             managers:          [:get, :put, :delete],
             auditors:          [:get, :put, :delete],
-            apps:              [:get, :put, :delete],
-            routes:            [:get, :put, :delete],
+            apps:              [:get],
+            routes:            [:get],
             domains:           [:get, :put, :delete],
-            service_instances: [:get, :put, :delete],
-            app_events:        [:get, :put, :delete],
-            events:            [:get, :put, :delete],
+            service_instances: [:get],
+            app_events:        [:get],
+            events:            [:get],
             security_groups:   [:get, :put, :delete],
           })
       end
