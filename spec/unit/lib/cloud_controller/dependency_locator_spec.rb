@@ -347,7 +347,7 @@ describe CloudController::DependencyLocator do
 
   describe "#backends" do
     it "returns the backends" do
-      expect(locator.backends).to be_an_instance_of(VCAP::CloudController::Backends)
+      expect(locator.backends).to be_an_instance_of(VCAP::CloudController::StackatoBackends)
     end
 
   end
