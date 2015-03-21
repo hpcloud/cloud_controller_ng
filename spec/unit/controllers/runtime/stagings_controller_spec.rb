@@ -317,7 +317,10 @@ module VCAP::CloudController
           end
 
           context "without nginx" do
-            before { TestConfig.config[:nginx][:use_nginx] = false }
+            before do
+              TestConfig.config[:nginx][:use_nginx] = false
+              TestConfig.config[:stackato_upload_handler][:enabled] = false
+            end
 
             it "should return the droplet" do
               Tempfile.create(app_obj.guid) do |f|
