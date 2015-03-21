@@ -17,8 +17,7 @@ module CloudController
 
     LARGE_COLLECTION_SIZE = 10_000
 
-    attr_reader :backends
-    attr_writer :config
+    attr_accessor :config
 
     def initialize(config = VCAP::CloudController::Config.config,
                    message_bus = VCAP::CloudController::Config.message_bus,

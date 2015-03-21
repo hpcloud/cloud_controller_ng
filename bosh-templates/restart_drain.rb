@@ -9,5 +9,6 @@ require "cloud_controller/drain"
 @drain.log_invocation(ARGV)
 @drain.unregister_cc("/var/vcap/sys/run/cloud_controller_ng/cloud_controller_ng.pid")
 @drain.shutdown_nginx("/var/vcap/sys/run/nginx_cc/nginx.pid")
+@drain.shutdown_cc("/var/vcap/sys/run/cloud_controller_ng/cloud_controller_ng.pid")
 
 puts 0 # tell bosh the drain script succeeded

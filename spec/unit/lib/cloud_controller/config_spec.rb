@@ -8,7 +8,7 @@ module VCAP::CloudController
       it "raises if the file does not exist" do
         expect {
           Config.from_file("nonexistent.yml")
-        }.to raise_error(Errno::ENOENT, /No such file or directory - nonexistent.yml/)
+        }.to raise_error(Errno::ENOENT, /No such file or directory @ rb_sysopen - nonexistent.yml/)
       end
 
       it "raises if the config is invalid" do
@@ -118,7 +118,7 @@ module VCAP::CloudController
           end
 
           it "preserves the diego configuration from the file" do
-            expect(config[:diego][:staging]).to eq("required")
+            expect(config[:diego][:staging]).to eq("optional")
             expect(config[:diego][:running]).to eq("optional")
             expect(config[:diego_docker]).to eq(true)
           end
@@ -207,6 +207,10 @@ module VCAP::CloudController
                 },
             },
             hm9000_noop: true,
+          diego: {
+            staging: 'optional',
+            running: 'optional',
+          },
         }
       end
 
@@ -260,20 +264,6 @@ module VCAP::CloudController
 
         expect(message_bus).to receive(:subscribe).at_least(:once)
         Dea::Client.dea_pool.register_subscriptions
-      end
-
-      it "starts the legacy staging task completion handler" do
-        expect_any_instance_of(Diego::Traditional::StagingCompletionHandler).to receive(:subscribe!)
-
-        Config.configure_components(@test_config)
-        Config.configure_components_depending_on_message_bus(message_bus)
-      end
-
-      it "starts the docker staging task completion handler" do
-        expect_any_instance_of(Diego::Docker::StagingCompletionHandler).to receive(:subscribe!)
-
-        Config.configure_components(@test_config)
-        Config.configure_components_depending_on_message_bus(message_bus)
       end
 
       it "sets the legacy bulk" do
@@ -352,28 +342,15 @@ module VCAP::CloudController
     describe ".validate(hash)" do
       invalid_configs = [
         {
-          diego: {staging: 'disabled', running: 'optional'},
-          diego_docker: false,
-        },
-        {
           diego: {staging: 'disabled', running: 'required'},
           diego_docker: false,
         },
         {
-          diego: {staging: 'optional', running: 'required'},
+          diego: {staging: 'penguin', running: 'optional'},
           diego_docker: false,
         },
-
         {
-          diego: {staging: 'disabled', running: 'disabled'},
-          diego_docker: true,
-        },
-        {
-          diego: {staging: 'optional', running: 'disabled'},
-          diego_docker: true,
-        },
-        {
-          diego: {staging: 'disabled', running: 'optional'},
+          diego: {staging: 'required', running: 'optional'},
           diego_docker: true,
         },
       ]
@@ -388,7 +365,7 @@ module VCAP::CloudController
           diego_docker: false,
         },
         {
-          diego: {staging: 'required', running: 'disabled'},
+          diego: {staging: 'disabled', running: 'optional'},
           diego_docker: false,
         },
         {

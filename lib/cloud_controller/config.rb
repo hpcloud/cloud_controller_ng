@@ -55,7 +55,10 @@ module VCAP::CloudController
         :uaa => {
           :url                => String,
           :resource_id        => String,
-          optional(:symmetric_secret)   => String
+          optional(:symmetric_secret)   => String,
+          optional(:connection_opts) => {
+            optional(:skip_ssl_validation) => bool
+          }
         },
 
         :logging => {
@@ -91,6 +94,11 @@ module VCAP::CloudController
         },
 
         :bulk_api => {
+          :auth_user  => String,
+          :auth_password => String,
+        },
+
+        :internal_api => {
           :auth_user  => String,
           :auth_password => String,
         },
@@ -303,22 +311,20 @@ module VCAP::CloudController
         blobstore_url_generator = dependency_locator.blobstore_url_generator
         stager_pool = Dea::StagerPool.new(@config, message_bus, blobstore_url_generator)
         dea_pool = Dea::Pool.new(@config, message_bus)
-        backends = Backends.new(@config, message_bus, dea_pool, stager_pool)
+        backends = StackatoBackends.new(@config, message_bus, dea_pool, stager_pool, health_manager_client)
+        #XXX Remove this?
+        #backends = Backends.new(@config, message_bus, dea_pool, stager_pool)
         dependency_locator.register(:backends, backends)
 
         diego_client.connect!
 
         Dea::Client.configure(@config, message_bus, dea_pool, stager_pool, blobstore_url_generator)
 
-        Diego::Traditional::StagingCompletionHandler.new(message_bus, backends).subscribe!
-        Diego::Docker::StagingCompletionHandler.new(message_bus, backends).subscribe!
-
-        backends = StackatoBackends.new(@config, message_bus, dea_pool, stager_pool, health_manager_client)
         AppObserver.configure(backends)
 
         LegacyBulk.configure(@config, message_bus)
 
-        BulkApi.configure(@config)
+        InternalApi.configure(@config)
       end
 
       def config_dir
@@ -364,12 +370,8 @@ module VCAP::CloudController
       end
 
       def validate!(config)
-        if (config[:diego][:staging] == 'disabled' && config[:diego][:running] != 'disabled') ||
-          (config[:diego][:staging] == 'optional' && config[:diego][:running] == 'required') ||
-          (config[:diego][:running] == 'disabled' && config[:diego_docker])
-
-          raise "Invalid diego configuration"
-        end
+        raise "Invalid diego configuration" unless (config[:diego][:staging] == 'disabled' || config[:diego][:staging] == 'optional')
+        raise "Invalid diego configuration" unless (config[:diego][:running] == 'disabled' || config[:diego][:running] == 'optional')
       end
 
       private
