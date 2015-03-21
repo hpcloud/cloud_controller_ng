@@ -1,7 +1,7 @@
 ---
 diego:
   staging: disabled
-  running: optional
+  running: required
 
 diego_docker:
   false
@@ -54,6 +54,10 @@ pid_filename: /tmp/cloud_controller.pid
 bulk_api:
   auth_user: bulk_user
   auth_password: bulk_password
+
+internal_api:
+  auth_user: internal_user
+  auth_password: internal_password
 
 staging:
   timeout_in_seconds: 120

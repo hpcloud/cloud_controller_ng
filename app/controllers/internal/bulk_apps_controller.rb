@@ -2,7 +2,7 @@ require "sinatra"
 require "controllers/base/base_controller"
 require "cloud_controller/diego/client"
 require "cloud_controller/diego/staged_apps_query"
-require "cloud_controller/bulk_api"
+require "cloud_controller/internal_api"
 
 module VCAP::CloudController
   class BulkAppsController < RestController::BaseController
@@ -12,7 +12,7 @@ module VCAP::CloudController
     def initialize(*)
       super
       auth = Rack::Auth::Basic::Request.new(env)
-      unless auth.provided? && auth.basic? && auth.credentials == BulkApi.credentials
+      unless auth.provided? && auth.basic? && auth.credentials == InternalApi.credentials
         raise Errors::ApiError.new_from_details("NotAuthenticated")
       end
     end
@@ -21,19 +21,21 @@ module VCAP::CloudController
       batch_size = Integer(params.fetch("batch_size"))
       bulk_token = MultiJson.load(params.fetch("token"))
       last_id = Integer(bulk_token["id"] || 0)
-
-      staged_apps_query = Diego::StagedAppsQuery.new(batch_size, last_id)
-      staged_apps = staged_apps_query.all
+      apps = []
+      id_for_next_token = nil
 
       dependency_locator = ::CloudController::DependencyLocator.instance
       backends = dependency_locator.backends
+      config = dependency_locator.config
 
-      apps = []
-      id_for_next_token = nil
-      staged_apps.each do |app|
-        msg = backends.find_one_to_run(app).desire_app_message
-        apps << msg
-        id_for_next_token = app.id
+      if config[:diego][:running] == 'optional'
+        staged_apps_query = Diego::StagedAppsQuery.new(batch_size, last_id)
+        staged_apps = staged_apps_query.all
+        staged_apps.each do |app|
+          msg = backends.find_one_to_run(app).desire_app_message
+          apps << msg
+          id_for_next_token = app.id
+        end
       end
 
       MultiJson.dump(

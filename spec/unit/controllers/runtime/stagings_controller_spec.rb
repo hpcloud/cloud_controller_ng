@@ -317,10 +317,13 @@ module VCAP::CloudController
           end
 
           context "without nginx" do
-            before { TestConfig.config[:nginx][:use_nginx] = false }
+            before do
+              TestConfig.config[:nginx][:use_nginx] = false
+              TestConfig.config[:stackato_upload_handler][:enabled] = false
+            end
 
             it "should return the droplet" do
-              Tempfile.new(app_obj.guid) do |f|
+              Tempfile.create(app_obj.guid) do |f|
                 f.write("droplet contents")
                 f.close
                 CloudController::DropletUploader.new(app_obj, blobstore).upload(f.path)
