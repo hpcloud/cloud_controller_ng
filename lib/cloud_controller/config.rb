@@ -56,9 +56,6 @@ module VCAP::CloudController
           :url                => String,
           :resource_id        => String,
           optional(:symmetric_secret)   => String,
-          optional(:connection_opts) => {
-            optional(:skip_ssl_validation) => bool
-          }
         },
 
         :logging => {
