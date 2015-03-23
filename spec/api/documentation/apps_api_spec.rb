@@ -153,6 +153,7 @@ resource "Apps", :type => :api do
 
       expect(parsed_response).to have_key('system_env_json')
       expect(parsed_response).to have_key('environment_json')
+      expect(parsed_response).to have_key('application_env_json')
     end
   end
 
@@ -242,3 +243,4 @@ resource "Apps", :type => :api do
     end
   end
 end
+
