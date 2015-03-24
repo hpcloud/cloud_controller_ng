@@ -115,12 +115,12 @@ module VCAP::CloudController
         :message => "Deleted app '#{name}'"
       }
       logger.info("TIMELINE #{event.to_json}")
+      app.destroy
       @app_event_repository.record_app_delete_request(
           app,
           SecurityContext.current_user,
           SecurityContext.current_user_email,
           recursive?)
-      app.destroy
 
       [ HTTP::NO_CONTENT, nil ]
     end

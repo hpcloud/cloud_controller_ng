@@ -2202,31 +2202,44 @@ module VCAP::CloudController
       end
     end
 
-    describe "diego flag" do
+    describe "diego" do
       subject { AppFactory.make }
 
-      context "when the CF_DIEGO_RUN_BETA environment variable is set and saved" do
+      context "when the DIEGO_RUN_BETA environment variable is set and saved" do
+        before do
+          subject.environment_json = {"DIEGO_RUN_BETA" => "true"}
+        end
+
         it "becomes a diego app" do
-          expect(subject.diego).to eq(false)
+          expect {
+            subject.save
+            subject.refresh
+          }.to change {
+            subject.diego
+          }.from(false).to(true)
+        end
 
-          subject.environment_json = {"CF_DIEGO_RUN_BETA" => "true"}
-
-          expect(subject.diego).to eq(false)
-
-          subject.save
-          subject.refresh
-
-          expect(subject.diego).to eq(true)
+        it "stages with diego" do
+          expect(subject.stage_with_diego?).to eq(true)
         end
       end
 
-      context "when the configuration requires diego for running" do
+      context "when the DIEGO_STAGE_BETA environment variable is set and saved" do
         before do
-          TestConfig.override(diego: { staging: "required", running: "required" })
+          subject.environment_json = {"DIEGO_STAGE_BETA" => "true"}
         end
 
-        it "gets created as a diego app" do
-          expect(subject.diego).to be(true)
+        it "stages with diego" do
+          expect(subject.stage_with_diego?).to eq(true)
+        end
+
+        it "remains a dea app" do
+          expect {
+            subject.save
+            subject.refresh
+          }.to_not change {
+            subject.diego
+          }.from(false)
         end
       end
 
@@ -2238,7 +2251,7 @@ module VCAP::CloudController
         let(:route) { Route.make :domain => domain, :space => subject.space }
 
         before do
-          subject.environment_json = {"CF_DIEGO_RUN_BETA" => "true"}
+          subject.environment_json = {"DIEGO_RUN_BETA" => "true"}
         end
 
         it "do not update the app's version" do

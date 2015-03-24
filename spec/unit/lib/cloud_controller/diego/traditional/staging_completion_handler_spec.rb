@@ -35,13 +35,13 @@ module VCAP::CloudController
       fail_response.except("task_id")
     end
 
-    let(:backend) do
-      instance_double(Diego::Backend, start: nil)
+    let(:runner) do
+      instance_double(Diego::Runner, start: nil)
     end
 
-    let(:backends) { instance_double(Backends, find_one_to_run: backend) }
+    let(:runners) { instance_double(Runners, runner_for_app: runner) }
 
-    subject { Diego::Traditional::StagingCompletionHandler.new(backends) }
+    subject { Diego::Traditional::StagingCompletionHandler.new(runners) }
 
     before do
       allow(Steno).to receive(:logger).with("cc.stager").and_return(logger)
@@ -79,11 +79,11 @@ module VCAP::CloudController
 
       context "when running in diego is not enabled" do
         it "starts the app instances" do
-          expect(backends).to receive(:find_one_to_run) do |received_app|
+          expect(runners).to receive(:runner_for_app) do |received_app|
             expect(received_app.guid).to eq(app_id)
-            backend
+            runner
           end
-          expect(backend).to receive(:start)
+          expect(runner).to receive(:start)
           handle_staging_result(success_response)
         end
 
@@ -101,35 +101,28 @@ module VCAP::CloudController
       end
 
       context "when running in diego is enabled" do
-        let(:environment) { {"CF_DIEGO_RUN_BETA" => "true"} }
+        let(:environment) { {"DIEGO_RUN_BETA" => "true"} }
 
         it "desires the app using the diego client" do
-          expect(backends).to receive(:find_one_to_run) do |received_app|
+          expect(runners).to receive(:runner_for_app) do |received_app|
             expect(received_app.guid).to eq(app_id)
-            backend
+            runner
           end
-          expect(backend).to receive(:start)
+          expect(runner).to receive(:start)
           handle_staging_result(success_response)
         end
       end
     end
 
     describe "failure cases" do
-      context "when another staging task has started" do
+      context "when the app has already been staged" do
         before do
-          success_response["task_id"] = "another-task-id"
-        end
-
-        it "does not start the app instances" do
-          expect(Dea::Client).not_to receive(:start)
           handle_staging_result(success_response)
         end
 
-        it "should not update the app with a detected buildpack" do
+        it "does not start the app instances twice" do
           handle_staging_result(success_response)
-          staged_app.reload
-          expect(staged_app.detected_buildpack).not_to eq("INTERCAL")
-          expect(staged_app.detected_buildpack_guid).not_to eq(buildpack.guid)
+          expect(runner).to have_received(:start).once
         end
       end
 
@@ -165,7 +158,7 @@ module VCAP::CloudController
         end
 
         it "should not attempt to start anything" do
-          expect(backend).not_to have_received(:start)
+          expect(runner).not_to have_received(:start)
           expect(Dea::Client).not_to have_received(:start)
         end
 
@@ -181,7 +174,7 @@ module VCAP::CloudController
         end
 
         it "should not attempt to start anything" do
-          expect(backend).not_to have_received(:start)
+          expect(runner).not_to have_received(:start)
           expect(Dea::Client).not_to have_received(:start)
         end
 

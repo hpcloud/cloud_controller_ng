@@ -14,7 +14,7 @@ module VCAP::CloudController
       it "raises if the config is invalid" do
         expect {
           Config.from_file(File.join(Paths::FIXTURES, "config/invalid_diego.yml"))
-        }.to raise_error /Invalid.*diego/
+        }.to raise_error /required doesn't validate/ #'#
       end
     end
 
@@ -231,13 +231,24 @@ module VCAP::CloudController
         expect(ResourcePool.instance.minimum_size).to eq(9001)
       end
 
-      it "creates the runner backend" do
-        expect(VCAP::CloudController::StackatoBackends).to receive(:new).with(
+      it "creates the runners" do
+        expect(VCAP::CloudController::StackatoRunners).to receive(:new).with(
                                     @test_config,
                                     message_bus,
                                     instance_of(Dea::Pool),
                                     instance_of(Dea::StagerPool),
                                     instance_of(HealthManagerClient))
+        Config.configure_components(@test_config)
+        Config.configure_components_depending_on_message_bus(message_bus)
+      end
+
+      it "creates the stagers" do
+        expect(VCAP::CloudController::Stagers).to receive(:new).with(
+                                    @test_config,
+                                    message_bus,
+                                    instance_of(Dea::Pool),
+                                    instance_of(Dea::StagerPool),
+                                    instance_of(StackatoRunners))
         Config.configure_components(@test_config)
         Config.configure_components_depending_on_message_bus(message_bus)
       end
@@ -250,7 +261,8 @@ module VCAP::CloudController
       end
 
       it "sets up the app manager" do
-        expect(AppObserver).to receive(:configure).with(instance_of(VCAP::CloudController::StackatoBackends))
+        expect(AppObserver).to receive(:configure).with(instance_of(VCAP::CloudController::Stagers),
+                                                        instance_of(VCAP::CloudController::StackatoRunners))
 
         Config.configure_components(@test_config)
         Config.configure_components_depending_on_message_bus(message_bus)
@@ -339,67 +351,39 @@ module VCAP::CloudController
       end
     end
 
-    describe ".validate(hash)" do
-      invalid_configs = [
-        {
-          diego: {staging: 'disabled', running: 'required'},
-          diego_docker: false,
-        },
-        {
-          diego: {staging: 'penguin', running: 'optional'},
-          diego_docker: false,
-        },
-        {
-          diego: {staging: 'required', running: 'optional'},
-          diego_docker: true,
-        },
-      ]
+    describe "diego config validation" do
+      base_config = {staging: {auth: {user: "user", password: "password"}}}
 
-      valid_configs = [
-        {
-          diego: {staging: 'disabled', running: 'disabled'},
-          diego_docker: false,
-        },
-        {
-          diego: {staging: 'optional', running: 'disabled'},
-          diego_docker: false,
-        },
-        {
-          diego: {staging: 'disabled', running: 'optional'},
-          diego_docker: false,
-        },
-        {
-          diego: {staging: 'optional', running: 'optional'},
-          diego_docker: true,
-        },
-      ]
+      context "valid configurations" do
+        let(:valid_configs) do
+          [
+            {diego: {staging: "optional", running: "optional"}},
+            {diego: {staging: "optional", running: "disabled"}},
+            {diego: {staging: "disabled", running: "disabled"}},
+          ]
+        end
 
-      base_config = {
-        staging: {
-          auth: {
-            user: "the-user",
-            password: "the-password",
-          }
-        }
-      }
-
-      it "forbids invalid diego configurations" do
-        invalid_configs.each do |invalid_config|
-          invalid_config.merge!(base_config)
-
-          expect {
-            Config.validate!(Config.merge_defaults(invalid_config))
-          }.to raise_error /Invalid.*diego/
+        it "allows valid configurations" do
+          valid_configs.each do |config|
+            config.merge!(base_config)
+            expect {
+              Config.validate!(Config.merge_defaults(config))
+            }.to_not raise_error
+          end
         end
       end
 
-      it "allows valid diego configurations" do
-        valid_configs.each do |valid_config|
-          valid_config.merge!(base_config)
 
+      context "invalid configurations" do
+        let(:invalid_config) do
+          {diego: {staging: "disabled", running: "optional"}}
+        end
+
+        it "raises a validation exception" do
+          invalid_config.merge!(base_config)
           expect {
-            Config.validate!(Config.merge_defaults(valid_config))
-          }.not_to raise_error
+            Config.validate!(Config.merge_defaults(invalid_config))
+          }.to raise_error /Invalid.*diego/
         end
       end
     end

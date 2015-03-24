@@ -59,7 +59,7 @@ RSpec.configure do |rspec_config|
   rspec_config.include ControllerHelpers, type: :controller, :file_path => EscapedPath.join(%w[spec unit controllers])
   rspec_config.include ControllerHelpers, type: :api
   rspec_config.include ControllerHelpers, :file_path => EscapedPath.join(%w[spec acceptance])
-  rspec_config.include ApiDsl, type: :api
+  rspec_config.include ApiDsl, type: :legacy_api
 
   rspec_config.include IntegrationHelpers, type: :integration
   rspec_config.include IntegrationHttp, type: :integration
@@ -102,7 +102,8 @@ RSpec.configure do |rspec_config|
     TmpdirCleaner.clean
   end
 
-  rspec_config.after(:each, type: :api) { add_deprecation_warning }
+
+  rspec_config.after(:each, type: :legacy_api) { add_deprecation_warning }
 
   RspecApiDocumentation.configure do |c|
     c.format = [:html, :json]

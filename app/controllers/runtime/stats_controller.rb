@@ -14,7 +14,7 @@ module VCAP::CloudController
         raise ApiError.new_from_details('StatsError', msg)
       end
 
-      stats = instances_reporter.stats_for_app(app)
+      stats = instances_reporters.stats_for_app(app)
       stats.each_value do |data|
         # When an instance is starting up this value might not yet exist
         dsu = data[:stats]["usage"] rescue nil
@@ -27,11 +27,11 @@ module VCAP::CloudController
 
     protected
 
-    attr_reader :instances_reporter
+    attr_reader :instances_reporters
 
     def inject_dependencies(dependencies)
       super
-      @instances_reporter = dependencies[:instances_reporter]
+      @instances_reporters = dependencies[:instances_reporters]
     end
   end
 end
