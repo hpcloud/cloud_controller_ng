@@ -18,11 +18,11 @@ describe 'orphan mitigation' do
     let(:plan_guid) { @plan_guid }
 
     before do
-      stub_request(:put, %r(#{broker_url}/v2/service_instances/#{guid_pattern})).to_return { |request|
-        raise Timeout::Error.new('fake-timeout')
+      stub_request(:put, %r{#{broker_url}/v2/service_instances/#{guid_pattern}}).to_return { |request|
+        raise HTTPClient::TimeoutError.new('fake-timeout')
       }
 
-      stub_request(:delete, %r(#{broker_url}/v2/service_instances/#{guid_pattern})).
+      stub_request(:delete, %r{#{broker_url}/v2/service_instances/#{guid_pattern}}).
         to_return(status: 200, body: '{}')
 
       post('/v2/service_instances',
@@ -34,19 +34,17 @@ describe 'orphan mitigation' do
       json_headers(admin_headers))
     end
 
-    context 'when the broker times out' do
-      it 'makes the request to the broker and deprovisions' do
-        expect(a_request(:put, %r(http://username:password@broker-url/v2/service_instances/#{guid_pattern}))).to have_been_made
+    it 'makes the request to the broker and deprovisions' do
+      expect(a_request(:put, %r{http://username:password@broker-url/v2/service_instances/#{guid_pattern}})).to have_been_made
 
-        successes, failures = Delayed::Worker.new.work_off
-        expect([successes, failures]).to eq [1, 0]
+      successes, failures = Delayed::Worker.new.work_off
+      expect([successes, failures]).to eq [1, 0]
 
-        expect(a_request(:delete, %r(http://username:password@broker-url/v2/service_instances/#{guid_pattern}))).to have_been_made
-      end
+      expect(a_request(:delete, %r{http://username:password@broker-url/v2/service_instances/#{guid_pattern}})).to have_been_made
+    end
 
-      it 'responds to user with 504' do
-        expect(last_response.status).to eq(504)
-      end
+    it 'responds to user with 504' do
+      expect(last_response.status).to eq(504)
     end
   end
 
@@ -58,11 +56,11 @@ describe 'orphan mitigation' do
       provision_service
       create_app
 
-      stub_request(:put, %r(/v2/service_instances/#{service_instance_guid}/service_bindings/#{guid_pattern})).to_return { |request|
-        raise Timeout::Error.new('fake-timeout')
+      stub_request(:put, %r{/v2/service_instances/#{service_instance_guid}/service_bindings/#{guid_pattern}}).to_return { |request|
+        raise HTTPClient::TimeoutError.new('fake-timeout')
       }
 
-      stub_request(:delete, %r(/v2/service_instances/#{service_instance_guid}/service_bindings/#{guid_pattern})).
+      stub_request(:delete, %r{/v2/service_instances/#{service_instance_guid}/service_bindings/#{guid_pattern}}).
       to_return(status: 200, body: '{}')
 
       post('/v2/service_bindings',
@@ -70,20 +68,19 @@ describe 'orphan mitigation' do
         json_headers(admin_headers))
     end
 
-    context 'when the broker times out' do
+    it 'makes the request to the broker and deprovisions' do
+      expect(a_request(:put, %r{http://username:password@broker-url/v2/service_instances/#{service_instance_guid}/service_bindings/#{guid_pattern}})).
+        to have_been_made
 
-      it 'makes the request to the broker and deprovisions' do
-        expect(a_request(:put, %r(http://username:password@broker-url/v2/service_instances/#{service_instance_guid}/service_bindings/#{guid_pattern}))).to have_been_made
+      successes, failures = Delayed::Worker.new.work_off
+      expect([successes, failures]).to eq [1, 0]
 
-        successes, failures = Delayed::Worker.new.work_off
-        expect([successes, failures]).to eq [1, 0]
+      expect(a_request(:delete, %r{http://username:password@broker-url/v2/service_instances/#{service_instance_guid}/service_bindings/#{guid_pattern}})).
+        to have_been_made
+    end
 
-        expect(a_request(:delete, %r(http://username:password@broker-url/v2/service_instances/#{service_instance_guid}/service_bindings/#{guid_pattern}))).to have_been_made
-      end
-
-      it 'responds to user with 504' do
-        expect(last_response.status).to eq(504)
-      end
+    it 'responds to user with 504' do
+      expect(last_response.status).to eq(504)
     end
   end
 end
