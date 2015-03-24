@@ -189,7 +189,13 @@ module VCAP::CloudController
 
     def after_save
       snapshot_new_version if snapshot_necessary?
-      create_app_usage_event
+      #XXX Remove this comment
+      # upstream commit cd1a8d9704cab3a3f6b9d1bef1c9d6291bdcce8d
+      # on 2014-06-02 moved create_app_usage_event into
+      # after_update and after_create, so they removed this entire
+      # method.  We need it to set @changes (used in apps_controller.rb)
+      #create_app_usage_event
+      
       @changes = column_changes
       super
     end
@@ -267,13 +273,13 @@ module VCAP::CloudController
       end
     end
 
+    # Call VCAP::CloudController::Runners.run_with_diego? for the true answer
     def run_with_diego?
-      return true if Config.config[:diego][:running] == "required"
-      !!(environment_json && environment_json["CF_DIEGO_RUN_BETA"] == "true")
+      !!(environment_json && environment_json["DIEGO_RUN_BETA"] == "true")
     end
 
     def stage_with_diego?
-      run_with_diego? || !!(environment_json && environment_json["CF_DIEGO_BETA"] == "true")
+      run_with_diego? || !!(environment_json && environment_json["DIEGO_STAGE_BETA"] == "true")
     end
 
     def version_needs_to_be_updated?

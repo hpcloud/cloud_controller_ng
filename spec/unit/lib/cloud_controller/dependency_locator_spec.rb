@@ -230,6 +230,12 @@ describe CloudController::DependencyLocator do
     it { is_expected.to be_a(VCAP::CloudController::Repositories::Runtime::SpaceEventRepository) }
   end
 
+  describe "#process_repository" do
+    subject { locator.process_repository }
+
+    it { is_expected.to be_a(VCAP::CloudController::ProcessRepository) }
+  end
+
   describe "#object_renderer" do
     it "returns paginated collection renderer configured via config" do
       eager_loader = instance_of(VCAP::CloudController::RestController::SecureEagerLoader)
@@ -345,16 +351,21 @@ describe CloudController::DependencyLocator do
     end
   end
 
-  describe "#backends" do
-    it "returns the backends" do
-      expect(locator.backends).to be_an_instance_of(VCAP::CloudController::StackatoBackends)
+  describe "#stagers" do
+    it "returns the stagers" do
+      expect(locator.stagers).to be_an_instance_of(VCAP::CloudController::Stagers)
     end
-
   end
 
-  describe "#instances_reporter" do
-    it "returns the instances reporter" do
-      expect(locator.instances_reporter).to be_an_instance_of(VCAP::CloudController::CompositeInstancesReporter)
+  describe "#runners" do
+    it "returns the runners" do
+      expect(locator.runners).to be_an_instance_of(VCAP::CloudController::StackatoRunners)
+    end
+  end
+
+  describe "#instances_reporters" do
+    it "returns the instances reporters" do
+      expect(locator.instances_reporters).to be_an_instance_of(VCAP::CloudController::InstancesReporters)
     end
   end
 end

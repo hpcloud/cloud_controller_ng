@@ -78,6 +78,7 @@ require "cloud_controller/health_manager_client"
 require "cloud_controller/health_manager_respondent"
 
 require "cloud_controller/dea/hm9000/client"
+require "cloud_controller/dea/hm9000/legacy_client"
 require "cloud_controller/dea/hm9000/respondent"
 
 require "cloud_controller/structured_error"
@@ -88,6 +89,5 @@ require "cloud_controller/install_buildpacks"
 require "cloud_controller/upload_buildpack"
 
 require "cloud_controller/errors/instances_unavailable"
-require "cloud_controller/composite_instances_reporter"
 
 require "services"

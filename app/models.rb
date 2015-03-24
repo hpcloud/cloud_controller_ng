@@ -59,3 +59,5 @@ require "models/services/service_delete_event"
 require "models/services/service_usage_event"
 
 require "models/job"
+
+require "models/v3/domain/app_process"

@@ -42,8 +42,12 @@ module CloudController
       @dependencies[:health_manager_client] || raise('health_manager_client not set')
     end
 
-    def backends
-      @dependencies[:backends] || raise('backends not set')
+    def runners
+      @dependencies[:runners] || raise('runners not set')
+    end
+
+    def stagers
+      @dependencies[:stagers] || raise('stagers not set')
     end
 
     def diego_client
@@ -58,8 +62,8 @@ module CloudController
       @dependencies[:app_event_repository] || raise('app_event_registry not set')
     end
 
-    def instances_reporter
-      @dependencies[:instances_reporter] || raise('instances_reporter not set')
+    def instances_reporters
+      @dependencies[:instances_reporters] || raise('instances_reporters not set')
     end
 
     def droplet_blobstore
@@ -141,6 +145,10 @@ module CloudController
 
     def space_event_repository
       Repositories::Runtime::SpaceEventRepository.new
+    end
+
+    def process_repository
+      ProcessRepository.new
     end
 
     def object_renderer

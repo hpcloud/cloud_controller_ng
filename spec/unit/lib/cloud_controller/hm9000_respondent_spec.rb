@@ -85,8 +85,8 @@ module VCAP::CloudController
           context "if the desired index is within the desired number of instances" do
             let(:start_instance_index) {1}
             context "if app is in STARTED state" do
-              context "and the CF_DIEGO_RUN_BETA flag is set" do
-                let(:environment) { {"CF_DIEGO_RUN_BETA" => "true"} }
+              context "and the DIEGO_RUN_BETA flag is set" do
+                let(:environment) { {"DIEGO_RUN_BETA" => "true"} }
 
                 it "should not send the start message" do
                   expect(dea_client).not_to receive(:start_instance_at_index)
@@ -94,7 +94,7 @@ module VCAP::CloudController
                 end
               end
               
-              context "and the CF_DIEGO_RUN_BETA flag is not set" do
+              context "and the DIEGO_RUN_BETA flag is not set" do
                 it "should send the start message" do
                   expect(dea_client).to receive(:start_instance_at_index) do |app_to_start, index_to_start|
                     expect(app_to_start).to eq(app)
@@ -268,6 +268,35 @@ module VCAP::CloudController
               context "and the app is in the STOPPED state" do
                 let(:app_state) { "STOPPED" }
 
+                it "should stop the instance" do
+                  expect(dea_client).to receive(:stop_instances) do |app_guid_to_stop, guid|
+                    expect(app_guid_to_stop).to eq(app.guid)
+                    expect(guid).to eq("abc")
+                  end
+
+                  subject.process_hm9000_stop(hm9000_stop_message)
+                end
+              end
+            end
+
+            context "and the DIEGO_RUN_BETA flag is set " do
+              let(:environment) { {"DIEGO_RUN_BETA" => "true"} }
+
+              context "and diego is disabled" do
+                before do
+                  TestConfig.override(diego: {
+                    staging: 'disabled',
+                    running: 'disabled',
+                  })
+                end
+
+                it "should stop not the instance" do
+                  expect(dea_client).not_to receive(:stop_instances)
+                  subject.process_hm9000_stop(hm9000_stop_message)
+                end
+              end
+
+              context "and diego is enabled" do
                 it "should stop the instance" do
                   expect(dea_client).to receive(:stop_instances) do |app_guid_to_stop, guid|
                     expect(app_guid_to_stop).to eq(app.guid)

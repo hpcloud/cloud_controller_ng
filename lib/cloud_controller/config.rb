@@ -4,8 +4,9 @@ require "cloud_controller/account_capacity"
 require "cloud_controller/health_manager_client"
 require "uri"
 require 'kato/config'
-require "cloud_controller/diego/traditional/staging_completion_handler"
-require "cloud_controller/diego/docker/staging_completion_handler"
+require "cloud_controller/backends/stagers"
+require "cloud_controller/backends/runners"
+require "cloud_controller/backends/instances_reporters"
 
 # Config template for cloud controller
 module VCAP::CloudController
@@ -50,6 +51,10 @@ module VCAP::CloudController
 
         optional(:login) => {
           :url      => String
+        },
+
+        :hm9000 => {
+          :url                => String
         },
 
         :uaa => {
@@ -222,12 +227,10 @@ module VCAP::CloudController
           optional(:staging) => enum(
             "disabled",
             "optional",
-            "required",
           ),
           optional(:running) => enum(
             "disabled",
             "optional",
-            "required",
           )
         },
 
@@ -295,29 +298,33 @@ module VCAP::CloudController
         @message_bus = message_bus
         dependency_locator = CloudController::DependencyLocator.instance
         dependency_locator.config = @config
-        hm_client =  (@config[:hm9000_noop] ?
-                       HealthManagerClient :
-                       Dea::HM9000::Client).new(@message_bus, @config)
+        if @config[:hm9000_noop]
+          hm_client = HealthManagerClient.new(@message_bus, @config)
+        else
+          legacy_hm_client = Dea::HM9000::LegacyClient.new(@message_bus, @config)
+          hm_client = Dea::HM9000::Client.new(legacy_hm_client, @config)
+        end
         dependency_locator.register(:health_manager_client, hm_client)
         diego_client = Diego::Client.new(Diego::ServiceRegistry.new(message_bus))
         dependency_locator.register(:diego_client, diego_client)
         dependency_locator.register(:upload_handler, UploadHandler.new(config))
         dependency_locator.register(:app_event_repository, Repositories::Runtime::AppEventRepository.new)
-        dependency_locator.register(:instances_reporter, CompositeInstancesReporter.new(diego_client, hm_client))
 
         blobstore_url_generator = dependency_locator.blobstore_url_generator
         stager_pool = Dea::StagerPool.new(@config, message_bus, blobstore_url_generator)
         dea_pool = Dea::Pool.new(@config, message_bus)
-        backends = StackatoBackends.new(@config, message_bus, dea_pool, stager_pool, health_manager_client)
-        #XXX Remove this?
-        #backends = Backends.new(@config, message_bus, dea_pool, stager_pool)
-        dependency_locator.register(:backends, backends)
+        runners = StackatoRunners.new(@config, message_bus, dea_pool, stager_pool, health_manager_client)
+        stagers = Stagers.new(@config, message_bus, dea_pool, stager_pool, runners)
+
+        dependency_locator.register(:stagers, stagers)
+        dependency_locator.register(:runners, runners)
+        dependency_locator.register(:instances_reporters, InstancesReporters.new(@config, diego_client, hm_client))
 
         diego_client.connect!
 
         Dea::Client.configure(@config, message_bus, dea_pool, stager_pool, blobstore_url_generator)
 
-        AppObserver.configure(backends)
+        AppObserver.configure(stagers, runners)
 
         LegacyBulk.configure(@config, message_bus)
 
@@ -367,8 +374,9 @@ module VCAP::CloudController
       end
 
       def validate!(config)
-        raise "Invalid diego configuration" unless (config[:diego][:staging] == 'disabled' || config[:diego][:staging] == 'optional')
-        raise "Invalid diego configuration" unless (config[:diego][:running] == 'disabled' || config[:diego][:running] == 'optional')
+        if config[:diego][:staging] == 'disabled' && config[:diego][:running] != 'disabled'
+          raise "Invalid diego configuration"
+        end
       end
 
       private

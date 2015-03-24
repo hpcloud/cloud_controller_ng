@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'rspec_api_documentation/dsl'
 
-resource "Apps", :type => :api do
+resource "Apps", :type => [:api, :legacy_api] do
   let(:admin_auth_header) { admin_headers["HTTP_AUTHORIZATION"] }
   let(:admin_buildpack) { VCAP::CloudController::Buildpack.make }
   let!(:apps) { 3.times { VCAP::CloudController::AppFactory.make } }
@@ -68,7 +68,7 @@ resource "Apps", :type => :api do
 
       example "Creating a Docker App (experimental)" do
         space_guid = VCAP::CloudController::Space.make.guid
-        diego_environment = { "CF_DIEGO_BETA" => "true", "CF_DIEGO_RUN_BETA" => "true" }
+        diego_environment = { "DIEGO_STAGE_BETA" => "true", "DIEGO_RUN_BETA" => "true" }
 
         data = required_fields.merge(space_guid: space_guid, name: "docker_app", docker_image: "cloudfoundry/hello")
         data['environment_json'] = diego_environment
@@ -178,9 +178,9 @@ resource "Apps", :type => :api do
         },
       }
 
-      instances_reporter = double(:instances_reporter)
-      allow(CloudController::DependencyLocator.instance).to receive(:instances_reporter).and_return(instances_reporter)
-      allow(instances_reporter).to receive(:all_instances_for_app).and_return(instances)
+      instances_reporters = double(:instances_reporters)
+      allow(CloudController::DependencyLocator.instance).to receive(:instances_reporters).and_return(instances_reporters)
+      allow(instances_reporters).to receive(:all_instances_for_app).and_return(instances)
 
       client.get "/v2/apps/#{app_obj.guid}/instances", {}, headers
       expect(status).to eq(200)
@@ -234,9 +234,9 @@ resource "Apps", :type => :api do
         }
       }
 
-      instances_reporter = double(:instances_reporter)
-      allow(CloudController::DependencyLocator.instance).to receive(:instances_reporter).and_return(instances_reporter)
-      allow(instances_reporter).to receive(:stats_for_app).and_return(stats)
+      instances_reporters = double(:instances_reporters)
+      allow(CloudController::DependencyLocator.instance).to receive(:instances_reporters).and_return(instances_reporters)
+      allow(instances_reporters).to receive(:stats_for_app).and_return(stats)
 
       client.get "/v2/apps/#{app_obj.guid}/stats", {}, headers
       expect(status).to eq(200)

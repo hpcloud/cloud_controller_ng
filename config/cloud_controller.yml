@@ -93,6 +93,9 @@ uaa:
   connection_opts:
     skip_ssl_validation: false
 
+hm9000:
+  url: "http://localhost:5155"
+
 cc_partition: ng
 
 max_time_in_cache: 5d

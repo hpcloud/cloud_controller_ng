@@ -147,6 +147,9 @@ uaa:
   <% end %>
   verification_key: <%= p("uaa.jwt.verification_key") ? ("|\n      " + p("uaa.jwt.verification_key").gsub("\n", "\n      ")) : '~' %>
 
+hm9000:
+  url: <%= p("hm9000.url", "https://hm9000.#{domain}") %>
+
 # App staging parameters
 staging:
   timeout_in_seconds: <%= p("cc.staging_timeout_in_seconds") %>

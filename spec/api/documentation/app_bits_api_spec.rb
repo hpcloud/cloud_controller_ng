@@ -1,7 +1,7 @@
 require 'spec_helper'
 require 'rspec_api_documentation/dsl'
 
-resource 'Apps', :type => :api do
+resource 'Apps', :type => [:api, :legacy_api] do
   let(:admin_auth_header) { admin_headers['HTTP_AUTHORIZATION'] }
   let(:tmpdir) { Dir.mktmpdir }
   let(:valid_zip) {
@@ -120,21 +120,22 @@ resource 'Apps', :type => :api do
     let(:dest_app) { VCAP::CloudController::AppFactory.make }
     let(:json_payload) { { :source_app_guid => src_app.guid }.to_json }
 
-    example "Copy the app bits for an App" do
+    field :source_app_guid, 'The guid for the source app', required: true
+
+    example "Copy the app bits for an App (Experimental)" do
+      explanation <<-eos
+        This endpoint will copy the package bits in the blobstore from the source app to the destination app.
+        It will always return a job which you can query for success or failure.
+        This operation will require the app to restart in order for the changes to take effect.
+      eos
+
       blobstore = double(:blobstore, cp_file_between_keys: nil)
       stub_const("CloudController::Blobstore::Client", double(:blobstore_client, new: blobstore))
 
       dest_app.update(package_updated_at: dest_app.package_updated_at - 1)
-      original_dest_pkg_updated_at = dest_app.package_updated_at
       client.post "/v2/apps/#{dest_app.guid}/copy_bits", json_payload, headers
 
       expect(status).to eq(201)
-
-      dest_app.reload
-      src_app.reload
-
-      expect(dest_app.package_updated_at).to_not eq(original_dest_pkg_updated_at)
-      expect(dest_app.package_hash).to eq(src_app.package_hash)
     end
   end
 end
