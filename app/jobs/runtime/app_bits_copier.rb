@@ -1,7 +1,7 @@
 module VCAP::CloudController
   module Jobs
     module Runtime
-      class AppBitsCopier
+      class AppBitsCopier < VCAP::CloudController::Jobs::CCJob
         def initialize(src_app, dest_app, app_event_repo, user, email)
           @user           = user
           @email          = email
@@ -11,7 +11,7 @@ module VCAP::CloudController
         end
 
         def perform
-          logger = Steno.logger("cc.background")
+          logger = Steno.logger('cc.background')
           logger.info("Copying the app bits from app '#{@src_app.guid}' to app '#{@dest_app.guid}'")
 
           package_blobstore = CloudController::DependencyLocator.instance.package_blobstore

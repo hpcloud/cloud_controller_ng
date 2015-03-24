@@ -1,4 +1,4 @@
-require "time"
+require 'time'
 
 module VCAP::RestAPI
   #
@@ -10,7 +10,6 @@ module VCAP::RestAPI
   # filtered dataset.  Since datasets aren't bound to a particular model,
   # we need to pass both pieces of infomration.
   class Query
-
     # Create a new Query.
     #
     # @param [Sequel::Model] model The model to query against
@@ -72,23 +71,27 @@ module VCAP::RestAPI
       end
     end
 
+    class << self
+      attr_accessor :uuid
+    end
+
     def parse
-      @@v ||= SecureRandom.uuid
+      Query.uuid ||= SecureRandom.uuid
       segments = []
 
       query.each do |q|
-        q.gsub!(";;", @@v)
-        segments.concat(q.split(";"))
+        q.gsub!(';;', Query.uuid)
+        segments.concat(q.split(';'))
       end
 
       segments.collect do |segment|
-        segment.gsub!(@@v, ";")
+        segment.gsub!(Query.uuid, ';')
         key, comparison, value = segment.split(/(:|>=|<=|<|>| IN )/, 2)
 
-        comparison = "=" if comparison == ":"
+        comparison = '=' if comparison == ':'
 
         unless queryable_attributes.include?(key)
-          raise VCAP::Errors::ApiError.new_from_details("BadQueryParameter", key)
+          raise VCAP::Errors::ApiError.new_from_details('BadQueryParameter', key)
         end
 
         [key.to_sym, comparison, value]
@@ -97,10 +100,10 @@ module VCAP::RestAPI
 
     def query_filter(key, comparison, val)
       foreign_key_association = foreign_key_association(key)
-      if comparison == " IN "
+      if comparison == ' IN '
         do_glob_check = false
         glob = false
-        values = val.split(",")
+        values = val.split(',')
       else
         do_glob_check = true
         values = [val]
@@ -112,7 +115,8 @@ module VCAP::RestAPI
         glob = [:string, :citext].include?(col_type) && val.match(/#{Regexp.escape('*')}$/)
       end
 
-      values = values.collect{ |value| cast_query_value(col_type, key, value) }.compact
+      col_type = column_type(key)
+      values = values.collect { |value| cast_query_value(col_type, key, value) }.compact
 
       if values.empty?
         { key => nil }
@@ -169,7 +173,7 @@ module VCAP::RestAPI
     def foreign_key_association(query_key)
       return unless query_key =~ /(.*)_(gu)?id$/
 
-      foreign_key_table = $1
+      foreign_key_table = Regexp.last_match[1]
 
       if model.associations.include?(foreign_key_table.to_sym)
         foreign_key_table.to_sym
@@ -188,26 +192,18 @@ module VCAP::RestAPI
       { foreign_key_column_name => foreign_key_value }
     end
 
-    TINYINT_TYPE = "tinyint(1)".freeze
-    TINYINT_FROM_TRUE_FALSE = {"t" => 1, "f" => 0}.freeze
-
     # Sequel uses tinyint(1) to store booleans in Mysql.
     # Mysql does not support using 't'/'f' for querying.
-    def clean_up_boolean(q_key, q_val)
-      column = model.db_schema[q_key.to_sym]
-
-      if column[:db_type] == TINYINT_TYPE || column[:db_type] == :boolean
-        q_val = TINYINT_FROM_TRUE_FALSE.fetch(q_val, q_val)
-      end
-      q_val
+    def clean_up_boolean(_, q_val)
+      q_val == 't' || q_val == 'true'
     end
 
     def clean_up_datetime(q_val)
-      return (q_val.empty? rescue true) ? nil : Time.parse(q_val).localtime
+      q_val.empty? ? nil : Time.parse(q_val).localtime
     end
 
     def clean_up_integer(q_val)
-      return (q_val.empty? rescue true) ? nil : q_val.to_i
+      q_val.empty? ? nil : q_val.to_i
     end
 
     def clean_up_string(q_val)
@@ -229,7 +225,7 @@ module VCAP::RestAPI
       # that a query key came in for an attribute that is explicitly
       # in the queryable_attributes, but is not a column or an association.
 
-      raise VCAP::Errors::ApiError.new_from_details("BadQueryParameter", query_key) unless column
+      raise VCAP::Errors::ApiError.new_from_details('BadQueryParameter', query_key) unless column
     end
 
     attr_accessor :model, :access_filter, :queryable_attributes, :query

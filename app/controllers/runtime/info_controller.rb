@@ -8,7 +8,7 @@ module VCAP::CloudController
   class InfoController < RestController::BaseController
     allow_unauthenticated_access
 
-    get "/v2/info", :read
+    get '/v2/info', :read
     def read
       license = Kato::Config.get("cluster", "license")
       info = {
