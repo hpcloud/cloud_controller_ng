@@ -1,4 +1,4 @@
-require "spec_helper"
+require 'spec_helper'
 
 module VCAP::CloudController
   module Jobs::Services
@@ -8,9 +8,9 @@ module VCAP::CloudController
       let(:app_guid) { 'fake-app-guid' }
       let(:binding_guid) { 'fake-binding-guid' }
 
-      let(:binding) { instance_double('VCAP::CloudController::ServiceBinding') }
+      let(:service_binding) { instance_double('VCAP::CloudController::ServiceBinding') }
       before do
-        allow(VCAP::CloudController::ServiceBinding).to receive(:new).and_return(binding)
+        allow(VCAP::CloudController::ServiceBinding).to receive(:new).and_return(service_binding)
       end
 
       let(:name) { 'fake-name' }
@@ -18,14 +18,14 @@ module VCAP::CloudController
 
       describe '#perform' do
         before do
-          allow(client).to receive(:unbind).with(binding)
+          allow(client).to receive(:unbind).with(service_binding)
           allow(VCAP::Services::ServiceBrokers::V2::Client).to receive(:new).and_return(client)
         end
 
         it 'unbinds the binding' do
           job.perform
 
-          expect(client).to have_received(:unbind).with(binding)
+          expect(client).to have_received(:unbind).with(service_binding)
         end
       end
 
@@ -36,8 +36,17 @@ module VCAP::CloudController
       end
 
       describe '#max_attempts' do
-        it 'returns 3' do
-          expect(job.max_attempts).to eq 3
+        it 'returns 10' do
+          expect(job.max_attempts).to eq 10
+        end
+      end
+
+      describe '#reschedule_at' do
+        it 'uses exponential backoff' do
+          now = Time.now
+
+          run_at = job.reschedule_at(now, 5)
+          expect(run_at).to eq(now + (2**5).minutes)
         end
       end
     end
