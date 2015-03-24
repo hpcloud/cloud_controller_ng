@@ -75,5 +75,9 @@ module VCAP::CloudController
       messenger = Diego::Messenger.new(@message_bus, protocol)
       Diego::Runner.new(app, messenger, protocol)
     end
+
+    def staging_timeout
+      @config[:staging][:timeout_in_seconds]
+    end
   end
 end

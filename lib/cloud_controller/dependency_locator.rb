@@ -11,6 +11,7 @@ require "cloud_controller/diego/messenger"
 require "cloud_controller/diego/traditional/protocol"
 
 module CloudController
+
   class DependencyLocator
     include Singleton
     include VCAP::CloudController
@@ -26,6 +27,10 @@ module CloudController
       @message_bus = message_bus
       @backends = backends
       @dependencies = {}
+    end
+
+    def config
+      @config || raise('config not set')
     end
 
     def register(name, value)
@@ -59,7 +64,7 @@ module CloudController
     end
 
     def app_event_repository
-      @dependencies[:app_event_repository] || raise('app_event_registry not set')
+      @dependencies[:app_event_repository] || raise('app_event_repository not set')
     end
 
     def instances_reporters
@@ -147,12 +152,20 @@ module CloudController
       Repositories::Runtime::SpaceEventRepository.new
     end
 
+    def services_event_repository
+      Repositories::Services::EventRepository.new
+    end
+
     def process_repository
       ProcessRepository.new
     end
 
     def app_repository
       AppRepository.new
+    end
+
+    def processes_handler
+      ProcessesHandler.new(process_repository, app_event_repository)
     end
 
     def object_renderer

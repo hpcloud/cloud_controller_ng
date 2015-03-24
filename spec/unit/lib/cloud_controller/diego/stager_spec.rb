@@ -7,27 +7,34 @@ module VCAP::CloudController
         instance_double(Messenger, send_desire_request: nil)
       end
 
-      let(:app) do
-        instance_double(App)
-      end
+      let(:app) { AppFactory.make(staging_task_id: 'first_id') }
 
       let (:completion_handler) do
         instance_double(Diego::Traditional::StagingCompletionHandler, staging_complete: nil)
       end
 
       subject(:stager) do
-        Stager.new(app, messenger, completion_handler)
+        Stager.new(app, messenger, completion_handler, 900)
       end
 
       describe "#stage" do
+        let(:task_id) {app.staging_task_id}
+
         before do
           allow(messenger).to receive(:send_stage_request)
-
-          stager.stage
+          allow(messenger).to receive(:send_stop_staging_request)
         end
 
         it "notifies Diego that the app needs staging" do
-          expect(messenger).to have_received(:send_stage_request).with(app)
+          expect(messenger).to receive(:send_stage_request).with(app, 900)
+          stager.stage
+        end
+
+        context "when there is a pending stage" do
+          it "attempts to stop the outstanding stage request" do
+            expect(messenger).to receive(:send_stop_staging_request).with(app, task_id)
+            stager.stage
+          end
         end
       end
 

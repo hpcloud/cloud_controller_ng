@@ -1,5 +1,9 @@
 module VCAP::CloudController
   class AppsController < RestController::ModelController
+    def self.dependencies
+      [ :app_event_repository, :health_manager_client ]
+    end
+
     define_attributes do
       attribute  :buildpack,              String,           :default => nil
       attribute  :command,                String,           :default => nil
@@ -143,6 +147,7 @@ module VCAP::CloudController
       app.destroy
       @app_event_repository.record_app_delete_request(
           app,
+          app.space,
           SecurityContext.current_user,
           SecurityContext.current_user_email,
           recursive?)
@@ -195,6 +200,7 @@ module VCAP::CloudController
     def after_create(app)
       record_app_create_value = @app_event_repository.record_app_create(
           app,
+          app.space,
           SecurityContext.current_user,
           SecurityContext.current_user_email,
           request_attrs)
@@ -221,7 +227,7 @@ module VCAP::CloudController
         Dea::Client.update_uris(app)
       end
 
-      @app_event_repository.record_app_update(app, SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
+      @app_event_repository.record_app_update(app, app.space, SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
       update_health_manager_for_autoscaling(app)
 
       event = {
@@ -230,7 +236,7 @@ module VCAP::CloudController
         :changes => app.auditable_changes,
         :event => 'APP_UPDATED',
         :instance_index => -1,
-        :message => "Updated app '#{app.name}' -- #{App.audit_hash(request_attrs)}"
+        :message => "Updated app '#{app.name}' -- #{@app_event_repository.send(:app_audit_hash, request_attrs)}"
       }
       logger.info("TIMELINE #{event.to_json}")
     end

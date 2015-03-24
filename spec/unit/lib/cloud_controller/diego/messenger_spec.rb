@@ -39,7 +39,7 @@ module VCAP::CloudController
 
       describe "staging an app" do
         it "sends a nats message with the appropriate staging subject and payload" do
-          messenger.send_stage_request(app)
+          messenger.send_stage_request(app, 90)
 
           expected_message = {
             "app_id" => app.guid,
@@ -54,20 +54,13 @@ module VCAP::CloudController
             "app_bits_download_uri" => "http://app-package.com",
             "buildpacks" => Traditional::BuildpackEntryGenerator.new(blobstore_url_generator).buildpack_entries(app),
             "droplet_upload_uri" => "http://droplet-upload-uri",
+            "timeout" => 90,
           }
 
           expect(message_bus.published_messages.size).to eq(1)
           nats_message = message_bus.published_messages.first
           expect(nats_message[:subject]).to eq("diego.staging.start")
           expect(nats_message[:message]).to match_json(expected_message)
-        end
-
-        it "updates the app's staging task id so the staging response can be identified" do
-          allow(VCAP).to receive(:secure_uuid).and_return("unique-staging-task-id")
-
-          expect {
-            messenger.send_stage_request(app)
-          }.to change { app.refresh; app.staging_task_id }.to("unique-staging-task-id")
         end
       end
 
@@ -122,6 +115,23 @@ module VCAP::CloudController
             expect(nats_message[:subject]).to eq("diego.desire.app")
             expect(nats_message[:message]).to match_json(expected_message)
           end
+        end
+      end
+
+      describe "stop staging an app" do
+        let(:task_id) {'staging_task_id'}
+        it "sends a stop staging request" do
+          messenger.send_stop_staging_request(app, task_id)
+
+          expected_message = {
+            "app_id" => app.guid,
+            "task_id" => task_id,
+          }
+
+          expect(message_bus.published_messages.size).to eq(1)
+          nats_message = message_bus.published_messages.first
+          expect(nats_message[:subject]).to eq("diego.staging.stop")
+          expect(nats_message[:message]).to match_json(expected_message)
         end
       end
     end

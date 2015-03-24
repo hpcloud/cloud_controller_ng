@@ -7,6 +7,7 @@ require 'kato/config'
 require "cloud_controller/backends/stagers"
 require "cloud_controller/backends/runners"
 require "cloud_controller/backends/instances_reporters"
+require 'repositories/services/event_repository'
 
 # Config template for cloud controller
 module VCAP::CloudController

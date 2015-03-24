@@ -6,6 +6,10 @@ module VCAP::CloudController
   # cloudcontroller metaprogramming. We manually generate the JSON
   # expected by CFoundry and CF.
   class ServiceBrokersController < RestController::ModelController
+    def self.dependencies
+      [ :services_event_repository ]
+    end
+
     define_attributes do
       attribute :name,       String
       attribute :broker_url, String
@@ -14,6 +18,11 @@ module VCAP::CloudController
     end
 
     query_parameters :name
+
+    def inject_dependencies(dependencies)
+      super
+      @services_event_repository = dependencies.fetch(:services_event_repository)
+    end
 
     def create
       validate_access(:create, ServiceBroker)
@@ -25,6 +34,8 @@ module VCAP::CloudController
       unless registration.create
         raise get_exception_from_errors(registration)
       end
+
+      @services_event_repository.create_audit_event('audit.broker.create', broker, params)
 
       if !registration.warnings.empty?
         registration.warnings.each { |warning| add_warning(warning) }
@@ -48,6 +59,8 @@ module VCAP::CloudController
         raise get_exception_from_errors(registration)
       end
 
+      @services_event_repository.create_audit_event('audit.broker.update', broker, params)
+
       if !registration.warnings.empty?
         registration.warnings.each { |warning| add_warning(warning) }
       end
@@ -61,7 +74,10 @@ module VCAP::CloudController
       validate_access(:delete, ServiceBroker)
       broker = ServiceBroker.find(:guid => guid)
       return HTTP::NOT_FOUND unless broker
+
       VCAP::Services::ServiceBrokers::ServiceBrokerRemover.new(broker).execute!
+      @services_event_repository.create_audit_event('audit.broker.delete', broker, {})
+
       HTTP::NO_CONTENT
     rescue Sequel::ForeignKeyConstraintViolation
       raise VCAP::Errors::ApiError.new_from_details("ServiceBrokerNotRemovable")
@@ -81,6 +97,34 @@ module VCAP::CloudController
     define_routes
 
     private
+
+    def create_audit_event(type, broker, params)
+      user = SecurityContext.current_user
+
+      request_hash = {}
+      [:name, :broker_url, :auth_username].each do |key|
+        request_hash[key] = params[key] unless params[key].nil?
+      end
+
+      metadata = {}
+      if request_hash.length > 0
+        metadata[:request] = request_hash
+      end
+
+      Event.create(
+          type: type,
+          actor_type: 'user',
+          actor: user.guid,
+          actor_name: SecurityContext.current_user_email,
+          timestamp: Time.now,
+          actee: broker.guid,
+          actee_type: 'broker',
+          actee_name: broker.name,
+          space_guid: '',           #empty since brokers don't associate to spaces
+          organization_guid: '',
+          metadata: metadata,
+        )
+    end
 
     def url_of(broker)
       "#{self.class.path}/#{broker.guid}"
