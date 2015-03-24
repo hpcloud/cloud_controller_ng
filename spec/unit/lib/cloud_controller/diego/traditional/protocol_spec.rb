@@ -24,19 +24,19 @@ module VCAP::CloudController
           end
 
           subject(:request) do
-            protocol.stage_app_request(app)
+            protocol.stage_app_request(app, 900)
           end
 
           it "returns arguments intended for CfMessageBus::MessageBus#publish" do
             expect(request.size).to eq(2)
             expect(request.first).to eq("diego.staging.start")
-            expect(request.last).to match_json(protocol.stage_app_message(app))
+            expect(request.last).to match_json(protocol.stage_app_message(app, 900))
           end
         end
 
         describe "#stage_app_message" do
           let(:staging_app) { AppFactory.make }
-          subject(:message) { protocol.stage_app_message(staging_app) }
+          subject(:message) { protocol.stage_app_message(staging_app, 900) }
 
           before do
             staging_app.update(staging_task_id: "fake-staging-task-id") # Mimic Diego::Messenger#send_stage_request
@@ -58,6 +58,7 @@ module VCAP::CloudController
               "app_bits_download_uri" => "http://app-package.com",
               "buildpacks" => buildpack_entry_generator.buildpack_entries(staging_app),
               "droplet_upload_uri" => "http://droplet-upload-uri",
+              "timeout" => 900,
             )
           end
         end
@@ -125,6 +126,36 @@ module VCAP::CloudController
             it "omits health_check_timeout_in_seconds" do
               expect(message).not_to have_key("health_check_timeout_in_seconds")
             end
+          end
+        end
+
+        describe "#stop_staging_app_request" do
+          let(:app) do
+            AppFactory.make
+          end
+          let(:task_id) {'staging_task_id'}
+
+          subject(:request) do
+            protocol.stop_staging_app_request(app, task_id)
+          end
+
+          it "returns an array of arguments including the subject and message" do
+            expect(request.size).to eq(2)
+            expect(request[0]).to eq("diego.staging.stop")
+            expect(request[1]).to match_json(protocol.stop_staging_message(app, task_id))
+          end
+        end
+
+        describe "#stop_staging_message" do
+          let(:staging_app) { AppFactory.make }
+          let(:task_id) {'staging_task_id'}
+          subject(:message) { protocol.stop_staging_message(staging_app, task_id) }
+
+          it "is a nats message with the appropriate staging subject and payload" do
+            expect(message).to eq(
+              "app_id" => staging_app.guid,
+              "task_id" => task_id,
+            )
           end
         end
       end
