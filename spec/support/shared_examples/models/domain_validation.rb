@@ -127,7 +127,6 @@ module VCAP::CloudController
         end
 
         it {
-          pending("bug 105244: Allow overlapping domains")
           is_expected.not_to be_valid
         }
       end
@@ -138,8 +137,7 @@ module VCAP::CloudController
           subject.name = "baz.bar.foo.com"
         end
 
-        it { 
-          pending("bug 105244: Allow overlapping domains")
+        it {
           is_expected.not_to be_valid
         }
       end
@@ -151,7 +149,6 @@ module VCAP::CloudController
         end
 
         it {
-          pending("bug 105244: Allow overlapping domains; and this will be allowed in cf200")
           is_expected.not_to be_valid
         }
       end
@@ -163,7 +160,6 @@ module VCAP::CloudController
         end
 
         it { 
-          pending("bug 105244: Allow overlapping domains; and this will be allowed in cf200")
           is_expected.not_to be_valid
         }
       end
