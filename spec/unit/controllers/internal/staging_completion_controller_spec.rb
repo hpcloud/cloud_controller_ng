@@ -128,7 +128,10 @@ module VCAP::CloudController
     end
 
     context "when the app does no longer exist" do
-      before { staged_app.delete }
+      before {
+        AppVersion.where(:app_id => staged_app.id).delete
+        staged_app.delete
+      }
 
       it "fails with a 404" do
         post url, MultiJson.dump(staging_response)
