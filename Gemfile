@@ -3,9 +3,9 @@ source (ENV['RUBYGEMS_MIRROR'] or 'https://rubygems.org')
 # prevents hard-to-diagnose errors with bundle install
 ruby '2.1.3'
 
-gem 'activemodel', '3.2.18'
-gem 'activerecord', '3.2.18'
-gem "activesupport", '~> 3.2.18'
+gem 'activemodel', '3.2.21'
+gem 'activerecord', '3.2.21'
+gem "activesupport", '3.2.21'
 gem 'addressable', "2.3.6", :groups => [:default, :test]
 gem 'allowy', '0.4.0'
 gem 'arel', '3.0.3'
@@ -30,7 +30,7 @@ gem 'coercible', '0.2.0'
 gem 'colored', '1.2'
 gem 'cookiejar', '0.3.0'
 gem 'daemons', '1.1.9'
-gem 'delayed_job', '4.0.0'
+gem 'delayed_job', '4.0.4'
 gem 'delayed_job_active_record', '4.0.1'
 gem 'descendants_tracker', '0.0.3'
 gem 'diff-lcs', '1.2.5', :groups => [:default, :test]
@@ -87,7 +87,8 @@ gem 'rfc822', '0.1.4'
 gem 'ruby-hmac', '0.4.0'
 gem 'ruby-termios', '0.9.6'
 gem 'rubyzip', '1.1.0'
-gem 'sequel', '4.11.0'
+gem 'safe_yaml', '1.0.4'
+gem 'sequel', '4.17.0'
 gem 'sinatra', '~> 1.4.3'
 gem 'sinatra-contrib', '1.4.2'
 gem 'slop', '3.5.0', :groups => [:test, :operations, :development]
@@ -116,15 +117,15 @@ gem 'xmlparser', '0.7.2.1'
 gem 'rbvmomi', '1.6.0'
 
 # These are outside the test group in order to run rake tasks
-gem 'rspec', '~> 3.0'
-gem 'rspec-core'        ,   '3.0', :groups => [:default, :test]
-gem 'rspec-expectations',   '3.0.4', :groups => [:default, :test]
+gem 'rspec', '3.1.0'
+gem 'rspec-core'        ,   '3.1.7', :groups => [:default, :test]
+gem 'rspec-expectations',   '3.1.2', :groups => [:default, :test]
 gem 'rspec-instafail'   ,    '0.2.5', :groups => [:default, :test]
-gem 'rspec-its'        ,    '1.0.1', :groups => [:default, :test]
-gem 'rspec_api_documentation', '4.1.0', :groups => [:default, :test]
-gem 'rspec-mocks', '3.0.4', :groups => [:default, :test]
-gem 'rspec-collection_matchers', '1.0.0', :groups => [:default, :test]
-gem 'rspec-support', '3.0.4', :groups => [:default, :test]
+gem 'rspec-its'        ,    '1.1.0', :groups => [:default, :test]
+gem 'rspec_api_documentation', '4.3.0', :groups => [:default, :test]
+gem 'rspec-mocks', '3.1.3', :groups => [:default, :test]
+gem 'rspec-collection_matchers', '1.1.2', :groups => [:default, :test]
+gem 'rspec-support', '3.1.2', :groups => [:default, :test]
 gem 'rspec_junit_formatter', '0.2.0', :groups => [:default, :test]
 
 group :db do

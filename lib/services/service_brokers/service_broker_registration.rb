@@ -1,10 +1,12 @@
 module VCAP::Services::ServiceBrokers
   class ServiceBrokerRegistration
-    attr_reader :broker
+    attr_reader :broker, :warnings
 
-    def initialize(broker)
+    def initialize(broker, service_manager, services_event_repository)
       @broker = broker
+      @service_manager = service_manager
       @warnings = []
+      @services_event_repository = services_event_repository
     end
 
     def create
@@ -41,10 +43,6 @@ module VCAP::Services::ServiceBrokers
       broker.errors
     end
 
-    def warnings
-      @warnings
-    end
-
     private
 
     def synchronize_dashboard_clients!
@@ -58,10 +56,10 @@ module VCAP::Services::ServiceBrokers
     end
 
     def synchronize_services_and_plans!
-      service_manager.sync_services_and_plans
+      @service_manager.sync_services_and_plans(catalog)
 
-      if service_manager.has_warnings?
-        service_manager.warnings.each { |warning| warnings << warning }
+      if @service_manager.has_warnings?
+        @service_manager.warnings.each { |warning| warnings << warning }
       end
     end
 
@@ -70,11 +68,7 @@ module VCAP::Services::ServiceBrokers
     end
 
     def client_manager
-      @client_manager ||= VCAP::Services::SSO::DashboardClientManager.new(broker)
-    end
-
-    def service_manager
-      @service_manager ||= ServiceManager.new(catalog)
+      @client_manager ||= VCAP::Services::SSO::DashboardClientManager.new(broker, @services_event_repository)
     end
 
     def catalog

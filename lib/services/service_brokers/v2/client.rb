@@ -48,7 +48,12 @@ module VCAP::Services::ServiceBrokers::V2
 
   class ServiceBrokerConflict < HttpResponseError
     def initialize(uri, method, response)
-      error_message = parsed_json(response.body)["description"]
+      error_message = nil
+      if parsed_json(response.body).has_key?('message')
+        error_message = parsed_json(response.body)["message"]
+      else
+        error_message = parsed_json(response.body)["description"]
+      end
 
       super(
         error_message || "Resource conflict: #{uri}",
@@ -77,6 +82,7 @@ module VCAP::Services::ServiceBrokers::V2
 
     def initialize(attrs)
       @http_client = VCAP::Services::ServiceBrokers::V2::HttpClient.new(attrs)
+      @attrs = attrs
     end
 
     def catalog
@@ -88,17 +94,23 @@ module VCAP::Services::ServiceBrokers::V2
     # raises ServiceBrokerConflict if the id is already in use
     def provision(instance)
       path = "/v2/service_instances/#{instance.guid}"
+
       response = @http_client.put(path, {
         service_id:        instance.service.broker_provided_id,
         plan_id:           instance.service_plan.broker_provided_id,
         organization_guid: instance.organization.guid,
         space_guid:        instance.space.guid,
       })
-      parsed_response = parse_response(:put, path, response)
 
+      parsed_response = parse_response(:put, path, response)
       instance.dashboard_url = parsed_response['dashboard_url']
+
       # DEPRECATED, but needed because of not null constraint
       instance.credentials = {}
+
+    rescue ServiceBrokerApiTimeout, ServiceBrokerBadResponse => e
+      VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceDeprovisioner.deprovision(@attrs, instance)
+      raise e
     end
 
     def bind(binding)
@@ -114,6 +126,10 @@ module VCAP::Services::ServiceBrokers::V2
       if parsed_response.has_key?('syslog_drain_url')
         binding.syslog_drain_url = parsed_response['syslog_drain_url']
       end
+
+    rescue ServiceBrokerApiTimeout, ServiceBrokerBadResponse => e
+      VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceUnbinder.unbind(@attrs, binding)
+      raise e
     end
 
     def unbind(binding)
@@ -168,7 +184,6 @@ module VCAP::Services::ServiceBrokers::V2
       code = response.code.to_i
 
       case code
-
         when 204
           return nil # no body
 
@@ -188,6 +203,9 @@ module VCAP::Services::ServiceBrokers::V2
 
         when HTTP::Status::UNAUTHORIZED
           raise VCAP::Services::ServiceBrokers::V2::ServiceBrokerApiAuthenticationFailed.new(uri.to_s, method, response)
+
+        when 408
+          raise VCAP::Services::ServiceBrokers::V2::ServiceBrokerApiTimeout.new(uri.to_s, method, response)
 
         when 409
           raise VCAP::Services::ServiceBrokers::V2::ServiceBrokerConflict.new(uri.to_s, method, response)

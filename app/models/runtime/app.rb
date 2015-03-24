@@ -29,6 +29,7 @@ module VCAP::CloudController
     one_to_many :app_versions
     one_to_many :service_bindings
     one_to_many :events, :class => VCAP::CloudController::AppEvent
+    one_to_one :app, class: 'VCAP::CloudController::AppModel', key: :guid, primary_key: :app_guid
     many_to_one :admin_buildpack, class: VCAP::CloudController::Buildpack
     many_to_one :space, after_set: :validate_space
     many_to_one :stack
@@ -41,27 +42,25 @@ module VCAP::CloudController
     add_association_dependencies routes: :nullify, service_bindings: :destroy, events: :delete, droplets: :destroy, app_versions: :destroy
 
 
-    export_attributes :guid, :name, :production,
-                      :space_guid, :stack_guid, :buildpack, :detected_buildpack,
-                      :environment_json, :memory, :instances, :disk_quota,
-                      :state, :version, :command, :console, :debug,
-                      :staging_task_id, :package_state, :package_hash, :health_check_timeout,
-                      :system_env_json, :distribution_zone,
-                      :description, :sso_enabled, :restart_required, :autoscale_enabled,
-                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-                      :droplet_count,
-                      :staging_failed_reason, :docker_image,
-                      :package_updated_at, :detected_start_command
+    export_attributes :guid, :name, :production, :space_guid, :stack_guid, :buildpack,
+      :detected_buildpack, :environment_json, :memory, :instances, :disk_quota,
+      :state, :version, :command, :console, :debug, :staging_task_id,
+      :package_state, :package_hash, :health_check_type, :health_check_timeout,
+      :system_env_json, :distribution_zone,
+      :description, :sso_enabled, :restart_required, :autoscale_enabled,
+      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+      :droplet_count,
+      :staging_failed_reason, :docker_image, :package_updated_at,
+      :detected_start_command
 
-    import_attributes :name, :production,
-                      :space_guid, :stack_guid, :buildpack, :detected_buildpack,
-                      :environment_json, :memory, :instances, :disk_quota,
-                      :state, :command, :console, :debug,
-                      :staging_task_id, :service_binding_guids, :route_guids, :health_check_timeout,
-                      :distribution_zone,
-                      :description, :sso_enabled, :autoscale_enabled,
-                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-                      :docker_image, :app_guid
+    import_attributes :name, :production, :space_guid, :stack_guid, :buildpack,
+      :detected_buildpack, :environment_json, :memory, :instances, :disk_quota,
+      :state, :command, :console, :debug, :staging_task_id,
+      :service_binding_guids, :route_guids, :health_check_timeout, :health_check_type,
+      :distribution_zone,
+      :description, :sso_enabled, :autoscale_enabled,
+      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+      :docker_image, :app_guid
 
     strip_attributes :name
 
@@ -72,6 +71,7 @@ module VCAP::CloudController
     APP_STATES = %w[STOPPED STARTED].map(&:freeze).freeze
     PACKAGE_STATES = %w[PENDING STAGED FAILED].map(&:freeze).freeze
     STAGING_FAILED_REASONS = %w[StagingError StagingTimeExpired NoAppDetectedError BuildpackCompileFailed BuildpackReleaseFailed].map(&:freeze).freeze
+    HEALTH_CHECK_TYPES = %w[port none].map(&:freeze).freeze
 
     # marked as true on changing the associated routes, and reset by
     # +Dea::Client.start+
@@ -126,6 +126,7 @@ module VCAP::CloudController
       validates_includes PACKAGE_STATES, :package_state, :allow_missing => true
       validates_includes APP_STATES, :state, :allow_missing => true, :message => 'must be one of ' + APP_STATES.join(', ')
       validates_includes STAGING_FAILED_REASONS, :staging_failed_reason, :allow_nil => true
+      validates_includes HEALTH_CHECK_TYPES, :health_check_type, :allow_missing => true, :message => 'must be one of ' + HEALTH_CHECK_TYPES.join(', ')
 
       # REFACTOR: incorporate `validate_autoscaling_settings` into upstream's
       # `validation_policies` data structure
@@ -279,7 +280,7 @@ module VCAP::CloudController
       #
       # this is to indicate that the running state of an application has changed,
       # and that the system should converge on this new version.
-      (column_changed?(:state) || column_changed?(:memory) || (column_changed?(:droplet_hash) && column_change(:droplet_hash)[0])) && started?
+      (column_changed?(:state) || column_changed?(:memory) || column_changed?(:health_check_type) || (column_changed?(:droplet_hash) && column_change(:droplet_hash)[0])) && started?
     end
 
     def set_new_version

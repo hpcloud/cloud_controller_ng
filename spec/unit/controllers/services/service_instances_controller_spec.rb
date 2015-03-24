@@ -2,7 +2,6 @@ require "spec_helper"
 
 module VCAP::CloudController
   describe VCAP::CloudController::ServiceInstancesController, :services do
-
     describe "Query Parameters" do
       it { expect(described_class).to be_queryable_by(:name) }
       it { expect(described_class).to be_queryable_by(:space_guid) }
@@ -81,27 +80,6 @@ module VCAP::CloudController
             )
 
             post "/v2/service_instances", req, json_headers(headers_for(member_a))
-
-            expect(last_response.status).to eq(403)
-            expect(MultiJson.load(last_response.body)['description']).to eq("You are not authorized to perform the requested action")
-          end
-
-          it 'prevents a developer from moving a service to another space' do
-            plan = ServicePlan.make
-            req = MultiJson.dump(
-              :name => 'foo',
-              :space_guid => @space_a.guid,
-              :service_plan_guid => plan.guid
-            )
-            post "/v2/service_instances", req, json_headers(headers_for(member_a))
-
-            instance_guid = JSON.parse(last_response.body)['metadata']['guid']
-
-            move_req = MultiJson.dump(
-              :space_guid => @space_b.guid,
-            )
-
-            put "/v2/service_instances/#{instance_guid}", move_req, json_headers(headers_for(member_a))
 
             expect(last_response.status).to eq(403)
             expect(MultiJson.load(last_response.body)['description']).to eq("You are not authorized to perform the requested action")
@@ -214,6 +192,30 @@ module VCAP::CloudController
           expect(instance.dashboard_url).to eq('the dashboard_url')
         end
 
+        it 'creates a service audit event for creating the service instance' do
+          instance = create_managed_service_instance(email: 'developer@example.com')
+
+          event = VCAP::CloudController::Event.first(type: 'audit.service_instance.create')
+          expect(event.type).to eq('audit.service_instance.create')
+          expect(event.actor_type).to eq('user')
+          expect(event.actor).to eq(developer.guid)
+          expect(event.actor_name).to eq('developer@example.com')
+          expect(event.timestamp).to be
+          expect(event.actee).to eq(instance.guid)
+          expect(event.actee_type).to eq('service_instance')
+          expect(event.actee_name).to eq(instance.name)
+          expect(event.space_guid).to eq(instance.space.guid)
+          expect(event.space_id).to eq(instance.space.id)
+          expect(event.organization_guid).to eq(instance.space.organization.guid)
+          expect(event.metadata).to include({
+            'request' => {
+              'name' => instance.name,
+              'service_plan_guid' => instance.service_plan_guid,
+              'space_guid' => instance.space_guid,
+            }
+          })
+        end
+
         it 'creates a CREATED service usage event' do
           instance = nil
           expect {
@@ -295,27 +297,27 @@ module VCAP::CloudController
         end
 
         context 'creating a service instance with a name over 50 characters' do
-        let(:very_long_name) { 's' * 51 }
+          let(:very_long_name) { 's' * 51 }
 
-        it "returns an error if the service instance name is over 50 characters" do
-          req = MultiJson.dump(
-            name: very_long_name,
-            space_guid: space.guid,
-            service_plan_guid: plan.guid
-          )
-          headers = json_headers(headers_for(developer))
+          it "returns an error if the service instance name is over 50 characters" do
+            req = MultiJson.dump(
+              name: very_long_name,
+              space_guid: space.guid,
+              service_plan_guid: plan.guid
+            )
+            headers = json_headers(headers_for(developer))
 
-          post "/v2/service_instances", req, headers
+            post "/v2/service_instances", req, headers
 
-          expect(last_response.status).to eq(400)
-          expect(decoded_response["code"]).to eq 60009
-        end
+            expect(last_response.status).to eq(400)
+            expect(decoded_response["code"]).to eq 60009
+          end
         end
 
         context 'with naming collisions' do
 
           it 'does not allow duplicate managed service instances' do
-            instance = create_managed_service_instance
+            create_managed_service_instance
             expect(last_response.status).to eq(201)
 
             create_managed_service_instance
@@ -324,7 +326,7 @@ module VCAP::CloudController
           end
 
           it 'does not allow duplicate user provided service instances' do
-            instance = create_user_provided_service_instance
+            create_user_provided_service_instance
             expect(last_response.status).to eq(201)
 
             create_user_provided_service_instance
@@ -333,7 +335,7 @@ module VCAP::CloudController
           end
 
           it 'does not allow a user provided service instance with same name as managed service instance' do
-            instance = create_managed_service_instance
+            create_managed_service_instance
             expect(last_response.status).to eq(201)
 
             create_user_provided_service_instance
@@ -342,7 +344,7 @@ module VCAP::CloudController
           end
 
           it 'does not allow a managed service instance with same name as user provided service instance' do
-            instance = create_user_provided_service_instance
+            create_user_provided_service_instance
             expect(last_response.status).to eq(201)
 
             create_managed_service_instance
@@ -484,12 +486,34 @@ module VCAP::CloudController
           put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
           expect(service_instance.reload.service_plan).to eq(new_service_plan)
         end
+
+        it 'creates a service audit event for updating the service instance' do
+          put "/v2/service_instances/#{service_instance.guid}", body, headers_for(admin_user, email: 'admin@example.com')
+
+          event = VCAP::CloudController::Event.first(type: 'audit.service_instance.update')
+          expect(event.type).to eq('audit.service_instance.update')
+          expect(event.actor_type).to eq('user')
+          expect(event.actor).to eq(admin_user.guid)
+          expect(event.actor_name).to eq('admin@example.com')
+          expect(event.timestamp).to be
+          expect(event.actee).to eq(service_instance.guid)
+          expect(event.actee_type).to eq('service_instance')
+          expect(event.actee_name).to eq(service_instance.name)
+          expect(event.space_guid).to eq(service_instance.space.guid)
+          expect(event.space_id).to eq(service_instance.space.id)
+          expect(event.organization_guid).to eq(service_instance.space.organization.guid)
+          expect(event.metadata).to include({
+            'request' => {
+              'service_plan_guid' => new_service_plan.guid,
+            }
+          })
+        end
       end
 
       context 'When the broker did not declare support for plan upgrades' do
         let(:old_service_plan) { ServicePlan.make(:v2) }
 
-        it 'updates the service plan in the database' do
+        it 'does not update the service plan in the database' do
           put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
           expect(service_instance.reload.service_plan).to eq(old_service_plan)
         end
@@ -547,6 +571,38 @@ module VCAP::CloudController
           put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
           expect(last_response.status).to eq 502
           expect(decoded_response['error_code']).to eq 'CF-ServiceBrokerBadResponse'
+        end
+      end
+
+      describe 'the space_guid parameter' do
+        let(:org) { Organization.make }
+        let(:space) { Space.make(organization: org) }
+        let(:user) { make_developer_for_space(space) }
+        let(:instance) { ManagedServiceInstance.make(space: space) }
+
+        it 'prevents a developer from moving the service instance to a space for which he is also a space developer' do
+          space2 = Space.make(organization: org)
+          space2.add_developer(user)
+
+          move_req = MultiJson.dump(
+            :space_guid => space2.guid,
+          )
+
+          put "/v2/service_instances/#{instance.guid}", move_req, json_headers(headers_for(user))
+
+          expect(last_response.status).to eq(400)
+          expect(decoded_response['description']).to match /Cannot update space for service instance/
+        end
+
+        it 'succeeds when the space_guid does not change' do
+          req = MultiJson.dump(space_guid: instance.space.guid)
+          put "/v2/service_instances/#{instance.guid}", req, json_headers(headers_for(user))
+          expect(last_response.status).to eq 201
+        end
+
+        it 'succeeds when the space_guid is not provided' do
+          put "/v2/service_instances/#{instance.guid}", {}.to_json, json_headers(headers_for(user))
+          expect(last_response.status).to eq 201
         end
       end
     end
@@ -647,6 +703,62 @@ module VCAP::CloudController
           expect(ServiceInstance.find(:guid => service_instance.guid)).to be_nil
         end
 
+        context 'it is a managed service instance' do
+          it 'creates a service audit event for deleting the service instance' do
+            delete "/v2/service_instances/#{service_instance.guid}", {}, headers_for(admin_user, email: 'admin@example.com')
+
+            event = VCAP::CloudController::Event.first(type: 'audit.service_instance.delete')
+            expect(event.type).to eq('audit.service_instance.delete')
+            expect(event.actor_type).to eq('user')
+            expect(event.actor).to eq(admin_user.guid)
+            expect(event.actor_name).to eq('admin@example.com')
+            expect(event.timestamp).to be
+            expect(event.actee).to eq(service_instance.guid)
+            expect(event.actee_type).to eq('service_instance')
+            expect(event.actee_name).to eq(service_instance.name)
+            expect(event.space_guid).to eq(service_instance.space.guid)
+            expect(event.space_id).to eq(service_instance.space.id)
+            expect(event.organization_guid).to eq(service_instance.space.organization.guid)
+            expect(event.metadata).to eq({'request' => {}})
+          end
+        end
+
+        context 'it is a user provided service instance' do
+          let!(:service_instance) { UserProvidedServiceInstance.make }
+
+          it 'creates a user_provided_service_instance audit event for deleting the service instance' do
+            delete "/v2/service_instances/#{service_instance.guid}", {}, headers_for(admin_user, email: 'admin@example.com')
+
+            event = VCAP::CloudController::Event.first(type: 'audit.user_provided_service_instance.delete')
+            expect(event.type).to eq('audit.user_provided_service_instance.delete')
+            expect(event.actor_type).to eq('user')
+            expect(event.actor).to eq(admin_user.guid)
+            expect(event.actor_name).to eq('admin@example.com')
+            expect(event.timestamp).to be
+            expect(event.actee).to eq(service_instance.guid)
+            expect(event.actee_type).to eq('user_provided_service_instance')
+            expect(event.actee_name).to eq(service_instance.name)
+            expect(event.space_guid).to eq(service_instance.space.guid)
+            expect(event.space_id).to eq(service_instance.space.id)
+            expect(event.organization_guid).to eq(service_instance.space.organization.guid)
+            expect(event.metadata).to eq({'request' => {}})
+          end
+        end
+
+        context 'with ?async=true' do
+          it 'returns a job id' do
+            delete "/v2/service_instances/#{service_instance.guid}?async=true", {}, admin_headers
+            expect(last_response.status).to eq 202
+            expect(decoded_response['entity']['guid']).to be
+            expect(decoded_response['entity']['status']).to eq 'queued'
+
+            successes, failures = Delayed::Worker.new.work_off
+            expect(successes).to eq 1
+            expect(failures).to eq 0
+            expect(ServiceInstance.find(:guid => service_instance.guid)).to be_nil
+          end
+        end
+
         context 'when the service broker returns a 409' do
           let(:body) {'{"description": "service broker error"}' }
           let(:status) { 409 }
@@ -656,6 +768,13 @@ module VCAP::CloudController
 
             expect(last_response.status).to eq 409
             expect(JSON.parse(last_response.body)['description']).to include 'service broker error'
+          end
+        end
+
+        context 'and the instance cannot be found' do
+          it 'returns a 404' do
+            delete "/v2/service_instances/non-existing-instance", {}, admin_headers
+            expect(last_response.status).to eq 404
           end
         end
       end
@@ -875,13 +994,13 @@ module VCAP::CloudController
       end
     end
 
-    def create_managed_service_instance
+    def create_managed_service_instance(user_opts={})
       req = MultiJson.dump(
         :name => 'foo',
         :space_guid => space.guid,
         :service_plan_guid => plan.guid
       )
-      headers = json_headers(headers_for(developer))
+      headers = json_headers(headers_for(developer, user_opts))
 
       post "/v2/service_instances", req, headers
 

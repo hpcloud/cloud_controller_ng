@@ -13,6 +13,15 @@ module VCAP::CloudController
 
     query_parameters :app_guid, :service_instance_guid
 
+    def self.dependencies
+      [ :services_event_repository ]
+    end
+
+    def inject_dependencies(dependencies)
+      super
+      @services_event_repository = dependencies.fetch(:services_event_repository)
+    end
+
     post path, :create
     def create
       json_msg = self.class::CreateMessage.decode(body)
@@ -30,24 +39,38 @@ module VCAP::CloudController
       validate_service_instance(instance_guid)
       validate_app(app_guid)
 
-      binding = ServiceBinding.new(@request_attrs)
-      validate_access(:create, binding)
+      service_binding = ServiceBinding.new(@request_attrs)
+      validate_access(:create, service_binding)
 
-      if binding.valid?
-        binding.bind!
+      if service_binding.valid?
+        service_binding.bind!
       else
-        raise Sequel::ValidationFailed.new(binding)
+        raise Sequel::ValidationFailed.new(service_binding)
       end
 
+      @services_event_repository.record_service_binding_event(:create, service_binding)
+
       [ HTTP::CREATED,
-        { "Location" => "#{self.class.path}/#{binding.guid}" },
-        object_renderer.render_json(self.class, binding, @opts)
+        { "Location" => "#{self.class.path}/#{service_binding.guid}" },
+        object_renderer.render_json(self.class, service_binding, @opts)
       ]
     end
 
-    delete path_guid, :delete    
+    delete path_guid, :delete
     def delete(guid)
-      do_delete(find_guid_and_validate_access(:delete, guid))
+      service_binding = ServiceBinding.find(guid: guid)
+      raise_if_has_associations!(service_binding) if v2_api? && !recursive?
+
+      deletion_job = Jobs::Runtime::ModelDeletion.new(ServiceBinding, guid)
+      delete_and_audit_job = Jobs::AuditEventJob.new(deletion_job, @services_event_repository, :record_service_binding_event, :delete, service_binding)
+
+      if async?
+        job = Jobs::Enqueuer.new(delete_and_audit_job, queue: "cc-generic").enqueue()
+        [HTTP::ACCEPTED, JobPresenter.new(job).to_json]
+      else
+        delete_and_audit_job.perform
+        [HTTP::NO_CONTENT, nil]
+      end
     end
 
     private

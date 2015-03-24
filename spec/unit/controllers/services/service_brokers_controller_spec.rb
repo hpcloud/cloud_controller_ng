@@ -54,13 +54,13 @@ module VCAP::CloudController
 
       let(:errors) { double(Sequel::Model::Errors, on: nil) }
       let(:broker) do
-        double(ServiceBroker, {
+        ServiceBroker.make(
           guid: '123',
           name: 'My Custom Service',
           broker_url: 'http://broker.example.com',
           auth_username: 'me',
           auth_password: 'abc123',
-        })
+        )
       end
       let(:registration) do
         reg = double(VCAP::Services::ServiceBrokers::ServiceBrokerRegistration, {
@@ -77,7 +77,7 @@ module VCAP::CloudController
 
       before do
         allow(ServiceBroker).to receive(:new).and_return(broker)
-        allow(VCAP::Services::ServiceBrokers::ServiceBrokerRegistration).to receive(:new).with(broker).and_return(registration)
+        allow(VCAP::Services::ServiceBrokers::ServiceBrokerRegistration).to receive(:new).and_return(registration)
         allow(ServiceBrokerPresenter).to receive(:new).with(broker).and_return(presenter)
       end
 
@@ -85,14 +85,13 @@ module VCAP::CloudController
         email = 'email@example.com'
         post '/v2/service_brokers', body, headers_for(admin_user, email: email)
 
-        event = Event.all.last
-        expect(event.type).to eq('audit.broker.create')
+        event = Event.first(type: 'audit.service_broker.create')
         expect(event.actor_type).to eq('user')
         expect(event.timestamp).to be
         expect(event.actor).to eq(admin_user.guid)
         expect(event.actor_name).to eq(email)
         expect(event.actee).to eq(broker.guid)
-        expect(event.actee_type).to eq('broker')
+        expect(event.actee_type).to eq('service_broker')
         expect(event.actee_name).to eq(broker.name)
         expect(event.space_guid).to be_empty
         expect(event.organization_guid).to be_empty
@@ -200,18 +199,18 @@ module VCAP::CloudController
         email = "some-email-address@example.com"
         delete "/v2/service_brokers/#{broker.guid}", {}, headers_for(admin_user, email: email)
 
-        event = Event.all.last
-        expect(event.type).to eq('audit.broker.delete')
+        event = Event.first(type: 'audit.service_broker.delete')
         expect(event.actor_type).to eq('user')
         expect(event.timestamp).to be
         expect(event.actor).to eq(admin_user.guid)
         expect(event.actor_name).to eq(email)
         expect(event.actee).to eq(broker.guid)
-        expect(event.actee_type).to eq('broker')
+        expect(event.actee_type).to eq('service_broker')
         expect(event.actee_name).to eq(broker.name)
         expect(event.space_guid).to be_empty
         expect(event.organization_guid).to be_empty
-        expect(event.metadata).to be_empty
+        expect(event.metadata).to have_key('request')
+        expect(event.metadata['request']).to be_empty
       end
 
       it "returns 404 when deleting a service broker that does not exist" do
@@ -252,7 +251,6 @@ module VCAP::CloudController
       let(:body_hash) do
         {
           name: 'My Updated Service',
-          broker_url: 'http://new-broker.example.com',
           auth_username: 'new-username',
           auth_password: 'new-password',
         }
@@ -291,7 +289,7 @@ module VCAP::CloudController
       before do
         allow(ServiceBroker).to receive(:find)
         allow(ServiceBroker).to receive(:find).with(guid: broker.guid).and_return(broker)
-        allow(VCAP::Services::ServiceBrokers::ServiceBrokerRegistration).to receive(:new).with(broker).and_return(registration)
+        allow(VCAP::Services::ServiceBrokers::ServiceBrokerRegistration).to receive(:new).and_return(registration)
         allow(ServiceBrokerPresenter).to receive(:new).with(broker).and_return(presenter)
       end
 
@@ -302,42 +300,20 @@ module VCAP::CloudController
 
         put "/v2/service_brokers/#{broker.guid}", body, headers_for(admin_user, email: email)
 
-        event = Event.all.last
-        expect(event.type).to eq('audit.broker.update')
+        event = Event.first(type: 'audit.service_broker.update')
         expect(event.actor_type).to eq('user')
         expect(event.timestamp).to be
         expect(event.actor).to eq(admin_user.guid)
         expect(event.actor_name).to eq(email)
         expect(event.actee).to eq(broker.guid)
-        expect(event.actee_type).to eq('broker')
+        expect(event.actee_type).to eq('service_broker')
         expect(event.actee_name).to eq(old_broker_name)
         expect(event.space_guid).to be_empty
         expect(event.organization_guid).to be_empty
-        expect(event.metadata).to include({
-          'request' => {
-            'name' => body_hash[:name],
-            'auth_username' => body_hash[:auth_username],
-            'auth_password' => '[REDACTED]',
-          }
-        })
-      end
-
-      context "when the auth_password isn't updated" do
-        it 'creates a broker update event without the redacted password key' do
-          body_hash.delete(:auth_password)
-          body_hash.delete(:broker_url)
-          email = 'email@example.com'
-
-          put "/v2/service_brokers/#{broker.guid}", body, headers_for(admin_user, email: email)
-
-          event = Event.all.last
-          expect(event.metadata).to include({
-            'request' => {
-              'name' => body_hash[:name],
-              'auth_username' => body_hash[:auth_username],
-            }
-          })
-        end
+        expect(event.metadata['request']['name']).to eq body_hash[:name]
+        expect(event.metadata['request']['auth_username']).to eq body_hash[:auth_username]
+        expect(event.metadata['request']['auth_password']).to eq '[REDACTED]'
+        expect(event.metadata['request']).not_to have_key 'broker_url'
       end
 
       it 'updates the broker' do

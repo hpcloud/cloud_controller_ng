@@ -89,12 +89,11 @@ module VCAP::Services::ServiceBrokers::V2
     end
 
     describe ServiceBrokerConflict do
-      let(:response_body) { '{"description": "error message"}' }
+      let(:response_body) { '{"message": "error message"}' }
       let(:response) { double(code: 409, reason: 'Conflict', body: response_body) }
 
       it "initializes the base class correctly" do
         exception = ServiceBrokerConflict.new(uri, method, response)
-        #expect(exception.message).to eq("Resource conflict: #{uri}")
         expect(exception.message).to eq("error message")
         expect(exception.uri).to eq(uri)
         expect(exception.method).to eq(method)
@@ -106,16 +105,30 @@ module VCAP::Services::ServiceBrokers::V2
         expect(exception.response_code).to eq(409)
       end
 
-      context "when the description field is missing" do
-        let(:response_body) { '{"field": "value"}' }
+      context "when the response body has no message" do
+        let(:response_body) { '{"description": "error description"}' }
 
-        it "initializes the base class correctly" do
-          exception = ServiceBrokerConflict.new(uri, method, response)
-          expect(exception.message).to eq("Resource conflict: #{uri}")
-          expect(exception.uri).to eq(uri)
-          expect(exception.method).to eq(method)
-          expect(exception.source).to eq(MultiJson.load(response.body))
+        context "and there is a description field" do
+            it "initializes the base class correctly" do
+              exception = ServiceBrokerConflict.new(uri, method, response)
+              expect(exception.message).to eq("error description")
+              expect(exception.uri).to eq(uri)
+              expect(exception.method).to eq(method)
+              expect(exception.source).to eq(MultiJson.load(response.body))
+            end
         end
+
+        context "and there is no description field" do
+          let(:response_body) { '{"field": "value"}' }
+
+            it "initializes the base class correctly" do
+              exception = ServiceBrokerConflict.new(uri, method, response)
+              expect(exception.message).to eq("Resource conflict: #{uri}")
+              expect(exception.uri).to eq(uri)
+              expect(exception.method).to eq(method)
+              expect(exception.source).to eq(MultiJson.load(response.body))
+            end
+          end
       end
 
       context "when the body is not JSON-parsable" do
@@ -135,13 +148,15 @@ module VCAP::Services::ServiceBrokers::V2
   describe Client do
     let(:service_broker) { VCAP::CloudController::ServiceBroker.make }
 
-    subject(:client) do
-      Client.new(
+    let(:client_attrs) {
+      {
         url: service_broker.broker_url,
         auth_username: service_broker.auth_username,
         auth_password: service_broker.auth_password,
-      )
-    end
+      }
+    }
+
+    subject(:client) { Client.new(client_attrs) }
 
     let(:http_client) { double('http_client') }
 
@@ -299,6 +314,7 @@ module VCAP::Services::ServiceBrokers::V2
 
       before do
         allow(http_client).to receive(:put).and_return(response)
+        allow(http_client).to receive(:delete).and_return(response)
 
         allow(response).to receive(:body).and_return(response_body)
         allow(response).to receive(:code).and_return(code)
@@ -351,6 +367,177 @@ module VCAP::Services::ServiceBrokers::V2
 
         it_behaves_like 'handles standard error conditions' do
           let(:operation) { client.provision(instance) }
+        end
+      end
+
+      context 'when provision fails' do
+        before do
+          allow(VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceDeprovisioner).to receive(:deprovision)
+        end
+
+        context 'and http client response is 408' do
+          before do
+            allow(response).to receive(:code).and_return('408', '200')
+          end
+
+          it 'raises ServiceBrokerApiTimeout and deprovisions' do
+            expect {
+              client.provision(instance)
+            }.to raise_error(ServiceBrokerApiTimeout)
+
+            expect(VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceDeprovisioner).
+                                   to have_received(:deprovision).with(client_attrs, instance)
+          end
+        end
+
+        context 'and http client response is 5xx' do
+          context 'and http error code is 500' do
+            before do
+              allow(response).to receive(:code).and_return('500', '200')
+            end
+
+            it 'raises ServiceBrokerBadResponse and deprovisions' do
+              expect {
+                  client.provision(instance)
+              }.to raise_error(ServiceBrokerBadResponse)
+
+              expect(VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceDeprovisioner).
+                                     to have_received(:deprovision).
+                                     with(client_attrs, instance)
+            end
+          end
+
+          context 'and http error code is 501' do
+            before do
+              allow(response).to receive(:code).and_return('501', '200')
+            end
+
+            it 'raises ServiceBrokerBadResponse and deprovisions' do
+              expect {
+                  client.provision(instance)
+              }.to raise_error(ServiceBrokerBadResponse)
+
+              expect(VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceDeprovisioner).
+                                     to have_received(:deprovision).
+                                     with(client_attrs, instance)
+            end
+          end
+
+          context 'and http error code is 502' do
+            before do
+              allow(response).to receive(:code).and_return('502', '200')
+            end
+
+            it 'raises ServiceBrokerBadResponse and deprovisions' do
+              expect {
+                  client.provision(instance)
+              }.to raise_error(ServiceBrokerBadResponse)
+
+              expect(VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceDeprovisioner).
+                                     to have_received(:deprovision).
+                                     with(client_attrs, instance)
+            end
+          end
+
+          context 'and http error code is 503' do
+            before do
+              allow(response).to receive(:code).and_return('503', '200')
+            end
+
+            it 'raises ServiceBrokerBadResponse and deprovisions' do
+              expect {
+                  client.provision(instance)
+              }.to raise_error(ServiceBrokerBadResponse)
+
+              expect(VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceDeprovisioner).
+                                     to have_received(:deprovision).
+                                     with(client_attrs, instance)
+            end
+          end
+
+          context 'and http error code is 504' do
+            before do
+              allow(response).to receive(:code).and_return('504', '200')
+            end
+
+            it 'raises ServiceBrokerBadResponse and deprovisions' do
+              expect {
+                  client.provision(instance)
+              }.to raise_error(ServiceBrokerBadResponse)
+
+              expect(VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceDeprovisioner).
+                                     to have_received(:deprovision).
+                                     with(client_attrs, instance)
+            end
+          end
+
+          context 'and http error code is 505' do
+            before do
+              allow(response).to receive(:code).and_return('505', '200')
+            end
+
+            it 'raises ServiceBrokerBadResponse and deprovisions' do
+              expect {
+                  client.provision(instance)
+              }.to raise_error(ServiceBrokerBadResponse)
+
+              expect(VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceDeprovisioner).
+                                     to have_received(:deprovision).
+                                     with(client_attrs, instance)
+            end
+          end
+        end
+      end
+
+      context 'when provision takes longer than broker configured timeout' do
+        before do
+          allow(VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceDeprovisioner).to receive(:deprovision)
+        end
+
+        context 'when http_client make request fails with ServiceBrokerApiTimeout' do
+          before do
+            allow(http_client).to receive(:put) do |path, message|
+              raise ServiceBrokerApiTimeout.new(path, :put, Timeout::Error.new(message))
+            end
+          end
+
+          it 'deprovisions the instance' do
+            expect {
+              client.provision(instance)
+            }.to raise_error(ServiceBrokerApiTimeout)
+
+            expect(VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceDeprovisioner).
+                                   to have_received(:deprovision).
+                                   with(client_attrs, instance)
+          end
+        end
+
+        context 'when http_client make request fails with ServiceBrokerApiUnreachable' do
+          before do
+            allow(http_client).to receive(:put) do |path, message|
+              raise ServiceBrokerApiUnreachable.new(path, :put, Errno::ECONNREFUSED)
+            end
+          end
+
+          it 'fails' do
+            expect {
+              client.provision(instance)
+            }.to raise_error(ServiceBrokerApiUnreachable)
+          end
+        end
+
+        context 'when http_client make request fails with HttpRequestError' do
+          before do
+            allow(http_client).to receive(:put) do |path, message|
+              raise HttpRequestError.new(message, path, :put, Exception.new(message))
+            end
+          end
+
+          it 'fails' do
+            expect {
+              client.provision(instance)
+            }.to raise_error(HttpRequestError)
+          end
         end
       end
     end
@@ -526,6 +713,64 @@ module VCAP::Services::ServiceBrokers::V2
           expect(binding.syslog_drain_url).to_not be
         end
 
+      end
+
+      context 'when bind takes longer than broker configured timeout' do
+        let(:binding) do
+          VCAP::CloudController::ServiceBinding.make(
+            binding_options: { 'this' => 'that' }
+          )
+        end
+
+        before do
+          allow(VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceUnbinder).to receive(:unbind)
+        end
+
+        context 'when http_client make request fails with ServiceBrokerApiTimeout' do
+          before do
+            allow(http_client).to receive(:put) do |path, message|
+              raise ServiceBrokerApiTimeout.new(path, :put, Timeout::Error.new(message))
+            end
+          end
+
+          it 'unbinds the binding' do
+            expect {
+              client.bind(binding)
+            }.to raise_error(ServiceBrokerApiTimeout)
+
+            expect(VCAP::CloudController::ServiceBrokers::V2::ServiceInstanceUnbinder).
+                                   to have_received(:unbind).
+                                   with(client_attrs, binding)
+          end
+        end
+
+        context 'when http_client make request fails with ServiceBrokerApiUnreachable' do
+          before do
+            allow(http_client).to receive(:put) do |path, message|
+              raise ServiceBrokerApiUnreachable.new(path, :put, Errno::ECONNREFUSED)
+            end
+          end
+
+          it 'fails' do
+            expect {
+              client.bind(binding)
+            }.to raise_error(ServiceBrokerApiUnreachable)
+          end
+        end
+
+        context 'when http_client make request fails with HttpRequestError' do
+          before do
+            allow(http_client).to receive(:put) do |path, message|
+              raise HttpRequestError.new(message, path, :put, Exception.new(message))
+            end
+          end
+
+          it 'fails' do
+            expect {
+              client.bind(binding)
+            }.to raise_error(HttpRequestError)
+          end
+        end
       end
 
       describe 'error handling' do

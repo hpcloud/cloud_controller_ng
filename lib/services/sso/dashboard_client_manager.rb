@@ -4,13 +4,14 @@ module VCAP::Services::SSO
 
     REQUESTED_FEATURE_DISABLED_WARNING = 'Warning: This broker includes configuration for a dashboard client. Auto-creation of OAuth2 clients has been disabled in this Cloud Foundry instance. The broker catalog has been updated but its dashboard client configuration will be ignored.'
 
-    def initialize(service_broker)
+    def initialize(service_broker, services_event_repository)
       @service_broker = service_broker
       @errors         = VCAP::Services::ValidationErrors.new
       @warnings       = []
 
       @client_manager = VCAP::Services::SSO::UAA::UaaClientManager.new
       @differ         = DashboardClientDiffer.new(service_broker)
+      @services_event_repository = services_event_repository
     end
 
     def synchronize_clients_with_catalog(catalog)
@@ -107,6 +108,15 @@ module VCAP::Services::SSO
         end
       rescue VCAP::Services::SSO::UAA::UaaError => e
         raise VCAP::Errors::ApiError.new_from_details("ServiceBrokerDashboardClientFailure", e.message)
+      end
+
+      uaa_changeset.each do |uaa_cmd|
+        case uaa_cmd.uaa_command[:action]
+        when 'add'
+          @services_event_repository.record_service_dashboard_client_event(:create, uaa_cmd.client_attrs, service_broker)
+        when 'delete'
+          @services_event_repository.record_service_dashboard_client_event(:delete, uaa_cmd.client_attrs, service_broker)
+        end
       end
     end
 

@@ -31,6 +31,7 @@ end
 module VCAP::CloudController
   AppModel.blueprint do
     guid       { Sham.guid }
+    name       { Sham.name }
     space_guid { Space.make.guid }
   end
 
@@ -149,6 +150,7 @@ module VCAP::CloudController
     space             { Space.make }
     stack             { Stack.make }
     instances         { 1 }
+    type              { "web" }
   end
 
   ServiceBinding.blueprint do
@@ -287,6 +289,7 @@ module VCAP::CloudController
 
   AppUsageEvent.blueprint do
     state { "STARTED" }
+    package_state { "STAGED" }
     instance_count { 1 }
     memory_in_mb_per_instance { 564 }
     app_guid { Sham.guid }

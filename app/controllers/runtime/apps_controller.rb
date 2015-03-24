@@ -12,6 +12,7 @@ module VCAP::CloudController
       attribute  :debug,                  String,           :default => nil
       attribute  :disk_quota,             Integer,          :default => nil
       attribute  :environment_json,       Hash,             :default => {}
+      attribute  :health_check_type,      String,           :default => "port"
       attribute  :health_check_timeout,   Integer,          :default => nil
       attribute  :instances,              Integer,          :default => 1
       attribute  :memory,                 Integer,          :default => nil
@@ -48,31 +49,6 @@ module VCAP::CloudController
 
     def self.default_order_by
       :name
-    end
-
-    def create
-      json_msg = self.class::CreateMessage.decode(body)
-
-      @request_attrs = json_msg.extract(stringify_keys: true)
-
-      logger.debug "cc.create", model: self.class.model_class_name, attributes: request_attrs
-
-      before_create
-
-      obj = nil
-      model.db.transaction do
-        v3_app_model = AppModel.create
-        obj = model.create_from_hash(request_attrs.merge(app_guid: v3_app_model.guid))
-        validate_access(:create, obj, request_attrs)
-      end
-
-      after_create(obj)
-
-      [
-        HTTP::CREATED,
-        {"Location" => "#{self.class.path}/#{obj.guid}"},
-        object_renderer.render_json(self.class, obj, @opts)
-      ]
     end
 
     get '/v2/apps/:guid/env', :read_env
@@ -145,6 +121,7 @@ module VCAP::CloudController
       }
       logger.info("TIMELINE #{event.to_json}")
       app.destroy
+
       @app_event_repository.record_app_delete_request(
           app,
           app.space,

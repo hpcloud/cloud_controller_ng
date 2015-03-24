@@ -229,7 +229,30 @@ module VCAP::CloudController
       let!(:service_binding) { ServiceBinding.make(service_instance: service_instance) }
 
       before do
-        stub_request(:delete, /#{service.service_broker.broker_url}.*/).to_return(body: {}, code: 200)
+        stub_request(:delete, /#{service.service_broker.broker_url}.*/).to_return(body: '', status: 200)
+      end
+
+      it 'creates a service delete event' do
+        email = 'admin@example.com'
+        delete "/v2/services/#{service.guid}?purge=true", '{}', headers_for(admin_user, email: email)
+        expect(last_response.status).to eq(204)
+
+        event = Event.all.last
+        expect(event.type).to eq('audit.service.delete')
+        expect(event.actor_type).to eq('user')
+        expect(event.timestamp).to be
+        expect(event.actor).to eq(admin_user.guid)
+        expect(event.actor_name).to eq(email)
+        expect(event.actee).to eq(service.guid)
+        expect(event.actee_type).to eq('service')
+        expect(event.actee_name).to eq(service.label)
+        expect(event.space_guid).to be_empty
+        expect(event.organization_guid).to be_empty
+        expect(event.metadata).to include({
+          'request' => {
+            'purge' => true,
+          }
+        })
       end
 
       it 'requires authentication' do

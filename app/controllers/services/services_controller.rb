@@ -39,6 +39,15 @@ module VCAP::CloudController
 
     query_parameters :active, :label, :provider, :service_broker_guid
 
+    def self.dependencies
+      [ :services_event_repository ]
+    end
+
+    def inject_dependencies(dependencies)
+      super
+      @services_event_repository = dependencies.fetch(:services_event_repository)
+    end
+
     allow_unauthenticated_access only: :enumerate
     def enumerate
       @opts.delete(:inline_relations_depth) unless SecurityContext.valid_token?
@@ -58,9 +67,10 @@ module VCAP::CloudController
       service = find_guid_and_validate_access(:delete, guid)
       if purge?
         service.purge
+        @services_event_repository.record_service_purge_event(service)
         [HTTP::NO_CONTENT, nil]
       else
-        do_delete(find_guid_and_validate_access(:delete, guid))
+        do_delete(service)
       end
     end
 

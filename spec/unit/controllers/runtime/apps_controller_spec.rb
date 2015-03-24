@@ -22,6 +22,7 @@ module VCAP::CloudController
             disk_quota:           { type: "integer" },
             environment_json:     { type: "hash", default: {} },
             health_check_timeout: { type: "integer" },
+            health_check_type:    { type: "string", default: "port" },
             instances:            { type: "integer", default: 1 },
             memory:               { type: "integer" },
             name:                 { type: "string", required: true },
@@ -53,6 +54,7 @@ module VCAP::CloudController
             disk_quota:            { type: "integer" },
             environment_json:      { type: "hash" },
             health_check_timeout:  { type: "integer" },
+            health_check_type:     { type: "string" },
             instances:             { type: "integer" },
             memory:                { type: "integer" },
             name:                  { type: "string" },
@@ -121,14 +123,10 @@ module VCAP::CloudController
       describe "events" do
         it "records app create" do
           expected_attrs = AppsController::CreateMessage.decode(initial_hash.to_json).extract(stringify_keys: true)
-
           allow(app_event_repository).to receive(:record_app_create).and_call_original
 
-          expect {
-            post "/v2/apps", MultiJson.dump(initial_hash), json_headers(admin_headers)
-          }.to change { AppModel.count }.by 1
+          post "/v2/apps", MultiJson.dump(initial_hash), json_headers(admin_headers)
 
-          expect(AppModel.last.processes.first.name).to include("maria")
           app = App.last
           expect(app_event_repository).to have_received(:record_app_create).with(app, app.space, admin_user, SecurityContext.current_user_email, expected_attrs)
         end
@@ -144,7 +142,6 @@ module VCAP::CloudController
           expect(last_response.status).to eq(403)
         end
       end
-
     end
 
     describe "update app" do
