@@ -14,7 +14,6 @@ gem 'atomic', '1.1.14'
 gem 'axiom-types', '0.0.5'
 gem 'backports', '3.6.3'
 gem "bcrypt", '3.1.7'
-gem "bcrypt-ruby", '3.1.5'
 gem 'beefcake', '~> 1.0.0'
 gem "builder", "3.0.0"
 gem 'celluloid', '0.15.2'

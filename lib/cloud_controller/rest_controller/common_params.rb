@@ -8,7 +8,7 @@ module VCAP::CloudController::RestController
 
     def parse(params, query_string=nil)
       @logger.debug "parse_params: #{params} #{query_string}"
-      # Sinatra squshes duplicate query parms into a single entry rather
+      # Sinatra squashes duplicate query parms into a single entry rather
       # than an array (which we might have for q)
       if params["order-direction"].nil? && !params["order"].nil?
         @logger.warn("query param 'order' is deprecated: use 'order-direction'")
@@ -27,6 +27,7 @@ module VCAP::CloudController::RestController
         ["order-direction", String], # "asc" (default) / "desc"
         ["order-by", String],
         ['query-as-user',           String  ],
+        ["orphan-relations",       Integer],
 
       ].each do |key, klass|
         val = params[key]
@@ -35,6 +36,15 @@ module VCAP::CloudController::RestController
 
       if res[:q] && query_string && query_string.count("q=") > 1
         res[:q] = CGI.parse(query_string)["q"]
+      end
+
+      # relationship names should be specified as a comma separated list
+      if res[:exclude_relations]
+        res[:exclude_relations] = res[:exclude_relations].split(',')
+      end
+
+      if res[:include_relations]
+        res[:include_relations] = res[:include_relations].split(',')
       end
 
       res

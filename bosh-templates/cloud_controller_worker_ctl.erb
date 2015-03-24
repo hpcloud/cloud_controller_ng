@@ -2,8 +2,9 @@
 
 INDEX=$2
 
+
 export CC_JOB_DIR=/var/vcap/jobs/cloud_controller_worker
-export PATH=/var/vcap/packages/ruby-2.1.3/bin:$PATH
+source $CC_JOB_DIR/bin/ruby_version.sh
 
 CC_PACKAGE_DIR=/var/vcap/packages/cloud_controller_ng
 
@@ -40,7 +41,7 @@ case $1 in
     echo $$ > $PIDFILE
     chown vcap:vcap $PIDFILE
 
-    source $CC_JOB_DIR/bin/handle_nfs_or_local_blobstore.sh
+    source $CC_JOB_DIR/bin/handle_local_blobstore.sh
 
     cd $CC_PACKAGE_DIR/cloud_controller_ng
     <% task_name = "jobs:generic" %>

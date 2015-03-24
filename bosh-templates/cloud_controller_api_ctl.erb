@@ -1,7 +1,8 @@
 #!/bin/bash
 
+
 export CC_JOB_DIR=/var/vcap/jobs/cloud_controller_ng
-export PATH=/var/vcap/packages/ruby-2.1.3/bin:$PATH
+source $CC_JOB_DIR/bin/ruby_version.sh
 
 CC_PACKAGE_DIR=/var/vcap/packages/cloud_controller_ng
 
@@ -58,7 +59,7 @@ case $1 in
     chown vcap:vcap <%= diag_dir %>
     <% end %>
 
-    source $CC_JOB_DIR/bin/handle_nfs_or_local_blobstore.sh
+    source $CC_JOB_DIR/bin/handle_local_blobstore.sh
 
     # Configure the core file location
     mkdir -p /var/vcap/sys/cores

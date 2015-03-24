@@ -72,22 +72,22 @@ module VCAP::CloudController::RestController
       end
 
       opts[:max_inline] ||= VCAP::CloudController::Config.config[:max_inline_relationships]
-      relations_map = opts[:orphan_relations] == 1 ? {} : nil
-      resources = dataset.all.map { |obj| @serializer.serialize(controller, obj, opts, relations_map) }
+      orphans = opts[:orphan_relations] == 1 ? {} : nil
+      resources = dataset.all.map { |obj| @serializer.serialize(controller, obj, opts, orphans) }
 
-      res = {
-          :total_results => paginated_dataset.pagination_record_count,
-          :total_pages => paginated_dataset.page_count,
-          :prev_url => prev_url,
-          :next_url => next_url,
-          :resources => resources,
+       result = {
+         :total_results => paginated_dataset.pagination_record_count,
+         :total_pages => paginated_dataset.page_count,
+         :prev_url => prev_url,
+         :next_url => next_url,
+         :resources => resources,
       }
 
-      if relations_map
-        res[:relations] = relations_map
+      if orphans
+        result[:orphans] = orphans
       end
 
-      MultiJson.dump(res, :pretty => opts[:pretty] == 1 ? true : PreloadedObjectSerializer.pretty_default)
+      MultiJson.dump(result, :pretty => opts[:pretty] == 1 ? true : PreloadedObjectSerializer.pretty_default)
     end
 
     private
@@ -112,6 +112,9 @@ module VCAP::CloudController::RestController
       end
 
       params['q'] = opts[:q] if opts[:q]
+      params['orphan-relations'] = opts[:orphan_relations] if opts[:orphan_relations]
+      params['exclude-relations'] = opts[:exclude_relations] if opts[:exclude_relations]
+      params['include-relations'] = opts[:include_relations] if opts[:include_relations]
 
       controller.preserve_query_parameters.each do |preseved_param|
         params[preseved_param] = request_params[preseved_param] if request_params[preseved_param]

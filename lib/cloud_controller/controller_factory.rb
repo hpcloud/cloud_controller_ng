@@ -48,10 +48,10 @@ module CloudController
                                 {
                                   stagers:   dependency_locator.stagers
                                 }
-                              when 'AppsController', 'RestagesController'
+                              when 'AppsController'
                                 { app_event_repository: dependency_locator.app_event_repository,
                                   health_manager_client: dependency_locator.health_manager_client, }
-                              when 'RestagesController'
+                              when 'RestagesController', 'AppBitsUploadController'
                                 { app_event_repository: dependency_locator.app_event_repository }
                               when 'SpacesController'
                                 { space_event_repository: dependency_locator.space_event_repository }
@@ -60,30 +60,51 @@ module CloudController
                                   collection_renderer: dependency_locator.large_paginated_collection_renderer,
                                 }
                               when 'BillingEventsController'
-                                {
-                                  object_renderer:     nil, # no object rendering
-                                  collection_renderer: dependency_locator.entity_only_paginated_collection_renderer,
-                                }
+                                billing_dependencies
                               when 'InstancesController', 'SpaceSummariesController', 'AppSummariesController',
                                    'CrashesController', 'StatsController'
-                                {
-                                  instances_reporters:   dependency_locator.instances_reporters,
-                                }
+                                instances_reporters
                               when 'AppBitsDownloadController'
-                                {
-                                  blob_sender:          dependency_locator.blob_sender,
-                                  package_blobstore:    dependency_locator.package_blobstore,
-                                  missing_blob_handler: dependency_locator.missing_blob_handler,
-                                }
+                                app_bits_download_dependencies
                               when 'ProcessesController'
-                                {
-                                  process_repository: dependency_locator.process_repository,
-                                }
+                                process_dependencies
+                              when 'AppsV3Controller'
+                                app_v3_dependencies
                               else
                                 {}
-                            end
+                              end
 
       default_dependencies.merge(custom_dependencies)
+    end
+
+    def billing_dependencies
+      {
+        object_renderer:     nil, # no object rendering
+        collection_renderer: dependency_locator.entity_only_paginated_collection_renderer,
+      }
+    end
+
+    def instances_reporters
+      { instances_reporters:   dependency_locator.instances_reporters }
+    end
+
+    def app_bits_download_dependencies
+      {
+        blob_sender:          dependency_locator.blob_sender,
+        package_blobstore:    dependency_locator.package_blobstore,
+        missing_blob_handler: dependency_locator.missing_blob_handler,
+      }
+    end
+
+    def process_dependencies
+      { process_repository: dependency_locator.process_repository }
+    end
+
+    def app_v3_dependencies
+      {
+        app_repository: dependency_locator.app_repository,
+        process_repository: dependency_locator.process_repository,
+      }
     end
   end
 end
