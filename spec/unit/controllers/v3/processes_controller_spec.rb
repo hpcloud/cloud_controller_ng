@@ -1,11 +1,13 @@
 require 'spec_helper'
+require 'models/v3/mappers/process_mapper'
 
 module VCAP::CloudController
   describe ProcessesController do
     let(:logger) { instance_double(Steno::Logger) }
     let(:process_repo) { instance_double(ProcessRepository) }
-    let(:app_model) { AppFactory.make }
-    let(:process) { AppProcess.new(app_model) }
+    let(:process_model) { AppFactory.make(app_guid: app_model.guid) }
+    let(:app_model) { AppModel.make }
+    let(:process) { ProcessMapper.map_model_to_domain(process_model) }
     let(:user) { User.make }
     let(:guid) { process.guid }
     let(:req_body) {''}
@@ -35,7 +37,8 @@ module VCAP::CloudController
           expect {
             process_controller.show(guid)
           }.to raise_error do |error|
-            expect(error.name).to eq 'NotFound'
+            expect(error.name).to eq 'ResourceNotFound'
+            expect(error.message).to eq 'Process not found'
             expect(error.response_code).to eq 404
           end
         end
@@ -51,32 +54,9 @@ module VCAP::CloudController
           expect {
             process_controller.show(guid)
           }.to raise_error do |error|
-            expect(error.name).to eq 'NotFound'
+            expect(error.name).to eq 'ResourceNotFound'
             expect(error.response_code).to eq 404
           end
-        end
-      end
-
-      context 'when the process does exist' do
-        before do
-          allow(process_repo).to receive(:find_by_guid).and_return(process)
-          SecurityContext.set(user, { 'scope' => [Roles::CLOUD_CONTROLLER_ADMIN_SCOPE] })
-        end
-
-        it 'returns a 200' do
-          response_code, _ = process_controller.show(guid)
-          expect(response_code).to eq 200
-        end
-
-        it 'returns the process in JSON format' do
-          expected_response = {
-            'guid' => process.guid,
-          }
-
-          _ , json_body = process_controller.show(app_model.guid)
-          response_hash = MultiJson.load(json_body)
-
-          expect(response_hash).to match(expected_response)
         end
       end
     end
@@ -89,7 +69,8 @@ module VCAP::CloudController
           'instances' => 2,
           'disk_quota' => 1024,
           'space_guid' => Space.make.guid,
-          'stack_guid' => Stack.make.guid
+          'stack_guid' => Stack.make.guid,
+          'app_guid' => app_model.guid,
         }.to_json
       end
 
@@ -165,29 +146,50 @@ module VCAP::CloudController
     end
 
     describe '#update' do
+      let(:new_space) { Space.make }
       let(:req_body) do
         {
           'name' => 'my-process',
           'memory' => 256,
           'instances' => 2,
           'disk_quota' => 1024,
-          'space_guid' => Space.make.guid,
-          'stack_guid' => Stack.make.guid
+          'space_guid' => new_space.guid,
+          'stack_guid' => Stack.make.guid,
         }.to_json
       end
 
-      context 'when the user cannot update an process' do
+      context 'when the user cannot update the initial process' do
         before do
           allow(process_repo).to receive(:find_by_guid_for_update).and_yield(process)
           SecurityContext.set(user)
         end
 
-        it 'returns a 404 NotFound error' do
+        it 'returns a 404 ResourceNotFound error' do
           expect {
             process_controller.update(guid)
           }.to raise_error do |error|
-            expect(error.name).to eq 'NotFound'
+            expect(error.name).to eq 'ResourceNotFound'
             expect(error.response_code).to eq 404
+          end
+        end
+      end
+
+      context 'when the user cannot update to the desired state' do
+        let(:desired_process) { AppProcess.new({space_guid: new_space.guid}) }
+
+        before do
+          allow(process_repo).to receive(:find_by_guid_for_update).and_yield(process)
+          process_model.space.organization.add_user(user)
+          process_model.space.add_developer(user)
+          SecurityContext.set(user, { 'scope' => ['cloud_controller.write', 'cloud_controller.read'] })
+        end
+
+        it 'returns a 403 NotAuthorized error' do
+          expect {
+            process_controller.update(guid)
+          }.to raise_error do |error|
+            expect(error.name).to eq 'NotAuthorized'
+            expect(error.response_code).to eq 403
           end
         end
       end
@@ -196,12 +198,39 @@ module VCAP::CloudController
         before do
           allow(process_repo).to receive(:find_by_guid_for_update).and_yield(nil)
         end
+
         it 'raises an ApiError with a 404 code' do
           expect {
             process_controller.update(guid)
           }.to raise_error do |error|
-            expect(error.name).to eq 'NotFound'
+            expect(error.name).to eq 'ResourceNotFound'
             expect(error.response_code).to eq 404
+          end
+        end
+      end
+
+      context 'when persisting the process fails' do
+        let(:req_body) do
+          {
+            name: 'a-new-name'
+          }.to_json
+        end
+
+        before do
+          allow(process_repo).to receive(:find_by_guid_for_update).and_yield(process)
+          allow(process_repo).to receive(:persist!)
+          .and_raise(ProcessRepository::InvalidProcess)
+          process_model.space.organization.add_user(user)
+          process_model.space.add_developer(user)
+          SecurityContext.set(user, { 'scope' => ['cloud_controller.write', 'cloud_controller.read'] })
+        end
+
+        it 'raises an UnprocessableEntity with a 422' do
+          expect {
+            process_controller.update(guid)
+          }.to raise_error do |error|
+            expect(error.name).to eq 'UnprocessableEntity'
+            expect(error.response_code).to eq 422
           end
         end
       end
@@ -217,117 +246,37 @@ module VCAP::CloudController
           end
         end
       end
+    end
 
-      context 'when a user can update a process' do
+    describe 'delete' do
+      context 'when the process does not exist' do
         before do
-          expect(process_repo).to receive(:find_by_guid_for_update).and_yield(process)
-          expect(process_repo).to receive(:update).and_return(process)
-          expect(process_repo).to receive(:persist!).and_return(process)
-          SecurityContext.set(user, { 'scope' => [Roles::CLOUD_CONTROLLER_ADMIN_SCOPE] })
+          allow(process_repo).to receive(:find_by_guid_for_update).and_return(nil)
         end
 
-        it 'returns a 200 Ok response' do
-          response_code, _ = process_controller.update(guid)
-          expect(response_code).to eq 200
-        end
-
-        it 'returns the process information in JSON format' do
-          expected_response = {
-            'guid' => process.guid,
-          }
-
-          _, json_body = process_controller.update(process.guid)
-          response_hash = MultiJson.load(json_body)
-
-          expect(response_hash).to match(expected_response)
+        it 'raises an ApiError with a 404 code' do
+          expect {
+            process_controller.delete(guid)
+          }.to raise_error do |error|
+            expect(error.name).to eq 'ResourceNotFound'
+            expect(error.response_code).to eq 404
+          end
         end
       end
-    end
 
-
-    # These tests are not strictly necessary, the unit tests above
-    # cover the same code.
-    describe 'GET /v3/processes/:guid' do
-      it '404s when the process does not exist' do
-        user = User.make
-        get '/v3/processes/non-existing', {}, headers_for(user)
-        expect(last_response.status).to eq(404)
-      end
-
-      context 'permissions' do
-        it 'returns a 404 for an unauthorized user' do
-          user = User.make
-          process = AppFactory.make
-          get "/v3/processes/#{process.guid}", {}, headers_for(user)
-          expect(last_response.status).to eq(404)
-        end
-      end
-    end
-
-    describe 'POST /v3/processes' do
-      it 'returns a 422 when the params are invalid' do
-        invalid_opts = {
-          'space_guid' => Space.make.guid,
-        }
-        post '/v3/processes', invalid_opts.to_json, admin_headers
-        expect(last_response.status).to eq(422)
-      end
-
-      context 'permissions' do
-        it 'returns a 404 for an unauthorized user' do
-          user = User.make
-          valid_opts = {
-            'name' => 'my-process',
-            'memory' => 256,
-            'instances' => 2,
-            'disk_quota' => 1024,
-            'space_guid' => Space.make.guid,
-            'stack_guid' => Stack.make.guid
-          }
-          post '/v3/processes', valid_opts.to_json, headers_for(user)
-          expect(last_response.status).to eq(403)
-        end
-      end
-    end
-
-    describe 'DELETE /v3/processes/:guid' do
-      it 'returns a 404 when the process does not exist' do
-        delete '/v3/processes/bogus-guid', {}, admin_headers
-        expect(last_response.status).to eq(404)
-      end
-
-      context 'permissions' do
-        it 'returns a 404 for an unauthorized user' do
-          user = User.make
-          process = AppFactory.make
-          delete "/v3/processes/#{process.guid}", {}, headers_for(user)
-          expect(last_response.status).to eq(404)
-        end
-      end
-    end
-
-    describe 'PATCH /v3/processes/:guid' do
-      it 'returns a 404 when the process does not exist' do
-        patch '/v3/processes/bogus-guid', {}.to_json, admin_headers
-        expect(last_response.status).to eq(404)
-      end
-
-      context 'permissions' do
-        let(:user) { User.make }
-        let(:process) { AppFactory.make }
-
-        it 'returns a 404 when the user is unauthorized to update the initial process' do
-          patch "/v3/processes/#{process.guid}", {}.to_json, headers_for(user)
-          expect(last_response.status).to eq(404)
+      context 'when the user cannot delete the process' do
+        before do
+          allow(process_repo).to receive(:find_by_guid_for_update).and_yield(process)
+          SecurityContext.set(user)
         end
 
-        it 'returns a 404 when the user is unauthorized to update to the desired state' do
-          process.space.organization.add_user(user)
-          process.space.add_developer(user)
-          space2 = Space.make
-
-          patch "/v3/processes/#{process.guid}", { 'space_guid' => space2.guid }.to_json, headers_for(user)
-          expect(last_response.status).to eq(404)
+        it 'raises a 404' do
+          expect {
+            process_controller.delete(guid)
+          }.to raise_error do |error|
+            expect(error.name).to eq 'ResourceNotFound'
+            expect(error.response_code).to eq 404
+          end
         end
       end
     end

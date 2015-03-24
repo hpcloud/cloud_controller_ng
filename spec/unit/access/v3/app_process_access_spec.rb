@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'models/v3/mappers/process_mapper'
 
 module VCAP::CloudController
   describe AppProcessAccess, type: :access do
@@ -6,7 +7,8 @@ module VCAP::CloudController
     let(:admin) { false }
     let(:user) { User.make }
     let(:roles) { double(:roles, admin?: admin) }
-    let(:process) { AppFactory.make }
+    let(:process_model) { AppFactory.make }
+    let(:process) { ProcessMapper.map_model_to_domain(process_model) }
     let(:access_context) { double(:access_context, roles: roles, user: user) }
 
     before do
@@ -17,7 +19,7 @@ module VCAP::CloudController
       SecurityContext.clear
     end
 
-    describe "read?" do
+    describe "#read?" do
       context "admin user" do
         let(:admin) { true }
 
@@ -47,6 +49,8 @@ module VCAP::CloudController
         end
 
         context "when the process is not visible to the user" do
+          let(:token) { { 'scope' => ['cloud_controller.read'] } }
+
           it "disallows the user from reading" do
             allow(App).to receive(:user_visible).and_return(App.where(guid: nil))
             access_control = AppProcessAccess.new(access_context)
@@ -56,7 +60,7 @@ module VCAP::CloudController
       end
     end
 
-    describe "create?, update?, and delete?" do
+    describe "#create?, #update?, and #delete?" do
       let(:space) { Space.make }
       let(:process) { AppProcess.new({ space_guid: space.guid }) }
 
@@ -84,7 +88,7 @@ module VCAP::CloudController
             access_control = AppProcessAccess.new(access_context)
             expect(access_control.create?(process)).to be_truthy
             expect(access_control.delete?(process)).to be_truthy
-          expect(access_control.update?(process)).to be_truthy
+            expect(access_control.update?(process)).to be_truthy
           end
         end
 

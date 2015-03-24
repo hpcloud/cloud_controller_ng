@@ -50,7 +50,7 @@ module Sinatra
           error = ::VCAP::Errors::ApiError.new_from_details("NotFound")
           presenter = ErrorPresenter.new(error, in_test_mode?)
 
-          body MultiJson.dump(presenter.error_hash)
+          body MultiJson.dump(presenter.error_hash, pretty: true)
         end
       end
 
@@ -75,7 +75,7 @@ module Sinatra
 
         request.env['vcap_exception_body_set'] = true
 
-        payload = MultiJson.dump(presenter.error_hash)
+        payload = MultiJson.dump(presenter.error_hash, pretty: true)
         body payload.concat("\n")
       end
     end

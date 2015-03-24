@@ -61,7 +61,7 @@ module VCAP::CloudController
                       :distribution_zone,
                       :description, :sso_enabled, :autoscale_enabled,
                       :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-                      :docker_image
+                      :docker_image, :app_guid
 
     strip_attributes :name
 
@@ -71,7 +71,7 @@ module VCAP::CloudController
 
     APP_STATES = %w[STOPPED STARTED].map(&:freeze).freeze
     PACKAGE_STATES = %w[PENDING STAGED FAILED].map(&:freeze).freeze
-    STAGING_FAILED_REASONS = %w[StagingError NoAppDetectedError BuildpackCompileFailed BuildpackReleaseFailed].map(&:freeze).freeze
+    STAGING_FAILED_REASONS = %w[StagingError StagingTimeExpired NoAppDetectedError BuildpackCompileFailed BuildpackReleaseFailed].map(&:freeze).freeze
 
     CENSORED_FIELDS = [:encrypted_environment_json, :command, :environment_json]
 
@@ -136,7 +136,7 @@ module VCAP::CloudController
       copy_buildpack_errors
 
       validates_includes PACKAGE_STATES, :package_state, :allow_missing => true
-      validates_includes APP_STATES, :state, :allow_missing => true
+      validates_includes APP_STATES, :state, :allow_missing => true, :message => 'must be one of ' + APP_STATES.join(', ')
       validates_includes STAGING_FAILED_REASONS, :staging_failed_reason, :allow_nil => true
 
       # REFACTOR: incorporate `validate_autoscaling_settings` into upstream's
@@ -589,11 +589,13 @@ module VCAP::CloudController
 
     def self.user_visibility_filter(user)
       Sequel.or([
-                    [:space, user.spaces_dataset],
-                    [:space, user.managed_spaces_dataset],
-                    [:space, user.audited_spaces_dataset],
-                    [:apps__space_id, user.managed_organizations_dataset.join(:spaces, :spaces__organization_id => :organizations__id).select(:spaces__id)]
-                ])
+          [:space, user.spaces_dataset],
+          [:space, user.managed_spaces_dataset],
+          [:space, user.audited_spaces_dataset],
+          [:apps__space_id, user.managed_organizations_dataset.join(
+            :spaces, spaces__organization_id: :organizations__id
+          ).select(:spaces__id)]
+      ])
     end
 
     def needs_staging?
@@ -626,6 +628,7 @@ module VCAP::CloudController
 
     def mark_as_staged
       self.package_state = "STAGED"
+      self.package_pending_since = nil
     end
 
     def mark_as_failed_to_stage(reason="StagingError")
@@ -633,12 +636,14 @@ module VCAP::CloudController
       return unless app_from_db
       self.package_state = "FAILED"
       self.staging_failed_reason = reason
+      self.package_pending_since = nil
       save
     end
 
     def mark_for_restaging
       self.package_state = "PENDING"
       self.staging_failed_reason = nil
+      self.package_pending_since = Time.now
     end
 
     def buildpack
