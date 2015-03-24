@@ -14,21 +14,23 @@ module VCAP::CloudController
       license = Kato::Config.get("cluster", "license")
       applog_endpoint = Kato::Config.get("applog_endpoint", "hostname") || "logs.#{config[:system_domain]}"
       info = {
-        :name        => config[:info][:name],
-        :build       => config[:info][:build],
-        :support     => config[:info][:support_address],
-        :version     => config[:info][:version],
-        :description => config[:info][:description],
-        :authorization_endpoint => config[:login] ? config[:login][:url] : config[:uaa][:url],
-        :token_endpoint => config[:uaa][:url],
-        :applog_endpoint => "ws://#{applog_endpoint}",
-        :allow_debug => config.fetch(:allow_debug, true),
-        :vendor_version => StackatoVendorConfig.vendor_version,
-        :stackato => {
-          :license_accepted => StackatoLicenseHelper.get_license_accepted(license),
-          :zero_downtime => true,
-          :UUID => STACKATO_UUID
+        name: config[:info][:name],
+        build: config[:info][:build],
+        support: config[:info][:support_address],
+        version: config[:info][:version],
+        description: config[:info][:description],
+        authorization_endpoint: config[:login] ? config[:login][:url] : config[:uaa][:url],
+        token_endpoint: config[:uaa][:url],
+        allow_debug: config.fetch(:allow_debug, true)
+		applog_endpoint: "ws://#{applog_endpoint}",
+        allow_debug: config.fetch(:allow_debug, true),
+        vendor_version: StackatoVendorConfig.vendor_version,
+        stackato => {
+          license_accepted: StackatoLicenseHelper.get_license_accepted(license),
+          zero_downtime: true,
+          UUID: STACKATO_UUID
         }
+
       }
 
       # If there is a logged in user, give out additional information
@@ -46,8 +48,8 @@ module VCAP::CloudController
 
     def service_info
       legacy_resp = {}
-      Service.filter(:provider => "core").each do |svc|
-        next unless svc.service_plans.any? { |plan| plan.name == "100" }
+      Service.filter(provider: 'core').each do |svc|
+        next unless svc.service_plans.any? { |plan| plan.name == '100' }
 
         svc_type = LegacyService.synthesize_service_type(svc)
         legacy_resp[svc_type] ||= {}
@@ -73,45 +75,44 @@ module VCAP::CloudController
 
       app_num = 0
       app_mem = 0
-      default_space.apps_dataset.filter(:state => "STARTED").each do |app|
+      default_space.apps_dataset.filter(state: 'STARTED').each do |app|
         app_num += 1
         app_mem += (app.memory * app.instances)
       end
 
-      service_count = 0
       {
-        :memory => app_mem,
-        :apps   => app_num,
-        :services => default_space.service_instances.count
+        memory: app_mem,
+        apps: app_num,
+        services: default_space.service_instances.count
       }
     end
 
     def legacy_svc_encoding(svc)
       {
-        :id      => svc.guid,
-        :vendor  => svc.label,
-        :version => svc.version,
-        :type    => LegacyService.synthesize_service_type(svc),
-        :description => svc.description || "-",
+        id: svc.guid,
+        vendor: svc.label,
+        version: svc.version,
+        type: LegacyService.synthesize_service_type(svc),
+        description: svc.description || '-',
 
         # The legacy vmc/sts clients only handles free.  Don't
         # try to pretent otherwise.
-        :tiers => {
-          "free" => {
-            "options" => { },
-            "order" => 1
+        tiers: {
+          'free' => {
+            'options' => {},
+            'order' => 1
           }
         }
       }
     end
 
     def self.setup_routes
-      get "/info",          :info
-      get "/info/services", :service_info
+      get '/info',          :info
+      get '/info/services', :service_info
     end
 
     setup_routes
 
-    deprecated_endpoint("/info")
+    deprecated_endpoint('/info')
   end
 end

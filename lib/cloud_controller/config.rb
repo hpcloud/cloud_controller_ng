@@ -1,13 +1,13 @@
-require "steno"
-require "vcap/config"
-require "cloud_controller/account_capacity"
-require "cloud_controller/health_manager_client"
-require "uri"
+require 'steno'
+require 'vcap/config'
+require 'cloud_controller/account_capacity'
+require 'uri'
+require 'cloud_controller/health_manager_client'
 require 'kato/config'
-require "cloud_controller/backends/stagers"
-require "cloud_controller/backends/runners"
-require "cloud_controller/index_stopper"
-require "cloud_controller/backends/instances_reporters"
+require 'cloud_controller/backends/stagers'
+require 'cloud_controller/backends/runners'
+require 'cloud_controller/index_stopper'
+require 'cloud_controller/backends/instances_reporters'
 require 'repositories/services/event_repository'
 
 # Config template for cloud controller
@@ -20,11 +20,11 @@ module VCAP::CloudController
         :external_port => Integer,
         :external_protocol => String,
         :info => {
-          :name            => String,
-          :build           => String,
-          :version         => Fixnum,
-          :support_address => String,
-          :description     => String,
+          name: String,
+          build: String,
+          version: Fixnum,
+          support_address: String,
+          description: String,
         },
 
         :system_domain => String,
@@ -32,16 +32,16 @@ module VCAP::CloudController
         #:system_domain_organization => enum(String, NilClass),
         :app_domains => [ String ],
         :app_events => {
-          :cutoff_age_in_days => Fixnum
+          cutoff_age_in_days: Fixnum
         },
         :app_usage_events => {
-          :cutoff_age_in_days => Fixnum
+          cutoff_age_in_days: Fixnum
         },
         :audit_events => {
-          :cutoff_age_in_days => Fixnum
+          cutoff_age_in_days: Fixnum
         },
         :failed_jobs => {
-          :cutoff_age_in_days => Fixnum
+          cutoff_age_in_days: Fixnum
         },
         optional(:billing_event_writing_enabled) => bool,
         :default_app_memory => Fixnum,
@@ -52,11 +52,11 @@ module VCAP::CloudController
         optional(:allow_debug) => bool,
 
         optional(:login) => {
-          :url      => String
+          url: String
         },
 
         :hm9000 => {
-          :url                => String
+          url: String
         },
 
         :uaa => {
@@ -98,13 +98,13 @@ module VCAP::CloudController
         },
 
         :bulk_api => {
-          :auth_user  => String,
-          :auth_password => String,
+          auth_user: String,
+          auth_password: String,
         },
 
         :internal_api => {
-          :auth_user  => String,
-          :auth_password => String,
+          auth_user: String,
+          auth_password: String,
         },
 
         :staging => {
@@ -112,25 +112,25 @@ module VCAP::CloudController
           optional(:minimum_staging_memory_mb) => Fixnum,
           optional(:minimum_staging_disk_mb) => Fixnum,
           :auth => {
-            :user => String,
-            :password => String,
+            user: String,
+            password: String,
           }
         },
 
         :cc_partition => String,
 
         optional(:default_account_capacity) => {
-          :memory   => Fixnum,   #:default => 2048,
-          :app_uris => Fixnum, #:default => 4,
-          :services => Fixnum, #:default => 16,
-          :apps     => Fixnum, #:default => 20
+          memory: Fixnum,   #:default => 2048,
+          app_uris: Fixnum, #:default => 4,
+          services: Fixnum, #:default => 16,
+          apps: Fixnum, #:default => 20
         },
 
         optional(:admin_account_capacity) => {
-          :memory   => Fixnum,   #:default => 2048,
-          :app_uris => Fixnum, #:default => 4,
-          :services => Fixnum, #:default => 16,
-          :apps     => Fixnum, #:default => 20
+          memory: Fixnum,   #:default => 2048,
+          app_uris: Fixnum, #:default => 4,
+          services: Fixnum, #:default => 16,
+          apps: Fixnum, #:default => 20
         },
 
         optional(:index)       => Integer,    # Component index (cc-0, cc-1, etc)
@@ -138,7 +138,8 @@ module VCAP::CloudController
         optional(:local_route) => String,     # If set, use this to determine the IP address that is returned in discovery messages
 
         :nginx => {
-          :use_nginx => bool
+          use_nginx: bool,
+          instance_socket: String,
         },
 
         :stackato_upload_handler => {
@@ -150,14 +151,14 @@ module VCAP::CloudController
 
         :security_group_definitions => [
           {
-            "name" => String,
-            "rules" => [
+            'name' => String,
+            'rules' => [
               {
-                "protocol" => String,
-                "destination" => String,
-                optional("ports") => String,
-                optional("type") => Integer,
-                optional("code") => Integer
+                'protocol' => String,
+                'destination' => String,
+                optional('ports') => String,
+                optional('type') => Integer,
+                optional('code') => Integer
               }
             ]
           }
@@ -179,8 +180,8 @@ module VCAP::CloudController
         },
 
         :droplets => {
-          :droplet_directory_key => String,
-          :fog_connection => Hash
+          droplet_directory_key: String,
+          fog_connection: Hash
         },
 
         :db_encryption_key => String,
@@ -196,9 +197,12 @@ module VCAP::CloudController
         optional(:uaa_client_secret) => String,
         optional(:uaa_client_scope) => String,
 
+        optional(:cloud_controller_username_lookup_client_name) => String,
+        optional(:cloud_controller_username_lookup_client_secret) => String,
+
         :renderer => {
-          :max_results_per_page => Integer,
-          :default_results_per_page => Integer,
+          max_results_per_page: Integer,
+          default_results_per_page: Integer,
         },
 
         optional(:loggregator) => {
@@ -211,28 +215,28 @@ module VCAP::CloudController
 
         optional(:install_buildpacks) => [
           {
-            "name" => String,
-            optional("package") => String,
-            optional("file") => String,
-            optional("enabled") => bool,
-            optional("locked") => bool,
-            optional("position") => Integer,
+            'name' => String,
+            optional('package') => String,
+            optional('file') => String,
+            optional('enabled') => bool,
+            optional('locked') => bool,
+            optional('position') => Integer,
           }
         ],
 
         optional(:app_bits_upload_grace_period_in_seconds) => Integer,
 
         optional(:default_locale) => String,
-        optional(:allowed_cors_domains) => [ String ],
+        optional(:allowed_cors_domains) => [String],
 
         optional(:diego) => {
           optional(:staging) => enum(
-            "disabled",
-            "optional",
+            'disabled',
+            'optional',
           ),
           optional(:running) => enum(
-            "disabled",
-            "optional",
+            'disabled',
+            'optional',
           )
         },
 
@@ -335,14 +339,14 @@ module VCAP::CloudController
       end
 
       def config_dir
-        @config_dir ||= File.expand_path("../../../config", __FILE__)
+        @config_dir ||= File.expand_path('../../../config', __FILE__)
       end
 
       def run_initializers(config)
         return if @initialized
         run_initializers_in_directory(config, '../../../config/initializers/*.rb')
         if config[:newrelic_enabled]
-          require "newrelic_rpm"
+          require 'newrelic_rpm'
           run_initializers_in_directory(config, '../../../config/newrelic/initializers/*.rb')
         end
         @initialized = true
@@ -351,13 +355,13 @@ module VCAP::CloudController
       def run_initializers_in_directory(config, path)
         Dir.glob(File.expand_path(path, __FILE__)).each do |file|
           require file
-          method = File.basename(file).sub(".rb", "").gsub("-", "_")
+          method = File.basename(file).sub('.rb', '').gsub('-', '_')
           CCInitializers.send(method, config)
         end
       end
 
       def merge_defaults(config)
-        config[:stacks_file] ||= File.join(config_dir, "stacks.yml")
+        config[:stacks_file] ||= File.join(config_dir, 'stacks.yml')
         config[:maximum_app_disk_in_mb] ||= 2048
         config[:request_timeout_in_seconds] ||= 900
         config[:directories] ||= {}
@@ -365,12 +369,12 @@ module VCAP::CloudController
         config[:skip_cert_verify] = false if config[:skip_cert_verify].nil?
         config[:app_bits_upload_grace_period_in_seconds] ||= 0
         config[:db] ||= {}
-        config[:db][:database] ||= ENV["DB_CONNECTION_STRING"]
-        config[:default_locale] ||= "en_US"
+        config[:db][:database] ||= ENV['DB_CONNECTION_STRING']
+        config[:default_locale] ||= 'en_US'
         config[:allowed_cors_domains] ||= []
         config[:diego] ||= {}
-        config[:diego][:staging] ||= "disabled"
-        config[:diego][:running] ||= "disabled"
+        config[:diego][:staging] ||= 'disabled'
+        config[:diego][:running] ||= 'disabled'
         config[:diego_docker] ||= false
         config[:dea_advertisement_timeout_in_seconds] ||= 10
         sanitize(config)
@@ -378,7 +382,7 @@ module VCAP::CloudController
 
       def validate!(config)
         if config[:diego][:staging] == 'disabled' && config[:diego][:running] != 'disabled'
-          raise "Invalid diego configuration"
+          raise 'Invalid diego configuration'
         end
       end
 
@@ -406,7 +410,7 @@ module VCAP::CloudController
       end
 
       def escape_userinfo(value)
-        URI::escape(value, "%#{URI::REGEXP::PATTERN::RESERVED}")
+        URI.escape(value, "%#{URI::REGEXP::PATTERN::RESERVED}")
       end
 
       def valid_in_userinfo?(value)

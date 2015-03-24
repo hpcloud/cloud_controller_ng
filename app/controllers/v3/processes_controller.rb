@@ -1,15 +1,24 @@
 require 'presenters/v3/process_presenter'
 require 'handlers/processes_handler'
+require 'cloud_controller/paging/pagination_options'
 
 module VCAP::CloudController
   # TODO: would be nice not needing to use this BaseController
   class ProcessesController < RestController::BaseController
     def self.dependencies
-      [ :process_repository, :processes_handler, :process_presenter ]
+      [:process_repository, :processes_handler, :process_presenter]
     end
     def inject_dependencies(dependencies)
       @processes_handler = dependencies[:processes_handler]
       @process_presenter = dependencies[:process_presenter]
+    end
+
+    get '/v3/processes', :list
+    def list
+      pagination_options = PaginationOptions.from_params(params)
+      paginated_result   = @processes_handler.list(pagination_options, @access_context)
+
+      [HTTP::OK, @process_presenter.present_json_list(paginated_result, '/v3/processes')]
     end
 
     get '/v3/processes/:guid', :show

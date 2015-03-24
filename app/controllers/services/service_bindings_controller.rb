@@ -3,9 +3,9 @@ require 'services/api'
 module VCAP::CloudController
   class ServiceBindingsController < RestController::ModelController
     define_attributes do
-      to_one    :app
-      to_one    :service_instance
-      attribute :binding_options, Hash, :default => {}
+      to_one :app
+      to_one :service_instance
+      attribute :binding_options, Hash, default: {}
     end
 
     get path,      :enumerate
@@ -14,7 +14,7 @@ module VCAP::CloudController
     query_parameters :app_guid, :service_instance_guid
 
     def self.dependencies
-      [ :services_event_repository ]
+      [:services_event_repository]
     end
 
     def inject_dependencies(dependencies)
@@ -24,20 +24,14 @@ module VCAP::CloudController
 
     post path, :create
     def create
-      json_msg = self.class::CreateMessage.decode(body)
+      @request_attrs = self.class::CreateMessage.decode(body).extract(stringify_keys: true)
 
-      @request_attrs = json_msg.extract(:stringify_keys => true)
-
-      logger.debug "cc.create", :model => self.class.model_class_name,
-        :attributes => request_attrs
+      logger.debug 'cc.create', model: self.class.model_class_name, attributes: request_attrs
 
       raise InvalidRequest unless request_attrs
 
-      instance_guid = request_attrs['service_instance_guid']
-      app_guid      = request_attrs['app_guid']
-
-      validate_service_instance(instance_guid)
-      validate_app(app_guid)
+      validate_service_instance(request_attrs['service_instance_guid'])
+      validate_app(request_attrs['app_guid'])
 
       service_binding = ServiceBinding.new(@request_attrs)
       validate_access(:create, service_binding)
@@ -50,9 +44,9 @@ module VCAP::CloudController
 
       @services_event_repository.record_service_binding_event(:create, service_binding)
 
-      [ HTTP::CREATED,
-        { "Location" => "#{self.class.path}/#{service_binding.guid}" },
-        object_renderer.render_json(self.class, service_binding, @opts)
+      [HTTP::CREATED,
+       { 'Location' => "#{self.class.path}/#{service_binding.guid}" },
+       object_renderer.render_json(self.class, service_binding, @opts)
       ]
     end
 
@@ -64,13 +58,7 @@ module VCAP::CloudController
       deletion_job = Jobs::Runtime::ModelDeletion.new(ServiceBinding, guid)
       delete_and_audit_job = Jobs::AuditEventJob.new(deletion_job, @services_event_repository, :record_service_binding_event, :delete, service_binding)
 
-      if async?
-        job = Jobs::Enqueuer.new(delete_and_audit_job, queue: "cc-generic").enqueue()
-        [HTTP::ACCEPTED, JobPresenter.new(job).to_json]
-      else
-        delete_and_audit_job.perform
-        [HTTP::NO_CONTENT, nil]
-      end
+      enqueue_deletion_job(delete_and_audit_job)
     end
 
     private
@@ -90,13 +78,13 @@ module VCAP::CloudController
     def self.translate_validation_exception(e, attributes)
       unique_errors = e.errors.on([:app_id, :service_instance_id])
       if unique_errors && unique_errors.include?(:unique)
-        Errors::ApiError.new_from_details("ServiceBindingAppServiceTaken", "#{attributes["app_guid"]} #{attributes["service_instance_guid"]}")
+        Errors::ApiError.new_from_details('ServiceBindingAppServiceTaken', "#{attributes['app_guid']} #{attributes['service_instance_guid']}")
       elsif e.errors.on(:app) && e.errors.on(:app).include?(:presence)
         Errors::ApiError.new_from_details('AppNotFound', attributes['app_guid'])
       elsif e.errors.on(:service_instance) && e.errors.on(:service_instance).include?(:presence)
         Errors::ApiError.new_from_details('ServiceInstanceNotFound', attributes['service_instance_guid'])
       else
-        Errors::ApiError.new_from_details("ServiceBindingInvalid", e.errors.full_messages)
+        Errors::ApiError.new_from_details('ServiceBindingInvalid', e.errors.full_messages)
       end
     end
 

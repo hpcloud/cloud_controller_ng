@@ -1,8 +1,10 @@
 require 'addressable/uri'
-require "cloud_controller/rest_controller/order_applicator"
+require 'cloud_controller/rest_controller/order_applicator'
 
 module VCAP::CloudController::RestController
   class PaginatedCollectionRenderer
+    attr_reader :collection_transformer
+
     def initialize(eager_loader, serializer, opts)
       @eager_loader = eager_loader
       @serializer = serializer
@@ -12,6 +14,8 @@ module VCAP::CloudController::RestController
 
       @max_inline_relations_depth = opts.fetch(:max_inline_relations_depth)
       @default_inline_relations_depth = 0
+
+      @collection_transformer = opts[:collection_transformer]
     end
 
     # @param [RestController] controller Controller for the
@@ -45,23 +49,16 @@ module VCAP::CloudController::RestController
 
       page_size = opts[:results_per_page] || @default_results_per_page
       if page_size > @max_results_per_page
-        raise VCAP::Errors::ApiError.new_from_details("BadQueryParameter", "results_per_page must be <= #{@max_results_per_page}")
+        raise VCAP::Errors::ApiError.new_from_details('BadQueryParameter', "results_per_page must be <= #{@max_results_per_page}")
       end
 
       inline_relations_depth = opts[:inline_relations_depth] || @default_inline_relations_depth
       if inline_relations_depth > @max_inline_relations_depth
-        raise VCAP::Errors::ApiError.new_from_details("BadQueryParameter", "inline_relations_depth must be <= #{@max_inline_relations_depth}")
+        raise VCAP::Errors::ApiError.new_from_details('BadQueryParameter', "inline_relations_depth must be <= #{@max_inline_relations_depth}")
       end
 
       ordered_dataset = order_applicator.apply(ds)
       paginated_dataset = ordered_dataset.extension(:pagination).paginate(page, page_size)
-      dataset = @eager_loader.eager_load_dataset(
-          paginated_dataset,
-          controller,
-          default_visibility_filter,
-          opts[:additional_visibility_filters] || {},
-          inline_relations_depth,
-      )
 
       if paginated_dataset.prev_page
         prev_url = url(controller, path, paginated_dataset.prev_page, page_size, order_direction, opts, request_params)
@@ -73,24 +70,41 @@ module VCAP::CloudController::RestController
 
       opts[:max_inline] ||= VCAP::CloudController::Config.config[:max_inline_relationships]
       orphans = opts[:orphan_relations] == 1 ? {} : nil
-      resources = dataset.all.map { |obj| @serializer.serialize(controller, obj, opts, orphans) }
 
-       result = {
-         :total_results => paginated_dataset.pagination_record_count,
-         :total_pages => paginated_dataset.page_count,
-         :prev_url => prev_url,
-         :next_url => next_url,
-         :resources => resources,
+      resources = fetch_and_process_records(paginated_dataset, controller, inline_relations_depth, orphans, opts)
+
+      result = {
+         total_results: paginated_dataset.pagination_record_count,
+         total_pages: paginated_dataset.page_count,
+         prev_url: prev_url,
+         next_url: next_url,
+         resources: resources,
       }
 
       if orphans
         result[:orphans] = orphans
       end
 
-      MultiJson.dump(result, :pretty => opts[:pretty] == 1 ? true : PreloadedObjectSerializer.pretty_default)
+      MultiJson.dump(result, pretty: true)
     end
 
     private
+
+    def fetch_and_process_records(paginated_dataset, controller, inline_relations_depth, orphans, opts)
+      dataset = @eager_loader.eager_load_dataset(
+        paginated_dataset,
+        controller,
+        default_visibility_filter,
+        opts[:additional_visibility_filters] || {},
+        inline_relations_depth,
+      )
+
+      dataset_records = dataset.all
+
+      collection_transformer.transform(dataset_records) if collection_transformer
+
+      dataset_records.map { |obj| @serializer.serialize(controller, obj, opts, orphans) }
+    end
 
     def default_visibility_filter
       user = VCAP::CloudController::SecurityContext.current_user

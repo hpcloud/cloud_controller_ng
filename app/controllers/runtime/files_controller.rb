@@ -1,9 +1,9 @@
-require "httpclient"
-require "uri"
+require 'httpclient'
+require 'uri'
 
 module VCAP::CloudController
   class FilesController < RestController::ModelController
-    path_base "apps"
+    path_base 'apps'
     model_class_name :App
 
     get "#{path_guid}/instances/:instance_id/files", :files
@@ -14,19 +14,19 @@ module VCAP::CloudController
       info = get_file_uri_for_search_param(app, path, search_param)
 
       headers = {}
-      range = env["HTTP_RANGE"]
+      range = env['HTTP_RANGE']
       if range
-        headers["Range"] = range
+        headers['Range'] = range
       end
       
       http_response = nil
       # new VMC and new DEA, let's hand out the directory server url.
       # We sadly still have to serve the files through CC otherwise
       uri = info.file_uri_v2
-      if opts["allow_redirect"] == true # cli_request? == true
-        uri = add_tail(uri) if params.include?("tail")
+      if opts['allow_redirect'] == true # cli_request? == true
+        uri = add_tail(uri) if params.include?('tail')
         uri.sub!(/^http:/, 'https:')
-        return [HTTP::FOUND, {"Location" => uri}, nil]
+        return [HTTP::FOUND, {'Location' => uri}, nil]
       else # web_console_request? == true
         if info.host_ip && !info.host_ip.empty?
           if (v2_port = Kato::Config.get('dea_ng', 'directory_server/v2_port'))
@@ -36,21 +36,16 @@ module VCAP::CloudController
         http_response = http_get(uri, headers, nil, nil)
       end
 
-      unless [200, 206, 416].include? http_response.status
-        msg = "Request failed for app: #{app.name}, search_param: #{search_param}"
-        msg << " as there was an error retrieving the files."
-        logger.error("#{msg} For uri:'#{uri}', headers:#{headers} => http status #{http_response.status}")
-        raise Errors::ApiError.new_from_details("FileError", msg)
-      end
-
-      [http_response.status, http_response.body]
+      uri = info.file_uri_v2
+      uri = add_tail(uri) if params.include?('tail')
+      [HTTP::FOUND, { 'Location' => uri }, nil]
     end
 
     get "#{path_guid}/instances/:instance_id/files/*", :files
     def http_get(uri, headers, username, password)
       client = HTTPClient.new
       client.set_auth(nil, username, password) if username && password
-      client.get(uri, :header => headers)
+      client.get(uri, header: headers)
     end
 
     private
@@ -59,11 +54,11 @@ module VCAP::CloudController
     def add_tail(uri)
       uri = URI(uri)
       # query is Array of [key, value1, value2...]
-      query = URI::decode_www_form(uri.query || "")
-      unless query.assoc("tail")
-        query.push(["tail", ""])
+      query = URI.decode_www_form(uri.query || '')
+      unless query.assoc('tail')
+        query.push(['tail', ''])
       end
-      uri.query = URI::encode_www_form(query)
+      uri.query = URI.encode_www_form(query)
       uri.to_s
     end
 
@@ -82,7 +77,7 @@ module VCAP::CloudController
         msg = "Request failed for app: #{app.name}, path: #{path || '/'}"
         msg << " as the search_param: #{search_param} is invalid."
 
-        raise Errors::ApiError.new_from_details("FileError", msg)
+        raise Errors::ApiError.new_from_details('FileError', msg)
       end
     end
   end

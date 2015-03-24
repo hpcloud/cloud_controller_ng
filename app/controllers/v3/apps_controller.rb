@@ -1,11 +1,12 @@
 require 'presenters/v3/app_presenter'
 require 'handlers/processes_handler'
 require 'handlers/apps_handler'
+require 'cloud_controller/paging/pagination_options'
 
 module VCAP::CloudController
   class AppsV3Controller < RestController::BaseController
     def self.dependencies
-      [ :processes_handler, :process_presenter, :apps_handler, :app_presenter ]
+      [:processes_handler, :process_presenter, :apps_handler, :app_presenter]
     end
 
     def inject_dependencies(dependencies)
@@ -13,6 +14,14 @@ module VCAP::CloudController
       @app_handler = dependencies[:apps_handler]
       @app_presenter = dependencies[:app_presenter]
       @process_presenter = dependencies[:process_presenter]
+    end
+
+    get '/v3/apps', :list
+    def list
+      pagination_options = PaginationOptions.from_params(params)
+      paginated_result   = @app_handler.list(pagination_options, @access_context)
+
+      [HTTP::OK, @app_presenter.present_json_list(paginated_result)]
     end
 
     get '/v3/apps/:guid', :show
@@ -73,7 +82,10 @@ module VCAP::CloudController
       app = @app_handler.show(guid, @access_context)
       app_not_found! if app.nil?
 
-      [HTTP::OK, @process_presenter.present_json_list(app.processes)]
+      pagination_options = PaginationOptions.from_params(params)
+      paginated_result   = @process_handler.list(pagination_options, @access_context, app_guid: app.guid)
+
+      [HTTP::OK, @process_presenter.present_json_list(paginated_result, "/v3/apps/#{guid}/processes")]
     end
 
     put '/v3/apps/:guid/processes', :add_process

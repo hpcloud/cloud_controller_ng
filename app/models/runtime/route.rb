@@ -1,4 +1,4 @@
-require "cloud_controller/dea/client"
+require 'cloud_controller/dea/client'
 require 'uri'
 
 module VCAP::CloudController
@@ -49,7 +49,7 @@ module VCAP::CloudController
 
       errors.add(:host, :presence) if host.nil?
 
-      validates_format /^([\w\-]+)$/, :host if (host && !host.empty?)
+      validates_format /^([\w\-]+)$/, :host if host && !host.empty?
       validates_unique [:host, :domain_id]
 
       main_domain = Kato::Config.get("cluster", "endpoint").gsub(/^api\./, '')
@@ -87,12 +87,12 @@ module VCAP::CloudController
     end
 
     def domains_match?
-        return false if domain.nil? || host.nil? || host.empty?
-        return !Domain.find(name: fqdn).nil?
+      return false if domain.nil? || host.nil? || host.empty?
+      !Domain.find(name: fqdn).nil?
     end
 
     def validate_app(app)
-      return unless (space && app && domain)
+      return unless space && app && domain
 
       unless app.space == space
         raise InvalidAppRelation.new(app.guid)
@@ -103,11 +103,6 @@ module VCAP::CloudController
       end
 
       register_oauth_client if app.sso_enabled
-    end
-
-    def validate_changed_space(new_space)
-      apps.each{ |app| validate(app) }
-      domain && domain.addable_to_organization!(new_space.organization)
     end
 
     def validate_changed_space(new_space)
@@ -128,7 +123,7 @@ module VCAP::CloudController
         organization: orgs,
       ))
 
-      { :space => spaces }
+      { space: spaces }
     end
 
     def register_oauth_client
@@ -210,7 +205,7 @@ module VCAP::CloudController
     end
 
     def validate_domain
-        errors.add(:domain, :invalid_relation) if !valid_domain
+      errors.add(:domain, :invalid_relation) if !valid_domain
     end
 
     def valid_domain
@@ -220,7 +215,7 @@ module VCAP::CloudController
       return false if !new? && domain_change && domain_change[0] != domain_change[1]
 
       if (domain.shared? && !host.present?) ||
-        (space && !domain.usable_by_organization?(space.organization))
+          (space && !domain.usable_by_organization?(space.organization))
         return false
       end
 
