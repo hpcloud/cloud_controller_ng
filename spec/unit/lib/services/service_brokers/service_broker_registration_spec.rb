@@ -3,20 +3,20 @@ require 'spec_helper'
 module VCAP::Services::ServiceBrokers
   describe ServiceBrokerRegistration do
 
+    subject(:registration) { ServiceBrokerRegistration.new(broker, service_manager, services_event_repository) }
+
+    let(:client_manager) { double(:dashboard_manager, synchronize_clients_with_catalog: true, warnings: []) }
+    let(:catalog) { double(:catalog, valid?: true) }
+    let(:service_manager) { double(:service_manager, sync_services_and_plans: true, has_warnings?: false) }
+    let(:services_event_repository) { double(:services_event_repository) }
+
     describe 'initializing' do
       let(:broker) { VCAP::CloudController::ServiceBroker.make }
-      subject { described_class.new(broker) }
 
       its(:broker) { should == broker }
       its(:warnings) { should == [] }
       its(:errors) { should == broker.errors }
     end
-
-    subject(:registration) { ServiceBrokerRegistration.new(broker) }
-
-    let(:client_manager) { double(:dashboard_manager, synchronize_clients_with_catalog: true, warnings: []) }
-    let(:catalog) { double(:catalog, valid?: true) }
-    let(:service_manager) { double(:service_manager, sync_services_and_plans: true, has_warnings?: false) }
 
     describe '#create' do
       let(:broker) do
@@ -78,14 +78,14 @@ module VCAP::Services::ServiceBrokers
       it 'creates dashboard clients' do
         registration.create
 
-        expect(VCAP::Services::SSO::DashboardClientManager).to have_received(:new).with(broker)
+        expect(VCAP::Services::SSO::DashboardClientManager).to have_received(:new).with(broker, services_event_repository)
         expect(client_manager).to have_received(:synchronize_clients_with_catalog).with(catalog)
       end
 
       context 'when invalid' do
         context 'because the broker has errors' do
           let(:broker) { VCAP::CloudController::ServiceBroker.new }
-          let(:registration) { ServiceBrokerRegistration.new(broker) }
+          let(:registration) { ServiceBrokerRegistration.new(broker, service_manager, services_event_repository) }
 
           it 'returns nil' do
             expect(registration.create).to be_nil
@@ -295,7 +295,7 @@ module VCAP::Services::ServiceBrokers
         end
       end
     end
-    
+
     describe '#update' do
       let!(:broker) do
         VCAP::CloudController::ServiceBroker.make(
@@ -349,13 +349,13 @@ module VCAP::Services::ServiceBrokers
       it 'updates dashboard clients' do
         registration.update
 
-        expect(VCAP::Services::SSO::DashboardClientManager).to have_received(:new).with(broker)
+        expect(VCAP::Services::SSO::DashboardClientManager).to have_received(:new).with(broker, services_event_repository)
         expect(client_manager).to have_received(:synchronize_clients_with_catalog).with(catalog)
       end
 
       context 'when invalid' do
         context 'because the broker has errors' do
-          let(:registration) { ServiceBrokerRegistration.new(broker) }
+          let(:registration) { ServiceBrokerRegistration.new(broker, service_manager, services_event_repository) }
 
           before do
             broker.name = nil

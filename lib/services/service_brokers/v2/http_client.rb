@@ -23,6 +23,10 @@ module VCAP::Services
           source
         )
       end
+
+      def response_code
+        504
+      end
     end
 
     class HttpClient

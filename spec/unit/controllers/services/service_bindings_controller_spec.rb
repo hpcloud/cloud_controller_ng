@@ -182,6 +182,38 @@ module VCAP::CloudController
           expect(binding.credentials).to eq(CREDENTIALS)
         end
 
+        it 'creates an audit event upon binding' do
+          req = {
+            :app_guid => app_obj.guid,
+            :service_instance_guid => instance.guid
+          }
+
+          email = 'email@example.com'
+          post "/v2/service_bindings", req.to_json, json_headers(headers_for(developer, email: email))
+
+          service_binding = ServiceBinding.last
+
+          event = Event.first(type: 'audit.service_binding.create')
+          expect(event.actor_type).to eq('user')
+          expect(event.timestamp).to be
+          expect(event.actor).to eq(developer.guid)
+          expect(event.actor_name).to eq(email)
+          expect(event.actee).to eq(service_binding.guid)
+          expect(event.actee_type).to eq('service_binding')
+          expect(event.actee_name).to eq('')
+          expect(event.space_guid).to eq(space.guid)
+          expect(event.space_id).to eq(space.id)
+          expect(event.organization_guid).to eq(space.organization.guid)
+
+          expect(event.metadata).to include({
+            'request' => {
+              'service_instance_guid' => req[:service_instance_guid],
+              'app_guid' => req[:app_guid]
+            }
+          })
+
+        end
+
         it 'unbinds the service instance when an exception is raised' do
           req = MultiJson.dump(
             :app_guid => app_obj.guid,
@@ -353,19 +385,52 @@ module VCAP::CloudController
     end
 
     describe 'DELETE', '/v2/service_bindings/:service_binding_guid' do
-      let(:binding) { ServiceBinding.make }
-      let(:developer) { make_developer_for_space(binding.service_instance.space) }
+      let(:service_binding) { ServiceBinding.make }
+      let(:developer) { make_developer_for_space(service_binding.service_instance.space) }
 
       it 'returns an empty response body' do
-        delete "/v2/service_bindings/#{binding.guid}", '', json_headers(headers_for(developer))
+        delete "/v2/service_bindings/#{service_binding.guid}", '', json_headers(headers_for(developer))
         expect(last_response.status).to eq 204
         expect(last_response.body).to be_empty
       end
 
       it 'unbinds a service instance from an app' do
-        delete "/v2/service_bindings/#{binding.guid}", '', json_headers(headers_for(developer))
-        expect(ServiceBinding.find(guid: binding.guid)).to be_nil
-        expect(broker_client).to have_received(:unbind).with(binding)
+        delete "/v2/service_bindings/#{service_binding.guid}", '', json_headers(headers_for(developer))
+        expect(ServiceBinding.find(guid: service_binding.guid)).to be_nil
+        expect(broker_client).to have_received(:unbind).with(service_binding)
+      end
+
+      it 'records an audit event after the binding has been deleted' do
+        email = "email@example.com"
+        space = service_binding.service_instance.space
+
+        delete "/v2/service_bindings/#{service_binding.guid}", '', json_headers(headers_for(developer, email: email))
+
+        event = Event.first(type: 'audit.service_binding.delete')
+        expect(event.actor_type).to eq('user')
+        expect(event.timestamp).to be
+        expect(event.actor).to eq(developer.guid)
+        expect(event.actor_name).to eq(email)
+        expect(event.actee).to eq(service_binding.guid)
+        expect(event.actee_type).to eq('service_binding')
+        expect(event.actee_name).to eq('')
+        expect(event.space_guid).to eq(space.guid)
+        expect(event.space_id).to eq(space.id)
+        expect(event.organization_guid).to eq(space.organization.guid)
+
+        expect(event.metadata).to include({
+          'request' => {}
+        })
+
+      end
+
+      context "with ?async=true" do
+        it 'returns a job id' do
+          delete "/v2/service_bindings/#{service_binding.guid}?async=true", '', json_headers(headers_for(developer))
+          expect(last_response.status).to eq 202
+          expect(decoded_response['entity']['guid']).to be
+          expect(decoded_response['entity']['status']).to eq 'queued'
+        end
       end
     end
 

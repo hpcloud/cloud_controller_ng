@@ -71,6 +71,10 @@ module CloudController
       @dependencies[:instances_reporters] || raise('instances_reporters not set')
     end
 
+    def index_stopper
+      @dependencies[:index_stopper] || raise('index_stopper not set')
+    end
+
     def droplet_blobstore
       droplets = @config.fetch(:droplets)
       cdn_uri = droplets.fetch(:cdn, nil) && droplets.fetch(:cdn).fetch(:uri, nil)
@@ -153,7 +157,11 @@ module CloudController
     end
 
     def services_event_repository
-      Repositories::Services::EventRepository.new
+      @dependencies[:services_event_repository] || Repositories::Services::EventRepository.new(SecurityContext)
+    end
+
+    def service_manager
+      VCAP::Services::ServiceBrokers::ServiceManager.new(services_event_repository)
     end
 
     def process_repository
@@ -166,6 +174,18 @@ module CloudController
 
     def processes_handler
       ProcessesHandler.new(process_repository, app_event_repository)
+    end
+
+    def process_presenter
+      ProcessPresenter.new
+    end
+
+    def apps_handler
+      AppsHandler.new(processes_handler)
+    end
+
+    def app_presenter
+      AppPresenter.new
     end
 
     def object_renderer

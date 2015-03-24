@@ -98,6 +98,15 @@ module VCAP::CloudController
       end
     end
 
+    context "route matching" do
+      it "denies creating a domain when a matching route exists" do
+        shared_domain = SharedDomain.make name: "foo.com"
+        Route.make host: "bar", domain_guid: shared_domain.guid
+        subject.name = "bar.foo.com"
+        expect(subject).to_not be_valid
+      end
+    end
+    
     context "domain overlapping" do
       context "when the domain exists in a different casing" do
         before do
@@ -109,21 +118,19 @@ module VCAP::CloudController
         it { is_expected.not_to be_valid }
       end
 
-      context "when the name is foo.com and another org has bar.foo.com" do
-        before do
-          PrivateDomain.make name: "bar.foo.com"
-          subject.name = "foo.com"
-        end
-
-        # this is kind of wonky behavior but it's pending further
-        # simplification (i.e. only allowing top-level domains)
-        it { is_expected.to_not be_valid }
-      end
-
       context "when the name is bar.foo.com and another org has foo.com" do
         before do
           PrivateDomain.make name: "foo.com"
           subject.name = "bar.foo.com"
+        end
+
+        it { is_expected.not_to be_valid }
+      end
+
+      context "when the name is baz.bar.foo.com and another org has bar.foo.com" do
+        before do
+          PrivateDomain.make name: "bar.foo.com"
+          subject.name = "baz.bar.foo.com"
         end
 
         it {
@@ -131,8 +138,9 @@ module VCAP::CloudController
         }
       end
 
-      context "when the name is baz.bar.foo.com and another org has bar.foo.com" do
+      context "when the name is baz.bar.foo.com and another org has bar.foo.com and foo.com is shared" do
         before do
+          SharedDomain.make name: "foo.com"
           PrivateDomain.make name: "bar.foo.com"
           subject.name = "baz.bar.foo.com"
         end
@@ -148,9 +156,7 @@ module VCAP::CloudController
           subject.name = "bar.foo.com"
         end
 
-        it {
-          is_expected.not_to be_valid
-        }
+        it { is_expected.to be_valid }
       end
 
       context "when the name is baz.bar.foo.com and bar.foo.com is a shared domain" do
@@ -159,9 +165,7 @@ module VCAP::CloudController
           subject.name = "baz.bar.foo.com"
         end
 
-        it { 
-          is_expected.not_to be_valid
-        }
+        it { is_expected.to be_valid }
       end
     end
   end

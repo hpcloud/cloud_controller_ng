@@ -4,6 +4,10 @@ module VCAP::CloudController
   module Diego
     module Docker
       class Protocol
+        def initialize(common_protocol)
+          @common_protocol = common_protocol
+        end
+
         def stage_app_request(app, staging_timeout)
           ["diego.docker.staging.start", stage_app_message(app, staging_timeout).to_json]
         end
@@ -43,9 +47,11 @@ module VCAP::CloudController
             "routes" => app.uris,
             "log_guid" => app.guid,
             "docker_image" => app.docker_image,
+            "health_check_type" => app.health_check_type,
           }
 
           message["health_check_timeout_in_seconds"] = app.health_check_timeout if app.health_check_timeout
+
           message
         end
 
@@ -54,6 +60,10 @@ module VCAP::CloudController
             "app_id" => app.guid,
             "task_id" => task_id,
           }
+        end
+
+        def stop_index_request(app, index)
+          @common_protocol.stop_index_request(app, index)
         end
       end
     end

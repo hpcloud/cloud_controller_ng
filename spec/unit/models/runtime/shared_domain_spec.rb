@@ -11,6 +11,7 @@ module VCAP::CloudController
       it { is_expected.to import_attributes :name }
     end
 
+
     describe "#as_summary_json" do
       it "returns a hash containing the guid and name" do
         expect(subject.as_summary_json).to eq(
@@ -29,7 +30,34 @@ module VCAP::CloudController
         end
 
         it { is_expected.to be_valid }
-      end          
+      end
+
+      it "allows shared foo.com when private bar.foo.com exists" do
+        private_domain = PrivateDomain.make name: "bar.foo.com"
+        expect { SharedDomain.make name: "foo.com" }.to_not raise_error
+      end
+
+      it "allows shared foo.com when shared bar.foo.com exists" do
+        private_domain = SharedDomain.make name: "bar.foo.com"
+        expect { SharedDomain.make name: "foo.com" }.to_not raise_error
+      end
+
+      it "allows shared bar.foo.com a when shared baz.bar.foo.com and foo.com exist" do
+        SharedDomain.make name: "baz.bar.foo.com"
+        SharedDomain.make name: "foo.com"
+        expect { SharedDomain.make name: "bar.foo.com" }.to_not raise_error
+      end
+
+      it "allows shared bar.foo.com a when private baz.bar.foo.com and shared foo.com exist" do
+        PrivateDomain.make name: "baz.bar.foo.com"
+        SharedDomain.make name: "foo.com"
+        expect { SharedDomain.make name: "bar.foo.com" }.to_not raise_error
+      end
+
+      it "denies shared bar.foo.com when private foo.com exists" do
+        PrivateDomain.make name: 'foo.com'
+        expect { SharedDomain.make name: 'bar.foo.com' }.to raise_error(Sequel::ValidationFailed, /overlapping_domain/)
+      end
     end
 
     describe "#destroy" do
