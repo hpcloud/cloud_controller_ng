@@ -73,54 +73,21 @@ module VCAP::CloudController
 
     def create
       json_msg = self.class::CreateMessage.decode(body)
-
       @request_attrs = json_msg.extract(stringify_keys: true)
-
-      service_plan_guid = request_attrs['service_plan_guid']
-
       logger.debug 'cc.create', model: self.class.model_class_name, attributes: request_attrs
-
       raise Errors::ApiError.new_from_details('InvalidRequest') unless request_attrs
 
-      # Make sure the service plan exists before checking permissions
-      if ServicePlan.find(guid: service_plan_guid).nil?
-        raise Errors::ApiError.new_from_details('ServiceInstanceInvalid', 'not a valid service plan')
-      end
-
-      raise Errors::ApiError.new_from_details('NotAuthorized') unless current_user_can_manage_plan(service_plan_guid)
-
-      organization = requested_space.organization
-
-      unless ServicePlan.organization_visible(organization).filter(guid: request_attrs['service_plan_guid']).count > 0
-        raise Errors::ApiError.new_from_details('ServiceInstanceOrganizationNotAuthorized')
-      end
+      validate_create_action(request_attrs, params)
 
       service_instance = ManagedServiceInstance.new(request_attrs)
-      validate_access(:create, service_instance)
-
-      unless service_instance.valid?
-        raise Sequel::ValidationFailed.new(service_instance)
-      end
-
-      attributes_to_update = {}
-      if ['true', 'false', nil].include? params['accepts_incomplete']
-        attributes_to_update, error = service_instance.client.provision(service_instance, async: params['accepts_incomplete'])
-      else
-        raise Errors::ApiError.new_from_details('InvalidRequest')
-      end
+      attributes_to_update = service_instance.client.provision(service_instance, async: params['accepts_incomplete'] == 'true')
 
       begin
-        ServiceInstance.db.transaction do
-          service_instance.lock!
-          service_instance.set_all(attributes_to_update)
-          service_instance.save
-        end
+        service_instance.save_with_operation(attributes_to_update)
       rescue => e
         safe_deprovision_instance(service_instance)
         raise e
       end
-
-      raise error if error
 
       @services_event_repository.record_service_instance_event(:create, service_instance, request_attrs)
 
@@ -139,26 +106,41 @@ module VCAP::CloudController
       service_instance = find_guid(guid)
       validate_access(:read_for_update, service_instance)
       validate_access(:update, service_instance)
+      validate_update_action(service_instance)
 
-      if request_attrs['space_guid'] && request_attrs['space_guid'] != service_instance.space.guid
-        raise Errors::ApiError.new_from_details('ServiceInstanceSpaceChangeNotAllowed')
-      end
+      # TODO: refactor all this when we start sending the name changes to the broker
+      operation_attributes = {}
+
+      is_async_request = params['accepts_incomplete'] == 'true'
 
       if request_attrs['service_plan_guid']
-        old_plan = service_instance.service_plan
-        unless old_plan.service.plan_updateable
-          raise VCAP::Errors::ApiError.new_from_details('ServicePlanNotUpdateable')
-        end
-
         new_plan = ServicePlan.find(guid: request_attrs['service_plan_guid'])
-        raise VCAP::Errors::ApiError.new_from_details('InvalidRelation', 'Plan') unless new_plan
-        service_instance.client.update_service_plan(service_instance, new_plan)
+        operation_attributes = service_instance.client.update_service_plan(
+          service_instance,
+          new_plan,
+          async: is_async_request
+        )
       end
 
-      ServiceInstance.db.transaction do
-        service_instance.lock!
-        service_instance.update_from_hash(request_attrs)
+      if is_async_request
+        op_attrs = operation_attributes['last_operation'].symbolize_keys
+        attributes_to_update = {
+          last_operation: op_attrs.merge({
+            type: 'update',
+            state: 'in progress',
+            proposed_changes: request_attrs,
+          }),
+        }
+      else
+        attributes_to_update = request_attrs.symbolize_keys.merge({
+          last_operation: {
+            type: 'update',
+            state: 'succeeded',
+          },
+        })
       end
+
+      service_instance.save_with_operation(attributes_to_update)
 
       @services_event_repository.record_service_instance_event(:update, service_instance, request_attrs)
 
@@ -220,6 +202,10 @@ module VCAP::CloudController
       service_instance = find_guid_and_validate_access(:delete, guid, ServiceInstance)
       raise_if_has_associations!(service_instance) if v2_api? && !recursive?
 
+      if service_instance.managed_instance? && service_instance.operation_in_progress?
+        raise Errors::ApiError.new_from_details('ServiceInstanceOperationInProgress')
+      end
+
       deletion_job = Jobs::Runtime::ModelDeletion.new(ServiceInstance, guid)
       event_method = service_instance.type == 'managed_service_instance' ?  :record_service_instance_event : :record_user_provided_service_instance_event
       delete_and_audit_job = Jobs::AuditEventJob.new(deletion_job, @services_event_repository, event_method, :delete, service_instance, {})
@@ -248,6 +234,69 @@ module VCAP::CloudController
     define_routes
 
     private
+
+    def validate_create_action(request_attrs, params)
+      service_plan_guid = request_attrs['service_plan_guid']
+      organization = requested_space.organization
+
+      if ServicePlan.find(guid: service_plan_guid).nil?
+        raise Errors::ApiError.new_from_details('ServiceInstanceInvalid', 'not a valid service plan')
+      end
+
+      raise Errors::ApiError.new_from_details('NotAuthorized') unless current_user_can_manage_plan(service_plan_guid)
+
+      unless ServicePlan.organization_visible(organization).filter(guid: service_plan_guid).count > 0
+        raise Errors::ApiError.new_from_details('ServiceInstanceOrganizationNotAuthorized')
+      end
+
+      service_instance = ManagedServiceInstance.new(request_attrs)
+      validate_access(:create, service_instance)
+
+      unless service_instance.valid?
+        raise Sequel::ValidationFailed.new(service_instance)
+      end
+
+      unless ['true', 'false', nil].include? params['accepts_incomplete']
+        raise Errors::ApiError.new_from_details('InvalidRequest')
+      end
+    end
+
+    def validate_update_action(service_instance)
+      if request_attrs['space_guid'] && request_attrs['space_guid'] != service_instance.space.guid
+        raise Errors::ApiError.new_from_details('ServiceInstanceSpaceChangeNotAllowed')
+      end
+
+      if service_instance.operation_in_progress?
+        raise Errors::ApiError.new_from_details('ServiceInstanceOperationInProgress')
+      end
+
+      if request_attrs['service_plan_guid']
+        old_plan = service_instance.service_plan
+        unless old_plan.service.plan_updateable
+          raise VCAP::Errors::ApiError.new_from_details('ServicePlanNotUpdateable')
+        end
+
+        new_plan = ServicePlan.find(guid: request_attrs['service_plan_guid'])
+        raise VCAP::Errors::ApiError.new_from_details('InvalidRelation', 'Plan') unless new_plan
+      end
+
+      unless ['true', 'false', nil].include? params['accepts_incomplete']
+        raise Errors::ApiError.new_from_details('InvalidRequest')
+      end
+    end
+
+    def raise_if_has_associations!(obj)
+      associations = obj.class.associations.select do |association|
+        association_action = obj.class.association_dependencies_hash[association]
+        if association_action == :destroy && association != :service_instance_operation
+          obj.has_one_to_many?(association) || obj.has_one_to_one?(association)
+        end
+      end
+
+      if associations.any?
+        raise VCAP::Errors::ApiError.new_from_details('AssociationNotEmpty', associations.join(', '), obj.class.table_name)
+      end
+    end
 
     def requested_space
       space = Space.filter(guid: request_attrs['space_guid']).first

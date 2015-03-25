@@ -4,6 +4,7 @@ module VCAP::CloudController
   describe VCAP::CloudController::LegacyService, :services do
     describe 'User facing apis' do
       let(:user) { make_user_with_default_space(admin: true) }
+      let(:guid_pattern) { '[[:alnum:]-]+' }
 
       describe 'GET /services' do
         before do
@@ -104,12 +105,22 @@ module VCAP::CloudController
             post '/services', MultiJson.dump(@req), json_headers(headers_for(user))
           end
 
-          it 'should add the servicew the default app space' do
-            #pending('AUTH: not authorized to add a service')
+          it 'should add the service the default app space' do
             expect(last_response.status).to eq(200)
             svc = user.default_space.service_instances.find(name: 'instance_name')
             expect(svc).not_to be_nil
             expect(ManagedServiceInstance.count).to eq(@num_instances_before + 1)
+          end
+
+          it 'sets the last operation' do
+            expect(last_response.status).to eq(200)
+            svc = user.default_space.service_instances.select { |instance| instance.name == 'instance_name' }.first
+            op_state = svc.last_operation
+
+            expect(op_state.type).to eq 'create'
+            expect(op_state.state).to eq 'succeeded'
+            expect(op_state.description).to eq ''
+            expect(op_state.updated_at).not_to be_nil
           end
         end
 
@@ -179,14 +190,19 @@ module VCAP::CloudController
       describe 'DELETE /services/:name' do
         before do
           3.times { ManagedServiceInstance.make(space: user.default_space) }
+
           @svc = ManagedServiceInstance.make(space: user.default_space)
+          service_broker = @svc.service.service_broker
+          uri = URI(service_broker.broker_url)
+          broker_url = uri.host + uri.path
+          stub_request(:delete, %r{https://#{service_broker.auth_username}:#{service_broker.auth_password}@#{broker_url}/v2/service_instances/#{guid_pattern}}).
+            to_return(status: 200, body: '{}')
           @num_instances_before = ManagedServiceInstance.count
         end
 
         describe 'with a valid name' do
           it 'should reduce the services count by 1' do
             delete "/services/#{@svc.name}", {}, headers_for(user)
-
             expect(last_response.status).to eq(200)
             expect(ManagedServiceInstance.count).to eq(@num_instances_before - 1)
           end

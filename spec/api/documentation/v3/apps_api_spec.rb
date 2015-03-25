@@ -17,19 +17,27 @@ resource 'Apps (Experimental)', type: :api do
   end
 
   get '/v3/apps' do
+    parameter :names, 'Names of apps to filter by', valid_values: 'array of strings', example_values: 'names[]=name1&names[]=name2'
+    parameter :space_guids, 'Spaces to filter by', valid_values: 'array of strings', example_values: 'space_guids[]=space_guid1&space_guids[]=space_guid2'
+    parameter :organization_guids, 'Organizations to filter by', valid_values: 'array of strings', example_values: 'organization_guids[]=org_guid1&organization_guids[]=org_guid2'
+    parameter :guids, 'App guids to filter by', valid_values: 'array of strings', example_values: 'guid[]=guid1&guid[]=guid2'
     parameter :page, 'Page to display', valid_values: '>= 1'
-    parameter :per_page, 'Number of results per page', valid_values: '1-5000'
+    parameter :per_page, 'Number of results per page', valid_values: '1 - 5000'
+    parameter :sort, 'Value to sort by', valid_values: 'created_at, updated_at, id'
+    parameter :direction, 'Direction to sort by', valid_values: 'asc, desc'
 
     let(:name1) { 'my_app1' }
     let(:name2) { 'my_app2' }
     let(:name3) { 'my_app3' }
-    let!(:app_model1) { VCAP::CloudController::AppModel.make(name: name1, space_guid: space.guid) }
-    let!(:app_model2) { VCAP::CloudController::AppModel.make(name: name2, space_guid: space.guid) }
-    let!(:app_model3) { VCAP::CloudController::AppModel.make(name: name3, space_guid: space.guid) }
+    let!(:app_model1) { VCAP::CloudController::AppModel.make(name: name1, space_guid: space.guid, created_at: Time.at(1)) }
+    let!(:app_model2) { VCAP::CloudController::AppModel.make(name: name2, space_guid: space.guid, created_at: Time.at(2)) }
+    let!(:app_model3) { VCAP::CloudController::AppModel.make(name: name3, space_guid: space.guid, created_at: Time.at(3)) }
     let!(:app_model4) { VCAP::CloudController::AppModel.make(space_guid: VCAP::CloudController::Space.make.guid) }
     let(:space) { VCAP::CloudController::Space.make }
     let(:page) { 1 }
     let(:per_page) { 2 }
+    let(:sort) { 'created_at' }
+    let(:direction) { 'desc' }
 
     before do
       space.organization.add_user user
@@ -47,12 +55,12 @@ resource 'Apps (Experimental)', type: :api do
         },
         'resources'  => [
           {
-            'name'   => name1,
-            'guid'   => app_model1.guid,
+            'name'   => name3,
+            'guid'   => app_model3.guid,
             '_links' => {
-              'self'      => { 'href' => "/v3/apps/#{app_model1.guid}" },
-              'processes' => { 'href' => "/v3/apps/#{app_model1.guid}/processes" },
-              'packages'  => { 'href' => "/v3/apps/#{app_model1.guid}/packages" },
+              'self'      => { 'href' => "/v3/apps/#{app_model3.guid}" },
+              'processes' => { 'href' => "/v3/apps/#{app_model3.guid}/processes" },
+              'packages'  => { 'href' => "/v3/apps/#{app_model3.guid}/packages" },
               'space'     => { 'href' => "/v2/spaces/#{space.guid}" },
             }
           },
@@ -74,6 +82,35 @@ resource 'Apps (Experimental)', type: :api do
       parsed_response = MultiJson.load(response_body)
       expect(response_status).to eq(200)
       expect(parsed_response).to match(expected_response)
+    end
+
+    context 'faceted search' do
+      let(:app_model5) { VCAP::CloudController::AppModel.make(name: name1, space_guid: VCAP::CloudController::Space.make.guid) }
+      let!(:app_model6) { VCAP::CloudController::AppModel.make(name: name1, space_guid: VCAP::CloudController::Space.make.guid) }
+      let(:space_guids) { [app_model5.space_guid, space.guid, app_model6.space_guid] }
+      let(:per_page) { 2 }
+      let(:names) { [name1] }
+      def space_guid_facets(space_guids)
+        space_guids.map { |sg| "space_guids[]=#{sg}" }.join('&')
+      end
+      example 'Filters apps by name and spaces and guids and orgs' do
+        user.admin = true
+        user.save
+        expected_pagination = {
+          'total_results' => 3,
+          'first'         => { 'href' => "/v3/apps?names[]=#{name1}&#{space_guid_facets(space_guids)}&page=1&per_page=2" },
+          'last'          => { 'href' => "/v3/apps?names[]=#{name1}&#{space_guid_facets(space_guids)}&page=2&per_page=2" },
+          'next'          => { 'href' => "/v3/apps?names[]=#{name1}&#{space_guid_facets(space_guids)}&page=2&per_page=2" },
+          'previous'      => nil,
+        }
+
+        do_request_with_error_handling
+
+        parsed_response = MultiJson.load(response_body)
+        expect(response_status).to eq(200)
+        expect(parsed_response['resources'].map { |r| r['name'] }).to eq(['my_app1', 'my_app1'])
+        expect(parsed_response['pagination']).to eq(expected_pagination)
+      end
     end
   end
 

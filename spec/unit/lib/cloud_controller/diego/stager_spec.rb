@@ -15,7 +15,9 @@ module VCAP::CloudController
         Stager.new(app, messenger, completion_handler, staging_config)
       end
 
-      describe '#stage' do
+      it_behaves_like 'a stager'
+
+      describe '#stage_app' do
         let(:task_id) { app.staging_task_id }
 
         before do
@@ -24,14 +26,15 @@ module VCAP::CloudController
         end
 
         it 'notifies Diego that the app needs staging' do
+          expect(app).to receive(:mark_for_restaging)
           expect(messenger).to receive(:send_stage_request).with(app, staging_config)
-          stager.stage
+          stager.stage_app
         end
 
         context 'when there is a pending stage' do
           it 'attempts to stop the outstanding stage request' do
             expect(messenger).to receive(:send_stop_staging_request).with(app, task_id)
-            stager.stage
+            stager.stage_app
           end
         end
       end

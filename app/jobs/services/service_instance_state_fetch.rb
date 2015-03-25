@@ -11,6 +11,7 @@ module VCAP::CloudController
         end
 
         def perform
+          logger = Steno.logger('cc-background')
           client = VCAP::Services::ServiceBrokers::V2::Client.new(client_attrs)
           service_instance = ManagedServiceInstance.first(guid: service_instance_guid)
 
@@ -20,14 +21,22 @@ module VCAP::CloudController
 
             ServiceInstance.db.transaction do
               service_instance.lock!
-              service_instance.set_all(attrs)
-              service_instance.save
+              service_instance.save_with_operation(
+                last_operation: attrs[:last_operation].slice(:state, :description),
+                dashboard_url: attrs[:dashboard_url],
+              )
+
+              if service_instance.last_operation.state == 'succeeded'
+                service_instance.save_with_operation(service_instance.last_operation.proposed_changes)
+              end
             end
 
             if !service_instance.terminal_state?
               poller.poll_service_instance_state(client_attrs, service_instance)
             end
-          rescue HttpRequestError, Sequel::Error
+
+          rescue HttpRequestError, HttpResponseError, Sequel::Error => e
+            logger.error("There was an error while fetching the service instance operation state: #{e}")
             poller.poll_service_instance_state(client_attrs, service_instance)
           end
         end
