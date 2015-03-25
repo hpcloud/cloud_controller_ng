@@ -2,6 +2,9 @@ require 'uri'
 
 module VCAP::CloudController
   class InstallBuildpacks
+
+    BUILDPACK_DIR = "/tmp/packages"
+
     attr_reader :config
 
     def initialize(config)
@@ -11,6 +14,7 @@ module VCAP::CloudController
     def install(buildpacks)
       return unless buildpacks
 
+      FileUtils.mkdir_p(BUILDPACK_DIR)
       buildpacks.each do |bpack|
         buildpack = VCAP.symbolize_keys(bpack)
 
