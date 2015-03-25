@@ -34,6 +34,7 @@ module VCAP::CloudController
     many_to_one :space, after_set: :validate_space
     many_to_one :stack
     many_to_many :routes, before_add: :validate_route, after_add: :handle_add_route, after_remove: :handle_remove_route
+    one_through_one :organization, join_table: :spaces, left_key: :id, left_primary_key: :space_id, right_key: :organization_id
 
     one_to_one :current_saved_droplet,
                class: '::VCAP::CloudController::Droplet',
@@ -70,7 +71,8 @@ module VCAP::CloudController
 
     APP_STATES = %w(STOPPED STARTED).map(&:freeze).freeze
     PACKAGE_STATES = %w(PENDING STAGED FAILED).map(&:freeze).freeze
-    STAGING_FAILED_REASONS = %w(StagingError StagingTimeExpired NoAppDetectedError BuildpackCompileFailed BuildpackReleaseFailed).map(&:freeze).freeze
+    STAGING_FAILED_REASONS = %w(StagingError StagingTimeExpired NoAppDetectedError BuildpackCompileFailed
+                                BuildpackReleaseFailed InsufficientResources NoCompatibleCell).map(&:freeze).freeze
     HEALTH_CHECK_TYPES = %w(port none).map(&:freeze).freeze
 
     # marked as true on changing the associated routes, and reset by
@@ -625,7 +627,7 @@ module VCAP::CloudController
     def mark_for_restaging
       self.package_state = 'PENDING'
       self.staging_failed_reason = nil
-      self.package_pending_since = Time.now
+      self.package_pending_since = Sequel::CURRENT_TIMESTAMP
     end
 
     def buildpack

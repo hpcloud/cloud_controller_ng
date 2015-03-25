@@ -28,6 +28,15 @@ module VCAP::CloudController
         opts[:database] = nil
       end
 
+      connection_options[:after_connect] = proc do |conn|
+        # time zone is a per connection setting, ensure it is set for each connection in the pool
+        if conn.class.to_s =~ /mysql/i
+          conn.query("SET time_zone = '+0:00'")
+        elsif conn.class.to_s =~ /postgres/i
+          conn.exec("SET time zone 'UTC'")
+        end
+      end
+
       if opts[:database_uri]
         if opts[:database_uri].index("mysql") == 0
           connection_options[:charset] = "utf8"

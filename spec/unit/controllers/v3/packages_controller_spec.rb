@@ -6,7 +6,6 @@ module VCAP::CloudController
     let(:user) { User.make }
     let(:params) { {} }
     let(:packages_handler) { double(:packages_handler) }
-    let(:apps_handler) { double(:apps_handler) }
     let(:package_presenter) { double(:package_presenter) }
     let(:req_body) { '{}' }
 
@@ -21,115 +20,12 @@ module VCAP::CloudController
         {
           packages_handler: packages_handler,
           package_presenter: package_presenter,
-          apps_handler: apps_handler
         },
       )
     end
 
     before do
       allow(logger).to receive(:debug)
-    end
-
-    describe '#create' do
-      let(:tmpdir) { Dir.mktmpdir }
-      let(:app_model) { AppModel.make }
-      let(:app_guid) { app_model.guid }
-      let(:space_guid) { app_model.space_guid }
-      let(:package) { PackageModel.make }
-      let(:req_body) { '{"type":"bits"}' }
-
-      let(:valid_zip) do
-        zip_name = File.join(tmpdir, 'file.zip')
-        TestZip.create(zip_name, 1, 1024)
-        zip_file = File.new(zip_name)
-        Rack::Test::UploadedFile.new(zip_file)
-      end
-
-      let(:package_response) { 'foobar' }
-
-      before do
-        allow(package_presenter).to receive(:present_json).and_return(MultiJson.dump(package_response, pretty: true))
-        allow(packages_handler).to receive(:create).and_return(package)
-        allow(apps_handler).to receive(:show).and_return(app_model)
-      end
-
-      after do
-        FileUtils.rm_rf(tmpdir)
-      end
-
-      context 'when the app exists' do
-        context 'when a user can create a package' do
-          it 'returns a 201 Created response' do
-            response_code, _ = packages_controller.create(app_guid)
-            expect(response_code).to eq 201
-          end
-
-          it 'returns the package' do
-            _, response = packages_controller.create(app_guid)
-            expect(MultiJson.load(response, symbolize_keys: true)).to eq(package_response)
-          end
-        end
-
-        context 'as a developer' do
-          let(:user) { make_developer_for_space(app_model.space) }
-
-          context 'with an invalid package' do
-            let(:req_body) { 'all sorts of invalid' }
-
-            it 'returns an UnprocessableEntity error' do
-              expect {
-                packages_controller.create(app_guid)
-              }.to raise_error do |error|
-                expect(error.name).to eq 'UnprocessableEntity'
-                expect(error.response_code).to eq 422
-              end
-            end
-          end
-
-          context 'with an invalid type field' do
-            let(:req_body) { '{ "type": "ninja" }' }
-
-            it 'returns an UnprocessableEntity error' do
-              expect {
-                packages_controller.create(app_guid)
-              }.to raise_error do |error|
-                expect(error.name).to eq 'UnprocessableEntity'
-                expect(error.response_code).to eq 422
-              end
-            end
-          end
-        end
-
-        context 'when the user cannot create a package' do
-          before do
-            allow(packages_handler).to receive(:create).and_raise(PackagesHandler::Unauthorized)
-          end
-
-          it 'returns a 403 NotAuthorized error' do
-            expect {
-              packages_controller.create(app_guid)
-            }.to raise_error do |error|
-              expect(error.name).to eq 'NotAuthorized'
-              expect(error.response_code).to eq 403
-            end
-          end
-        end
-      end
-
-      context 'when the app does not exist' do
-        before do
-          allow(apps_handler).to receive(:show).and_return(nil)
-        end
-
-        it 'returns a 404 ResourceNotFound error' do
-          expect {
-            packages_controller.create('bogus')
-          }.to raise_error do |error|
-            expect(error.name).to eq 'ResourceNotFound'
-            expect(error.response_code).to eq 404
-          end
-        end
-      end
     end
 
     describe '#upload' do
@@ -322,6 +218,28 @@ module VCAP::CloudController
             end
           end
         end
+      end
+    end
+
+    describe '#list' do
+      let(:page) { 1 }
+      let(:per_page) { 2 }
+      let(:params) { { 'page' => page, 'per_page' => per_page } }
+      let(:list_response) { 'list_response' }
+      let(:expected_response) { 'im a response' }
+
+      before do
+        allow(package_presenter).to receive(:present_json_list).and_return(expected_response)
+        allow(packages_handler).to receive(:list).and_return(list_response)
+      end
+
+      it 'returns 200 and lists the apps' do
+        response_code, response_body = packages_controller.list
+
+        expect(packages_handler).to have_received(:list)
+        expect(package_presenter).to have_received(:present_json_list).with(list_response, '/v3/packages')
+        expect(response_code).to eq(200)
+        expect(response_body).to eq(expected_response)
       end
     end
   end

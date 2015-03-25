@@ -6,14 +6,14 @@ module VCAP::CloudController
         @protocol = protocol
       end
 
-      def send_stage_request(app, staging_timeout)
+      def send_stage_request(app, staging_config)
         logger.info('staging.begin', app_guid: app.guid)
-        @message_bus.publish(*@protocol.stage_app_request(app, staging_timeout))
+        @message_bus.publish(*@protocol.stage_app_request(app, staging_config))
       end
 
-      def send_desire_request(app)
+      def send_desire_request(app, default_health_check_timeout)
         logger.info('desire.app.begin', app_guid: app.guid)
-        @message_bus.publish(*@protocol.desire_app_request(app))
+        @message_bus.publish(*@protocol.desire_app_request(app, default_health_check_timeout))
       end
 
       def send_stop_staging_request(app, task_id)
