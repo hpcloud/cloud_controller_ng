@@ -801,7 +801,9 @@ module VCAP::CloudController
 
         context 'when nginx is disabled' do
           let(:staging_config) do
-            original_staging_config.merge({ nginx: { use_nginx: false } })
+            original_staging_config.merge({ nginx: { use_nginx: false},
+                                            stackato_upload_handler: {enabled: false},
+                                          })
           end
 
           it 'should return the buildpack cache' do
