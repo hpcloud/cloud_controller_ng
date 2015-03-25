@@ -17,9 +17,9 @@ describe QuotaDefinitionPresenter do
           non_basic_services_allowed: quota_definition.non_basic_services_allowed,
           total_services: quota_definition.total_services,
           memory_limit: quota_definition.memory_limit,
-          trial_db_allowed: false
+          trial_db_allowed: false,
           allow_sudo: false,
-        }
+        },
       })
     end
   end
