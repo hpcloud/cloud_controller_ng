@@ -1,7 +1,7 @@
 module VCAP::CloudController
   class AppsController < RestController::ModelController
     def self.dependencies
-      [:app_event_repository]
+      [:app_event_repository, :health_manager_client]
     end
 
     define_attributes do
