@@ -25,6 +25,7 @@ module VCAP::CloudController
           security_group_guids:   { type: '[string]' },
           is_default:             { type: 'bool', default: false},
           space_quota_definition_guid: { type: 'string' },
+        })
       end
 
       it do
