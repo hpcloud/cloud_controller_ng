@@ -115,7 +115,6 @@ module VCAP::CloudController
         end
       end
 
-<<<<<<< HEAD
       describe '#zone' do
         context 'when the stager does not have the placement properties' do
           it 'returns default zone' do
