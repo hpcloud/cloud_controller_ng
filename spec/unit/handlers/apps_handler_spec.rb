@@ -1,11 +1,58 @@
 require 'spec_helper'
 require 'handlers/apps_handler'
-
 module VCAP::CloudController
+  describe AppsRepository do
+    let!(:app_2) { AppModel.make(name: app_1.name, space_guid: space_2.guid) }
+    let!(:app_1) { AppModel.make(space_guid: space_1.guid) }
+    let(:space_3) { Space.make }
+    let(:space_2) { Space.make }
+    let(:space_1) { Space.make(organization: organization_1) }
+    let(:organization_1) { Organization.make }
+
+    before do
+      AppModel.make(space_guid: space_2.guid)
+      AppModel.make(name: app_1.name, space_guid: space_3.guid)
+    end
+
+    it 'filters by faccess_contextets' do
+      access_context = double(:access_context, roles: double(:roles, admin?: true))
+      apps_repository = AppsRepository.new
+
+      apps = apps_repository.get_apps(access_context, {
+        'names' => [app_1.name],
+        'space_guids' => [space_1.guid, space_2.guid]
+      }).all
+
+      expect(apps).to eq([app_1, app_2])
+    end
+
+    it 'filters by orgs' do
+      access_context = double(:access_context, roles: double(:roles, admin?: true))
+      apps_repository = AppsRepository.new
+
+      apps = apps_repository.get_apps(access_context, {
+        'organization_guids' => [organization_1.guid]
+      }).all
+
+      expect(apps).to eq([app_1])
+    end
+
+    it 'filters by orgs' do
+      access_context = double(:access_context, roles: double(:roles, admin?: true))
+      apps_repository = AppsRepository.new
+
+      apps = apps_repository.get_apps(access_context, {
+        'guids' => [app_2.guid]
+      }).all
+
+      expect(apps).to eq([app_2])
+    end
+  end
+
   describe AppsHandler do
-    let(:process_handler) { double(:process_handler) }
-    let(:apps_handler) { described_class.new(process_handler) }
-    let(:access_context) { double(:access_context) }
+    let(:processes_handler) { double(:processes_handler) }
+    let(:apps_handler) { described_class.new(processes_handler) }
+    let(:access_context) { double(:access_context, user: User.make, user_email: 'jim@jim.com') }
 
     before do
       allow(access_context).to receive(:cannot?).and_return(false)
@@ -18,9 +65,10 @@ module VCAP::CloudController
       let(:user) { User.make }
       let(:page) { 1 }
       let(:per_page) { 1 }
-      let(:pagination_options) { PaginationOptions.new(page, per_page) }
+      let(:options)  { { page: page, per_page: per_page } }
+      let(:pagination_options) { PaginationOptions.new(options) }
       let(:paginator) { double(:paginator) }
-      let(:apps_handler) { described_class.new(process_handler, paginator) }
+      let(:apps_handler) { described_class.new(processes_handler, paginator) }
       let(:roles) { double(:roles, admin?: admin_role) }
       let(:admin_role) { false }
 
@@ -224,7 +272,7 @@ module VCAP::CloudController
             allow(access_context).to receive(:user_email).and_return('email')
             apps_handler.add_process(app_model, process, access_context)
 
-            allow(process_handler).to receive(:update) do
+            allow(processes_handler).to receive(:update) do
               process.name = new_name
               process.save
             end

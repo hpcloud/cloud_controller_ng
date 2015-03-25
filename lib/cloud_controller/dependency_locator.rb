@@ -175,6 +175,10 @@ module CloudController
       ProcessesHandler.new(process_repository, app_event_repository)
     end
 
+    def procfile_handler
+      ProcfileHandler.new(apps_handler, processes_handler)
+    end
+
     def process_presenter
       ProcessPresenter.new
     end
@@ -193,6 +197,14 @@ module CloudController
 
     def package_presenter
       PackagePresenter.new
+    end
+
+    def droplets_handler
+      DropletsHandler.new(@config, stagers)
+    end
+
+    def droplet_presenter
+      DropletPresenter.new
     end
 
     def object_renderer

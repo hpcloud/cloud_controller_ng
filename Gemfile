@@ -17,7 +17,7 @@ gem "bcrypt", '3.1.7'
 gem 'beefcake', '~> 1.0.0'
 gem "builder", "3.0.0"
 gem 'celluloid', '0.15.2'
-gem "cf-message-bus","0.2.0", :github => "ActiveState/cf-message-bus"
+gem "cf-message-bus","0.3.3", :github => "cloudfoundry/cf-message-bus", :ref => "b6a82b660598c7b5b94b269f7db66ca69a221228"
 gem 'cf-registrar', "1.0.1", :github => "cloudfoundry/cf-registrar", :ref => "49850ee876652a59dbd2d"
 #XXX Remove this:
 #gem 'cf-uaa-lib',    '2.1.0', :github => "ActiveState/cf-uaa-lib", :ref => "237a9f6cae9d552833056c941a4304e3f9ae7a9c"
@@ -40,7 +40,7 @@ gem 'em-socksify', '0.3.0'
 gem 'equalizer', '0.0.8'
 gem 'errand', '0.7.3'
 gem 'eventmachine', '~> 1.0.3'
-gem 'excon', '0.33.0'
+gem 'excon', '0.44.1'
 gem 'fluent-logger', '0.4.7'
 gem 'fog', '1.22.1'
 gem 'fog-brightbox', '0.1.1'
@@ -67,9 +67,9 @@ gem 'multi_json', '1.10.1', :groups => [:default, :test]
 gem 'multi_xml', '0.5.5'
 gem 'multipart-post', '2.0.0'
 gem 'mustache', '0.99.4'
-gem 'nats', '0.5.0.beta.12'
+gem 'nats', '0.5.0.beta.16'
 gem 'net-scp', '1.1.2'
-gem 'net-ssh', '2.7.0'
+gem 'net-ssh', '2.9.2'
 gem 'netaddr', '1.5.0'
 gem 'newrelic_rpm', '3.7.3.204'
 gem 'nokogiri', '1.6.2.1'
@@ -99,7 +99,7 @@ gem 'stager-client', '~> 0.0.02', :github => 'cloudfoundry/stager-client', :ref 
 gem 'steno', '1.1.0'
 gem 'talentbox-delayed_job_sequel', '4.0.0'
 gem 'term-ansicolor', '1.0.7'
-gem 'thin', '1.6.2'
+gem 'thin', '1.6.3'
 gem 'thread_safe', '0.1.3'
 gem 'tilt', '1.4.1'
 gem 'trollop', '2.0'
@@ -113,8 +113,6 @@ gem 'vmstat', '2.1.0'
 gem 'yajl-ruby', '1.1.0'
 gem 'xmlparser', '0.7.2.1'
 
-# Auto scaling
-gem 'rbvmomi', '1.6.0'
 
 # These are outside the test group in order to run rake tasks
 gem 'rspec', '3.1.0'

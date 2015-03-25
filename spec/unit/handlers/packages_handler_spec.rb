@@ -8,8 +8,9 @@ module VCAP::CloudController
     context 'when the path is not provided' do
       let(:opts) { {} }
       it 'is not valid' do
-        create_message = PackageUploadMessage.new(guid, opts)
-        valid, error   = create_message.validate
+        upload_message = PackageUploadMessage.new(guid, opts)
+        valid, error = upload_message.validate
+
         expect(valid).to be_falsey
         expect(error).to include('An application zip file must be uploaded.')
       end
@@ -18,8 +19,9 @@ module VCAP::CloudController
     context 'and the path is provided' do
       let(:opts) { { 'bits_path' => 'foobar' } }
       it 'is valid' do
-        create_message = PackageUploadMessage.new(guid, opts)
-        valid, error   = create_message.validate
+        upload_message = PackageUploadMessage.new(guid, opts)
+        valid, error = upload_message.validate
+
         expect(valid).to be_truthy
         expect(error).to be_nil
       end
@@ -420,7 +422,8 @@ module VCAP::CloudController
       let(:user) { User.make }
       let(:page) { 1 }
       let(:per_page) { 1 }
-      let(:pagination_options) { PaginationOptions.new(page, per_page) }
+      let(:options) { { page: page, per_page: per_page } }
+      let(:pagination_options) { PaginationOptions.new(options) }
       let(:paginator) { double(:paginator) }
       let(:handler) { described_class.new(nil, paginator) }
       let(:roles) { double(:roles, admin?: admin_role) }

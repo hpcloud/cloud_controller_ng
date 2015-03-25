@@ -40,7 +40,8 @@ module VCAP::CloudController
       let(:user) { User.make }
       let(:page) { 1 }
       let(:per_page) { 1 }
-      let(:pagination_options) { PaginationOptions.new(page, per_page) }
+      let(:options) { { page: page, per_page: per_page } }
+      let(:pagination_options) { PaginationOptions.new(options) }
       let(:paginator) { double(:paginator) }
       let(:handler) { described_class.new(process_repo, process_event_repo, paginator) }
       let(:roles) { double(:roles, admin?: admin_role) }
@@ -101,6 +102,94 @@ module VCAP::CloudController
           expect(paginator).to have_received(:get_page) do |dataset, _|
             expect(dataset.count).to eq(1)
           end
+        end
+      end
+    end
+
+    describe '#raw_list' do
+      let!(:process1) { AppFactory.make(space: space, type: 'p1') }
+      let!(:process2) { AppFactory.make(space: space, type: 'p2') }
+      let(:user) { User.make }
+      let(:paginator) { double(:paginator) }
+      let(:handler) { described_class.new(process_repo, process_event_repo, paginator) }
+      let(:roles) { double(:roles, admin?: admin_role) }
+      let(:admin_role) { false }
+
+      before do
+        allow(access_context).to receive(:roles).and_return(roles)
+        allow(access_context).to receive(:user).and_return(user)
+      end
+
+      context 'when the user is an admin' do
+        let(:admin_role) { true }
+        before do
+          allow(access_context).to receive(:roles).and_return(roles)
+          AppFactory.make
+        end
+
+        it 'allows viewing all processes' do
+          dataset = handler.raw_list(access_context)
+          expect(dataset.count).to eq(3)
+        end
+      end
+
+      context 'when the user cannot list any processes' do
+        it 'applies a user visibility filter properly' do
+          dataset = handler.raw_list(access_context)
+          expect(dataset.count).to eq(0)
+        end
+      end
+
+      context 'when the user can list processes' do
+        before do
+          space.organization.add_user(user)
+          space.add_developer(user)
+        end
+
+        it 'applies a user visibility filter properly' do
+          dataset = handler.raw_list(access_context)
+          expect(dataset.count).to eq(2)
+        end
+
+        it 'can filter by app_guid' do
+          v3app = AppModel.make
+          process1.app_guid = v3app.guid
+          process1.save
+
+          filter_options = { app_guid: v3app.guid }
+
+          dataset = handler.raw_list(access_context, filter: filter_options)
+          expect(dataset.count).to eq(1)
+        end
+
+        it 'can filter by type' do
+          filter_options = { type: process2.type }
+
+          dataset = handler.raw_list(access_context, filter: filter_options)
+          expect(dataset.count).to eq(1)
+          expect(dataset.all).to include(process2)
+        end
+
+        it 'rejects random filters' do
+          filter_options = { guid: process2.guid }
+
+          dataset = handler.raw_list(access_context, filter: filter_options)
+          expect(dataset.count).to eq(2)
+        end
+
+        it 'can exclude types' do
+          exclude_options = { type: process2.type }
+
+          dataset = handler.raw_list(access_context, exclude: exclude_options)
+          expect(dataset.count).to eq(1)
+          expect(dataset.all).to include(process1)
+        end
+
+        it 'rejects random exclusions' do
+          exclude_options = { guid: process2.guid }
+
+          dataset = handler.raw_list(access_context, exclude: exclude_options)
+          expect(dataset.count).to eq(2)
         end
       end
     end

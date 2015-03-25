@@ -32,45 +32,49 @@ module VCAP::Services::ServiceBrokers::V2
       })
 
       parsed_response = @response_parser.parse(:put, path, response)
+      last_operation_hash = parsed_response['last_operation'] || {}
       attributes = {
         # DEPRECATED, but needed because of not null constraint
         credentials: {},
         dashboard_url: parsed_response['dashboard_url'],
-        state_description: parsed_response['state_description'] || '',
+        last_operation: {
+          type: 'create',
+          description: last_operation_hash['description'] || '',
+        },
       }
 
-      if parsed_response['state']
-        attributes[:state] = parsed_response['state']
-        if attributes[:state] == 'in progress'
+      state = last_operation_hash['state']
+      if state
+        attributes[:last_operation][:state] = state
+        if attributes[:last_operation][:state] == 'in progress'
           @state_poller.poll_service_instance_state(@attrs, instance)
         end
       else
-        attributes[:state] = 'succeeded'
+        attributes[:last_operation][:state] = 'succeeded'
       end
 
-      [attributes, nil]
+      attributes
     rescue Errors::ServiceBrokerApiTimeout, Errors::ServiceBrokerBadResponse => e
       @orphan_mitigator.cleanup_failed_provision(@attrs, instance)
       raise e
-    rescue Errors::ServiceBrokerRequestRejected => e
-      attributes = {
-        state: 'failed',
-        state_description: e.parsed_response['state_description'],
-        credentials: {}
-      }
-
-      [attributes, e]
+    rescue Errors::ServiceBrokerResponseMalformed => e
+      @orphan_mitigator.cleanup_failed_provision(@attrs, instance) unless e.status == 200
+      raise e
     end
 
     def fetch_service_instance_state(instance)
       path = "/v2/service_instances/#{instance.guid}"
 
       response = @http_client.get(path)
-      parsed_response = @response_parser.parse(:get, path, response)
+      parsed_response = @response_parser.parse_fetch_state(:get, path, response)
+      last_operation_hash = parsed_response['last_operation'] || {}
+
       {
         dashboard_url:     parsed_response['dashboard_url'],
-        state:             parsed_response['state'],
-        state_description: parsed_response['state_description'],
+        last_operation: {
+          state:        last_operation_hash['state'],
+          description:  last_operation_hash['description'],
+        }
       }
     end
 
@@ -118,8 +122,11 @@ module VCAP::Services::ServiceBrokers::V2
       raise VCAP::Errors::ApiError.new_from_details('ServiceInstanceDeprovisionFailed', e.message)
     end
 
-    def update_service_plan(instance, plan)
+    def update_service_plan(instance, plan, opts={})
       path = "/v2/service_instances/#{instance.guid}/"
+      if opts.fetch(:async, false)
+        path += '?accepts_incomplete=true'
+      end
 
       response = @http_client.patch(path, {
           plan_id:	plan.broker_provided_id,
@@ -131,7 +138,7 @@ module VCAP::Services::ServiceBrokers::V2
           }
       })
 
-      @response_parser.parse(:put, path, response)
+      @response_parser.parse(:patch, path, response)
     end
 
     private

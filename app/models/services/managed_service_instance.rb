@@ -51,11 +51,12 @@ module VCAP::CloudController
       end
     end
 
+    IN_PROGRESS_STRING = 'in progress'.freeze
+
     many_to_one :service_plan
 
     export_attributes :name, :credentials, :service_plan_guid,
-      :space_guid, :gateway_data, :dashboard_url, :type, :state,
-      :state_description
+      :space_guid, :gateway_data, :dashboard_url, :type, :last_operation
 
     import_attributes :name, :service_plan_guid,
       :space_guid, :gateway_data
@@ -70,6 +71,7 @@ module VCAP::CloudController
     delegate :client, to: :service_plan
 
     add_association_dependencies service_bindings: :destroy
+    add_association_dependencies service_instance_operation: :destroy
 
     def validation_policies
       if space
@@ -88,6 +90,10 @@ module VCAP::CloudController
       super
       validates_presence :service_plan
       validation_policies.map(&:validate)
+    end
+
+    def last_operation
+      service_instance_operation
     end
 
     def after_create
@@ -110,6 +116,7 @@ module VCAP::CloudController
 
     def as_summary_json
       super.merge(
+        'last_operation' => last_operation.try(:to_hash),
         'dashboard_url' => dashboard_url,
         'service_plan' => {
           'guid' => service_plan.guid,
@@ -122,6 +129,13 @@ module VCAP::CloudController
           }
         }
       )
+    end
+
+    def to_hash(opts={})
+      return super(opts) if service_instance_operation.nil?
+
+      last_operation_hash = service_instance_operation.to_hash({})
+      super(opts).merge!('last_operation' => last_operation_hash)
     end
 
     def gateway_data=(val)
@@ -164,7 +178,35 @@ module VCAP::CloudController
     end
 
     def terminal_state?
-      state == 'succeeded' || state == 'failed'
+      ['succeeded', 'failed'].include? last_operation.state
+    end
+
+    def operation_in_progress?
+      if last_operation && last_operation.state == IN_PROGRESS_STRING
+        return true
+      end
+      false
+    end
+
+    def save_with_operation(attributes_to_update)
+      ManagedServiceInstance.db.transaction do
+        lock!
+
+        last_operation_attributes = attributes_to_update.delete(:last_operation)
+
+        set_all(attributes_to_update)
+        save
+
+        if last_operation_attributes
+          if self.service_instance_operation
+            self.service_instance_operation.set_all(last_operation_attributes)
+            self.service_instance_operation.save
+          else
+            operation = ServiceInstanceOperation.create(last_operation_attributes)
+            self.service_instance_operation = operation
+          end
+        end
+      end
     end
   end
 end

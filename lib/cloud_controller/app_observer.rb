@@ -72,7 +72,7 @@ module VCAP::CloudController
 
         if app.needs_staging?
           @stagers.validate_app(app)
-          @stagers.stager_for_app(app).stage
+          @stagers.stager_for_app(app).stage_app
         else
           @runners.runner_for_app(app).start
         end

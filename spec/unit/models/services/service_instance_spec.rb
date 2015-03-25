@@ -147,6 +147,18 @@ module VCAP::CloudController
       end
     end
 
+    describe '#user_provided_instance?' do
+      it 'returns true for ManagedServiceInstance instances' do
+        managed_instance = VCAP::CloudController::ManagedServiceInstance.new
+        expect(managed_instance.user_provided_instance?).to eq(false)
+      end
+
+      it 'returns false for ManagedServiceInstance instances' do
+        user_provided_instance = VCAP::CloudController::UserProvidedServiceInstance.new
+        expect(user_provided_instance.user_provided_instance?).to eq(true)
+      end
+    end
+
     describe '#bindable?' do
       it { is_expected.to be_bindable }
     end
@@ -156,8 +168,6 @@ module VCAP::CloudController
         instance = VCAP::CloudController::ServiceInstance.make(
           guid: 'ABCDEFG12',
           name: 'Random-Number-Service',
-          state: 'in progress',
-          state_description: '50% all the time'
         )
         VCAP::CloudController::ServiceBinding.make(service_instance: instance)
 
@@ -165,8 +175,6 @@ module VCAP::CloudController
           'guid' => 'ABCDEFG12',
           'name' => 'Random-Number-Service',
           'bound_app_count' => 1,
-          'state' => 'in progress',
-          'state_description' => '50% all the time',
         })
       end
     end

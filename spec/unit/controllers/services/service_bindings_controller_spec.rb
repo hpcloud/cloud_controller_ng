@@ -34,7 +34,7 @@ module VCAP::CloudController
       expect(app.needs_staging?).to eq(false)
     end
 
-    let(:broker_client) { double('broker client') }
+    let(:broker_client) { instance_double(VCAP::Services::ServiceBrokers::V2::Client) }
 
     before do
       allow(broker_client).to receive(:bind) do |binding|
@@ -157,7 +157,7 @@ module VCAP::CloudController
           body =  params.merge('binding_options' => binding_options).to_json
           post '/v2/service_bindings', body, headers_for(developer)
 
-          expect(last_response.status).to eq(201)
+          expect(last_response).to have_status_code(201)
           expect(ServiceBinding.last.binding_options).to eq(binding_options)
         end
       end
@@ -317,6 +317,26 @@ module VCAP::CloudController
           end
         end
 
+        context 'when the instance operation is in progress' do
+          let(:last_operation) { ServiceInstanceOperation.make(state: 'in progress') }
+          let(:instance) { ManagedServiceInstance.make }
+          before do
+            instance.service_instance_operation = last_operation
+            instance.save
+          end
+
+          it 'should show an error message for create bind operation' do
+            req = {
+                app_guid: app_obj.guid,
+                service_instance_guid: instance.guid
+            }.to_json
+
+            post '/v2/service_bindings', req, json_headers(headers_for(developer))
+            expect(last_response).to have_status_code 400
+            expect(last_response.body).to match 'ServiceInstanceOperationInProgress'
+          end
+        end
+
         describe 'binding errors' do
           subject(:make_request) do
             req = {
@@ -349,7 +369,7 @@ module VCAP::CloudController
               allow(broker_client).to receive(:bind) do
                 uri = 'http://broker.url.com'
                 method = 'PUT'
-                response = double(:response, code: 409, body: '{}')
+                response = VCAP::Services::ServiceBrokers::V2::HttpResponse.new(code: 409, body: '{}', message: 'Conflict')
                 raise VCAP::Services::ServiceBrokers::V2::Errors::ServiceBrokerConflict.new(uri, method, response)
               end
             end
@@ -371,7 +391,7 @@ module VCAP::CloudController
               allow(broker_client).to receive(:bind) do
                 uri = 'http://broker.url.com'
                 method = 'PUT'
-                response = double(:response, code: 500, body: '{"description": "ERROR MESSAGE HERE"}')
+                response = VCAP::Services::ServiceBrokers::V2::HttpResponse.new(code: 500, body: '{"description": "ERROR MESSAGE HERE"}', message: 'Internal Server Error')
                 raise VCAP::Services::ServiceBrokers::V2::Errors::ServiceBrokerBadResponse.new(uri, method, response)
               end
             end
@@ -431,6 +451,33 @@ module VCAP::CloudController
           expect(last_response.status).to eq 202
           expect(decoded_response['entity']['guid']).to be
           expect(decoded_response['entity']['status']).to eq 'queued'
+        end
+      end
+
+      context 'when the instance operation is in progress' do
+        let(:last_operation) { ServiceInstanceOperation.make(state: 'in progress') }
+        let(:instance) { ManagedServiceInstance.make }
+        let(:service_binding) { ServiceBinding.make(service_instance: instance) }
+        before do
+          instance.service_instance_operation = last_operation
+          instance.save
+        end
+
+        it 'should show an error message for unbind operation' do
+          delete "/v2/service_bindings/#{service_binding.guid}", '', json_headers(headers_for(developer))
+          expect(last_response).to have_status_code 400
+          expect(last_response.body).to match 'ServiceInstanceOperationInProgress'
+          expect(ServiceBinding.find(guid: service_binding.guid)).not_to be_nil
+        end
+      end
+
+      context 'when the user does not belong to the space' do
+        let(:other_space) { Space.make }
+        let(:other_developer) { make_developer_for_space(other_space) }
+
+        it 'returns a 403' do
+          delete "/v2/service_bindings/#{service_binding.guid}", '', headers_for(other_developer)
+          expect(last_response).to have_status_code(403)
         end
       end
     end
