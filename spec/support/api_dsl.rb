@@ -207,7 +207,7 @@ module ApiDsl
       request_parameter :'orphan-relations', '0 - de-duplicate object entries in response', deprecated: true
       request_parameter :'exclude-relations', 'comma-delimited list of relations to drop from response', deprecated: true
       request_parameter :'include-relations', 'comma-delimited list of the only relations to include in response', deprecated: true
-      request_parameter :order, 'Result ordering, either 'asc' or 'desc'.  Defaults to ascending.'
+      request_parameter :order, 'Result ordering, either \'asc\' or \'desc\'.  Defaults to ascending.'
       request_parameter :'order-by', 'The column to order results by.'
     end
 

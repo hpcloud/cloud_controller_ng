@@ -7,7 +7,7 @@ module VCAP
 
       def self.details_by_code
         %w{vendor stackato}.collect do |source|
-          YAML.load_file(yaml_file_path(source))
+          YAML.load_file(yaml_file_path)
         end.inject(:merge)
       end
 

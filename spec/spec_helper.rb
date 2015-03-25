@@ -5,21 +5,15 @@ require 'rubygems'
 require 'bundler'
 require 'bundler/setup'
 
-<<<<<<< HEAD
-
 begin
-  require File.expand_path("../../../../kato/spec-common/spec_helper.rb", __FILE__)
+  require File.expand_path('../../../../kato/spec-common/spec_helper.rb', __FILE__)
 rescue LoadError
   # When running locally, kato is likely to be checked out next to cloud_controller_ng
-  require File.expand_path("../../../kato/spec-common/spec_helper.rb", __FILE__)
+  require File.expand_path('../../../kato/spec-common/spec_helper.rb', __FILE__)
 end
 
-if ENV["CODECLIMATE_REPO_TOKEN"] && ENV["COVERAGE"]
-  require "codeclimate-test-reporter"
-=======
 if ENV['CODECLIMATE_REPO_TOKEN'] && ENV['COVERAGE']
   require 'codeclimate-test-reporter'
->>>>>>> b0e4288d4f368f9ae17378d801a482f6b829ca80
   CodeClimate::TestReporter.start
 end
 
@@ -39,17 +33,12 @@ require 'allowy/rspec'
 require 'pry'
 require 'posix/spawn'
 
-<<<<<<< HEAD
-require "rspec_api_documentation"
-
-require "kato/config"
-require "kato/util"
-
-require "services"
-=======
 require 'rspec_api_documentation'
+
+require 'kato/config'
+require 'kato/util'
+
 require 'services'
->>>>>>> b0e4288d4f368f9ae17378d801a482f6b829ca80
 
 require 'support/bootstrap/spec_bootstrap'
 require 'rspec/collection_matchers'
@@ -65,12 +54,8 @@ RSpec.configure do |rspec_config|
   rspec_config.include ModelCreation
 
   rspec_config.include ServiceBrokerHelpers
-<<<<<<< HEAD
   rspec_config.include StackatoHelpers
-  rspec_config.include ControllerHelpers, type: :controller, :file_path => EscapedPath.join(%w[spec unit controllers])
-=======
   rspec_config.include ControllerHelpers, type: :controller, file_path: EscapedPath.join(%w(spec unit controllers))
->>>>>>> b0e4288d4f368f9ae17378d801a482f6b829ca80
   rspec_config.include ControllerHelpers, type: :api
   rspec_config.include ControllerHelpers, file_path: EscapedPath.join(%w(spec acceptance))
   rspec_config.include ApiDsl, type: :legacy_api

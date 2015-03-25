@@ -21,8 +21,8 @@ module VCAP::CloudController
         description: config[:info][:description],
         authorization_endpoint: config[:login] ? config[:login][:url] : config[:uaa][:url],
         token_endpoint: config[:uaa][:url],
-        allow_debug: config.fetch(:allow_debug, true)
-		applog_endpoint: "ws://#{applog_endpoint}",
+        allow_debug: config.fetch(:allow_debug, true),
+    		applog_endpoint: "ws://#{applog_endpoint}",
         allow_debug: config.fetch(:allow_debug, true),
         vendor_version: StackatoVendorConfig.vendor_version,
         stackato => {
