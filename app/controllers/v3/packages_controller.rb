@@ -10,24 +10,14 @@ module VCAP::CloudController
     def inject_dependencies(dependencies)
       @packages_handler = dependencies[:packages_handler]
       @package_presenter = dependencies[:package_presenter]
-      @apps_handler = dependencies[:apps_handler]
     end
 
-    post '/v3/apps/:guid/packages', :create
-    def create(app_guid)
-      app = @apps_handler.show(app_guid, @access_context)
-      app_not_found! if app.nil?
-
-      message = PackageCreateMessage.create_from_http_request(app.space_guid, body)
-      valid, errors = message.validate
-      unprocessable!(errors.join(', ')) if !valid
-
-      package = @packages_handler.create(message, @access_context)
-      package_json = @package_presenter.present_json(package)
-
-      [HTTP::CREATED, package_json]
-    rescue PackagesHandler::Unauthorized
-      unauthorized!
+    get '/v3/packages', :list
+    def list
+      pagination_options = PaginationOptions.from_params(params)
+      paginated_result   = @packages_handler.list(pagination_options, @access_context)
+      packages_json      = @package_presenter.present_json_list(paginated_result, '/v3/packages')
+      [HTTP::OK, packages_json]
     end
 
     post '/v3/packages/:guid/upload', :upload
@@ -43,7 +33,7 @@ module VCAP::CloudController
     rescue PackagesHandler::InvalidPackageType => e
       invalid_request!(e.message)
     rescue PackagesHandler::SpaceNotFound
-      app_not_found!
+      space_not_found!
     rescue PackagesHandler::PackageNotFound
       package_not_found!
     rescue PackagesHandler::Unauthorized
@@ -78,8 +68,8 @@ module VCAP::CloudController
       raise VCAP::Errors::ApiError.new_from_details('ResourceNotFound', 'Package not found')
     end
 
-    def app_not_found!
-      raise VCAP::Errors::ApiError.new_from_details('ResourceNotFound', 'App not found')
+    def space_not_found!
+      raise VCAP::Errors::ApiError.new_from_details('ResourceNotFound', 'Space not found')
     end
 
     def unauthorized!

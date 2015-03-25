@@ -14,9 +14,9 @@ module VCAP::Services::ServiceBrokers::V2
 
     subject(:client) { Client.new(client_attrs) }
 
-    let(:http_client) { double('http_client') }
-    let(:orphan_mitigator) { double('orphan_mitigator', cleanup_failed_provision: nil, cleanup_failed_bind: nil) }
-    let(:state_poller) { double('state_poller', poll_service_instance_state: nil) }
+    let(:http_client) { instance_double(HttpClient) }
+    let(:orphan_mitigator) { instance_double(OrphanMitigator, cleanup_failed_provision: nil, cleanup_failed_bind: nil) }
+    let(:state_poller) { instance_double(ServiceInstanceStatePoller, poll_service_instance_state: nil) }
 
     before do
       allow(HttpClient).to receive(:new).
@@ -68,17 +68,13 @@ module VCAP::Services::ServiceBrokers::V2
       end
 
       let(:path) { '/v2/catalog' }
-      let(:catalog_response) { double('catalog_response') }
+      let(:catalog_response) { HttpResponse.new(code: code, body: catalog_response_body, message: message) }
       let(:catalog_response_body) { response_data.to_json }
       let(:code) { '200' }
       let(:message) { 'OK' }
 
       before do
         allow(http_client).to receive(:get).with(path).and_return(catalog_response)
-
-        allow(catalog_response).to receive(:body).and_return(catalog_response_body)
-        allow(catalog_response).to receive(:code).and_return(code)
-        allow(catalog_response).to receive(:message).and_return(message)
       end
 
       it 'returns a catalog' do
@@ -90,7 +86,7 @@ module VCAP::Services::ServiceBrokers::V2
       let(:plan) { VCAP::CloudController::ServicePlan.make }
       let(:space) { VCAP::CloudController::Space.make }
       let(:instance) do
-        VCAP::CloudController::ManagedServiceInstance.new(
+        VCAP::CloudController::ManagedServiceInstance.make(
           service_plan: plan,
           space: space
         )
@@ -102,8 +98,8 @@ module VCAP::Services::ServiceBrokers::V2
         }
       end
 
-      let(:path) { "/v2/service_instances/#{instance.guid}?accepts_incomplete=true" }
-      let(:response) { double('response') }
+      let(:path) { "/v2/service_instances/#{instance.guid}" }
+      let(:response) { HttpResponse.new(code: code, body: response_body, message: message) }
       let(:response_body) { response_data.to_json }
       let(:code) { '201' }
       let(:message) { 'Created' }
@@ -111,17 +107,13 @@ module VCAP::Services::ServiceBrokers::V2
       before do
         allow(http_client).to receive(:put).and_return(response)
         allow(http_client).to receive(:delete).and_return(response)
-
-        allow(response).to receive(:body).and_return(response_body)
-        allow(response).to receive(:code).and_return(code)
-        allow(response).to receive(:message).and_return(message)
       end
 
       it 'makes a put request with correct path' do
         client.provision(instance)
 
         expect(http_client).to have_received(:put).
-          with("/v2/service_instances/#{instance.guid}?accepts_incomplete=true", anything)
+          with(path, anything)
       end
 
       it 'makes a put request with correct message' do
@@ -129,40 +121,45 @@ module VCAP::Services::ServiceBrokers::V2
 
         expect(http_client).to have_received(:put).
           with(anything,
-               {
             service_id:        instance.service.broker_provided_id,
             plan_id:           instance.service_plan.broker_provided_id,
             organization_guid: instance.organization.guid,
             space_guid:        instance.space.guid
-          }
-              )
+          )
       end
 
-      it 'sets the dashboard_url on the instance' do
-        client.provision(instance)
+      it 'returns the attributes to update on a service instance' do
+        attributes, error = client.provision(instance)
+        # ensure updating attributes and saving to service instance works
+        instance.set_all(attributes)
+        instance.save
 
         expect(instance.dashboard_url).to eq('foo')
+        expect(error).to be_nil
       end
 
-      it 'defaults the state to "available"' do
-        client.provision(instance)
+      it 'defaults the state to "succeeded"' do
+        attributes, error = client.provision(instance)
 
-        expect(instance.state).to eq('available')
+        expect(attributes[:state]).to eq('succeeded')
+        expect(error).to be_nil
       end
 
       it 'leaves the description blank' do
-        client.provision(instance)
+        attributes, error = client.provision(instance)
 
-        expect(instance.state_description).to eq('')
+        expect(attributes[:state_description]).to eq('')
+        expect(error).to be_nil
       end
 
       it 'DEPRECATED, maintain for database not null contraint: sets the credentials on the instance' do
-        client.provision(instance)
+        attributes, error = client.provision(instance)
 
-        expect(instance.credentials).to eq({})
+        expect(attributes[:credentials]).to eq({})
+        expect(error).to be_nil
       end
 
-      context 'when the broker returns no state or the state is created, or available' do
+      context 'when the broker returns no state or the state is created, or succeeded' do
         let(:response_data) do
           {
           }
@@ -170,10 +167,11 @@ module VCAP::Services::ServiceBrokers::V2
 
         it 'return immediately with the broker response' do
           client = Client.new(client_attrs.merge(accepts_incomplete: true))
-          client.provision(instance)
+          attributes, error = client.provision(instance)
 
-          expect(instance.state).to eq('available')
-          expect(instance.state_description).to eq('')
+          expect(attributes[:state]).to eq('succeeded')
+          expect(attributes[:state_description]).to eq('')
+          expect(error).to be_nil
         end
 
         it 'does not enqueue a polling job' do
@@ -182,20 +180,23 @@ module VCAP::Services::ServiceBrokers::V2
         end
       end
 
-      context 'when the broker returns the state as creating' do
+      context 'when the broker returns the state as `in progress`' do
+        let(:code) { 202 }
+        let(:message) { 'Accepted' }
         let(:response_data) do
           {
-            state: 'creating',
+            state: 'in progress',
             state_description: '10% done'
           }
         end
 
         it 'return immediately with the broker response' do
           client = Client.new(client_attrs.merge(accepts_incomplete: true))
-          client.provision(instance)
+          attributes, error = client.provision(instance)
 
-          expect(instance.state).to eq('creating')
-          expect(instance.state_description).to eq('10% done')
+          expect(attributes[:state]).to eq('in progress')
+          expect(attributes[:state_description]).to eq('10% done')
+          expect(error).to be_nil
         end
 
         it 'enqueues a polling job' do
@@ -205,19 +206,21 @@ module VCAP::Services::ServiceBrokers::V2
       end
 
       context 'when the broker returns the state as failed' do
+        let(:code) { 400 }
+        let(:message) { 'Failed' }
         let(:response_data) do
           {
-            state: 'failed',
             state_description: '100% failed'
           }
         end
 
         it 'return immediately with the broker response' do
           client = Client.new(client_attrs.merge(accepts_incomplete: true))
-          client.provision(instance)
+          attributes, error = client.provision(instance)
 
-          expect(instance.state).to eq('failed')
-          expect(instance.state_description).to eq('100% failed')
+          expect(attributes[:state]).to eq('failed')
+          expect(attributes[:state_description]).to eq('100% failed')
+          expect(error).to be_a(Errors::ServiceBrokerRequestRejected)
         end
 
         it 'does not enqueue a polling job' do
@@ -228,10 +231,10 @@ module VCAP::Services::ServiceBrokers::V2
 
       context 'when provision fails' do
         let(:uri) { 'some-uri.com/v2/service_instances/some-guid' }
-        let(:response) { double(:response, body: nil, message: nil) }
+        let(:response) { HttpResponse.new(code: nil, body: nil, message: nil) }
 
         context 'due to an http client error' do
-          let(:http_client) { double(:http_client) }
+          let(:http_client) { instance_double(HttpClient) }
 
           before do
             allow(http_client).to receive(:put).and_raise(error)
@@ -251,7 +254,7 @@ module VCAP::Services::ServiceBrokers::V2
         end
 
         context 'due to a response parser error' do
-          let(:response_parser) { double(:response_parser) }
+          let(:response_parser) { instance_double(ResponseParser) }
 
           before do
             allow(response_parser).to receive(:parse).and_raise(error)
@@ -290,7 +293,7 @@ module VCAP::Services::ServiceBrokers::V2
       let(:plan) { VCAP::CloudController::ServicePlan.make }
       let(:space) { VCAP::CloudController::Space.make }
       let(:instance) do
-        VCAP::CloudController::ManagedServiceInstance.new(
+        VCAP::CloudController::ManagedServiceInstance.make(
           service_plan: plan,
           space: space
         )
@@ -299,23 +302,19 @@ module VCAP::Services::ServiceBrokers::V2
       let(:response_data) do
         {
           'dashboard_url' => 'bar',
-          'state' => 'created',
+          'state' => 'succeeded',
           'state_description' => '100% created'
         }
       end
 
       let(:path) { "/v2/service_instances/#{instance.guid}" }
-      let(:response) { double('response') }
+      let(:response) { HttpResponse.new(code: code, message: message, body: response_body) }
       let(:response_body) { response_data.to_json }
       let(:code) { '200' }
       let(:message) { 'OK' }
 
       before do
         allow(http_client).to receive(:get).and_return(response)
-
-        allow(response).to receive(:body).and_return(response_body)
-        allow(response).to receive(:code).and_return(code)
-        allow(response).to receive(:message).and_return(message)
       end
 
       it 'makes a put request with correct path' do
@@ -325,14 +324,11 @@ module VCAP::Services::ServiceBrokers::V2
           with("/v2/service_instances/#{instance.guid}")
       end
 
-      it 'returns the instance given with new state values' do
-        returned_instance = client.fetch_service_instance_state(instance)
+      it 'returns the attributes to update the service instance model' do
+        attrs = client.fetch_service_instance_state(instance)
+        expected_attrs = response_data.symbolize_keys
 
-        expect(returned_instance).to be(instance)
-
-        expect(returned_instance.dashboard_url).to eq('bar')
-        expect(returned_instance.state).to eq('created')
-        expect(returned_instance.state_description).to eq('100% created')
+        expect(attrs).to eq(expected_attrs)
       end
     end
 
@@ -356,7 +352,8 @@ module VCAP::Services::ServiceBrokers::V2
       let(:response_data) { '{}' }
 
       before do
-        allow(http_client).to receive(:patch).and_return(double('response', code: code, body: response_data, message: message))
+        response = HttpResponse.new(code: code, body: response_data, message: message)
+        allow(http_client).to receive(:patch).and_return(response)
       end
 
       it 'makes a patch request with the new service plan' do
@@ -385,7 +382,7 @@ module VCAP::Services::ServiceBrokers::V2
       describe 'error handling' do
         describe 'non-standard errors' do
           before do
-            fake_response = double('response', code: status_code, body: body)
+            fake_response = HttpResponse.new(code: status_code, body: body, message: 'Unprocessable Entity')
             allow(http_client).to receive(:patch).and_return(fake_response)
           end
 
@@ -422,17 +419,13 @@ module VCAP::Services::ServiceBrokers::V2
       end
 
       let(:path) { "/v2/service_instances/#{binding.service_instance.guid}/service_bindings/#{binding.guid}" }
-      let(:response) { double('response') }
+      let(:response) { HttpResponse.new(body: response_body, code: code, message: message) }
       let(:response_body) { response_data.to_json }
       let(:code) { '201' }
       let(:message) { 'Created' }
 
       before do
         allow(http_client).to receive(:put).and_return(response)
-
-        allow(response).to receive(:body).and_return(response_body)
-        allow(response).to receive(:code).and_return(code)
-        allow(response).to receive(:message).and_return(message)
       end
 
       it 'makes a put request with correct path' do
@@ -498,10 +491,10 @@ module VCAP::Services::ServiceBrokers::V2
           )
         end
         let(:uri) { 'some-uri.com/v2/service_instances/instance-guid/service_bindings/binding-guid' }
-        let(:response) { double(:response, body: nil, message: nil) }
+        let(:response) { HttpResponse.new(body: nil, message: nil, code: nil) }
 
         context 'due to an http client error' do
-          let(:http_client) { double(:http_client) }
+          let(:http_client) { instance_double(HttpClient) }
 
           before do
             allow(http_client).to receive(:put).and_raise(error)
@@ -522,7 +515,7 @@ module VCAP::Services::ServiceBrokers::V2
         end
 
         context 'due to a response parser error' do
-          let(:response_parser) { double(:response_parser) }
+          let(:response_parser) { instance_double(ResponseParser) }
 
           before do
             allow(response_parser).to receive(:parse).and_raise(error)
@@ -566,17 +559,13 @@ module VCAP::Services::ServiceBrokers::V2
       let(:response_data) { {} }
 
       let(:path) { "/v2/service_instances/#{binding.service_instance.guid}/service_bindings/#{binding.guid}" }
-      let(:response) { double('response') }
+      let(:response) { HttpResponse.new(code: code, body: response_body, message: message) }
       let(:response_body) { response_data.to_json }
       let(:code) { '200' }
       let(:message) { 'OK' }
 
       before do
         allow(http_client).to receive(:delete).and_return(response)
-
-        allow(response).to receive(:body).and_return(response_body)
-        allow(response).to receive(:code).and_return(code)
-        allow(response).to receive(:message).and_return(message)
       end
 
       it 'makes a delete request with the correct path' do
@@ -614,17 +603,13 @@ module VCAP::Services::ServiceBrokers::V2
       let(:response_data) { {} }
 
       let(:path) { "/v2/service_instances/#{instance.guid}" }
-      let(:response) { double('response') }
+      let(:response) { HttpResponse.new(code: code, body: response_body, message: message) }
       let(:response_body) { response_data.to_json }
       let(:code) { '200' }
       let(:message) { 'OK' }
 
       before do
         allow(http_client).to receive(:delete).and_return(response)
-
-        allow(response).to receive(:body).and_return(response_body)
-        allow(response).to receive(:code).and_return(code)
-        allow(response).to receive(:message).and_return(message)
       end
 
       it 'makes a delete request with the correct path' do

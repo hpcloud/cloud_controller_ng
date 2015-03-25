@@ -36,8 +36,10 @@ module VCAP::CloudController
   end
 
   PackageModel.blueprint do
-    guid    { Sham.guid }
-    state   { VCAP::CloudController::PackageModel::CREATED_STATE }
+    guid     { Sham.guid }
+    state    { VCAP::CloudController::PackageModel::CREATED_STATE }
+    type     { 'bits' }
+    app_guid { Sham.guid }
   end
 
   User.blueprint do
@@ -121,9 +123,11 @@ module VCAP::CloudController
   end
 
   ServiceInstance.blueprint do
-    name        { Sham.name }
-    credentials { Sham.service_credentials }
-    space       { Space.make }
+    name              { Sham.name }
+    credentials       { Sham.service_credentials }
+    space             { Space.make }
+    state             { 'in progress' }
+    state_description { 'state_description goes here' }
   end
 
   ManagedServiceInstance.blueprint do
@@ -201,13 +205,13 @@ module VCAP::CloudController
   end
 
   BillingEvent.blueprint do
-    timestamp         { Time.now }
+    timestamp         { Time.now.utc }
     organization_guid { Sham.guid }
     organization_name { Sham.name }
   end
 
   Event.blueprint do
-    timestamp  { Time.now }
+    timestamp  { Time.now.utc }
     type       { Sham.name }
     actor      { Sham.guid }
     actor_type { Sham.name }
@@ -249,7 +253,7 @@ module VCAP::CloudController
     instance_index    { Sham.instance_index }
     exit_status       { Random.rand(256) }
     exit_description  { Sham.description }
-    timestamp         { Time.now }
+    timestamp         { Time.now.utc }
   end
 
   ServiceCreateEvent.blueprint do

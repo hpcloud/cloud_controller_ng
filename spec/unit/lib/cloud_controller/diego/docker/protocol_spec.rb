@@ -6,16 +6,13 @@ module VCAP::CloudController
     module Docker
       describe Protocol do
         before do
-          allow(Config.config).to receive(:[]).with(anything).and_call_original
-          allow(Config.config).to receive(:[]).with(:diego).and_return(staging: 'optional', running: 'optional')
-          allow(Config.config).to receive(:[]).with(:diego_docker).and_return true
+          TestConfig.override(diego: { staging: 'optional', running: 'optional' }, diego_docker: true)
         end
 
+        let(:default_health_check_timeout) { 9999 }
+        let(:staging_config) { TestConfig.config[:staging] }
         let(:common_protocol) { double(:common_protocol) }
-
-        let(:app) do
-          AppFactory.make(docker_image: 'fake/docker_image')
-        end
+        let(:app) { AppFactory.make(docker_image: 'fake/docker_image', health_check_timeout: 120) }
 
         subject(:protocol) do
           Protocol.new(common_protocol)
@@ -28,22 +25,31 @@ module VCAP::CloudController
 
         describe '#stage_app_request' do
           subject(:request) do
-            protocol.stage_app_request(app, 900)
+            protocol.stage_app_request(app, staging_config)
           end
 
           it 'includes a subject and message for CfMessageBus::MessageBus#publish' do
             expect(request.size).to eq(2)
             expect(request.first).to eq('diego.docker.staging.start')
-            expect(request.last).to match_json(protocol.stage_app_message(app, 900))
+            expect(request.last).to match_json(protocol.stage_app_message(app, staging_config))
           end
         end
 
         describe '#stage_app_message' do
-          subject(:message) do
-            protocol.stage_app_message(app, 900)
+          before do
+            staging_override = {
+              minimum_staging_memory_mb: 128,
+              minimum_staging_disk_mb: 128,
+              minimum_staging_file_descriptor_limit: 128,
+              timeout_in_seconds: 90,
+              auth: { user: 'user', password: 'password' },
+            }
+            TestConfig.override(staging: staging_override)
           end
 
-          it 'includes the fields needed to stage a Docker app' do
+          let(:message) { protocol.stage_app_message(app, staging_config) }
+
+          it 'contains the correct payload for staging a Docker app' do
             expect(message).to eq({
               'app_id' => app.guid,
               'task_id' => app.staging_task_id,
@@ -53,26 +59,62 @@ module VCAP::CloudController
               'stack' => app.stack.name,
               'docker_image' => app.docker_image,
               'egress_rules' => ['staging_egress_rule'],
-              'timeout' => 900,
+              'timeout' => 90,
             })
+          end
+
+          context 'when the app memory is less than the minimum staging memory' do
+            let(:app) { AppFactory.make(docker_image: 'fake/docker_image', memory: 127) }
+
+            subject(:message) do
+              protocol.stage_app_message(app, staging_config)
+            end
+
+            it 'uses the minimum staging memory' do
+              expect(message['memory_mb']).to eq(staging_config[:minimum_staging_memory_mb])
+            end
+          end
+
+          context 'when the app disk is less than the minimum staging disk' do
+            let(:app) { AppFactory.make(docker_image: 'fake/docker_image', disk_quota: 127) }
+
+            subject(:message) do
+              protocol.stage_app_message(app, staging_config)
+            end
+
+            it 'includes the fields needed to stage a Docker app' do
+              expect(message['disk_mb']).to eq(staging_config[:minimum_staging_disk_mb])
+            end
+          end
+
+          context 'when the app fd limit is less than the minimum staging fd limit' do
+            let(:app) { AppFactory.make(docker_image: 'fake/docker_image', file_descriptors: 127) }
+
+            subject(:message) do
+              protocol.stage_app_message(app, staging_config)
+            end
+
+            it 'includes the fields needed to stage a Docker app' do
+              expect(message['file_descriptors']).to eq(staging_config[:minimum_staging_file_descriptor_limit])
+            end
           end
         end
 
         describe '#desire_app_request' do
           subject(:request) do
-            protocol.desire_app_request(app)
+            protocol.desire_app_request(app, default_health_check_timeout)
           end
 
           it 'includes a subject and message for CfMessageBus::MessageBus#publish' do
             expect(request.size).to eq(2)
             expect(request.first).to eq('diego.docker.desire.app')
-            expect(request.last).to match_json(protocol.desire_app_message(app))
+            expect(request.last).to match_json(protocol.desire_app_message(app, default_health_check_timeout))
           end
         end
 
         describe '#desire_app_message' do
           subject(:message) do
-            protocol.desire_app_message(app)
+            protocol.desire_app_message(app, default_health_check_timeout)
           end
 
           it 'includes the fields needed to desire a Docker app' do
@@ -90,18 +132,21 @@ module VCAP::CloudController
               'log_guid' => app.guid,
               'docker_image' => app.docker_image,
               'health_check_type' => app.health_check_type,
+              'health_check_timeout_in_seconds' => app.health_check_timeout,
               'egress_rules' => ['running_egress_rule'],
               'etag' => app.updated_at.to_f.to_s,
             })
           end
 
-          context 'when the app has a health_check_timeout' do
+          context 'when the app health check timeout is not set' do
             before do
-              app.health_check_timeout = 123
+              TestConfig.override(default_health_check_timeout: default_health_check_timeout)
             end
 
-            it 'includes the timeout in the message' do
-              expect(message['health_check_timeout_in_seconds']).to eq(app.health_check_timeout)
+            let(:app) { AppFactory.make(docker_image: 'fake/docker_image', health_check_timeout: nil) }
+
+            it 'uses the default app health check from the config' do
+              expect(message['health_check_timeout_in_seconds']).to eq(default_health_check_timeout)
             end
           end
         end

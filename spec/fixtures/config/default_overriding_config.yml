@@ -30,7 +30,9 @@ failed_jobs:
   cutoff_age_in_days: 31
 
 default_app_memory: 1024 #mb
-maximum_health_check_timeout: 180
+
+default_health_check_timeout: 30 #seconds
+maximum_health_check_timeout: 90 #seconds
 
 hm9000:
   url: "http://localhost:5155"
@@ -56,6 +58,9 @@ internal_api:
 
 staging:
   timeout_in_seconds: 120
+  minimum_staging_memory_mb: 512
+  minimum_staging_disk_mb: 1024
+  minimum_staging_file_descriptor_limit: 2048
   auth:
     user: user
     password: password
