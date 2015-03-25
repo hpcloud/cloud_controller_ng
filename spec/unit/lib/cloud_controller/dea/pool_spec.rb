@@ -118,7 +118,7 @@ module VCAP::CloudController
             'app_id_to_count' => { 
                 'app-id' => 1
             }
-          ))q
+          ))
 
           subject.process_advertise_message(dea_advertise_msg.merge( 'placement_properties' => { 'availability_zone' => 'az1' } ))
           subject.process_advertise_message(dea_advertise_msg.merge( 'placement_properties' => { 'availability_zone' => 'az2' }, 'id' => 'dea-in-other-az' ))
