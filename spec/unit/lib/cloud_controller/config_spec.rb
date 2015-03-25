@@ -205,8 +205,8 @@ module VCAP::CloudController
               user: 'user',
               password: 'password',
             },
-            hm9000_noop: true,
           },
+          hm9000_noop: true,
           diego: {
             staging: 'optional',
             running: 'optional',
