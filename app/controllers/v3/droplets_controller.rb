@@ -2,7 +2,7 @@ require 'presenters/v3/droplet_presenter'
 require 'handlers/droplets_handler'
 
 module VCAP::CloudController
-  class DropletsController < RestController::BaseController
+  class DropletsController < RestController::ModelController
     def self.dependencies
       [:droplets_handler, :droplet_presenter]
     end
