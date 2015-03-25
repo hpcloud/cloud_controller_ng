@@ -61,14 +61,8 @@ module VCAP::CloudController
     before do
       expect(app.staged?).to be false
 
-<<<<<<< HEAD
-      allow(VCAP).to receive(:secure_uuid) { "some_task_id" }
-      allow(stager_pool).to receive(:find_stager).with(app.stack.name, 1024, anything, 'default').and_return(stager_id)
-=======
       allow(VCAP).to receive(:secure_uuid) { 'some_task_id' }
-      allow(stager_pool).to receive(:find_stager).with(app.stack.name, 1024, anything).and_return(stager_id)
->>>>>>> b0e4288d4f368f9ae17378d801a482f6b829ca80
-
+      allow(stager_pool).to receive(:find_stager).with(app.stack.name, 1024, anything, 'default').and_return(stager_id)
       allow(EM).to receive(:add_timer)
       allow(EM).to receive(:defer).and_yield
       allow(EM).to receive(:schedule_sync)
