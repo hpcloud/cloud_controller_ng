@@ -27,6 +27,10 @@ module VCAP::Services
           context 'when the status code is 200' do
             let(:code) { 200 }
 
+            it 'should be ok' do
+              expect(parsed_response).to eq({})
+            end
+
             context 'the response is partial json response' do
               let(:body) { '""' }
               it 'raises a ServiceBrokerResponseMalformed error' do
@@ -42,8 +46,56 @@ module VCAP::Services
               end
             end
 
-            it 'returns response_hash' do
-              expect(parsed_response).to eq({})
+            context 'the state is "succeeded"' do
+              let(:body) do
+                {
+                  last_operation: {
+                    state: 'succeeded',
+                  }
+                }.to_json
+              end
+
+              it 'returns response_hash' do
+                expect(parsed_response).to eq({
+                  'last_operation' => {
+                    'state' => 'succeeded'
+                  }
+                })
+              end
+            end
+
+            context 'the state is not specified' do
+              it 'returns response_hash' do
+                expect(parsed_response).to eq({})
+              end
+            end
+
+            context 'the state is not "succeeded"' do
+              let(:body) do
+                {
+                  last_operation: {
+                    state: 'blarg',
+                  }
+                }.to_json
+              end
+
+              context 'when the path indicates a unbind request' do
+                let(:path) { '/v2/service_instances/valid-service-instance-guid/service_bindings/binding-guid' }
+
+                it 'returns the response hash' do
+                  expect(parsed_response).to eq({
+                    'last_operation' => {
+                      'state' => 'blarg',
+                    },
+                  })
+                end
+              end
+
+              context 'when the path indicates a deprovision request' do
+                it 'raises a ServiceBrokerResponseMalformed error' do
+                  expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed)
+                end
+              end
             end
           end
 
@@ -65,6 +117,21 @@ module VCAP::Services
 
           context 'when the status code is 202' do
             let(:code) { 202 }
+            let(:body) do
+              {
+                  last_operation: {
+                    state: 'in progress',
+                  }
+              }.to_json
+            end
+
+            it 'returns the parsed response with last_operation' do
+              expect(parsed_response).to eq({
+                  'last_operation' => {
+                    'state' => 'in progress'
+                  }
+                })
+            end
 
             context 'the response is not a valid json object' do
               let(:body) { '""' }
@@ -72,10 +139,6 @@ module VCAP::Services
               it 'raises a ServiceBrokerResponseMalformed error' do
                 expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed)
               end
-            end
-
-            it 'raises a ServiceBrokerBadResponse error' do
-              expect { parsed_response }.to raise_error(Errors::ServiceBrokerBadResponse)
             end
           end
 
@@ -166,6 +229,14 @@ module VCAP::Services
               let(:body) { '""' } # AppDirect likes to return this
               it 'raises a ServiceBrokerBadResponse error' do
                 expect { parsed_response }.to raise_error(Errors::ServiceBrokerBadResponse)
+              end
+            end
+
+            context 'when the error field is `AsyncRequired`' do
+              let(:body) { { error: 'AsyncRequired' }.to_json }
+
+              it 'raises an AsyncRequired error' do
+                expect { parsed_response }.to raise_error(Errors::AsyncRequired)
               end
             end
 

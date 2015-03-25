@@ -108,39 +108,21 @@ module VCAP::CloudController
       validate_access(:update, service_instance)
       validate_update_action(service_instance)
 
-      # TODO: refactor all this when we start sending the name changes to the broker
-      operation_attributes = {}
-
       is_async_request = params['accepts_incomplete'] == 'true'
 
+      attributes_to_update = {}
       if request_attrs['service_plan_guid']
         new_plan = ServicePlan.find(guid: request_attrs['service_plan_guid'])
-        operation_attributes = service_instance.client.update_service_plan(
+        attributes_to_update, err = service_instance.client.update_service_plan(
           service_instance,
           new_plan,
           async: is_async_request
         )
       end
 
-      if is_async_request
-        op_attrs = operation_attributes['last_operation'].symbolize_keys
-        attributes_to_update = {
-          last_operation: op_attrs.merge({
-            type: 'update',
-            state: 'in progress',
-            proposed_changes: request_attrs,
-          }),
-        }
-      else
-        attributes_to_update = request_attrs.symbolize_keys.merge({
-          last_operation: {
-            type: 'update',
-            state: 'succeeded',
-          },
-        })
-      end
-
       service_instance.save_with_operation(attributes_to_update)
+
+      raise err if err
 
       @services_event_repository.record_service_instance_event(:update, service_instance, request_attrs)
 
@@ -206,11 +188,26 @@ module VCAP::CloudController
         raise Errors::ApiError.new_from_details('ServiceInstanceOperationInProgress')
       end
 
-      deletion_job = Jobs::Runtime::ModelDeletion.new(ServiceInstance, guid)
-      event_method = service_instance.type == 'managed_service_instance' ?  :record_service_instance_event : :record_user_provided_service_instance_event
-      delete_and_audit_job = Jobs::AuditEventJob.new(deletion_job, @services_event_repository, event_method, :delete, service_instance, {})
+      if params['accepts_incomplete'] == 'true' && service_instance.managed_instance?
+        attributes_to_update, err = service_instance.client.deprovision(service_instance)
+        raise err if err
 
-      enqueue_deletion_job(delete_and_audit_job)
+        service_instance.save_with_operation(
+          last_operation: {
+            type: 'delete',
+            state: attributes_to_update['last_operation']['state'] || 'in progress',
+            description: attributes_to_update['last_operation']['description'] || ''
+          }
+        )
+
+        [HTTP::ACCEPTED, {}, JSON.generate(entity: service_instance)]
+      else
+        deletion_job = Jobs::Runtime::ModelDeletion.new(ServiceInstance, guid)
+        event_method = service_instance.type == 'managed_service_instance' ?  :record_service_instance_event : :record_user_provided_service_instance_event
+        delete_and_audit_job = Jobs::AuditEventJob.new(deletion_job, @services_event_repository, event_method, :delete, service_instance, {})
+
+        enqueue_deletion_job(delete_and_audit_job)
+      end
     end
 
     def get_filtered_dataset_for_enumeration(model, ds, qp, opts)
