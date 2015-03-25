@@ -69,7 +69,6 @@ module VCAP::CloudController
         end
 
         it 'sets up loggregator emitter' do
-          pending('Unpend this test wants the loggregator work is merged in')
           loggregator_emitter = double(:loggregator_emitter)
           expect(LoggregatorEmitter::Emitter).to receive(:new).and_return(loggregator_emitter)
           expect(Loggregator).to receive(:emitter=).with(loggregator_emitter)
@@ -88,7 +87,7 @@ module VCAP::CloudController
           TestConfig.override(config)
           allow(subject).to receive(:start_thin_server).and_call_original
           ip = 'some_local_ip'
-          expect(VCAP).to receive(:local_ip).and_return(ip)
+          allow(VCAP).to receive(:local_ip).and_return(ip)
           expect(Kato::Local::Node).to receive(:get_local_node_id).and_return(ip).exactly(3).times
           expect(Thin::Server).to receive(:new).with(ip, 8181, { signals: false }).and_return(double(:thin_server).as_null_object)
           subject.run!
