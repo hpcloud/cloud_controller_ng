@@ -1,97 +1,26 @@
-require 'net/http'
+require 'httpclient'
 
 module VCAP::Services
   module ServiceBrokers::V2
-
-    class ServiceBrokerBadResponse < HttpResponseError
-      def initialize(uri, method, response)
-        begin
-          hash = MultiJson.load(response.body)
-        rescue MultiJson::ParseError
-        end
-
-        if hash.is_a?(Hash) && hash.has_key?('description')
-          message = "Service broker error: #{hash['description']}"
-        else
-          message = "The service broker API returned an error from #{uri}: #{response.code} #{response.message}"
-        end
-
-        super(message, uri, method, response)
+    class HttpResponse
+      def initialize(http_client_response)
+        @http_client_response = http_client_response
       end
 
-    end
-
-    class ServiceBrokerApiUnreachable < HttpRequestError
-      def initialize(uri, method, source)
-        super(
-          "The service broker API could not be reached: #{uri}",
-          uri,
-          method,
-          source
-        )
-      end
-    end
-
-    class ServiceBrokerApiTimeout < HttpRequestError
-      def initialize(uri, method, source)
-        super(
-          "The service broker API timed out: #{uri}",
-          uri,
-          method,
-          source
-        )
-      end
-    end
-
-    class ServiceBrokerResponseMalformed < HttpResponseError
-      def initialize(uri, method, response)
-        super(
-          "The service broker response was not understood",
-          uri,
-          method,
-          response
-        )
-      end
-    end
-
-    class ServiceBrokerApiAuthenticationFailed < HttpResponseError
-      def initialize(uri, method, response)
-        super(
-          "Authentication failed for the service broker API. Double-check that the username and password are correct: #{uri}",
-          uri,
-          method,
-          response
-        )
-      end
-    end
-
-    class ServiceBrokerConflict < HttpResponseError
-      def initialize(uri, method, response)
-        error_message = parsed_json(response.body)["description"]
-
-        super(
-          error_message || "Resource conflict: #{uri}",
-          uri,
-          method,
-          response
-        )
+      def code
+        @http_client_response.code
       end
 
-      def response_code
-        409
+      def message
+        @http_client_response.reason
       end
 
-      private
-
-      def parsed_json(str)
-        MultiJson.load(str)
-      rescue MultiJson::ParseError
-        {}
+      def body
+        @http_client_response.body
       end
     end
 
     class HttpClient
-
       attr_reader :url
 
       def initialize(attrs)
@@ -107,6 +36,10 @@ module VCAP::Services
 
       def put(path, message)
         make_request(:put, uri_for(path), message.to_json, 'application/json')
+      end
+
+      def patch(path, message)
+        make_request(:patch, uri_for(path), message.to_json, 'application/json')
       end
 
       def delete(path, message)
@@ -125,63 +58,35 @@ module VCAP::Services
       end
 
       def make_request(method, uri, body, content_type)
-        begin
-          req = build_request(method, uri, body, content_type)
-          opts = build_options(uri)
+        client = HTTPClient.new(force_basic_auth: true)
+        client.set_auth(uri, auth_username, auth_password)
 
-          response = Net::HTTP.start(uri.hostname, uri.port, opts) do |http|
-            http.open_timeout = broker_client_timeout
-            http.read_timeout = broker_client_timeout
+        client.default_header[VCAP::Request::HEADER_BROKER_API_VERSION] = '2.4'
+        client.default_header[VCAP::Request::HEADER_NAME] = VCAP::Request.current_id
+        client.default_header['Accept'] = 'application/json'
 
-            http.request(req)
-          end
+        client.ssl_config.verify_mode = verify_certs? ? OpenSSL::SSL::VERIFY_PEER : OpenSSL::SSL::VERIFY_NONE
+        client.connect_timeout = broker_client_timeout
+        client.receive_timeout = broker_client_timeout
+        client.send_timeout = broker_client_timeout
 
-          log_response(uri, response)
-          return response
-        rescue SocketError, Errno::ECONNREFUSED => error
-          raise ServiceBrokerApiUnreachable.new(uri.to_s, method, error)
-        rescue Timeout::Error => error
-          raise ServiceBrokerApiTimeout.new(uri.to_s, method, error)
-        rescue => error
-          raise HttpRequestError.new(error.message, uri.to_s, method, error)
-        end
-      end
+        opts = { body: body }
+        opts[:header] = { 'Content-Type' => content_type } if content_type
 
-      def log_request(uri, req)
-        logger.debug "Sending #{req.method} to #{uri}, BODY: #{req.body.inspect}, HEADERS: #{req.to_hash.inspect}"
-      end
+        headers = client.default_header.merge(opts[:header]) if opts[:header]
+        logger.debug "Sending #{method} to #{uri}, BODY: #{body.inspect}, HEADERS: #{headers}"
 
-      def log_response(uri, response)
-        logger.debug "Response from request to #{uri}: STATUS #{response.code}, BODY: #{response.body.inspect}, HEADERS: #{response.to_hash.inspect}"
-      end
+        response = client.request(method, uri, opts)
 
-      def build_request(method, uri, body, content_type)
-        req_class = method.to_s.capitalize
-        req = Net::HTTP.const_get(req_class).new(uri.request_uri)
+        logger.debug "Response from request to #{uri}: STATUS #{response.code}, BODY: #{response.body.inspect}, HEADERS: #{response.headers.inspect}"
 
-        req.basic_auth(auth_username, auth_password)
-
-        req[VCAP::Request::HEADER_NAME] = VCAP::Request.current_id
-        req[VCAP::Request::HEADER_BROKER_API_VERSION] = '2.3'
-        req['Accept'] = 'application/json'
-
-        req.body = body
-        req.content_type = content_type if content_type
-
-        log_request(uri, req)
-
-        req
-      end
-
-      def build_options(uri)
-        opts = {}
-
-        use_ssl = uri.scheme.to_s.downcase == 'https'
-        opts.merge!(use_ssl: use_ssl)
-
-        verify_mode = verify_certs? ? OpenSSL::SSL::VERIFY_PEER : OpenSSL::SSL::VERIFY_NONE
-        opts.merge!(verify_mode: verify_mode) if use_ssl
-        opts
+        HttpResponse.new(response)
+      rescue SocketError, Errno::ECONNREFUSED => error
+        raise Errors::ServiceBrokerApiUnreachable.new(uri.to_s, method, error)
+      rescue HTTPClient::TimeoutError => error
+        raise Errors::ServiceBrokerApiTimeout.new(uri.to_s, method, error)
+      rescue => error
+        raise HttpRequestError.new(error.message, uri.to_s, method, error)
       end
 
       def verify_certs?

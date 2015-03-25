@@ -1,7 +1,7 @@
 source (ENV['RUBYGEMS_MIRROR'] or 'https://rubygems.org')
 
 # prevents hard-to-diagnose errors with bundle install
-ruby '1.9.3'
+ruby '2.1.3'
 
 gem 'activemodel', '3.2.18'
 gem 'activerecord', '3.2.18'
@@ -9,20 +9,23 @@ gem "activesupport", '~> 3.2.18'
 gem 'addressable', "2.3.6", :groups => [:default, :test]
 gem 'allowy', '0.4.0'
 gem 'arel', '3.0.3'
-gem 'ast', '1.1.0'
+gem 'ast', '2.0.0'
 gem 'atomic', '1.1.14'
 gem 'axiom-types', '0.0.5'
-gem 'backports', '3.3.5'
-gem "bcrypt-ruby", '3.1.2'
+gem 'backports', '3.6.3'
+gem "bcrypt", '3.1.7'
 gem 'beefcake', '~> 1.0.0'
-gem "builder", "3.0.4"
+gem "builder", "3.0.0"
 gem 'celluloid', '0.15.2'
 gem "cf-message-bus","0.2.0", :github => "ActiveState/cf-message-bus"
 gem 'cf-registrar', "1.0.1", :github => "cloudfoundry/cf-registrar", :ref => "49850ee876652a59dbd2d"
-gem 'cf-uaa-lib',    '2.1.0', :github => "ActiveState/cf-uaa-lib", :ref => "237a9f6cae9d552833056c941a4304e3f9ae7a9c"
+#XXX Remove this:
+#gem 'cf-uaa-lib',    '2.1.0', :github => "ActiveState/cf-uaa-lib", :ref => "237a9f6cae9d552833056c941a4304e3f9ae7a9c"
+gem 'cf-uaa-lib',    '3.1.0', :github => "ActiveState/cf-uaa-lib", :ref => "b1e11235dc6cd7d8d4680e005526de37201305ea"
 gem "ci_reporter", '1.9.0'
-gem 'clockwork', '0.7.0'
+gem 'clockwork', '1.0.0'
 gem 'cloudfront-signer', '2.1.1'
+gem 'coderay', '1.1.0', :groups => [:operations]
 gem 'coercible', '0.2.0'
 gem 'colored', '1.2'
 gem 'cookiejar', '0.3.0'
@@ -47,7 +50,7 @@ gem 'futuroscope', '0.1.5'
 gem 'grape', '0.7.0', :github => 'intridea/grape', :ref => 'df8caf7d4065a26d15db73dbdcc651e0abf06216'
 gem 'hashie', '2.1.1'
 gem 'http_parser.rb', '0.6.0'
-gem 'httpclient', '2.3.4.1'
+gem 'httpclient', '2.5.3.3'
 gem 'i18n', '0.6.11'
 gem 'ice_nine', '0.10.0'
 gem 'inflecto', '0.0.2'
@@ -57,7 +60,7 @@ gem 'librrd', '1.0.3'
 gem 'loggregator_emitter', '~> 4.0.0'
 gem 'membrane', '1.0.0'
 gem 'method_source', '0.8.2', :groups => [:operations, :development, :test]
-gem 'mime-types', '2.1'
+gem 'mime-types', '2.4.3'
 gem 'mini_portile', '0.6.0'
 gem 'msgpack', '0.5.8'
 gem 'multi_json', '1.10.1', :groups => [:default, :test]
@@ -84,13 +87,15 @@ gem 'rfc822', '0.1.4'
 gem 'ruby-hmac', '0.4.0'
 gem 'ruby-termios', '0.9.6'
 gem 'rubyzip', '1.1.0'
+gem 'safe_yaml', '1.0.4'
 gem 'sequel', '4.11.0'
 gem 'sinatra', '~> 1.4.3'
 gem 'sinatra-contrib', '1.4.2'
 gem 'slop', '3.5.0', :groups => [:test, :operations, :development]
 gem 'sqlite3'           ,    '1.3.7'
 gem 'squash_ruby'       ,    '1.4.0'
-gem 'stager-client', '~> 0.0.02', :github => 'cloudfoundry/stager-client', :ref => '04c2aee9'
+gem 'stager-client', '~> 0.0.02', :github => 'cloudfoundry/stager-client', :ref => 'bf0e728a7acf2dbb2a369a70fb5e3e72c2fca71c' 
+# ref 'b1e11235dc6cd7d8d4680e005526de37201305ea' no longer exists!
 gem 'steno', '1.1.0'
 gem 'talentbox-delayed_job_sequel', '4.0.0'
 gem 'term-ansicolor', '1.0.7'
@@ -101,7 +106,7 @@ gem 'trollop', '2.0'
 gem 'tzinfo', '0.3.35'
 gem 'unf', '0.1.3'
 gem 'unf_ext', '0.0.6'
-gem 'uuidtools', '2.1.4'
+gem 'uuidtools', '2.1.5'
 gem 'vcap-concurrency', '0.1.0', :github => 'cloudfoundry/vcap-concurrency', :ref => '2a5b0179'
 gem 'virtus', '1.0.0'
 gem 'vmstat', '2.1.0'
@@ -117,7 +122,7 @@ gem 'rspec-core'        ,   '3.0', :groups => [:default, :test]
 gem 'rspec-expectations',   '3.0.4', :groups => [:default, :test]
 gem 'rspec-instafail'   ,    '0.2.5', :groups => [:default, :test]
 gem 'rspec-its'        ,    '1.0.1', :groups => [:default, :test]
-gem 'rspec_api_documentation',    '4.1.0'
+gem 'rspec_api_documentation', '4.1.0', :groups => [:default, :test]
 gem 'rspec-mocks', '3.0.4', :groups => [:default, :test]
 gem 'rspec-collection_matchers', '1.0.0', :groups => [:default, :test]
 gem 'rspec-support', '3.0.4', :groups => [:default, :test]
@@ -127,11 +132,8 @@ group :db do
   gem 'mysql2', '0.3.13'
 end
 
-group :operations do
-  gem 'coderay', '1.1.0'
-end
-
 group :development do
+  gem 'awesome_print'
 #  gem 'debugger', '1.6.6'
 #  gem 'debugger-linecache', '1.2.0'
 #  gem 'debugger-ruby_core_source', '1.3.5'

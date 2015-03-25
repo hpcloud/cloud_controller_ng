@@ -2,21 +2,20 @@ require 'spec_helper'
 
 module VCAP::Services::ServiceBrokers
   describe ServiceBrokerRegistration do
+    subject(:registration) { ServiceBrokerRegistration.new(broker, service_manager, services_event_repository) }
+
+    let(:client_manager) { double(:dashboard_manager, synchronize_clients_with_catalog: true, warnings: []) }
+    let(:catalog) { double(:catalog, valid?: true) }
+    let(:service_manager) { double(:service_manager, sync_services_and_plans: true, has_warnings?: false) }
+    let(:services_event_repository) { double(:services_event_repository) }
 
     describe 'initializing' do
       let(:broker) { VCAP::CloudController::ServiceBroker.make }
-      subject { described_class.new(broker) }
 
       its(:broker) { should == broker }
       its(:warnings) { should == [] }
       its(:errors) { should == broker.errors }
     end
-
-    subject(:registration) { ServiceBrokerRegistration.new(broker) }
-
-    let(:client_manager) { double(:dashboard_manager, synchronize_clients_with_catalog: true, warnings: []) }
-    let(:catalog) { double(:catalog, valid?: true) }
-    let(:service_manager) { double(:service_manager, sync_services_and_plans: true, has_warnings?: false) }
 
     describe '#create' do
       let(:broker) do
@@ -78,14 +77,14 @@ module VCAP::Services::ServiceBrokers
       it 'creates dashboard clients' do
         registration.create
 
-        expect(VCAP::Services::SSO::DashboardClientManager).to have_received(:new).with(broker)
+        expect(VCAP::Services::SSO::DashboardClientManager).to have_received(:new).with(broker, services_event_repository)
         expect(client_manager).to have_received(:synchronize_clients_with_catalog).with(catalog)
       end
 
       context 'when invalid' do
         context 'because the broker has errors' do
           let(:broker) { VCAP::CloudController::ServiceBroker.new }
-          let(:registration) { ServiceBrokerRegistration.new(broker) }
+          let(:registration) { ServiceBrokerRegistration.new(broker, service_manager, services_event_repository) }
 
           it 'returns nil' do
             expect(registration.create).to be_nil
@@ -163,7 +162,7 @@ module VCAP::Services::ServiceBrokers
           it "raises an error, even though we'd rather it not" do
             expect {
               registration.create
-            }.to raise_error V2::ServiceBrokerBadResponse
+            }.to raise_error V2::Errors::ServiceBrokerBadResponse
           end
 
           it 'does not create a new service broker' do
@@ -175,7 +174,7 @@ module VCAP::Services::ServiceBrokers
           it 'does not synchronize uaa clients' do
             begin
               registration.create
-            rescue V2::ServiceBrokerBadResponse
+            rescue V2::Errors::ServiceBrokerBadResponse
             end
 
             expect(client_manager).not_to have_received(:synchronize_clients_with_catalog)
@@ -184,12 +183,11 @@ module VCAP::Services::ServiceBrokers
           it 'does not synchronize the catalog' do
             begin
               registration.create
-            rescue V2::ServiceBrokerBadResponse
+            rescue V2::Errors::ServiceBrokerBadResponse
             end
 
             expect(service_manager).not_to have_received(:sync_services_and_plans)
           end
-
         end
 
         context 'because the dashboard client manager failed' do
@@ -223,7 +221,7 @@ module VCAP::Services::ServiceBrokers
           allow(client_manager).to receive(:synchronize_clients_with_catalog) {
             VCAP::CloudController::ServiceDashboardClient.make(uaa_id: 'my-uaa-id', service_broker_id: broker.id)
           }
-          allow(service_manager).to receive(:sync_services_and_plans).and_raise(VCAP::Errors::ApiError.new_from_details("ServiceBrokerCatalogInvalid", 'omg it broke'))
+          allow(service_manager).to receive(:sync_services_and_plans).and_raise(VCAP::Errors::ApiError.new_from_details('ServiceBrokerCatalogInvalid', 'omg it broke'))
         end
 
         it 'does not save new broker' do
@@ -261,7 +259,6 @@ module VCAP::Services::ServiceBrokers
           }.to_not change(VCAP::CloudController::ServiceBroker, :count)
         end
 
-
         it 'does not synchronize the catalog' do
           registration.create rescue nil
 
@@ -295,7 +292,7 @@ module VCAP::Services::ServiceBrokers
         end
       end
     end
-    
+
     describe '#update' do
       let!(:broker) do
         VCAP::CloudController::ServiceBroker.make(
@@ -323,7 +320,6 @@ module VCAP::Services::ServiceBrokers
         expect {
           registration.update
         }.not_to change(VCAP::CloudController::ServiceBroker, :count)
-
       end
 
       it 'updates a service broker' do
@@ -349,13 +345,13 @@ module VCAP::Services::ServiceBrokers
       it 'updates dashboard clients' do
         registration.update
 
-        expect(VCAP::Services::SSO::DashboardClientManager).to have_received(:new).with(broker)
+        expect(VCAP::Services::SSO::DashboardClientManager).to have_received(:new).with(broker, services_event_repository)
         expect(client_manager).to have_received(:synchronize_clients_with_catalog).with(catalog)
       end
 
       context 'when invalid' do
         context 'because the broker has errors' do
-          let(:registration) { ServiceBrokerRegistration.new(broker) }
+          let(:registration) { ServiceBrokerRegistration.new(broker, service_manager, services_event_repository) }
 
           before do
             broker.name = nil
@@ -437,7 +433,7 @@ module VCAP::Services::ServiceBrokers
           it "raises an error, even though we'd rather it not" do
             expect {
               registration.update
-            }.to raise_error V2::ServiceBrokerBadResponse
+            }.to raise_error V2::Errors::ServiceBrokerBadResponse
           end
 
           it 'not update the service broker' do
@@ -450,7 +446,7 @@ module VCAP::Services::ServiceBrokers
           it 'does not synchronize uaa clients' do
             begin
               registration.update
-            rescue V2::ServiceBrokerBadResponse
+            rescue V2::Errors::ServiceBrokerBadResponse
             end
 
             expect(client_manager).not_to have_received(:synchronize_clients_with_catalog)
@@ -459,12 +455,11 @@ module VCAP::Services::ServiceBrokers
           it 'does not synchronize the catalog' do
             begin
               registration.update
-            rescue V2::ServiceBrokerBadResponse
+            rescue V2::Errors::ServiceBrokerBadResponse
             end
 
             expect(service_manager).not_to have_received(:sync_services_and_plans)
           end
-
         end
 
         context 'because the dashboard client manager failed' do
@@ -502,7 +497,7 @@ module VCAP::Services::ServiceBrokers
       context 'when exception is raised during transaction' do
         before do
           allow(catalog).to receive(:valid?).and_return(true)
-          allow(service_manager).to receive(:sync_services_and_plans).and_raise(VCAP::Errors::ApiError.new_from_details("ServiceBrokerCatalogInvalid", 'omg it broke'))
+          allow(service_manager).to receive(:sync_services_and_plans).and_raise(VCAP::Errors::ApiError.new_from_details('ServiceBrokerCatalogInvalid', 'omg it broke'))
         end
 
         it 'does not update the broker' do

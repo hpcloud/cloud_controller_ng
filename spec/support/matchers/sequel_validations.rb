@@ -1,4 +1,4 @@
-RSpec::Matchers.define :validate_presence do |attribute, options = {}|
+RSpec::Matchers.define :validate_presence do |attribute, options={}|
   description do
     "validate presence of #{attribute}"
   end
@@ -6,6 +6,19 @@ RSpec::Matchers.define :validate_presence do |attribute, options = {}|
     unless instance.valid?
       errors = instance.errors.on(attribute)
       expected_error = options[:message] || :presence
+      errors && errors.include?(expected_error)
+    end
+  end
+end
+
+RSpec::Matchers.define :validate_not_null do |attribute, options={}|
+  description do
+    "validate #{attribute} is not null"
+  end
+  match do |instance|
+    unless instance.valid?
+      errors = instance.errors.on(attribute)
+      expected_error = options[:message] || :not_null
       errors && errors.include?(expected_error)
     end
   end
@@ -25,7 +38,7 @@ RSpec::Matchers.define :validate_uniqueness do |*attributes|
   options = attributes.extract_options!
   attributes.flatten!
   description do
-    "validate uniqueness of #{Array.wrap(attributes).join(" and ")}"
+    "validate uniqueness of #{Array.wrap(attributes).join(' and ')}"
   end
   match do |_|
     source_obj = described_class.make
@@ -39,5 +52,16 @@ RSpec::Matchers.define :validate_uniqueness do |*attributes|
       expected_error = options[:message] || :unique
       errors && errors.include?(expected_error)
     end
+  end
+end
+
+RSpec::Matchers.define :validates_includes do |values, attribute, options={}|
+  description do
+    "validate includes of #{attribute} with #{values}"
+  end
+  match do |instance|
+    allow(instance).to receive(:validates_includes)
+    instance.valid?
+    expect(instance).to have_received(:validates_includes).with(values, attribute, options)
   end
 end

@@ -9,26 +9,26 @@ module VCAP::CloudController
       json_headers(headers_for(user))
     end
 
-    describe "Query Parameters" do
+    describe 'Query Parameters' do
       it { expect(described_class).to be_queryable_by(:name) }
     end
 
-    describe "Attributes" do
+    describe 'Attributes' do
       it do
         expect(described_class).to have_creatable_attributes({
-          name: {type: "string", required: true},
-          broker_url: {type: "string", required: true},
-          auth_username: {type: "string", required: true},
-          auth_password: {type: "string", required: true}
+          name: { type: 'string', required: true },
+          broker_url: { type: 'string', required: true },
+          auth_username: { type: 'string', required: true },
+          auth_password: { type: 'string', required: true }
         })
       end
 
       it do
         expect(described_class).to have_updatable_attributes({
-          name: {type: "string"},
-          broker_url: {type: "string"},
-          auth_username: {type: "string"},
-          auth_password: {type: "string"}
+          name: { type: 'string' },
+          broker_url: { type: 'string' },
+          auth_username: { type: 'string' },
+          auth_password: { type: 'string' }
         })
       end
     end
@@ -54,13 +54,13 @@ module VCAP::CloudController
 
       let(:errors) { double(Sequel::Model::Errors, on: nil) }
       let(:broker) do
-        double(ServiceBroker, {
+        ServiceBroker.make(
           guid: '123',
           name: 'My Custom Service',
           broker_url: 'http://broker.example.com',
           auth_username: 'me',
           auth_password: 'abc123',
-        })
+        )
       end
       let(:registration) do
         reg = double(VCAP::Services::ServiceBrokers::ServiceBrokerRegistration, {
@@ -77,8 +77,32 @@ module VCAP::CloudController
 
       before do
         allow(ServiceBroker).to receive(:new).and_return(broker)
-        allow(VCAP::Services::ServiceBrokers::ServiceBrokerRegistration).to receive(:new).with(broker).and_return(registration)
+        allow(VCAP::Services::ServiceBrokers::ServiceBrokerRegistration).to receive(:new).and_return(registration)
         allow(ServiceBrokerPresenter).to receive(:new).with(broker).and_return(presenter)
+      end
+
+      it 'creates a broker create event' do
+        email = 'email@example.com'
+        post '/v2/service_brokers', body, headers_for(admin_user, email: email)
+
+        event = Event.first(type: 'audit.service_broker.create')
+        expect(event.actor_type).to eq('user')
+        expect(event.timestamp).to be
+        expect(event.actor).to eq(admin_user.guid)
+        expect(event.actor_name).to eq(email)
+        expect(event.actee).to eq(broker.guid)
+        expect(event.actee_type).to eq('service_broker')
+        expect(event.actee_name).to eq(broker.name)
+        expect(event.space_guid).to be_empty
+        expect(event.organization_guid).to be_empty
+        expect(event.metadata).to include({
+          'request' => {
+            'name' => body_hash[:name],
+            'broker_url' => body_hash[:broker_url],
+            'auth_username' => body_hash[:auth_username],
+            'auth_password' => '[REDACTED]',
+          }
+        })
       end
 
       it 'creates a service broker registration' do
@@ -145,7 +169,7 @@ module VCAP::CloudController
 
       context 'when the broker registration has warnings' do
         before do
-          allow(registration).to receive(:warnings).and_return(['warning1','warning2'])
+          allow(registration).to receive(:warnings).and_return(['warning1', 'warning2'])
         end
 
         it 'adds the warnings' do
@@ -162,7 +186,7 @@ module VCAP::CloudController
     describe 'DELETE /v2/service_brokers/:guid' do
       let!(:broker) { ServiceBroker.make(name: 'FreeWidgets', broker_url: 'http://example.com/', auth_password: 'secret') }
 
-      it "deletes the service broker" do
+      it 'deletes the service broker' do
         delete "/v2/service_brokers/#{broker.guid}", {}, headers
 
         expect(last_response.status).to eq(204)
@@ -171,16 +195,34 @@ module VCAP::CloudController
         expect(decoded_response).to include('total_results' => 0)
       end
 
-      it "returns 404 when deleting a service broker that does not exist" do
-        delete "/v2/service_brokers/1234", {}, headers
+      it 'creates a broker delete event' do
+        email = 'some-email-address@example.com'
+        delete "/v2/service_brokers/#{broker.guid}", {}, headers_for(admin_user, email: email)
+
+        event = Event.first(type: 'audit.service_broker.delete')
+        expect(event.actor_type).to eq('user')
+        expect(event.timestamp).to be
+        expect(event.actor).to eq(admin_user.guid)
+        expect(event.actor_name).to eq(email)
+        expect(event.actee).to eq(broker.guid)
+        expect(event.actee_type).to eq('service_broker')
+        expect(event.actee_name).to eq(broker.name)
+        expect(event.space_guid).to be_empty
+        expect(event.organization_guid).to be_empty
+        expect(event.metadata).to have_key('request')
+        expect(event.metadata['request']).to be_empty
+      end
+
+      it 'returns 404 when deleting a service broker that does not exist' do
+        delete '/v2/service_brokers/1234', {}, headers
         expect(last_response.status).to eq(404)
       end
 
-      context "when a service instance exists", isolation: :truncation do
-        it "returns a 400 and an appropriate error message" do
-          service = Service.make(:service_broker => broker)
-          service_plan = ServicePlan.make(:service => service)
-          ManagedServiceInstance.make(:service_plan => service_plan)
+      context 'when a service instance exists', isolation: :truncation do
+        it 'returns a 400 and an appropriate error message' do
+          service = Service.make(service_broker: broker)
+          service_plan = ServicePlan.make(service: service)
+          ManagedServiceInstance.make(service_plan: service_plan)
 
           delete "/v2/service_brokers/#{broker.guid}", {}, headers
 
@@ -209,7 +251,6 @@ module VCAP::CloudController
       let(:body_hash) do
         {
           name: 'My Updated Service',
-          broker_url: 'http://new-broker.example.com',
           auth_username: 'new-username',
           auth_password: 'new-password',
         }
@@ -230,6 +271,7 @@ module VCAP::CloudController
           set: nil
         })
       end
+
       let(:registration) do
         reg = double(VCAP::Services::ServiceBrokers::ServiceBrokerRegistration, {
           broker: broker,
@@ -239,6 +281,7 @@ module VCAP::CloudController
         allow(reg).to receive(:warnings).and_return([])
         reg
       end
+
       let(:presenter) { double(ServiceBrokerPresenter, {
         to_json: "{\"metadata\":{\"guid\":\"#{broker.guid}\"}}"
       }) }
@@ -246,8 +289,31 @@ module VCAP::CloudController
       before do
         allow(ServiceBroker).to receive(:find)
         allow(ServiceBroker).to receive(:find).with(guid: broker.guid).and_return(broker)
-        allow(VCAP::Services::ServiceBrokers::ServiceBrokerRegistration).to receive(:new).with(broker).and_return(registration)
+        allow(VCAP::Services::ServiceBrokers::ServiceBrokerRegistration).to receive(:new).and_return(registration)
         allow(ServiceBrokerPresenter).to receive(:new).with(broker).and_return(presenter)
+      end
+
+      it 'creates a broker update event' do
+        old_broker_name = broker.name
+        body_hash.delete(:broker_url)
+        email = 'email@example.com'
+
+        put "/v2/service_brokers/#{broker.guid}", body, headers_for(admin_user, email: email)
+
+        event = Event.first(type: 'audit.service_broker.update')
+        expect(event.actor_type).to eq('user')
+        expect(event.timestamp).to be
+        expect(event.actor).to eq(admin_user.guid)
+        expect(event.actor_name).to eq(email)
+        expect(event.actee).to eq(broker.guid)
+        expect(event.actee_type).to eq('service_broker')
+        expect(event.actee_name).to eq(old_broker_name)
+        expect(event.space_guid).to be_empty
+        expect(event.organization_guid).to be_empty
+        expect(event.metadata['request']['name']).to eq body_hash[:name]
+        expect(event.metadata['request']['auth_username']).to eq body_hash[:auth_username]
+        expect(event.metadata['request']['auth_password']).to eq '[REDACTED]'
+        expect(event.metadata['request']).not_to have_key 'broker_url'
       end
 
       it 'updates the broker' do
@@ -256,7 +322,6 @@ module VCAP::CloudController
         expect(broker).to have_received(:set).with(body_hash)
         expect(registration).to have_received(:update)
       end
-
 
       it 'returns the serialized broker' do
         put "/v2/service_brokers/#{broker.guid}", body, headers
@@ -326,7 +391,7 @@ module VCAP::CloudController
 
       context 'when the broker registration has warnings' do
         before do
-          allow(registration).to receive(:warnings).and_return(['warning1','warning2'])
+          allow(registration).to receive(:warnings).and_return(['warning1', 'warning2'])
         end
 
         it 'adds the warnings' do

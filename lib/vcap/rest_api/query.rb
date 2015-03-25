@@ -1,4 +1,4 @@
-require "time"
+require 'time'
 
 module VCAP::RestAPI
   #
@@ -10,7 +10,6 @@ module VCAP::RestAPI
   # filtered dataset.  Since datasets aren't bound to a particular model,
   # we need to pass both pieces of infomration.
   class Query
-
     # Create a new Query.
     #
     # @param [Sequel::Model] model The model to query against
@@ -72,23 +71,27 @@ module VCAP::RestAPI
       end
     end
 
+    class << self
+      attr_accessor :uuid
+    end
+
     def parse
-      @@v ||= SecureRandom.uuid
+      Query.uuid ||= SecureRandom.uuid
       segments = []
 
       query.each do |q|
-        q.gsub!(";;", @@v)
-        segments.concat(q.split(";"))
+        q.gsub!(';;', Query.uuid)
+        segments.concat(q.split(';'))
       end
 
       segments.collect do |segment|
-        segment.gsub!(@@v, ";")
+        segment.gsub!(Query.uuid, ';')
         key, comparison, value = segment.split(/(:|>=|<=|<|>| IN )/, 2)
 
-        comparison = "=" if comparison == ":"
+        comparison = '=' if comparison == ':'
 
         unless queryable_attributes.include?(key)
-          raise VCAP::Errors::ApiError.new_from_details("BadQueryParameter", key)
+          raise VCAP::Errors::ApiError.new_from_details('BadQueryParameter', key)
         end
 
         [key.to_sym, comparison, value]
@@ -96,21 +99,57 @@ module VCAP::RestAPI
     end
 
     def query_filter(key, comparison, val)
-      col_type = column_type(key)
-      return clean_up_foreign_key(key, val) if col_type == :foreign_key
+      foreign_key_association = foreign_key_association(key)
+      if comparison == ' IN '
+        do_glob_check = false
+        glob = false
+        values = val.split(',')
+      else
+        do_glob_check = true
+        values = [val]
+      end
 
+      return clean_up_foreign_key(key, values, foreign_key_association) if foreign_key_association
+      col_type = column_type(key)
+      if do_glob_check
+        glob = [:string, :citext].include?(col_type) && val.match(/#{Regexp.escape('*')}$/)
+      end
+
+      col_type = column_type(key)
+      values = values.collect { |value| cast_query_value(col_type, key, value) }.compact
+
+      if values.empty?
+        { key => nil }
+      elsif glob
+        ["#{key} LIKE ?", values]
+      else
+        ["#{key} #{comparison} ?", values]
+      end
+    end
+
+    def query_filter__xx(key, comparison, val)
+      oval = val
+      col_type = column_type(key)
+      foreign_key_association = foreign_key_association(key)
       if comparison == " IN "
         glob = false
         val = val.split(",").collect { |value| cast_query_value(col_type, key, value) }
+        values = val
       else
         glob = [:string, :citext].include?(col_type) && val.match(/#{Regexp.escape('*')}$/)
         val = cast_query_value(col_type, key, val)
+        values = [val]
       end
 
-      if val.nil?
+      return clean_up_foreign_key(key, values, foreign_key_association) if foreign_key_association
+
+      col_type = column_type(key)
+      values = values.collect{ |value| cast_query_value(col_type, key, value) }.compact
+
+      if values.size == 0
         { key => nil }
       elsif glob
-        ["#{key} LIKE ?", val]
+        ["#{key} LIKE ?", values]
       else
         ["#{key} #{comparison} ?", val]
       end
@@ -118,8 +157,6 @@ module VCAP::RestAPI
 
     def cast_query_value(col_type, key, value)
       case col_type
-      when :foreign_key
-        return clean_up_foreign_key(col_type, value)
       when :integer
         clean_up_integer(value)
       when :boolean
@@ -133,49 +170,40 @@ module VCAP::RestAPI
       end
     end
 
-    def clean_up_foreign_key(q_key, q_val)
-      return unless q_key =~ /(.*)_(gu)?id$/
+    def foreign_key_association(query_key)
+      return unless query_key =~ /(.*)_(gu)?id$/
 
-      attr = $1
+      foreign_key_table = Regexp.last_match[1]
 
-      f_key = if model.associations.include?(attr.to_sym)
-        attr.to_sym
-      elsif model.associations.include?(attr.pluralize.to_sym)
-        attr.pluralize.to_sym
+      if model.associations.include?(foreign_key_table.to_sym)
+        foreign_key_table.to_sym
+      elsif model.associations.include?(foreign_key_table.pluralize.to_sym)
+        foreign_key_table.pluralize.to_sym
       end
-
-      # One could argue that this should be a server error.  It means
-      # that a query key came in for an attribute that is explicitly
-      # in the queryable_attributes, but is not a column or an association.
-      raise VCAP::Errors::ApiError.new_from_details("BadQueryParameter", q_key) unless f_key
-
-      other_model = model.association_reflection(f_key).associated_class
-      id_key = other_model.columns.include?(:guid) ? :guid : :id
-      f_val = other_model.filter(id_key => q_val)
-
-      { f_key => f_val }
     end
 
-    TINYINT_TYPE = "tinyint(1)".freeze
-    TINYINT_FROM_TRUE_FALSE = {"t" => 1, "f" => 0}.freeze
+    def clean_up_foreign_key(query_key, query_values, foreign_key_column_name)
+      raise_if_column_is_missing(query_key, foreign_key_column_name)
+
+      other_model = model.association_reflection(foreign_key_column_name).associated_class
+      id_key = other_model.columns.include?(:guid) ? :guid : :id
+      foreign_key_value = other_model.filter(id_key => query_values)
+
+      { foreign_key_column_name => foreign_key_value }
+    end
 
     # Sequel uses tinyint(1) to store booleans in Mysql.
     # Mysql does not support using 't'/'f' for querying.
-    def clean_up_boolean(q_key, q_val)
-      column = model.db_schema[q_key.to_sym]
-
-      if column[:db_type] == TINYINT_TYPE || column[:db_type] == :boolean
-        q_val = TINYINT_FROM_TRUE_FALSE.fetch(q_val, q_val)
-      end
-      q_val
+    def clean_up_boolean(_, q_val)
+      q_val == 't' || q_val == 'true'
     end
 
     def clean_up_datetime(q_val)
-      return q_val.empty? ? nil : Time.parse(q_val).localtime
+      q_val.empty? ? nil : Time.parse(q_val).localtime
     end
 
     def clean_up_integer(q_val)
-      return q_val.empty? ? nil : q_val.to_i
+      q_val.empty? ? nil : q_val.to_i
     end
 
     def clean_up_string(q_val)
@@ -187,9 +215,17 @@ module VCAP::RestAPI
     end
 
     def column_type(query_key)
-      return :foreign_key if query_key =~ /(.*)_(gu)?id$/
       column = model.db_schema[query_key.to_sym]
-      column && (column[:type] || column[:db_type].to_sym)
+      raise_if_column_is_missing(query_key, column)
+      column[:type] || column[:db_type].to_sym
+    end
+
+    def raise_if_column_is_missing(query_key, column)
+      # One could argue that this should be a server error.  It means
+      # that a query key came in for an attribute that is explicitly
+      # in the queryable_attributes, but is not a column or an association.
+
+      raise VCAP::Errors::ApiError.new_from_details('BadQueryParameter', query_key) unless column
     end
 
     attr_accessor :model, :access_filter, :queryable_attributes, :query

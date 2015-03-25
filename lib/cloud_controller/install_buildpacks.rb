@@ -14,9 +14,8 @@ module VCAP::CloudController
     def install(buildpacks)
       return unless buildpacks
 
+      FileUtils.mkdir_p(BUILDPACK_DIR)
       buildpacks.each do |bpack|
-        FileUtils.mkdir_p(BUILDPACK_DIR)
-
         buildpack = VCAP.symbolize_keys(bpack)
 
         buildpack_name = buildpack.delete(:name)
@@ -100,7 +99,7 @@ module VCAP::CloudController
     end
 
     def logger
-      @logger ||= Steno.logger("cc.install_buildpacks")
+      @logger ||= Steno.logger('cc.install_buildpacks')
     end
 
     private
@@ -110,6 +109,5 @@ module VCAP::CloudController
       job_dir = File.join('/var/vcap/packages', package, '*.zip')
       Dir[job_dir].first
     end
-
   end
 end

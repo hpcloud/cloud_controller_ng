@@ -1,6 +1,5 @@
 module VCAP::CloudController
   class QuotaDefinition < Sequel::Model
-
     one_to_many :organizations
 
     export_attributes :name, :non_basic_services_allowed, :total_services, :total_routes,
@@ -24,7 +23,7 @@ module VCAP::CloudController
 
     def before_destroy
       if organizations.present?
-        raise VCAP::Errors::ApiError.new_from_details("AssociationNotEmpty", "organization", "quota definition")
+        raise VCAP::Errors::ApiError.new_from_details('AssociationNotEmpty', 'organization', 'quota definition')
       end
     end
 
@@ -50,12 +49,12 @@ module VCAP::CloudController
       @config = config
     end
 
-    def self.default_quota_name
-      @default_quota_name
+    class << self
+      attr_reader :default_quota_name
     end
 
     def self.default
-      self[:name => @default_quota_name]
+      self[name: @default_quota_name]
     end
 
     def self.user_visibility_filter(user)

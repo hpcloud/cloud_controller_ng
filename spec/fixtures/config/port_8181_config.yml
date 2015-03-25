@@ -2,7 +2,6 @@
 local_route: 127.0.0.1
 port: 8181
 external_port: 8181
-instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 pid_filename: /tmp/cloud_controller.8181.pid
 
@@ -43,6 +42,9 @@ default_app_memory: 1024 #mb
 default_app_disk_in_mb: 1024
 maximum_app_disk_in_mb: 2048
 
+hm9000:
+  url: "http://localhost:5155"
+
 uaa:
   url: "http://localhost:8080/uaa"
   resource_id: "cloud_controller"
@@ -63,6 +65,10 @@ bulk_api:
   auth_user: bulk_user
   auth_password: bulk_password
 
+internal_api:
+  auth_user: internal_user
+  auth_password: internal_password
+
 cc_partition: ng
 
 nginx:
@@ -70,6 +76,7 @@ nginx:
 
 stackato_upload_handler:
   enabled: false
+  instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 quota_definitions:
   default:

@@ -1,7 +1,6 @@
 ---
 local_route: 127.0.0.1
 port: 8181
-instance_socket: "/var/stackato/sys/run/cloud_controller_ng/cloud_controller.sock"
 pid_filename: /tmp/cloud_controller.pid
 
 # development_mode: true
@@ -56,6 +55,7 @@ info:
 
 nginx:
   use_nginx: false
+  instance_socket: "/var/stackato/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 stackato_upload_handler:
   enabled: true
@@ -90,6 +90,11 @@ uaa:
       quota_name: "default"
       space_role: "developer"
       organization_role: "user"
+  connection_opts:
+    skip_ssl_validation: false
+
+hm9000:
+  url: "http://localhost:5155"
 
 cc_partition: ng
 
@@ -98,6 +103,10 @@ max_time_in_cache: 5d
 bulk_api:
   auth_user: bulk_user
   auth_password: bulk_password
+
+internal_api:
+  auth_user: internal_user
+  auth_password: internal_password
 
 # App staging parameters
 staging:
@@ -229,7 +238,13 @@ uaa_client_name: 'cc-service-dashboards'
 uaa_client_secret: 'some-sekret'
 uaa_client_scope: openid,cloud_controller_service_permissions.read
 
-diego: false
+cloud_controller_username_lookup_client_name: 'username_lookup_client_name'
+cloud_controller_username_lookup_client_secret: 'username_lookup_secret'
+
+diego:
+ staging: optional # disabled|optional|required
+ running: optional # disabled|optional|required
+
 diego_docker: false
 
 max_inline_relationships: 500

@@ -1,20 +1,24 @@
 module VCAP::CloudController
   class SpacesController < RestController::ModelController
+    def self.dependencies
+      [:space_event_repository]
+    end
+
     define_attributes do
       attribute  :name,            String
-      attribute  :is_default, Message::Boolean, :default => false
+      attribute  :is_default, Message::Boolean, default: false
       to_one     :organization
       to_many    :developers
       to_many    :managers
       to_many    :auditors
-      to_many    :apps
-      to_many    :routes
+      to_many    :apps,                    exclude_in: [:create, :update], route_for: :get
+      to_many    :routes,                  exclude_in: [:create, :update], route_for: :get
       to_many    :domains
-      to_many    :service_instances
-      to_many    :app_events,              link_only: true
-      to_many    :events,                  link_only: true
+      to_many    :service_instances,       route_for: :get
+      to_many    :app_events,              link_only: true, exclude_in: [:create, :update], route_for: :get
+      to_many    :events,                  link_only: true, exclude_in: [:create, :update], route_for: :get
       to_many    :security_groups
-      to_one     :space_quota_definition,  exclude_in: [:create, :update]
+      to_one     :space_quota_definition,  optional_in: [:create], exclude_in: [:update]
     end
 
     query_parameters :name, :organization_guid, :developer_guid, :manager_guid, :app_guid
@@ -24,11 +28,11 @@ module VCAP::CloudController
     def self.translate_validation_exception(e, attributes)
       name_errors = e.errors.on([:organization_id, :name])
       if name_errors && name_errors.include?(:unique)
-        Errors::ApiError.new_from_details("SpaceNameTaken", attributes["name"])
+        Errors::ApiError.new_from_details('SpaceNameTaken', attributes['name'])
       elsif name_errors && name_errors.include?(:max_length)
-        Errors::ApiError.new_from_details("StackatoParameterLengthInvalid", 64, attributes["name"])
+        Errors::ApiError.new_from_details('StackatoParameterLengthInvalid', 64, attributes['name'])
       else
-        Errors::ApiError.new_from_details("SpaceInvalid", e.errors.full_messages)
+        Errors::ApiError.new_from_details('SpaceInvalid', e.errors.full_messages)
       end
     end
 
@@ -37,9 +41,9 @@ module VCAP::CloudController
       @space_event_repository = dependencies.fetch(:space_event_repository)
     end
 
-    get "/v2/spaces/:guid/services", :enumerate_services
+    get '/v2/spaces/:guid/services', :enumerate_services
     def enumerate_services(guid)
-      logger.debug "cc.enumerate.related", guid: guid, association: "services"
+      logger.debug 'cc.enumerate.related', guid: guid, association: 'services'
 
       space = find_guid_and_validate_access(:read, guid)
 
@@ -69,7 +73,7 @@ module VCAP::CloudController
       )
     end
 
-    get "/v2/spaces/:guid/service_instances", :enumerate_service_instances
+    get '/v2/spaces/:guid/service_instances', :enumerate_service_instances
     def enumerate_service_instances(guid)
       space = find_guid_and_validate_access(:read, guid)
 

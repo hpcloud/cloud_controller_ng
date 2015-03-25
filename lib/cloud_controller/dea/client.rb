@@ -1,6 +1,6 @@
-require "cloud_controller/dea/app_stopper"
-require "cloud_controller/dea/file_uri_result"
-require "stackato/logyard"
+require 'cloud_controller/dea/app_stopper'
+require 'cloud_controller/dea/file_uri_result'
+require 'stackato/logyard'
 
 module VCAP::CloudController
   module Dea
@@ -45,15 +45,15 @@ module VCAP::CloudController
           @dea_pool.get_dea_availability_zones
         end
 
-        def find_specific_instance(app, options = {})
-          message = {droplet: app.guid}
+        def find_specific_instance(app, options={})
+          message = { droplet: app.guid }
           message.merge!(options)
 
-          dea_request_find_droplet(message, :timeout => 2).first
+          dea_request_find_droplet(message, timeout: 2).first
         end
 
-        def find_instances(app, message_options = {}, request_options = {})
-          message = {droplet: app.guid}
+        def find_instances(app, message_options={}, request_options={})
+          message = { droplet: app.guid }
           message.merge!(message_options)
 
           request_options[:result_count] ||= app.instances
@@ -69,12 +69,12 @@ module VCAP::CloudController
           flapping_indices = health_manager_client.find_flapping_indices(app)
 
           flapping_indices.each do |entry|
-            index = entry["index"]
+            index = entry['index']
             if index >= 0 && index < num_instances
               all_instances[index] = {
-                  state: "FLAPPING",
-                  since: entry["since"],
-                docker_id: entry["docker_id"],
+                  state: 'FLAPPING',
+                  since: entry['since'],
+				  docker_id: entry['docker_id'],
               }
             end
           end
@@ -86,24 +86,24 @@ module VCAP::CloudController
 
           expected_running_instances = num_instances - all_instances.length
           if expected_running_instances > 0
-            request_options = {expected: expected_running_instances}
+            request_options = { expected: expected_running_instances }
             running_instances = find_instances(app, message, request_options)
 
             running_instances.each do |instance|
-              index = instance["index"]
+              index = instance['index']
               if index >= 0 && index < num_instances
                 all_instances[index] = {
-                  state: instance["state"],
-                  since: instance["state_timestamp"],
-                  debug_ip: instance["debug_ip"],
-                  debug_port: instance["debug_port"],
-                  console_ip: instance["console_ip"],
-                  console_port: instance["console_port"],
-                  # For stackato-ssh
-                  host_ip: instance["host_ip"],
-                  app_ip: instance["app_ip"],
-                  # Docker-specific information
-                  docker_id: instance["docker_id"],
+                    state: instance['state'],
+                    since: instance['state_timestamp'],
+                    debug_ip: instance['debug_ip'],
+                    debug_port: instance['debug_port'],
+                    console_ip: instance['console_ip'],
+                    console_port: instance['console_port'],
+					# For stackato-ssh
+                    host_ip: instance['host_ip'],
+                    app_ip: instance['app_ip'],
+                    # Docker-specific information
+                    docker_id: instance['docker_id'],
                 }
               end
             end
@@ -112,7 +112,7 @@ module VCAP::CloudController
           num_instances.times do |index|
             unless all_instances[index]
               all_instances[index] = {
-                  state: "DOWN",
+                  state: 'DOWN',
                   since: Time.now.to_i,
               }
             end
@@ -138,7 +138,7 @@ module VCAP::CloudController
             begin
               start_instance_at_index(app, idx)
             rescue Errors::ApiError => e
-              if e.name == "InsufficientRunningResourcesAvailable"
+              if e.name == 'InsufficientRunningResourcesAvailable'
                 insufficient_resources_error = true
               else
                 raise e
@@ -146,15 +146,15 @@ module VCAP::CloudController
             end
           end
 
-          raise Errors::ApiError.new_from_details("InsufficientRunningResourcesAvailable") if insufficient_resources_error
+          raise Errors::ApiError.new_from_details('InsufficientRunningResourcesAvailable') if insufficient_resources_error
         end
 
         def start_instance_at_index(app, index)
           start_message = Dea::StartAppMessage.new(app, index, config, @blobstore_url_generator)
 
           unless start_message.has_app_package?
-            logger.error "dea-client.no-package-found", guid: app.guid
-            raise Errors::ApiError.new_from_details("AppPackageNotFound", app.guid)
+            logger.error 'dea-client.no-package-found', guid: app.guid
+            raise Errors::ApiError.new_from_details('AppPackageNotFound', app.guid)
           end
 
           dea_id = dea_pool.find_dea(mem: app.memory, disk: app.disk_quota, stack: app.stack.name, app_id: app.guid, zone: app.distribution_zone)
@@ -164,7 +164,7 @@ module VCAP::CloudController
             dea_pool.reserve_app_memory(dea_id, app.memory)
             stager_pool.reserve_app_memory(dea_id, app.memory)
           else
-            logger.error "dea-client.no-resources-available", message: scrub_sensitive_fields(start_message)
+            logger.error 'dea-client.no-resources-available', message: scrub_sensitive_fields(start_message)
             app_info = {
               :name => app.name,
               :guid => app.guid,
@@ -172,8 +172,8 @@ module VCAP::CloudController
             }
             msg = "No DEA available satisfying mem #{app.memory}M, stack #{app.stack.name}, and zone #{app.distribution_zone}"
             instance_identifier = Stackato::Logyard.make_instance_identifier(nil, app_info, -1)
-            Stackato::Logyard.report_event("NORESOURCES", msg, instance_identifier)
-            raise Errors::ApiError.new_from_details("InsufficientRunningResourcesAvailable")
+            Stackato::Logyard.report_event('NORESOURCES', msg, instance_identifier)
+            raise Errors::ApiError.new_from_details('InsufficientRunningResourcesAvailable')
           end
         end
 
@@ -203,7 +203,7 @@ module VCAP::CloudController
             msg = "Request failed for app: #{app.name}, instance: #{index}"
             msg << " and path: #{path || '/'} as the instance is out of range."
 
-            raise ApiError.new_from_details("FileError", msg)
+            raise ApiError.new_from_details('FileError', msg)
           end
 
           search_criteria = {
@@ -217,18 +217,18 @@ module VCAP::CloudController
             msg = "Request failed for app: #{app.name}, instance: #{index}"
             msg << " and path: #{path || '/'} as the instance is not found."
 
-            raise ApiError.new_from_details("FileError", msg)
+            raise ApiError.new_from_details('FileError', msg)
           end
           result
         end
 
         def get_file_uri_by_instance_guid(app, path, instance_id)
-          result = get_file_uri(app, path, :instance_ids => [instance_id])
+          result = get_file_uri(app, path, instance_ids: [instance_id])
           unless result
             msg = "Request failed for app: #{app.name}, instance_id: #{instance_id}"
             msg << " and path: #{path || '/'} as the instance_id is not found."
 
-            raise ApiError.new_from_details("FileError", msg)
+            raise ApiError.new_from_details('FileError', msg)
           end
           result
         end
@@ -251,11 +251,11 @@ module VCAP::CloudController
 
           stats = {} # map of instance index to stats.
           running_instances.each do |instance|
-            index = instance["index"]
+            index = instance['index']
             if index >= 0 && index < app.instances
               stats[index] = {
-                  state: instance["state"],
-                  stats: instance["stats"],
+                  state: instance['state'],
+                  stats: instance['stats'],
               }
             end
           end
@@ -264,7 +264,7 @@ module VCAP::CloudController
           app.instances.times do |index|
             unless stats[index]
               stats[index] = {
-                  state: "DOWN",
+                  state: 'DOWN',
                   since: Time.now.to_i,
               }
             end
@@ -295,9 +295,9 @@ module VCAP::CloudController
         def get_file_uri(app, path, options)
           if app.stopped?
             msg = "Request failed for app: #{app.name} path: #{path || '/'} "
-            msg << "as the app is in stopped state."
+            msg << 'as the app is in stopped state.'
 
-            raise ApiError.new_from_details("FileError", msg)
+            raise ApiError.new_from_details('FileError', msg)
           end
 
           search_options = {
@@ -307,14 +307,13 @@ module VCAP::CloudController
 
           if (instance_found = find_specific_instance(app, search_options))
             result = FileUriResult.new
-            if instance_found["file_uri_v2"]
-              result.file_uri_v2 = instance_found["file_uri_v2"]
-              result.host_ip = instance_found["host_ip"]
+            if instance_found['file_uri_v2']
+              result.file_uri_v2 = instance_found['file_uri_v2']
             end
 
-            uri_v1 = [instance_found["file_uri"], instance_found["staged"], "/", path].join("")
+            uri_v1 = [instance_found['file_uri'], instance_found['staged'], '/', path].join('')
             result.file_uri_v1 = uri_v1
-            result.credentials = instance_found["credentials"]
+            result.credentials = instance_found['credentials']
 
             return result
           end
@@ -332,7 +331,7 @@ module VCAP::CloudController
 
         def dea_publish_update(args)
           logger.debug "sending 'dea.update' with '#{args}'"
-          message_bus.publish("dea.update", args)
+          message_bus.publish('dea.update', args)
         end
 
         def dea_publish_start(dea_id, args)
@@ -340,9 +339,9 @@ module VCAP::CloudController
           message_bus.publish("dea.#{dea_id}.start", args)
         end
 
-        def dea_request_find_droplet(args, opts = {})
+        def dea_request_find_droplet(args, opts={})
           logger.debug "sending dea.find.droplet with args: '#{args}' and opts: '#{opts}'"
-          message_bus.synchronous_request("dea.find.droplet", args, opts)
+          message_bus.synchronous_request('dea.find.droplet', args, opts)
         end
 
         def scrub_sensitive_fields(message)
@@ -354,7 +353,7 @@ module VCAP::CloudController
         end
 
         def logger
-          @logger ||= Steno.logger("cc.dea.client")
+          @logger ||= Steno.logger('cc.dea.client')
         end
       end
     end

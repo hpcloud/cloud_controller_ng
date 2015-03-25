@@ -1,4 +1,4 @@
-require "models/runtime/domain"
+require 'models/runtime/domain'
 
 module VCAP::CloudController
   class PrivateDomain < Domain
@@ -8,7 +8,7 @@ module VCAP::CloudController
 
     export_attributes :name, :owning_organization_guid
     import_attributes :name, :owning_organization_guid
-    strip_attributes  :name
+    strip_attributes :name
 
     one_to_many :spaces,
                 dataset: -> { owning_organization.spaces_dataset },
@@ -40,6 +40,8 @@ module VCAP::CloudController
     def validate
       super
       validates_presence :owning_organization
+      exclude_domains_from_same_org = Domain.dataset.exclude(owning_organization_id: owning_organization_id).or(SHARED_DOMAIN_CONDITION)
+      errors.add(:name, :overlapping_domain) if exclude_domains_from_same_org.filter(Sequel.like(:name, "%.#{name}")).count > 0
     end
 
     def in_suspended_org?
@@ -52,7 +54,12 @@ module VCAP::CloudController
       end
     end
 
+    def shared?
+      false
+    end
+
     private
+
     def owned_by?(org)
       owning_organization_id == org.id
     end

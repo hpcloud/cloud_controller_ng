@@ -68,6 +68,10 @@ audit_events:
 failed_jobs:
   cutoff_age_in_days: <%= p("cc.failed_jobs.cutoff_age_in_days") %>
 
+pending_packages:
+  frequency_in_seconds: <%= p("cc.pending_packages.frequency_in_seconds") %>
+  expiration_in_seconds: <%= p("cc.pending_packages.expiration_in_seconds") %>
+
 billing_event_writing_enabled: <%= p("cc.billing_event_writing_enabled") %>
 
 default_app_memory: <%= p("cc.default_app_memory") %>
@@ -81,6 +85,10 @@ cc_partition: <%= p("cc.cc_partition") %>
 bulk_api:
   auth_user: <%= p("cc.bulk_api_user") %>
   auth_password: "<%= p("cc.bulk_api_password") %>"
+
+internal_api:
+  auth_user: <%= p("cc.internal_api_user") %>
+  auth_password: "<%= p("cc.internal_api_password") %>"
 
 nginx:
   use_nginx: true
@@ -103,9 +111,7 @@ directories:<% p("cc.directories").each do |key, value| %>
 
 logging:
   file: /var/vcap/sys/log/cloud_controller_clock/cloud_controller_clock.log
-  <% if_p("syslog_aggregator.address") do %>
   syslog: vcap.cloud_controller_ng
-  <% end %>
   level: <%= p("cc.logging_level") %>
   max_retries: <%= p("cc.logging_max_retries") %>
 
@@ -138,6 +144,9 @@ uaa:
   symmetric_secret: "<%= token_secret %>"
   <% end %>
   verification_key: <%= p("uaa.jwt.verification_key") ? ("|\n      " + p("uaa.jwt.verification_key").gsub("\n", "\n      ")) : '~' %>
+
+hm9000:
+  url: <%= p("hm9000.url", "https://hm9000.#{domain}") %>
 
 # App staging parameters
 staging:
@@ -227,7 +236,9 @@ uaa_client_secret: <%= p("uaa.clients.cc-service-dashboards.secret") %>
 uaa_client_scope: <%= p("uaa.clients.cc-service-dashboards.scope") %>
 <% end %>
 
-diego: <%= p("cc.diego") %>
+diego:
+  staging: <%= p("cc.diego.staging") %>
+  running: <%= p("cc.diego.running") %>
 diego_docker: <%= p("cc.diego_docker") %>
 
 <% if_p("ssl.skip_cert_verify") do |skip_cert_verify|%>

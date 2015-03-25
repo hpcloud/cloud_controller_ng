@@ -1,9 +1,8 @@
 module VCAP
   module Errors
     class Details
-
       def self.yaml_file_path(source)
-        File.join(File.expand_path("../../../../#{source}/errors", __FILE__), "v2.yml")
+        File.join(File.expand_path("../../../../#{source}/errors", __FILE__), 'v2.yml')
       end
 
       def self.details_by_code
@@ -15,10 +14,10 @@ module VCAP
       def self.details_by_name
         details_by_name = {}
         details_by_code.each do |code, values|
-          key = values["name"]
+          key = values['name']
           details_by_name[key] = values
-          details_by_name[key]["code"] = code
-          details_by_name[key].delete("name")
+          details_by_name[key]['code'] = code
+          details_by_name[key].delete('name')
         end
         details_by_name
       end
@@ -34,17 +33,16 @@ module VCAP
       end
 
       def code
-        details_hash["code"]
+        details_hash['code']
       end
 
       def response_code
-        details_hash["http_code"]
+        details_hash['http_code']
       end
 
       def message_format
-        details_hash["message"]
+        details_hash['message']
       end
     end
   end
 end
-

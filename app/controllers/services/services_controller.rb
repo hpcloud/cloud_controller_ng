@@ -5,17 +5,17 @@ module VCAP::CloudController
     define_attributes do
       attribute :label,             String
       attribute :description,       String
-      attribute :long_description,  String, :default => nil
-      attribute :info_url,          Message::URL, :default => nil
-      attribute :documentation_url, Message::URL, :default => nil
-      attribute :acls,              {"users" => [String], "wildcards" => [String]}, :default => nil
-      attribute :timeout,           Integer, :default => nil
-      attribute :active,            Message::Boolean, :default => false
-      attribute :bindable,          Message::Boolean, :default => true
-      attribute :extra,             String, :default => nil
-      attribute :unique_id,         String, :default => nil
-      attribute :tags,              [String], :default => []
-      attribute :requires,          [String], :default => []
+      attribute :long_description,  String, default: nil
+      attribute :info_url,          Message::URL, default: nil
+      attribute :documentation_url, Message::URL, default: nil
+      attribute :acls,              { 'users' => [String], 'wildcards' => [String] }, default: nil
+      attribute :timeout,           Integer, default: nil
+      attribute :active,            Message::Boolean, default: false
+      attribute :bindable,          Message::Boolean, default: true
+      attribute :extra,             String, default: nil
+      attribute :unique_id,         String, default: nil
+      attribute :tags,              [String], default: []
+      attribute :requires,          [String], default: []
 
       # NOTE: DEPRECATED
       #
@@ -30,7 +30,7 @@ module VCAP::CloudController
       attribute :version,           String
       attribute :url,               Message::URL
 
-      to_many   :service_plans
+      to_many :service_plans
     end
 
     def self.default_order_by
@@ -38,6 +38,15 @@ module VCAP::CloudController
     end
 
     query_parameters :active, :label, :provider, :service_broker_guid
+
+    def self.dependencies
+      [:services_event_repository]
+    end
+
+    def inject_dependencies(dependencies)
+      super
+      @services_event_repository = dependencies.fetch(:services_event_repository)
+    end
 
     allow_unauthenticated_access only: :enumerate
     def enumerate
@@ -48,9 +57,9 @@ module VCAP::CloudController
     def self.translate_validation_exception(e, attributes)
       label_provider_errors = e.errors.on([:label, :provider])
       if label_provider_errors && label_provider_errors.include?(:unique)
-        Errors::ApiError.new_from_details("ServiceLabelTaken", "#{attributes["label"]}-#{attributes["provider"]}")
+        Errors::ApiError.new_from_details('ServiceLabelTaken', "#{attributes['label']}-#{attributes['provider']}")
       else
-        Errors::ApiError.new_from_details("ServiceInvalid", e.errors.full_messages)
+        Errors::ApiError.new_from_details('ServiceInvalid', e.errors.full_messages)
       end
     end
 
@@ -58,9 +67,10 @@ module VCAP::CloudController
       service = find_guid_and_validate_access(:delete, guid)
       if purge?
         service.purge
+        @services_event_repository.record_service_purge_event(service)
         [HTTP::NO_CONTENT, nil]
       else
-        do_delete(find_guid_and_validate_access(:delete, guid))
+        do_delete(service)
       end
     end
 

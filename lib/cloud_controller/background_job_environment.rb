@@ -1,4 +1,4 @@
-require "steno/codec/text"
+require 'steno/codec/text'
 
 class BackgroundJobEnvironment
   def initialize(config)
@@ -11,15 +11,14 @@ class BackgroundJobEnvironment
   end
 
   def setup_environment
-    logger = Steno.logger("cc.background")
-    VCAP::CloudController::DB.load_models(@config.fetch(:db), logger)
+    VCAP::CloudController::DB.load_models(@config.fetch(:db), Steno.logger('cc.background'))
     VCAP::CloudController::Config.configure_components(@config)
 
     Thread.new do
       EM.run do
         message_bus = MessageBus::Configurer.new(
-          :servers => @config[:message_bus_servers],
-          :logger => Steno.logger("cc.message_bus")).go
+          servers: @config[:message_bus_servers],
+          logger: Steno.logger('cc.message_bus')).go
 
         # The AppObserver need no knowledge of the DEA or stager pools
         # so we are passing in no-op objects for these arguments
@@ -27,8 +26,9 @@ class BackgroundJobEnvironment
         no_op_dea_pool = Object.new
         health_manager_client = CloudController::DependencyLocator.instance.health_manager_client
 
-        backends = VCAP::CloudController::StackatoBackends.new(@config, message_bus, no_op_dea_pool, no_op_staging_pool, health_manager_client)
-        VCAP::CloudController::AppObserver.configure(backends)
+        runners = VCAP::CloudController::StackatoRunners.new(@config, message_bus, no_op_dea_pool, no_op_staging_pool, health_manager_client)
+        stagers = VCAP::CloudController::Stagers.new(@config, message_bus, no_op_dea_pool, no_op_staging_pool, runners)
+        VCAP::CloudController::AppObserver.configure(stagers, runners)
 
         blobstore_url_generator = CloudController::DependencyLocator.instance.blobstore_url_generator
         VCAP::CloudController::Dea::Client.configure(@config, message_bus, no_op_dea_pool, no_op_staging_pool, blobstore_url_generator)

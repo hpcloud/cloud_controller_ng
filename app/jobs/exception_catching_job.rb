@@ -1,8 +1,14 @@
-require "presenters/error_presenter"
+require 'presenters/error_presenter'
 
 module VCAP::CloudController
   module Jobs
-    class ExceptionCatchingJob < Struct.new(:handler)
+    class ExceptionCatchingJob < VCAP::CloudController::Jobs::CCJob
+      attr_accessor :handler
+
+      def initialize(handler)
+        @handler = handler
+      end
+
       def perform
         handler.perform
       end
@@ -15,6 +21,10 @@ module VCAP::CloudController
 
       def max_attempts
         handler.max_attempts
+      end
+
+      def reschedule_at(time, attempts)
+        handler.reschedule_at(time, attempts)
       end
 
       private
@@ -33,7 +43,7 @@ module VCAP::CloudController
       end
 
       def logger
-        Steno.logger("cc.background")
+        Steno.logger('cc.background')
       end
     end
   end
