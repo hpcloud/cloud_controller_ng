@@ -375,18 +375,21 @@ module VCAP::CloudController
       end
 
       it 'gets the timeout from the config' do
+        # XXX: Figure out why Stack.configure is called with a non-existent file_path
         start_thin_server
 
         expect(thin_server.timeout).to eq(600)
       end
 
       it "uses thin's experimental threaded mode intentionally" do
+        # XXX: Figure out why Stack.configure is called with a non-existent file_path
         start_thin_server
 
         expect(thin_server.threaded).to eq(true)
       end
 
       it 'starts the thin server' do
+        # XXX: Figure out why Stack.configure is called with a non-existent file_path
         start_thin_server
 
         expect(thin_server).to have_received(:start!)

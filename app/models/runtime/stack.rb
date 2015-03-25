@@ -25,7 +25,7 @@ module VCAP::CloudController
     end
 
     def self.configure(file_path)
-      @config_file = if file_path
+      @config_file = if file_path && File.exist?(file_path)
                        ConfigFile.new(file_path)
                      end
     end
