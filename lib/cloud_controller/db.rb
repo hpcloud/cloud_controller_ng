@@ -37,7 +37,6 @@ module VCAP::CloudController
         end
       end
 
-      db = Sequel.connect(opts[:database], connection_options)
       if opts[:database_uri]
         if opts[:database_uri].index("mysql") == 0
           connection_options[:charset] = "utf8"
