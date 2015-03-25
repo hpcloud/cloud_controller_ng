@@ -1,3 +1,5 @@
+require 'spec_helper'
+
 module VCAP::Services
   module ServiceBrokers
     module V2
