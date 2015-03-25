@@ -21,16 +21,15 @@ module VCAP::CloudController
         description: config[:info][:description],
         authorization_endpoint: config[:login] ? config[:login][:url] : config[:uaa][:url],
         token_endpoint: config[:uaa][:url],
-        allow_debug: config.fetch(:allow_debug, true)
-		applog_endpoint: "ws://#{applog_endpoint}",
+        allow_debug: config.fetch(:allow_debug, true),
+        applog_endpoint: "ws://#{applog_endpoint}",
         allow_debug: config.fetch(:allow_debug, true),
         vendor_version: StackatoVendorConfig.vendor_version,
-        stackato => {
+        stackato: {
           license_accepted: StackatoLicenseHelper.get_license_accepted(license),
           zero_downtime: true,
-          UUID: STACKATO_UUID
-        }
-
+          UUID: STACKATO_UUID,
+        },
       }
 
       # If there is a logged in user, give out additional information
