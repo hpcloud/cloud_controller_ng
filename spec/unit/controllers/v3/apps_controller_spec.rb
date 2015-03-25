@@ -4,7 +4,8 @@ module VCAP::CloudController
   describe AppsV3Controller do
     let(:logger) { instance_double(Steno::Logger) }
     let(:user) { User.make }
-    let(:req_body) {''}
+    let(:req_body) { '' }
+    let(:params) { {} }
     let(:process_handler) { double(:process_handler) }
     let(:process_presenter) { double(:process_presenter) }
     let(:apps_handler) { double(:apps_handler) }
@@ -15,7 +16,7 @@ module VCAP::CloudController
           {},
           logger,
           {},
-          {},
+          params,
           req_body,
           nil,
           {
@@ -34,6 +35,27 @@ module VCAP::CloudController
       allow(apps_handler).to receive(:show).and_return(app_model)
       allow(app_presenter).to receive(:present_json).and_return(app_response)
       allow(process_presenter).to receive(:present_json_list).and_return(process_response)
+    end
+
+    describe '#list' do
+      let(:page) { 1 }
+      let(:per_page) { 2 }
+      let(:params) { { 'page' => page, 'per_page' => per_page } }
+      let(:list_response) { 'list_response' }
+
+      before do
+        allow(app_presenter).to receive(:present_json_list).and_return(app_response)
+        allow(apps_handler).to receive(:list).and_return(list_response)
+      end
+
+      it 'returns 200 and lists the apps' do
+        response_code, response_body = apps_controller.list
+
+        expect(apps_handler).to have_received(:list)
+        expect(app_presenter).to have_received(:present_json_list).with(list_response)
+        expect(response_code).to eq(200)
+        expect(response_body).to eq(app_response)
+      end
     end
 
     describe '#show' do
@@ -123,7 +145,7 @@ module VCAP::CloudController
 
       context 'when a user can create a app' do
         it 'returns a 201 Created response' do
-           response_code, _ = apps_controller.create
+          response_code, _ = apps_controller.create
           expect(response_code).to eq 201
         end
 
@@ -265,9 +287,9 @@ module VCAP::CloudController
 
       context 'when the app does exist' do
         it 'returns a 204' do
-            response_code, _ = apps_controller.delete('guid')
-            expect(response_code).to eq 204
-          end
+          response_code, _ = apps_controller.delete('guid')
+          expect(response_code).to eq 204
+        end
 
         context 'when the app has child processes' do
           before do
@@ -276,7 +298,7 @@ module VCAP::CloudController
 
           it 'raises a 400' do
             expect {
-             _, _ = apps_controller.delete('guid')
+              _, _ = apps_controller.delete('guid')
             }.to raise_error do |error|
               expect(error.name).to eq 'UnableToPerform'
               expect(error.response_code).to eq 400
@@ -360,7 +382,7 @@ module VCAP::CloudController
 
       context 'when the app already has a process with the same type' do
         let(:req_body) do
-          MultiJson.dump({process_guid: process_guid})
+          MultiJson.dump({ process_guid: process_guid })
         end
         before do
           allow(apps_handler).to receive(:add_process).and_raise(AppsHandler::DuplicateProcessType)
@@ -489,6 +511,12 @@ module VCAP::CloudController
       context 'when the app does exist' do
         let(:app_model) { AppModel.make }
         let(:guid) { app_model.guid }
+        let(:list_response) { 'list_response' }
+
+        before do
+          allow(process_presenter).to receive(:present_json_list).and_return(process_response)
+          allow(process_handler).to receive(:list).and_return(list_response)
+        end
 
         it 'returns a 200' do
           response_code, _ = apps_controller.list_processes(guid)
