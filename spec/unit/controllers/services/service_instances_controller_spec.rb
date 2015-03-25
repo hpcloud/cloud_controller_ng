@@ -765,6 +765,7 @@ module VCAP::CloudController
 
         context 'with ?async=true' do
           it 'returns a job id' do
+            require 'support/stackato_yaml_override'
             delete "/v2/service_instances/#{service_instance.guid}?async=true", {}, admin_headers
             expect(last_response.status).to eq 202
             expect(decoded_response['entity']['guid']).to be
