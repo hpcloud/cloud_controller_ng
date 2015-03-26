@@ -44,24 +44,24 @@ module VCAP::CloudController
     add_association_dependencies routes: :nullify, service_bindings: :destroy, events: :delete, droplets: :destroy
 
     export_attributes :guid, :name, :production, :space_guid, :stack_guid, :buildpack,
-      :detected_buildpack, :environment_json, :memory, :instances, :disk_quota,
-      :state, :version, :command, :console, :debug, :staging_task_id,
-      :package_state, :package_hash, :health_check_type, :health_check_timeout,
-      :system_env_json, :distribution_zone,
-      :description, :sso_enabled, :restart_required, :autoscale_enabled,
-      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-      :droplet_count,
-      :staging_failed_reason, :docker_image, :package_updated_at,
-      :detected_start_command
+                      :detected_buildpack, :environment_json, :memory, :instances, :disk_quota,
+                      :state, :version, :command, :console, :debug, :staging_task_id,
+                      :package_state, :package_hash, :health_check_type, :health_check_timeout,
+                      :system_env_json, :distribution_zone,
+                      :description, :sso_enabled, :restart_required, :autoscale_enabled,
+		      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+		      :droplet_count, :staging_failed_reason, :diego,
+		      :docker_image, :package_updated_at, :detected_start_command
 
     import_attributes :name, :production, :space_guid, :stack_guid, :buildpack,
-      :detected_buildpack, :environment_json, :memory, :instances, :disk_quota,
-      :state, :command, :console, :debug, :staging_task_id,
-      :service_binding_guids, :route_guids, :health_check_timeout, :health_check_type,
-      :distribution_zone,
-      :description, :sso_enabled, :autoscale_enabled,
-      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-      :docker_image, :app_guid
+                      :detected_buildpack, :environment_json, :memory, :instances, :disk_quota,
+                      :state, :command, :console, :debug, :staging_task_id,
+                      :service_binding_guids, :route_guids,
+                      :health_check_timeout,
+                      :health_check_type, :distribution_zone,
+		      :description, :sso_enabled, :autoscale_enabled,
+		      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+		      :diego, :docker_image, :app_guid
 
     strip_attributes :name
 
@@ -87,6 +87,7 @@ module VCAP::CloudController
     attr_accessor :last_stager_response
 
     alias_method :kill_after_multiple_restarts?, :kill_after_multiple_restarts
+    alias_method :diego?, :diego
 
     def copy_buildpack_errors
       bp = buildpack
@@ -172,9 +173,6 @@ module VCAP::CloudController
 
       adjust_route_sso_clients if sso_updated?
       self.min_instances = 1 if self.min_instances.nil? # Stackato bug 103723
-
-      # make this conditional for when we remove the diego column later.
-      self.diego = run_with_diego? if self.class.columns.include?(:diego)
 
       super
     end
@@ -764,16 +762,16 @@ module VCAP::CloudController
       routes_already_changed = @routes_changed
       @routes_changed = true
 
-      if !run_with_diego?
-        set_new_version
-        save
-      else
+      if diego?
         unless routes_already_changed
           App.db.after_commit do
             AppObserver.routes_changed(self)
             @routes_changed = false
           end
         end
+      else
+        set_new_version
+        save
       end
     end
 
