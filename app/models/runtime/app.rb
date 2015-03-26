@@ -4,6 +4,7 @@ require 'cloud_controller/undo_app_changes'
 require 'cloud_controller/errors/application_missing'
 require 'cloud_controller/errors/invalid_route_relation'
 require 'repositories/runtime/app_usage_event_repository'
+require 'actions/service_binding_delete'
 require 'presenters/message_bus/service_binding_presenter'
 require 'digest/sha1'
 
@@ -41,7 +42,7 @@ module VCAP::CloudController
                key: :droplet_hash,
                primary_key: :droplet_hash
 
-    add_association_dependencies routes: :nullify, service_bindings: :destroy, events: :delete, droplets: :destroy
+    add_association_dependencies routes: :nullify, events: :delete, droplets: :destroy
 
     export_attributes :guid, :name, :production, :space_guid, :stack_guid, :buildpack,
                       :detected_buildpack, :environment_json, :memory, :instances, :disk_quota,
@@ -360,7 +361,15 @@ module VCAP::CloudController
     def before_destroy
       lock!
       self.state = 'STOPPED'
+
+      destroy_service_bindings
+
       super
+    end
+
+    def destroy_service_bindings
+      errors = ServiceBindingDelete.new.delete(self.service_bindings_dataset)
+      raise errors.first.underlying_error unless errors.empty?
     end
 
     def after_destroy
@@ -578,7 +587,8 @@ module VCAP::CloudController
     # state that the correct way to overide the remove_bla functionality is to
     # do so with the _ prefixed private method like we do here.
     def _remove_service_binding(binding)
-      binding.destroy
+      err = ServiceBindingDelete.new.delete([binding])
+      raise(err[0].underlying_error) if !err.empty?
     end
 
     def self.user_visibility_filter(user)
