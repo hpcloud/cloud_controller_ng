@@ -13,20 +13,21 @@ module VCAP::Services
         end
 
         describe 'parse update response' do
-          let(:response) { instance_double(VCAP::Services::ServiceBrokers::V2::HttpResponse) }
+          let(:response) do
+            VCAP::Services::ServiceBrokers::V2::HttpResponse.new(
+              code: code,
+              message: message,
+              body: body
+            )
+          end
+
+          let(:message) { nil }
           let(:path) { '/v2/service_instances' }
           let(:body) { '{}' }
           let(:method) { :patch }
 
-          before do
-            allow(response).to receive(:code).and_return(code)
-            allow(response).to receive(:body).and_return(body)
-            allow(response).to receive(:message).and_return('message')
-          end
-
           context 'when the status code is 200' do
             let(:code) { 200 }
-            let(:body) { {}.to_json }
 
             context 'the response is partial json response' do
               let(:body) { '""' }
@@ -43,6 +44,90 @@ module VCAP::Services
               end
             end
 
+            context 'and the response is an empty JSON object' do
+              let(:body) do
+                {}.to_json
+              end
+
+              it 'returns the response hash' do
+                expect(parsed_response).to eq(JSON.parse(body))
+              end
+            end
+
+            context 'and the response has an invalid key' do
+              let(:body) do
+                { foo: 'bar' }.to_json
+              end
+
+              it 'returns the response hash' do
+                expect(parsed_response).to eq(JSON.parse(body))
+              end
+            end
+
+            context 'and the response has an empty value for last_operation' do
+              let(:body) do
+                { last_operation: {} }.to_json
+              end
+
+              it 'returns the response hash' do
+                expect(parsed_response).to eq(JSON.parse(body))
+              end
+            end
+
+            context 'and the response has an invalid value for last_operation' do
+              let(:body) do
+                { last_operation: { foo: 'bar' } }.to_json
+              end
+
+              it 'returns the response hash' do
+                expect(parsed_response).to eq(JSON.parse(body))
+              end
+            end
+
+            context 'and the response has an invalid state' do
+              let(:body) do
+                { last_operation: { state: 'foo' } }.to_json
+              end
+
+              it 'raises a ServiceBrokerResponseMalformed error' do
+                expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed)
+              end
+            end
+
+            context 'and the response has state `in progress`' do
+              let(:body) do
+                { last_operation: { state: 'in progress' } }.to_json
+              end
+
+              it 'raises a ServiceBrokerResponseMalformed error' do
+                expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed) do |error|
+                  expect(error.to_h['description']).to eq("The service broker response was not understood: expected state was 'succeeded', broker returned 'in progress'.")
+                end
+              end
+            end
+
+            context 'and the response has state `failed`' do
+              let(:body) do
+                { last_operation: { state: 'failed' } }.to_json
+              end
+
+              it 'raises a ServiceBrokerResponseMalformed error' do
+                expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed) do |error|
+                  expect(error.to_h['description']).to eq("The service broker response was not understood: expected state was 'succeeded', broker returned 'failed'.")
+                end
+              end
+            end
+
+            context 'and the response has state `succeeded`' do
+              let(:body) do
+                { last_operation: { state: 'succeeded' } }.to_json
+              end
+
+              it 'returns the response hash' do
+                expect(parsed_response).to eq(JSON.parse(body))
+              end
+            end
+
             it 'returns response_hash' do
               expect(parsed_response).to eq({})
             end
@@ -51,16 +136,10 @@ module VCAP::Services
           context 'when the status code is 201' do
             let(:code) { 201 }
 
-            context 'the response is not a valid json object' do
-              let(:body) { '""' }
-
-              it 'raises a ServiceBrokerResponseMalformed error' do
-                expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed)
-              end
-            end
-
             it 'raises a ServiceBrokerBadResponse error' do
-              expect { parsed_response }.to raise_error(Errors::ServiceBrokerBadResponse)
+              expect { parsed_response }.to raise_error(Errors::ServiceBrokerBadResponse) do |error|
+                expect(error.to_h['description']).to eq("The service broker returned an error for the request to #{url}#{path}. Status Code: #{code} Created, Body: #{body}")
+              end
             end
           end
 
@@ -80,6 +159,100 @@ module VCAP::Services
               let(:body) { '""' }
               it 'raises a ServiceBrokerResponseMalformed error' do
                 expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed)
+              end
+            end
+
+            context 'and the response is an empty JSON object' do
+              let(:body) do
+                {}.to_json
+              end
+
+              it 'raises a ServiceBrokerResponseMalformed error' do
+                expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed) do |error|
+                  expect(error.to_h['description']).to eq("The service broker response was not understood: expected state was 'in progress', broker returned null.")
+                end
+              end
+            end
+
+            context 'and the response has an invalid key' do
+              let(:body) do
+                { foo: 'bar' }.to_json
+              end
+
+              it 'raises a ServiceBrokerResponseMalformed error' do
+                expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed) do |error|
+                  expect(error.to_h['description']).to eq("The service broker response was not understood: expected state was 'in progress', broker returned null.")
+                end
+              end
+            end
+
+            context 'and the response has an empty value for last_operation' do
+              let(:body) do
+                { last_operation: {} }.to_json
+              end
+
+              it 'raises a ServiceBrokerResponseMalformed error' do
+                expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed) do |error|
+                  expect(error.to_h['description']).to eq("The service broker response was not understood: expected state was 'in progress', broker returned null.")
+                end
+              end
+            end
+
+            context 'and the response has an invalid value for last_operation' do
+              let(:body) do
+                { last_operation: { foo: 'bar' } }.to_json
+              end
+
+              it 'raises a ServiceBrokerResponseMalformed error' do
+                expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed) do |error|
+                  expect(error.to_h['description']).to eq("The service broker response was not understood: expected state was 'in progress', broker returned null.")
+                end
+              end
+            end
+
+            context 'and the response has an invalid state' do
+              let(:body) do
+                { last_operation: { state: 'foo' } }.to_json
+              end
+
+              it 'raises a ServiceBrokerResponseMalformed error' do
+                expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed) do |error|
+                  expect(error.to_h['description']).to eq("The service broker response was not understood: expected state was 'in progress', broker returned 'foo'.")
+                end
+              end
+            end
+
+            context 'and the response has state `succeeded`' do
+              let(:body) do
+                { last_operation: { state: 'succeeded' } }.to_json
+              end
+
+              it 'raises a ServiceBrokerResponseMalformed error' do
+                expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed) do |error|
+                  expect(error.to_h['description']).to eq("The service broker response was not understood: expected state was 'in progress', broker returned 'succeeded'.")
+                end
+              end
+            end
+
+            context 'and the response has state `failed`' do
+              let(:body) do
+                { last_operation: { state: 'failed' } }.to_json
+              end
+
+              it 'raises a ServiceBrokerResponseMalformed error' do
+                expect { parsed_response }.to raise_error(Errors::ServiceBrokerResponseMalformed) do |error|
+                  expect(error.to_h['description']).to eq("The service broker response was not understood: expected state was 'in progress', broker returned 'failed'.")
+                end
+              end
+            end
+
+            context 'and the response has state `in progress`' do
+              let(:body) do
+                { last_operation: { state: 'in progress' } }.to_json
+              end
+
+              it 'returns the response hash' do
+                expect(parsed_response).to eq(JSON.parse(body))
               end
             end
 

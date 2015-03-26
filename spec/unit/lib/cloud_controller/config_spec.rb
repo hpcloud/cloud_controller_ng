@@ -55,6 +55,14 @@ module VCAP::CloudController
           expect(config[:diego_docker]).to eq(false)
         end
 
+        it 'allows users to select the backend for their apps' do
+          expect(config[:users_can_select_backend]).to eq(true)
+        end
+
+        it 'runs apps on the dea' do
+          expect(config[:default_to_diego_backend]).to eq(false)
+        end
+
         it 'sets a default value for min staging memory' do
           expect(config[:staging][:minimum_staging_memory_mb]).to eq(1024)
         end
@@ -135,8 +143,16 @@ module VCAP::CloudController
             expect(config[:allowed_cors_domains]).to eq(['http://andrea.corr', 'http://caroline.corr', 'http://jim.corr', 'http://sharon.corr'])
           end
 
+          it 'preserves the backend selection configuration from the file' do
+            expect(config[:users_can_select_backend]).to eq(false)
+          end
+
           it 'preserves the diego configuration from the file' do
             expect(config[:diego_docker]).to eq(true)
+          end
+
+          it 'runs apps on diego' do
+            expect(config[:default_to_diego_backend]).to eq(true)
           end
 
           it 'preserves the default_health_check_timeout value from the file' do

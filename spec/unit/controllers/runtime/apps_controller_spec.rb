@@ -9,6 +9,7 @@ module VCAP::CloudController
       it { expect(described_class).to be_queryable_by(:name) }
       it { expect(described_class).to be_queryable_by(:space_guid) }
       it { expect(described_class).to be_queryable_by(:organization_guid) }
+      it { expect(described_class).to be_queryable_by(:diego) }
     end
 
     describe 'query by org_guid' do
@@ -41,7 +42,7 @@ module VCAP::CloudController
             route_guids:          { type: '[string]' },
             space_guid:           { type: 'string', required: true },
             stack_guid:           { type: 'string' },
-            diego:                { type: 'bool', default: false },
+            diego:                { type: 'bool' },
             docker_image:         { type: 'string', required: false },
             distribution_zone:    {type: 'string', required: false, default: 'default' },
             description:          {type: 'string', required: false, default: '' },

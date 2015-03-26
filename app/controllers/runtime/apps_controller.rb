@@ -8,7 +8,7 @@ module VCAP::CloudController
       attribute :buildpack,              String,           default: nil
       attribute :command,                String,           default: nil
       attribute :console,                Message::Boolean, default: false
-      attribute :diego,                  Message::Boolean, default: false
+      attribute :diego,                  Message::Boolean, default: nil
       attribute :docker_image,           String,           default: nil
       attribute :debug,                  String,           default: nil
       attribute :disk_quota,             Integer,          default: nil
@@ -44,7 +44,7 @@ module VCAP::CloudController
       to_many    :app_versions,                           exclude_in: :create
     end
 
-    query_parameters :name, :space_guid, :organization_guid, :restart_required, :state, :package_state, :sso_enabled
+    query_parameters :name, :space_guid, :organization_guid, :diego, :restart_required, :state, :package_state, :sso_enabled
 
     def self.default_order_by
       :name
