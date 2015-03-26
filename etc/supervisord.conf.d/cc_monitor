@@ -1,7 +1,7 @@
 
 [program:cc_monitor]
 directory=/s/code/cloud_controller_ng
-command=/opt/rubies/current/bin/bundle exec rake monitor:start
+command=/home/stackato/.rbenv/shims/bundle exec rake monitor:start
 priority=999
 redirect_stderr=true
 stdout_logfile=/s/logs/cc_monitor.log

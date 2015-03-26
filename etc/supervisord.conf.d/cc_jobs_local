@@ -1,7 +1,7 @@
 
 [program:cc_jobs_local]
 directory=/s/code/cloud_controller_ng
-command=/opt/rubies/current/bin/bundle exec rake jobs:local
+command=/home/stackato/.rbenv/shims/bundle exec rake jobs:local
 priority=2
 redirect_stderr=true
 stdout_logfile=/s/logs/cc_jobs_local.log
