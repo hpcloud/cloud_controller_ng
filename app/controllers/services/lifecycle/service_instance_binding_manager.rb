@@ -1,3 +1,5 @@
+require 'actions/service_binding_delete'
+
 module VCAP::CloudController
   class ServiceInstanceBindingManager
     class ServiceInstanceNotFound < StandardError; end
@@ -38,7 +40,8 @@ module VCAP::CloudController
       service_instance = ServiceInstance.first(guid: service_binding.service_instance_guid)
 
       lock_service_instance_by_blocking(service_instance) do
-        deletion_job = Jobs::Runtime::ModelDeletion.new(ServiceBinding, service_binding.guid)
+        delete_action = ServiceBindingDelete.new
+        deletion_job = Jobs::DeleteActionJob.new(ServiceBinding, service_binding.guid, delete_action)
         delete_and_audit_job = Jobs::AuditEventJob.new(deletion_job, @services_event_repository, :record_service_binding_event, :delete, service_binding)
 
         enqueue_deletion_job(delete_and_audit_job, params)
@@ -78,6 +81,9 @@ module VCAP::CloudController
         if original_attributes
           service_instance.last_operation.set_all(original_attributes)
           service_instance.last_operation.save
+        else
+          service_instance.service_instance_operation.destroy
+          service_instance.save
         end
       end
     end

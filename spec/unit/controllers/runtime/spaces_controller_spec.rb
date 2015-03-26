@@ -258,7 +258,7 @@ module VCAP::CloudController
             it "disallows a user that only has #{perm_name} permission on the space" do
               get "/v2/spaces/#{@space_a.guid}/service_instances", {}, headers_for(member_a)
 
-              expect(last_response.status).to eq(403)
+              expect(last_response).to have_status_code(403)
             end
           end
         end
@@ -283,7 +283,7 @@ module VCAP::CloudController
 
           it "should not return a service instance to a user with the #{perm_name} permission on a different space" do
             get path, {}, headers_for(member_b)
-            expect(last_response.status).to eq(403)
+            expect(last_response).to have_status_code(403)
           end
         end
 
@@ -516,7 +516,7 @@ module VCAP::CloudController
         request_body = { organization_guid: organization.guid, name: 'space_name' }.to_json
         post '/v2/spaces', request_body, json_headers(admin_headers)
 
-        expect(last_response.status).to eq(201)
+        expect(last_response).to have_status_code(201)
 
         new_space_guid = decoded_response['metadata']['guid']
         event = Event.find(type: 'audit.space.create', actee: new_space_guid)
@@ -530,7 +530,7 @@ module VCAP::CloudController
         request_body = { name: 'new_space_name' }.to_json
         put "/v2/spaces/#{space.guid}", request_body, json_headers(admin_headers)
 
-        expect(last_response.status).to eq(201)
+        expect(last_response).to have_status_code(201)
 
         space_guid = decoded_response['metadata']['guid']
         event = Event.find(type: 'audit.space.update', actee: space_guid)
@@ -545,7 +545,7 @@ module VCAP::CloudController
         space_guid = space.guid
         delete "/v2/spaces/#{space_guid}?recursive=true", '', json_headers(admin_headers)
 
-        expect(last_response.status).to eq(204)
+        expect(last_response).to have_status_code(204)
 
         event = Event.find(type: 'audit.space.delete-request', actee: space_guid)
         expect(event).not_to be_nil
@@ -558,11 +558,11 @@ module VCAP::CloudController
 
     describe 'DELETE /v2/spaces/:guid' do
       context 'when recursive is false' do
-        it 'successfully deletes spaaces with no associations' do
+        it 'successfully deletes spaces with no associations' do
           space_guid = Space.make.guid
           delete "/v2/spaces/#{space_guid}", '', json_headers(admin_headers)
 
-          expect(last_response.status).to eq(204)
+          expect(last_response).to have_status_code(204)
           expect(Space.find(guid: space_guid)).to be_nil
         end
 
@@ -571,20 +571,122 @@ module VCAP::CloudController
           AppModel.make(space_guid: space_guid)
           delete "/v2/spaces/#{space_guid}", '', json_headers(admin_headers)
 
-          expect(last_response.status).to eq(400)
+          expect(last_response).to have_status_code(400)
           expect(Space.find(guid: space_guid)).not_to be_nil
         end
       end
 
       context 'when recursive is true' do
-        it 'successfully deletes spaaces with v3 app associations' do
-          space_guid = Space.make.guid
-          app_guid = AppModel.make(space_guid: space_guid).guid
+        let!(:org) { Organization.make }
+        let!(:space) { Space.make(organization: org) }
+        let!(:space_guid) { space.guid }
+        let!(:app_guid) { AppModel.make(space_guid: space_guid).guid }
+        let!(:route_guid) { Route.make(space_guid: space_guid).guid }
+        let!(:service_instance_guid) { ManagedServiceInstance.make(space_guid: space_guid).guid }
+
+        before do
+          service_instance = ServiceInstance.find(guid: service_instance_guid)
+          stub_deprovision(service_instance)
+        end
+
+        it 'successfully deletes spaces with v3 app associations or service instances' do
           delete "/v2/spaces/#{space_guid}?recursive=true", '', json_headers(admin_headers)
 
-          expect(last_response.status).to eq(204)
+          expect(last_response).to have_status_code(204)
           expect(Space.find(guid: space_guid)).to be_nil
           expect(AppModel.find(guid: app_guid)).to be_nil
+          expect(ServiceInstance.find(guid: service_instance_guid)).to be_nil
+          expect(Route.find(guid: route_guid)).to be_nil
+        end
+
+        it 'successfully deletes the space asynchronously when async=true' do
+          delete "/v2/spaces/#{space_guid}?recursive=true&async=true", '', json_headers(admin_headers)
+
+          expect(last_response).to have_status_code(202)
+          expect(Space.find(guid: space_guid)).not_to be_nil
+          expect(AppModel.find(guid: app_guid)).not_to be_nil
+          expect(ServiceInstance.find(guid: service_instance_guid)).not_to be_nil
+          expect(Route.find(guid: route_guid)).not_to be_nil
+
+          successes, _ = Delayed::Worker.new.work_off
+
+          expect(successes).to eq 1
+          expect(Space.find(guid: space_guid)).to be_nil
+          expect(AppModel.find(guid: app_guid)).to be_nil
+          expect(ServiceInstance.find(guid: service_instance_guid)).to be_nil
+          expect(Route.find(guid: route_guid)).to be_nil
+        end
+
+        describe 'deleting service instances' do
+          let(:app_model) { AppFactory.make(space_guid: space_guid) }
+
+          let(:service_instance_1) { ManagedServiceInstance.make(space_guid: space_guid) }
+          let(:service_instance_2) { ManagedServiceInstance.make(space_guid: space_guid) }
+          let(:service_instance_3) { ManagedServiceInstance.make(space_guid: space_guid) }
+
+          before do
+            stub_deprovision(service_instance_1)
+            stub_deprovision(service_instance_2)
+            stub_deprovision(service_instance_3)
+          end
+
+          context 'when the second of three bindings fails to delete' do
+            let!(:binding_1) { ServiceBinding.make(service_instance: service_instance_1, app: app_model) }
+            let!(:binding_2) { ServiceBinding.make(service_instance: service_instance_2, app: app_model) }
+            let!(:binding_3) { ServiceBinding.make(service_instance: service_instance_3, app: app_model) }
+
+            before do
+              stub_unbind(binding_1)
+              stub_unbind(binding_2, status: 500)
+              stub_unbind(binding_3)
+            end
+
+            it 'deletes the first and third of the instances and their bindings' do
+              delete "/v2/spaces/#{space_guid}?recursive=true", '', json_headers(admin_headers)
+
+              expect(last_response).to have_status_code 502
+              expect(decoded_response['error_code']).to eq 'CF-ServiceBrokerBadResponse'
+
+              expect { service_instance_1.refresh }.to raise_error Sequel::Error, 'Record not found'
+              expect { service_instance_2.refresh }.not_to raise_error
+              expect { service_instance_3.refresh }.to raise_error Sequel::Error, 'Record not found'
+
+              expect { binding_1.refresh }.to raise_error Sequel::Error, 'Record not found'
+              expect { binding_2.refresh }.not_to raise_error
+              expect { binding_3.refresh }.to raise_error Sequel::Error, 'Record not found'
+            end
+          end
+        end
+
+        context 'when the user does not exist when the job runs' do
+          it 'returns an UserNotFound error' do
+            user = User.make
+            org.add_user(user)
+            org.add_manager(user)
+            space.add_manager(user)
+
+            delete "/v2/spaces/#{space_guid}?recursive=true&async=true", '', json_headers(headers_for(user))
+            user.destroy
+
+            job = Delayed::Job.first
+            expect {
+              job.invoke_job
+            }.to raise_error VCAP::Errors::ApiError, /user could not be found/
+          end
+        end
+
+        it 'does not rollback any changes if recursive deletion fails halfway through' do
+          service_instance_2 = ManagedServiceInstance.make(space_guid: space_guid)
+          stub_deprovision(service_instance_2, status: 500)
+
+          delete "/v2/spaces/#{space_guid}?recursive=true", '', json_headers(admin_headers)
+
+          expect(ServiceInstance.find(guid: service_instance_guid)).to be_nil
+          expect(ServiceInstance.find(guid: service_instance_2.guid)).not_to be_nil
+          expect(Space.find(guid: space_guid)).not_to be_nil
+
+          expect(last_response).to have_status_code 502
+          expect(decoded_response['error_code']).to eq 'CF-ServiceBrokerBadResponse'
         end
       end
     end
@@ -600,12 +702,12 @@ module VCAP::CloudController
 
       it 'allows space managers' do
         get "/v2/spaces/#{space.guid}/developers", '', headers_for(mgr)
-        expect(last_response.status).to eq(200)
+        expect(last_response).to have_status_code(200)
       end
 
       it 'allows space developers' do
         get "/v2/spaces/#{space.guid}/developers", '', headers_for(user)
-        expect(last_response.status).to eq(200)
+        expect(last_response).to have_status_code(200)
       end
     end
 

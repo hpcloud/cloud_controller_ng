@@ -92,16 +92,6 @@ module VCAP::CloudController
       self.guid ||= SecureRandom.uuid
     end
 
-    def before_destroy
-      begin
-        client.unbind(self)
-      rescue Errno::ECONNREFUSED
-        raise VCAP::Errors::ApiError.new_from_details("ServiceBindingNotFound",
-                                          bind_failure_suggestion($!.message))
-      end
-      super
-    end
-
     def self.user_visibility_filter(user)
       { service_instance: ServiceInstance.user_visible(user) }
     end

@@ -89,7 +89,7 @@ module VCAP::CloudController
       )
       service_instance = provisioner.create_service_instance(@request_attrs, params)
 
-      if params['accepts_incomplete'] == 'true'
+      if service_instance.last_operation.state == 'in progress'
         state = HTTP::ACCEPTED
       else
         state = HTTP::CREATED
@@ -119,7 +119,7 @@ module VCAP::CloudController
       updater = ServiceInstanceUpdater.new(@services_event_repository, self, logger, @access_context)
       updater.update_service_instance(service_instance, @request_attrs, params)
 
-      if params['accepts_incomplete'] == 'true'
+      if service_instance.last_operation.state == 'in progress'
         state = HTTP::ACCEPTED
       else
         state = HTTP::CREATED

@@ -34,13 +34,15 @@ module VCAP::CloudController
       end
 
       context 'when passed a set of packages' do
+        let(:package_dataset) { PackageModel.dataset }
+
         it 'bulk deletes them' do
           packages = []
           packages << PackageModel.make
           packages << PackageModel.make
 
           expect {
-            package_delete.delete(PackageModel.dataset)
+            package_delete.delete(package_dataset)
           }.to change {
             PackageModel.count
           }.by(-2)

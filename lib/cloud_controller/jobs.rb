@@ -21,6 +21,7 @@ require 'jobs/exception_catching_job'
 require 'jobs/request_job'
 require 'jobs/timeout_job'
 require 'jobs/local_queue'
+require 'jobs/delete_action_job'
 
 require "kato/local/node"
 
@@ -30,3 +31,5 @@ class LocalQueue < Struct.new(:config)
     "cc-" + NODE_ID
   end
 end
+
+
