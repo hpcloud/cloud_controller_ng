@@ -5,6 +5,7 @@ module VCAP::CloudController
   class Route < Sequel::Model
     class InvalidDomainRelation < VCAP::Errors::InvalidRelation; end
     class InvalidAppRelation < VCAP::Errors::InvalidRelation; end
+    class InvalidOrganizationRelation < VCAP::Errors::InvalidRelation; end
 
     many_to_one :domain
     many_to_one :space, after_set: :validate_changed_space
@@ -75,10 +76,6 @@ module VCAP::CloudController
         unless domain.wildcard
           errors.add(:host, :host_not_empty) unless (host.nil? || host.empty?)
         end
-
-        if space && space.domains_dataset.filter(:id => domain.id).count < 1
-          errors.add(:domain, :invalid_relation)
-        end
         validate_domain
       end
 
@@ -107,7 +104,7 @@ module VCAP::CloudController
 
     def validate_changed_space(new_space)
       apps.each{ |app| validate_app(app) }
-      domain && domain.addable_to_organization!(new_space.organization)
+      raise InvalidOrganizationRelation if domain && !domain.usable_by_organization?(new_space.organization)
     end
 
     def self.user_visibility_filter(user)
@@ -193,6 +190,10 @@ module VCAP::CloudController
 
       loaded_apps.each do |app|
         handle_remove_app(app)
+
+        if app.dea_update_pending?
+          Dea::Client.update_uris(app)
+        end
       end
     end
 
@@ -205,20 +206,41 @@ module VCAP::CloudController
     end
 
     def validate_domain
-      errors.add(:domain, :invalid_relation) if !valid_domain
+      res = valid_domain
+      $stderr.puts("QQQ: valid_domain #{domain.name}:#{res}")
+      errors.add(:domain, :invalid_relation) if !res
     end
 
     def valid_domain
+      $stderr.puts("\n\nQQQ: >> valid_domain #{domain.name}")
+      $stderr.puts("called from #{caller.join("\n    ")}")
+      $stderr.puts("QQQ: domain.nil?: #{domain.nil?}")
       return false if domain.nil?
 
       domain_change = column_change(:domain_id)
+      $stderr.puts("QQQ: domain_change: #{domain_change}")
+      $stderr.puts("QQQ: new?:#{new?}")
       return false if !new? && domain_change && domain_change[0] != domain_change[1]
 
+      $stderr.puts("QQQ: domain.shared?:#{domain.shared?}")
+      $stderr.puts("QQQ: host.present?:#{host.present?}")
+      $stderr.puts("QQQ: space: #{space}(#{space.class})")
+      if !space
+        usable_by_organization = false
+      else
+        $stderr.puts("QQQ: space.organization: #{space.organization}")
+        $stderr.puts("QQQ: space.organization.name: #{space.organization.name}")
+        $stderr.puts("QQQ: domain.usable_by_organization? at #{domain.method('usable_by_organization?'.to_sym).source_location}")
+        usable_by_organization = domain.usable_by_organization?(space.organization)
+        $stderr.puts("QQQ: domain.usable_by_organization?:#{usable_by_organization}")
+      end
       if (domain.shared? && !host.present?) ||
-          (space && !domain.usable_by_organization?(space.organization))
+          (space && !usable_by_organization)
+#          (space && !domain.usable_by_organization?(space.organization))
         return false
       end
 
+      $stderr.puts("QQQ: << true")
       true
     end
 

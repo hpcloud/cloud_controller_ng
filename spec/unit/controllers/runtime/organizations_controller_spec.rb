@@ -136,7 +136,7 @@ module VCAP::CloudController
           {
             spaces:                  [:get, :put, :delete],
             domains:                 [:get, :delete],
-            private_domains:         :get,
+            private_domains:         [:get, :put, :delete],
             users:                   [:get, :put, :delete],
             managers:                [:get, :put, :delete],
             billing_managers:        [:get, :put, :delete],
@@ -481,6 +481,35 @@ module VCAP::CloudController
         expect(last_response.status).to eql(400)
         expect(decoded_response['code']).to eq(30001)
         expect(decoded_response['description']).to include('Quota Definition could not be found')
+      end
+    end
+
+    describe 'DELETE /v2/organizations/:guid/private_domains/:domain_guid' do
+      context 'when PrivateDomain is owned by the organization' do
+        let(:organization) { Organization.make }
+        let(:private_domain) { PrivateDomain.make(owning_organization: organization) }
+
+        it 'fails' do
+          delete "/v2/organizations/#{organization.guid}/private_domains/#{private_domain.guid}", {}, admin_headers
+          expect(last_response.status).to eq(400)
+        end
+      end
+
+      context 'when PrivateDomain is shared' do
+        let(:space) { Space.make }
+        let(:private_domain) { PrivateDomain.make }
+
+        it 'removes associated routes' do
+          private_domain = PrivateDomain.make
+
+          space.organization.add_private_domain(private_domain)
+          Route.make(space: space, domain: private_domain)
+
+          delete "/v2/organizations/#{space.organization.guid}/private_domains/#{private_domain.guid}", {}, admin_headers
+          expect(last_response.status).to eq(201)
+
+          expect(private_domain.routes.count).to eq(0)
+        end
       end
     end
   end

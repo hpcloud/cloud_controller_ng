@@ -19,14 +19,22 @@ GIT
 
 GIT
   remote: git://github.com/cloudfoundry/cf-registrar.git
-  revision: 49850ee876652a59dbd2d73dad726b3b808bb8f9
-  ref: 49850ee876652a59dbd2d
+  revision: 20fdf4c15553eb90855300a81e276659c9dbd2f0
   specs:
-    cf-registrar (1.0.1)
-      cf-message-bus
+    cf-registrar (1.0.3)
+      cf-message-bus (~> 0.3.0)
       eventmachine (~> 1.0.0)
       steno
       vcap-concurrency
+
+GIT
+  remote: git://github.com/cloudfoundry/delayed_job_sequel.git
+  revision: ae606dd8dd72f3491ff5073da2276dc6fcdd204e
+  specs:
+    delayed_job_sequel (4.0.1)
+      delayed_job (~> 4.0.0)
+      sequel (>= 3.38, < 5.0)
+      tzinfo
 
 GIT
   remote: git://github.com/cloudfoundry/stager-client.git
@@ -396,11 +404,11 @@ DEPENDENCIES
   axiom-types (= 0.0.5)
   backports (= 3.6.3)
   bcrypt (= 3.1.7)
-  beefcake (~> 1.0.0)
+  beefcake (= 1.0.0)
   builder (= 3.0.0)
   celluloid (= 0.15.2)
   cf-message-bus (= 0.3.3)!
-  cf-registrar (= 1.0.1)!
+  cf-registrar (= 1.0.3)!
   cf-uaa-lib (= 3.1.0)!
   ci_reporter (= 1.9.0)
   clockwork (= 1.0.0)
@@ -415,6 +423,7 @@ DEPENDENCIES
   daemons (= 1.1.9)
   delayed_job (= 4.0.4)
   delayed_job_active_record (= 4.0.1)
+  delayed_job_sequel!
   descendants_tracker (= 0.0.3)
   diff-lcs (= 1.2.5)
   docile (= 1.1.1)
@@ -448,7 +457,7 @@ DEPENDENCIES
   json_pure (= 1.8.1)
   librrd (= 1.0.3)
   listen (= 2.3.1)
-  loggregator_emitter (~> 4.0.0)
+  loggregator_emitter (= 4.0.0)
   lumberjack (= 1.0.5)
   machinist (~> 1.0.6)
   membrane (= 1.0.0)

@@ -23,8 +23,8 @@ resource 'Apps (Experimental)', type: :api do
     parameter :guids, 'App guids to filter by', valid_values: 'array of strings', example_values: 'guid[]=guid1&guid[]=guid2'
     parameter :page, 'Page to display', valid_values: '>= 1'
     parameter :per_page, 'Number of results per page', valid_values: '1 - 5000'
-    parameter :sort, 'Value to sort by', valid_values: 'created_at, updated_at, id'
-    parameter :direction, 'Direction to sort by', valid_values: 'asc, desc'
+    parameter :order_by, 'Value to sort by', valid_values: 'created_at, updated_at'
+    parameter :order_direction, 'Direction to sort by', valid_values: 'asc, desc'
 
     let(:name1) { 'my_app1' }
     let(:name2) { 'my_app2' }
@@ -36,8 +36,8 @@ resource 'Apps (Experimental)', type: :api do
     let(:space) { VCAP::CloudController::Space.make }
     let(:page) { 1 }
     let(:per_page) { 2 }
-    let(:sort) { 'created_at' }
-    let(:direction) { 'desc' }
+    let(:order_by) { 'created_at' }
+    let(:order_direction) { 'desc' }
 
     before do
       space.organization.add_user user
@@ -48,9 +48,9 @@ resource 'Apps (Experimental)', type: :api do
       expected_response = {
         'pagination' => {
           'total_results' => 3,
-          'first'         => { 'href' => '/v3/apps?page=1&per_page=2' },
-          'last'          => { 'href' => '/v3/apps?page=2&per_page=2' },
-          'next'          => { 'href' => '/v3/apps?page=2&per_page=2' },
+          'first'         => { 'href' => "/v3/apps?order_by=#{order_by}&order_direction=#{order_direction}&page=1&per_page=2" },
+          'last'          => { 'href' => "/v3/apps?order_by=#{order_by}&order_direction=#{order_direction}&page=2&per_page=2" },
+          'next'          => { 'href' => "/v3/apps?order_by=#{order_by}&order_direction=#{order_direction}&page=2&per_page=2" },
           'previous'      => nil,
         },
         'resources'  => [
@@ -98,9 +98,9 @@ resource 'Apps (Experimental)', type: :api do
         user.save
         expected_pagination = {
           'total_results' => 3,
-          'first'         => { 'href' => "/v3/apps?names[]=#{name1}&#{space_guid_facets(space_guids)}&page=1&per_page=2" },
-          'last'          => { 'href' => "/v3/apps?names[]=#{name1}&#{space_guid_facets(space_guids)}&page=2&per_page=2" },
-          'next'          => { 'href' => "/v3/apps?names[]=#{name1}&#{space_guid_facets(space_guids)}&page=2&per_page=2" },
+          'first'         => { 'href' => "/v3/apps?names[]=#{name1}&#{space_guid_facets(space_guids)}&order_by=#{order_by}&order_direction=#{order_direction}&page=1&per_page=2" },
+          'last'          => { 'href' => "/v3/apps?names[]=#{name1}&#{space_guid_facets(space_guids)}&order_by=#{order_by}&order_direction=#{order_direction}&page=2&per_page=2" },
+          'next'          => { 'href' => "/v3/apps?names[]=#{name1}&#{space_guid_facets(space_guids)}&order_by=#{order_by}&order_direction=#{order_direction}&page=2&per_page=2" },
           'previous'      => nil,
         }
 
@@ -115,7 +115,8 @@ resource 'Apps (Experimental)', type: :api do
   end
 
   get '/v3/apps/:guid' do
-    let(:app_model) { VCAP::CloudController::AppModel.make(name: name) }
+    let(:desired_droplet_guid) { 'a-droplet-guid' }
+    let(:app_model) { VCAP::CloudController::AppModel.make(name: name, desired_droplet_guid: desired_droplet_guid) }
     let(:guid) { app_model.guid }
     let(:space_guid) { app_model.space_guid }
     let(:space) { VCAP::CloudController::Space.find(guid: space_guid) }
@@ -131,10 +132,11 @@ resource 'Apps (Experimental)', type: :api do
         'name'   => name,
         'guid'   => guid,
         '_links' => {
-          'self'      => { 'href' => "/v3/apps/#{guid}" },
-          'processes' => { 'href' => "/v3/apps/#{guid}/processes" },
-          'packages'  => { 'href' => "/v3/apps/#{guid}/packages" },
-          'space'     => { 'href' => "/v2/spaces/#{space_guid}" },
+          'self'            => { 'href' => "/v3/apps/#{guid}" },
+          'processes'       => { 'href' => "/v3/apps/#{guid}/processes" },
+          'packages'        => { 'href' => "/v3/apps/#{guid}/packages" },
+          'space'           => { 'href' => "/v2/spaces/#{space_guid}" },
+          'desired_droplet' => { 'href' => "/v3/droplets/#{desired_droplet_guid}" },
         }
       }
 
@@ -187,6 +189,7 @@ resource 'Apps (Experimental)', type: :api do
   patch '/v3/apps/:guid' do
     let(:space) { VCAP::CloudController::Space.make }
     let(:space_guid) { space.guid }
+    let(:droplet) { VCAP::CloudController::DropletModel.make(app_guid: guid) }
     let(:app_model) { VCAP::CloudController::AppModel.make(name: 'original_name', space_guid: space_guid) }
 
     before do
@@ -195,8 +198,10 @@ resource 'Apps (Experimental)', type: :api do
     end
 
     parameter :name, 'Name of the App'
+    parameter :desired_droplet_guid, 'GUID of the Droplet to be used for the App'
 
     let(:name) { 'new_name' }
+    let(:desired_droplet_guid) { droplet.guid }
     let(:guid) { app_model.guid }
 
     let(:raw_post) { MultiJson.dump(params, pretty: true) }
@@ -208,10 +213,11 @@ resource 'Apps (Experimental)', type: :api do
         'name'   => name,
         'guid'   => app_model.guid,
         '_links' => {
-          'self'      => { 'href' => "/v3/apps/#{app_model.guid}" },
-          'processes' => { 'href' => "/v3/apps/#{app_model.guid}/processes" },
-          'packages'  => { 'href' => "/v3/apps/#{app_model.guid}/packages" },
-          'space'     => { 'href' => "/v2/spaces/#{space_guid}" },
+          'self'            => { 'href' => "/v3/apps/#{app_model.guid}" },
+          'processes'       => { 'href' => "/v3/apps/#{app_model.guid}/processes" },
+          'packages'        => { 'href' => "/v3/apps/#{app_model.guid}/packages" },
+          'space'           => { 'href' => "/v2/spaces/#{space_guid}" },
+          'desired_droplet' => { 'href' => "/v3/droplets/#{desired_droplet_guid}" },
         }
       }
 
@@ -223,6 +229,9 @@ resource 'Apps (Experimental)', type: :api do
 
   delete '/v3/apps/:guid' do
     let!(:app_model) { VCAP::CloudController::AppModel.make }
+    let!(:package) { VCAP::CloudController::PackageModel.make(app_guid: guid) }
+    let!(:droplet) { VCAP::CloudController::DropletModel.make(package_guid: package.guid, app_guid: guid) }
+    let!(:process) { VCAP::CloudController::AppFactory.make(app_guid: guid, space_guid: space_guid) }
     let(:guid) { app_model.guid }
     let(:space_guid) { app_model.space_guid }
     let(:space) { VCAP::CloudController::Space.find(guid: space_guid) }
@@ -233,10 +242,12 @@ resource 'Apps (Experimental)', type: :api do
     end
 
     example 'Delete an App' do
-      expect {
-        do_request_with_error_handling
-      }.to change { VCAP::CloudController::AppModel.count }.by(-1)
+      do_request_with_error_handling
       expect(response_status).to eq(204)
+      expect { app_model.refresh }.to raise_error Sequel::Error, 'Record not found'
+      expect { package.refresh }.to raise_error Sequel::Error, 'Record not found'
+      expect { droplet.refresh }.to raise_error Sequel::Error, 'Record not found'
+      expect { process.refresh }.to raise_error Sequel::Error, 'Record not found'
     end
   end
 end

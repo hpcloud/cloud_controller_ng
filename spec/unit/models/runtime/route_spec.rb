@@ -41,8 +41,16 @@ module VCAP::CloudController
               expect { route.space = Space.make(organization: org) }.not_to raise_error
             end
 
-            it 'fails if in a different organization' do
-              expect { route.space = Space.make }.to raise_error(Domain::UnauthorizedAccessToPrivateDomain)
+            context 'with a different organization' do
+              it 'fails' do
+                expect { route.space = Space.make }.to raise_error(Route::InvalidOrganizationRelation)
+              end
+
+              it 'succeeds if the organization shares the domain' do
+                space = Space.make
+                domain.add_shared_organization(space.organization)
+                expect { route.space = space }.to_not raise_error
+              end
             end
           end
         end
@@ -367,13 +375,22 @@ module VCAP::CloudController
       end
     end
 
-    describe '#remove' do
-      it 'marks the apps routes as changed' do
-        app   = AppFactory.make
-        route = Route.make(app_guids: [app.guid], space: app.space)
-        app   = route.apps.first
+    describe '#destroy' do
+      it 'marks the apps routes as changed and sends an update to the dea' do
+        space = Space.make
+        app1   = AppFactory.make(space: space, state: 'STARTED', package_state: 'STAGED')
+        app2   = AppFactory.make(space: space, state: 'STARTED', package_state: 'STAGED')
 
-        expect(app).to receive(:handle_remove_route).and_call_original
+        route = Route.make(app_guids: [app1.guid, app2.guid], space: space)
+
+        app1   = route.apps[0]
+        app2   = route.apps[1]
+        expect(app1).to receive(:handle_remove_route).and_call_original
+        expect(app2).to receive(:handle_remove_route).and_call_original
+
+        expect(Dea::Client).to receive(:update_uris).with(app1)
+        expect(Dea::Client).to receive(:update_uris).with(app2)
+
         route.destroy
       end
     end

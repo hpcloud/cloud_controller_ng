@@ -9,7 +9,7 @@ module VCAP::CloudController
       to_one  :quota_definition, optional_in: :create
       to_many :spaces,           exclude_in: :create
       to_many :domains,          exclude_in: [:create, :update], route_for: [:get, :delete]
-      to_many :private_domains,  exclude_in: [:create, :update], route_for: :get
+      to_many :private_domains,  exclude_in: [:create, :update]
       to_many :users
       to_many :managers
       to_many :billing_managers

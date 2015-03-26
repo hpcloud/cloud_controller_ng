@@ -45,6 +45,9 @@ default_app_memory: 1024 #mb
 default_app_disk_in_mb: 1024
 maximum_app_disk_in_mb: 2048
 
+broker_client_default_async_poll_interval_seconds: 60
+broker_client_max_async_poll_attempts: 25
+
 info:
   name: "stackato"
   build: "2222"
@@ -241,10 +244,6 @@ uaa_client_scope: openid,cloud_controller_service_permissions.read
 
 cloud_controller_username_lookup_client_name: 'username_lookup_client_name'
 cloud_controller_username_lookup_client_secret: 'username_lookup_secret'
-
-diego:
- staging: optional # disabled|optional|required
- running: optional # disabled|optional|required
 
 diego_docker: false
 

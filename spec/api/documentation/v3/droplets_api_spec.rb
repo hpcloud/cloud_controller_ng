@@ -21,15 +21,18 @@ resource 'Droplets (Experimental)', type: :api do
     let(:space_guid) { space.guid }
     let(:guid) { droplet_model.guid }
 
-    let(:package_model) do
-      VCAP::CloudController::PackageModel.make(space_guid: space_guid)
-    end
+    let(:app_model) { VCAP::CloudController::AppModel.make(space_guid: space.guid) }
+    let(:package_model) { VCAP::CloudController::PackageModel.make(app_guid: app_model.guid) }
 
     let(:droplet_model) do
       VCAP::CloudController::DropletModel.make(
-        package_guid: package_model.guid, failure_reason: 'example failure reason',
+        app_guid: app_model.guid,
+        package_guid: package_model.guid,
+        failure_reason: 'example failure reason',
         detected_start_command: 'run -c all_the_things')
     end
+
+    let(:app_guid) { droplet_model.app_guid }
 
     before do
       space.organization.add_user user
@@ -48,6 +51,7 @@ resource 'Droplets (Experimental)', type: :api do
         '_links'                 => {
           'self'    => { 'href' => "/v3/droplets/#{guid}" },
           'package' => { 'href' => "/v3/packages/#{package_model.guid}" },
+          'app'     => { 'href' => "/v3/apps/#{app_guid}" },
         }
       }
 
@@ -64,12 +68,12 @@ resource 'Droplets (Experimental)', type: :api do
     let(:space_guid) { space.guid }
     let(:guid) { droplet_model.guid }
 
-    let(:package_model) do
-      VCAP::CloudController::PackageModel.make(space_guid: space_guid)
+    let(:app_model) do
+      VCAP::CloudController::AppModel.make(space_guid: space_guid)
     end
 
     let!(:droplet_model) do
-      VCAP::CloudController::DropletModel.make(package_guid: package_model.guid)
+      VCAP::CloudController::DropletModel.make(app_guid: app_model.guid)
     end
 
     before do
@@ -91,13 +95,24 @@ resource 'Droplets (Experimental)', type: :api do
     parameter :per_page, 'Number of results per page', valid_values: '1-5000'
     let(:space) { VCAP::CloudController::Space.make }
     let(:buildpack) { VCAP::CloudController::Buildpack.make }
+    let(:app_model) { VCAP::CloudController::AppModel.make(space_guid: space.guid) }
     let(:package) do
-      VCAP::CloudController::PackageModel.make(space_guid: space.guid, type: VCAP::CloudController::PackageModel::BITS_TYPE)
+      VCAP::CloudController::PackageModel.make(
+        app_guid: app_model.guid,
+        type: VCAP::CloudController::PackageModel::BITS_TYPE
+      )
     end
 
-    let!(:droplet1) { VCAP::CloudController::DropletModel.make(package_guid: package.guid, buildpack_guid: buildpack.guid) }
+    let!(:droplet1) do
+      VCAP::CloudController::DropletModel.make(
+        app_guid: app_model.guid,
+        package_guid: package.guid,
+        buildpack_guid: buildpack.guid
+      )
+    end
     let!(:droplet2) do
       VCAP::CloudController::DropletModel.make(
+        app_guid: app_model.guid,
         package_guid: package.guid,
         droplet_hash: 'my-hash',
         buildpack_git_url: 'https://github.com/cloudfoundry/my-buildpack.git',
@@ -137,6 +152,7 @@ resource 'Droplets (Experimental)', type: :api do
                 'self'      => { 'href' => "/v3/droplets/#{droplet1.guid}" },
                 'package'   => { 'href' => "/v3/packages/#{package.guid}" },
                 'buildpack' => { 'href' => "/v2/buildpacks/#{buildpack.guid}" },
+                'app'       => { 'href' => "/v3/apps/#{droplet1.app_guid}" },
               }
             },
             {
@@ -150,6 +166,7 @@ resource 'Droplets (Experimental)', type: :api do
               '_links'                 => {
                 'self'    => { 'href' => "/v3/droplets/#{droplet2.guid}" },
                 'package' => { 'href' => "/v3/packages/#{package.guid}" },
+                'app'     => { 'href' => "/v3/apps/#{droplet2.app_guid}" },
               }
             },
           ]

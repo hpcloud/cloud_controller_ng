@@ -48,7 +48,7 @@ module VCAP::CloudController
   end
 
   class AppUpdateMessage
-    attr_reader :guid, :name
+    attr_reader :guid, :name, :desired_droplet_guid
     attr_accessor :error
 
     def self.create_from_http_request(guid, body)
@@ -64,6 +64,7 @@ module VCAP::CloudController
     def initialize(opts)
       @guid = opts['guid']
       @name = opts['name']
+      @desired_droplet_guid = opts['desired_droplet_guid']
     end
   end
 
@@ -71,11 +72,14 @@ module VCAP::CloudController
     class Unauthorized < StandardError; end
     class DeleteWithProcesses < StandardError; end
     class DuplicateProcessType < StandardError; end
+    class DropletNotFound < StandardError; end
     class InvalidApp < StandardError; end
     class IncorrectProcessSpace < StandardError; end
     class IncorrectPackageSpace < StandardError; end
 
-    def initialize(processes_handler, paginator=SequelPaginator.new, apps_repository=AppsRepository.new)
+    def initialize(packages_handler, droplets_handler, processes_handler, paginator=SequelPaginator.new, apps_repository=AppsRepository.new)
+      @packages_handler = packages_handler
+      @droplets_handler = droplets_handler
       @processes_handler = processes_handler
       @paginator = paginator
       @apps_repository = apps_repository
@@ -115,6 +119,12 @@ module VCAP::CloudController
         app.lock!
 
         app.name = message.name unless message.name.nil?
+        if message.desired_droplet_guid
+          droplet = DropletModel.find(guid: message.desired_droplet_guid)
+          raise DropletNotFound if droplet.nil?
+          raise DropletNotFound if droplet.app_guid != app.guid
+          app.desired_droplet_guid = message.desired_droplet_guid
+        end
 
         raise Unauthorized if access_context.cannot?(:update, app)
 
@@ -128,21 +138,6 @@ module VCAP::CloudController
 
     rescue Sequel::ValidationFailed => e
       raise InvalidApp.new(e.message)
-    end
-
-    def delete(guid, access_context)
-      app = AppModel.find(guid: guid)
-      return nil if app.nil?
-
-      app.db.transaction do
-        app.lock!
-
-        raise Unauthorized if access_context.cannot?(:delete, app)
-        raise DeleteWithProcesses if app.processes.any?
-
-        app.destroy
-      end
-      true
     end
 
     def add_process(app, process, access_context)
@@ -159,17 +154,6 @@ module VCAP::CloudController
 
         app.add_process_by_guid(process.guid)
       end
-    end
-
-    def add_package(app, package, access_context)
-      raise Unauthorized if access_context.cannot?(:update, app)
-      raise IncorrectPackageSpace if app.space_guid != package.space_guid
-
-      app.db.transaction do
-        app.lock!
-        app.add_package_by_guid(package.guid)
-      end
-      package.reload
     end
 
     def update_web_process_name(process, name, access_context)

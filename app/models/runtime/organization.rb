@@ -17,10 +17,24 @@ module VCAP::CloudController
     one_to_many :app_events,
                 dataset: -> { VCAP::CloudController::AppEvent.filter(app: apps) }
 
-    one_to_many(
+    many_to_many(
       :private_domains,
+      class: 'VCAP::CloudController::PrivateDomain',
+      right_key: :private_domain_id,
+      dataset: proc { | r |
+        VCAP::CloudController::Domain.dataset.where(owning_organization_id: self.id).
+          or(id: db[r.join_table_source].select(r.qualified_right_key).where(r.predicate_key => self.id))
+      },
+      before_add: proc { |org, private_domain| private_domain.addable_to_organization?(org) },
+      before_remove: proc { |org, private_domain| !private_domain.owned_by?(org) },
+      after_remove: proc { |org, private_domain| private_domain.routes_dataset.filter(space: org.spaces_dataset).destroy }
+    )
+
+    one_to_many(
+      :owned_private_domains,
+      class: 'VCAP::CloudController::PrivateDomain',
+      read_only: true,
       key: :owning_organization_id,
-      before_add: proc { |org, private_domain| private_domain.addable_to_organization!(org) }
     )
 
     one_to_many :service_plan_visibilities
@@ -57,7 +71,8 @@ module VCAP::CloudController
     add_association_dependencies(
       spaces: :destroy,
       service_instances: :destroy,
-      private_domains: :destroy,
+      owned_private_domains: :destroy,
+      private_domains: :nullify,
       service_plan_visibilities: :destroy,
       space_quota_definitions: :destroy
     )

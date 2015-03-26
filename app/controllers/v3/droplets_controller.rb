@@ -1,5 +1,7 @@
 require 'presenters/v3/droplet_presenter'
 require 'handlers/droplets_handler'
+require 'queries/droplet_delete_fetcher'
+require 'actions/droplet_delete'
 
 module VCAP::CloudController
   class DropletsController < RestController::ModelController
@@ -32,11 +34,15 @@ module VCAP::CloudController
 
     delete '/v3/droplets/:guid', :delete
     def delete(guid)
-      droplet = @droplets_handler.delete(guid, @access_context)
-      droplet_not_found! if droplet.nil?
+      check_write_permissions!
+
+      droplet_delete_fetcher = DropletDeleteFetcher.new(current_user)
+      droplet_dataset        = droplet_delete_fetcher.fetch(guid)
+      droplet_not_found! if droplet_dataset.empty?
+
+      DropletDelete.new.delete(droplet_dataset)
+
       [HTTP::NO_CONTENT]
-    rescue DropletsHandler::Unauthorized
-      unauthorized!
     end
 
     private

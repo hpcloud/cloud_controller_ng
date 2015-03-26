@@ -226,6 +226,8 @@ flapping_crash_count_threshold: <%= p("cc.flapping_crash_count_threshold") %>
 disable_custom_buildpacks: <%= p("cc.disable_custom_buildpacks") %>
 
 broker_client_timeout_seconds: <%= p("cc.broker_client_timeout_seconds") %>
+broker_client_default_async_poll_interval_seconds: <%= p('cc.broker_client_default_async_poll_interval_seconds') %>
+broker_client_max_async_poll_attempts: <%= p('cc.broker_client_max_async_poll_attempts') %>
 
 renderer:
   max_results_per_page: <%= p("cc.renderer.max_results_per_page") %>
@@ -245,9 +247,6 @@ uaa_client_scope: <%= p("uaa.clients.cc-service-dashboards.scope") %>
 cloud_controller_username_lookup_client_name: "cloud_controller_username_lookup"
 cloud_controller_username_lookup_client_secret: <%= p("uaa.clients.cloud_controller_username_lookup.secret") %>
 
-diego:
-  staging: <%= p("cc.diego.staging") %>
-  running: <%= p("cc.diego.running") %>
 diego_docker: <%= p("cc.diego_docker") %>
 
 <% if_p("ssl.skip_cert_verify") do |skip_cert_verify|%>

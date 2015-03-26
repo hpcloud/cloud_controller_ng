@@ -1,6 +1,8 @@
 require 'presenters/v3/app_presenter'
 require 'handlers/apps_handler'
 require 'cloud_controller/paging/pagination_options'
+require 'queries/app_delete_fetcher'
+require 'actions/app_delete'
 
 module VCAP::CloudController
   class AppsV3Controller < RestController::BaseController
@@ -59,6 +61,8 @@ module VCAP::CloudController
       app_not_found! if app.nil?
 
       [HTTP::OK, @app_presenter.present_json(app)]
+    rescue AppsHandler::DropletNotFound
+      droplet_not_found!
     rescue AppsHandler::Unauthorized
       unauthorized!
     rescue AppsHandler::InvalidApp => e
@@ -67,14 +71,15 @@ module VCAP::CloudController
 
     delete '/v3/apps/:guid', :delete
     def delete(guid)
-      deleted = @app_handler.delete(guid, @access_context)
-      app_not_found! unless deleted
+      check_write_permissions!
+
+      app_delete_fetcher = AppDeleteFetcher.new(current_user)
+      app_dataset        = app_delete_fetcher.fetch(guid)
+      app_not_found! if app_dataset.empty?
+
+      AppDelete.new.delete(app_dataset, current_user, current_user_email)
 
       [HTTP::NO_CONTENT]
-    rescue AppsHandler::DeleteWithProcesses
-      unable_to_perform!('App deletion', 'Has child processes')
-    rescue AppsHandler::Unauthorized
-      app_not_found!
     end
 
     private
@@ -87,8 +92,8 @@ module VCAP::CloudController
         'space_guids' => ->(v) { v.is_a? Array },
         'page' => ->(v) { v.to_i > 0 },
         'per_page' => ->(v) { v.to_i > 0 },
-        'sort' => ->(v) { %w(created_at updated_at).include?(v) },
-        'direction' => ->(v) { %w(asc desc).include?(v) }
+        'order_by' => ->(v) { %w(created_at updated_at).include?(v) },
+        'order_direction' => ->(v) { %w(asc desc).include?(v) }
       }
       params.each do |key, value|
         validator = schema[key]
@@ -99,6 +104,10 @@ module VCAP::CloudController
 
     def unable_to_perform!(msg, details)
       raise VCAP::Errors::ApiError.new_from_details('UnableToPerform', msg, details)
+    end
+
+    def droplet_not_found!
+      raise VCAP::Errors::ApiError.new_from_details('ResourceNotFound', 'Droplet not found')
     end
 
     def app_not_found!

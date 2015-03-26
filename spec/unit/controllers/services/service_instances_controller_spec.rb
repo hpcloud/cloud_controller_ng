@@ -19,7 +19,8 @@ module VCAP::CloudController
           name: { type: 'string', required: true },
           space_guid: { type: 'string', required: true },
           service_plan_guid: { type: 'string', required: true },
-          service_binding_guids: { type: '[string]' }
+          service_binding_guids: { type: '[string]' },
+          parameters: { type: 'hash', default: nil },
         })
       end
 
@@ -28,7 +29,8 @@ module VCAP::CloudController
           name: { type: 'string' },
           space_guid: { type: 'string' },
           service_plan_guid: { type: 'string' },
-          service_binding_guids: { type: '[string]' }
+          service_binding_guids: { type: '[string]' },
+          parameters: { type: 'hash' },
         })
       end
     end
@@ -195,13 +197,13 @@ module VCAP::CloudController
         let(:plan) { ServicePlan.make(:v2, service: service) }
         let(:developer) { make_developer_for_space(space) }
         let(:response_body) do
-          MultiJson.dump(
+          {
             dashboard_url: 'the dashboard_url',
             last_operation: {
               state: 'in progress',
               description: '',
             },
-          )
+          }.to_json
         end
         let(:response_code) { 200 }
 
@@ -233,7 +235,73 @@ module VCAP::CloudController
           expect(last_operation['updated_at']).not_to be_nil
         end
 
+        context 'when the client provides arbitrary parameters' do
+          before do
+            create_managed_service_instance(
+              email: 'developer@example.com',
+              async: false,
+              parameters: parameters
+            )
+          end
+
+          context 'and the parameter is a JSON object' do
+            let(:parameters) do
+              { foo: 'bar', bar: 'baz' }
+            end
+
+            it 'should pass along the parameters to the service broker' do
+              expect(last_response).to have_status_code(201)
+              expect(a_request(:put, service_broker_url_regex).
+                  with(body: hash_including(parameters: parameters))).
+                to have_been_made.times(1)
+            end
+          end
+
+          context 'and the parameter is not a JSON object' do
+            let(:parameters) { 'foo' }
+
+            it 'should reject the request' do
+              expect(last_response).to have_status_code(400)
+              expect(a_request(:put, service_broker_url_regex).
+                  with(body: hash_including(parameters: parameters))).
+                to have_been_made.times(0)
+            end
+          end
+        end
+
         context 'when the client does not support asynchronous provisioning (no accepts_incomplete parameter)' do
+          let(:response_body) do
+            {
+              last_operation: {
+                state: 'succeeded',
+              }
+            }.to_json
+          end
+
+          it 'creates a service audit event for creating the service instance' do
+            instance = create_managed_service_instance(email: 'developer@example.com', async: false)
+
+            event = VCAP::CloudController::Event.first(type: 'audit.service_instance.create')
+            expect(event.type).to eq('audit.service_instance.create')
+            expect(event.actor_type).to eq('user')
+            expect(event.actor).to eq(developer.guid)
+            expect(event.actor_name).to eq('developer@example.com')
+            expect(event.timestamp).to be
+            expect(event.actee).to eq(instance.guid)
+            expect(event.actee_type).to eq('service_instance')
+            expect(event.actee_name).to eq(instance.name)
+            expect(event.space_guid).to eq(instance.space.guid)
+            expect(event.space_id).to eq(instance.space.id)
+            expect(event.organization_guid).to eq(instance.space.organization.guid)
+            expect(event.metadata).to include({
+              'request' => {
+                'name' => instance.name,
+                'service_plan_guid' => instance.service_plan_guid,
+                'space_guid' => instance.space_guid,
+              }
+            })
+          end
+
           it 'tells the service broker to provision a new service instance synchronously' do
             create_managed_service_instance(async: false)
 
@@ -261,6 +329,12 @@ module VCAP::CloudController
               expect(last_response).to have_status_code(400)
               expect(decoded_response['error_code']).to eq 'CF-AsyncRequired'
             end
+
+            it 'does not create an audit event' do
+              create_managed_service_instance
+              event = VCAP::CloudController::Event.first(type: 'audit.service_instance.create')
+              expect(event).to be_nil
+            end
           end
         end
 
@@ -271,6 +345,120 @@ module VCAP::CloudController
             expect(a_request(:put, service_broker_url_with_async)).to have_been_made.times(1)
             expect(a_request(:delete, service_broker_url)).to have_been_made.times(0)
           end
+
+          it 'does not create an audit event' do
+            create_managed_service_instance
+
+            event = VCAP::CloudController::Event.first(type: 'audit.service_instance.create')
+            expect(event).to be_nil
+          end
+
+          context 'and the broker specifies a custom polling interval' do
+            let(:response_body) do
+              {
+                dashboard_url: 'the dashboard_url',
+                last_operation: {
+                  state: 'in progress',
+                  description: '',
+                  async_poll_interval_seconds: polling_interval
+                }
+              }.to_json
+            end
+
+            before do
+              stub_request(:get, service_broker_url_regex).
+                with(headers: { 'Accept' => 'application/json' }).
+                to_return(status: 200, body: {
+                   last_operation: {
+                     state: 'succeeded'
+                   }
+                }.to_json)
+            end
+
+            context 'and the polling interval is within the default value and 24 hours' do
+              let(:polling_interval) { 300 }
+
+              it 'enqueues a fetch job to run at the custom polling interval' do
+                create_managed_service_instance
+
+                Timecop.freeze(Time.now + 290.seconds) do
+                  expect(Delayed::Worker.new.work_off).to eq([0, 0])
+                end
+
+                Timecop.freeze(Time.now + 301.seconds) do
+                  expect(Delayed::Worker.new.work_off).to eq([1, 0])
+                end
+              end
+            end
+
+            context 'and the polling interval is less than the default value' do
+              let(:polling_interval) { 0 }
+
+              it 'enqueues a fetch job to run at the default interval' do
+                create_managed_service_instance
+
+                expect(Delayed::Worker.new.work_off).to eq([0, 0])
+
+                Timecop.freeze(Time.now + 300.seconds) do
+                  expect(Delayed::Worker.new.work_off).to eq([1, 0])
+                end
+              end
+            end
+
+            context 'and the polling interval is greater than 24 hours' do
+              let(:polling_interval) { 5.days }
+
+              it 'enqueues a fetch job to run at the maximum interval (24 hours)' do
+                create_managed_service_instance
+
+                expect(Delayed::Worker.new.work_off).to eq([0, 0])
+
+                Timecop.freeze(Time.now + 24.hours + 1.second) do
+                  expect(Delayed::Worker.new.work_off).to eq([1, 0])
+                end
+              end
+            end
+          end
+
+          context 'and the worker processes the request successfully' do
+            before do
+              stub_request(:get, service_broker_url_regex).
+                with(headers: { 'Accept' => 'application/json' }).
+                to_return(status: 200, body: {
+                  last_operation: {
+                    state: 'succeeded'
+                  }
+                }.to_json)
+            end
+
+            it 'creates an audit event' do
+              instance = create_managed_service_instance(email: 'developer@example.com')
+
+              Delayed::Job.last.invoke_job
+              # succeeded, failed = Delayed::Worker.new.work_off
+              # expect([succeeded, failed]).to eq([1, 0])
+
+              event = VCAP::CloudController::Event.first(type: 'audit.service_instance.create')
+              expect(event.type).to eq('audit.service_instance.create')
+              expect(event.actor_type).to eq('user')
+              expect(event.actor).to eq(developer.guid)
+              expect(event.actor_name).to eq('developer@example.com')
+              expect(event.timestamp).to be
+              expect(event.actee).to eq(instance.guid)
+              expect(event.actee_type).to eq('service_instance')
+              expect(event.actee_name).to eq(instance.name)
+              expect(event.space_guid).to eq(instance.space.guid)
+              expect(event.space_id).to eq(instance.space.id)
+              expect(event.organization_guid).to eq(instance.space.organization.guid)
+              expect(event.metadata).to include({
+                'request' => {
+                  'name' => instance.name,
+                  'service_plan_guid' => instance.service_plan_guid,
+                  'space_guid' => instance.space_guid,
+                }
+              })
+            end
+          end
         end
 
         context 'when the client explicitly does not request asynchronous provisioning (accepts_incomplete=false)' do
@@ -280,30 +468,30 @@ module VCAP::CloudController
             expect(a_request(:put, service_broker_url)).to have_been_made.times(1)
             expect(a_request(:delete, service_broker_url)).to have_been_made.times(0)
           end
-        end
 
-        it 'creates a service audit event for creating the service instance' do
-          instance = create_managed_service_instance(email: 'developer@example.com')
+          it 'creates a service audit event for creating the service instance' do
+            instance = create_managed_service_instance(email: 'developer@example.com', async: 'false')
 
-          event = VCAP::CloudController::Event.first(type: 'audit.service_instance.create')
-          expect(event.type).to eq('audit.service_instance.create')
-          expect(event.actor_type).to eq('user')
-          expect(event.actor).to eq(developer.guid)
-          expect(event.actor_name).to eq('developer@example.com')
-          expect(event.timestamp).to be
-          expect(event.actee).to eq(instance.guid)
-          expect(event.actee_type).to eq('service_instance')
-          expect(event.actee_name).to eq(instance.name)
-          expect(event.space_guid).to eq(instance.space.guid)
-          expect(event.space_id).to eq(instance.space.id)
-          expect(event.organization_guid).to eq(instance.space.organization.guid)
-          expect(event.metadata).to include({
-            'request' => {
-              'name' => instance.name,
-              'service_plan_guid' => instance.service_plan_guid,
-              'space_guid' => instance.space_guid,
-            }
-          })
+            event = VCAP::CloudController::Event.first(type: 'audit.service_instance.create')
+            expect(event.type).to eq('audit.service_instance.create')
+            expect(event.actor_type).to eq('user')
+            expect(event.actor).to eq(developer.guid)
+            expect(event.actor_name).to eq('developer@example.com')
+            expect(event.timestamp).to be
+            expect(event.actee).to eq(instance.guid)
+            expect(event.actee_type).to eq('service_instance')
+            expect(event.actee_name).to eq(instance.name)
+            expect(event.space_guid).to eq(instance.space.guid)
+            expect(event.space_id).to eq(instance.space.id)
+            expect(event.organization_guid).to eq(instance.space.organization.guid)
+            expect(event.metadata).to include({
+              'request' => {
+                'name' => instance.name,
+                'service_plan_guid' => instance.service_plan_guid,
+                'space_guid' => instance.space_guid,
+              }
+            })
+          end
         end
 
         context 'the service broker says there is a conflict' do
@@ -561,7 +749,7 @@ module VCAP::CloudController
     end
 
     describe 'PUT', '/v2/service_instances/:service_instance_guid' do
-      let(:service_broker_url) { "http://auth_username:auth_password@example.com/v2/service_instances/#{service_instance.guid}/" }
+      let(:service_broker_url) { "http://auth_username:auth_password@example.com/v2/service_instances/#{service_instance.guid}" }
       let(:service_broker) { ServiceBroker.make(broker_url: 'http://example.com', auth_username: 'auth_username', auth_password: 'auth_password') }
       let(:service) { Service.make(plan_updateable: true, service_broker: service_broker) }
       let(:old_service_plan)  { ServicePlan.make(:v2, service: service) }
@@ -577,188 +765,532 @@ module VCAP::CloudController
       let(:status) { 200 }
       let(:response_body) { '{}' }
 
-      before do
-        stub_request(:patch, "#{service_broker_url}?accepts_incomplete=true").
-          to_return(status: status, body: response_body)
-      end
-
-      it 'creates a service audit event for updating the service instance' do
-        put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
-
-        event = VCAP::CloudController::Event.first(type: 'audit.service_instance.update')
-        expect(event.type).to eq('audit.service_instance.update')
-        expect(event.actor_type).to eq('user')
-        expect(event.actor).to eq(admin_user.guid)
-        expect(event.actor_name).to eq('admin@example.com')
-        expect(event.timestamp).to be
-        expect(event.actee).to eq(service_instance.guid)
-        expect(event.actee_type).to eq('service_instance')
-        expect(event.actee_name).to eq(service_instance.name)
-        expect(event.space_guid).to eq(service_instance.space.guid)
-        expect(event.space_id).to eq(service_instance.space.id)
-        expect(event.organization_guid).to eq(service_instance.space.organization.guid)
-        expect(event.metadata).to include({
-          'request' => {
-            'service_plan_guid' => new_service_plan.guid,
-          }
-        })
-      end
-
-      context 'when the service instance client returns a last_operation with state `in progress`' do
-        let(:status) { 202 }
-        let(:response_body) do
-          {
-            last_operation: {
-              state: 'in progress',
-              description: ''
-            }
-          }.to_json
+      context 'when the request is synchronous' do
+        before do
+          stub_request(:patch, "#{service_broker_url}").
+            to_return(status: status, body: response_body)
         end
 
-        it 'does not update the service plan in the database' do
-          put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+        it 'creates a service audit event for updating the service instance' do
+          put "/v2/service_instances/#{service_instance.guid}", body, headers_for(admin_user, email: 'admin@example.com')
 
-          expect(service_instance.reload.service_plan).to eq(old_service_plan)
+          event = VCAP::CloudController::Event.first(type: 'audit.service_instance.update')
+          expect(event.type).to eq('audit.service_instance.update')
+          expect(event.actor_type).to eq('user')
+          expect(event.actor).to eq(admin_user.guid)
+          expect(event.actor_name).to eq('admin@example.com')
+          expect(event.timestamp).to be
+          expect(event.actee).to eq(service_instance.guid)
+          expect(event.actee_type).to eq('service_instance')
+          expect(event.actee_name).to eq(service_instance.name)
+          expect(event.space_guid).to eq(service_instance.space.guid)
+          expect(event.space_id).to eq(service_instance.space.id)
+          expect(event.organization_guid).to eq(service_instance.space.organization.guid)
+          expect(event.metadata).to include({
+                'request' => {
+                  'service_plan_guid' => new_service_plan.guid,
+                }
+              })
         end
-      end
 
-      context 'when the service instance client returns a last_operation with state `succeeded`' do
-        it 'updates the service plan in the database' do
-          put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
-
-          expect(service_instance.reload.service_plan).to eq(new_service_plan)
-        end
-      end
-
-      describe 'error cases' do
-        context 'when the service instance has an operation in progress' do
-          let(:last_operation) { ServiceInstanceOperation.make(state: 'in progress') }
+        context 'when the request is a service instance rename' do
+          let(:status) { 200 }
+          let(:body) do
+            MultiJson.dump(
+              name: 'new-name'
+            )
+          end
+          let(:last_operation) { ServiceInstanceOperation.make(state: 'succeeded') }
           let(:service_instance) { ManagedServiceInstance.make(service_plan: old_service_plan) }
+
           before do
             service_instance.service_instance_operation = last_operation
             service_instance.save
           end
 
-          it 'should show an error message for update operation' do
+          it 'updates service instance name in the database' do
             put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
-            expect(last_response).to have_status_code 400
-            expect(last_response.body).to match 'ServiceInstanceOperationInProgress'
+
+            expect(service_instance.reload.name).to eq('new-name')
+          end
+
+          it 'updates operation status to succeeded in the database' do
+            put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
+
+            expect(service_instance.reload.last_operation.state).to eq('succeeded')
           end
         end
 
-        context 'when the broker did not declare support for plan upgrades' do
-          let(:old_service_plan) { ServicePlan.make(:v2) }
-
-          before { service.update(plan_updateable: false) }
-
-          it 'does not update the service plan in the database' do
-            put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
-            expect(service_instance.reload.service_plan).to eq(old_service_plan)
-          end
-
-          it 'does not make an api call when the plan does not support upgrades' do
-            put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
-            expect(a_request(:patch, service_broker_url)).to have_been_made.times(0)
-          end
-
-          it 'returns a useful error to the user' do
-            put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
-            expect(last_response.body).to match /The service does not support changing plans/
-          end
-        end
-
-        context 'when the user has read but not write permissions' do
-          let(:auditor) { User.make }
-
-          before do
-            service_instance.space.organization.add_auditor(auditor)
-          end
-
-          it 'does not call out to the service broker' do
-            put "/v2/service_instances/#{service_instance.guid}", body, headers_for(auditor)
-            expect(a_request(:patch, service_broker_url)).to have_been_made.times(0)
-          end
-        end
-
-        context 'when the requested plan does not exist' do
+        context 'when the request is to update the instance to the plan it already has' do
           let(:body) do
             MultiJson.dump(
-              service_plan_guid: 'some-non-existing-plan'
+              service_plan_guid: old_service_plan.guid
             )
           end
 
-          it 'returns an InvalidRelationError' do
-            put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
-            expect(last_response.status).to eq 400
-            expect(last_response.body).to match 'InvalidRelation'
-            expect(service_instance.reload.service_plan).to eq(old_service_plan)
+          it 'does not make a request to the broker' do
+            put "/v2/service_instances/#{service_instance.guid}", body, headers_for(admin_user, email: 'admin@example.com')
+
+            expect(a_request(:patch, /#{service_broker_url}/)).not_to have_been_made
+          end
+
+          it 'marks last_operation state as `succeeded`' do
+            put "/v2/service_instances/#{service_instance.guid}", body, headers_for(admin_user, email: 'admin@example.com')
+
+            expect(service_instance.last_operation.reload.state).to eq 'succeeded'
+            expect(service_instance.last_operation.reload.description).to be_nil
           end
         end
 
-        context 'when the broker client returns an error as its second return value' do
-          let(:response_body) { '{"description": "error message"}' }
+        describe 'error cases' do
+          context 'when the service instance has an operation in progress' do
+            let(:last_operation) { ServiceInstanceOperation.make(state: 'in progress') }
+            let(:service_instance) { ManagedServiceInstance.make(service_plan: old_service_plan) }
+            before do
+              service_instance.service_instance_operation = last_operation
+              service_instance.save
+            end
 
-          before do
-            stub_request(:patch, service_broker_url).
-              with(headers: { 'Accept' => 'application/json' }).
-              to_return(status: 500, body: response_body, headers: { 'Content-Type' => 'application/json' })
+            it 'should show an error message for update operation' do
+              put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
+              expect(last_response).to have_status_code 400
+              expect(last_response.body).to match 'ServiceInstanceOperationInProgress'
+            end
           end
 
-          it 'saves the attributes provided by the first return value' do
-            put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
+          context 'when the broker did not declare support for plan upgrades' do
+            let(:old_service_plan) { ServicePlan.make(:v2) }
 
-            expect(service_instance.last_operation.state).to eq 'failed'
-            expect(service_instance.last_operation.type).to eq 'update'
-            expect(service_instance.last_operation.description).to eq 'Service broker error: error message'
+            before { service.update(plan_updateable: false) }
+
+            it 'does not update the service plan in the database' do
+              put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
+              expect(service_instance.reload.service_plan).to eq(old_service_plan)
+            end
+
+            it 'does not make an api call when the plan does not support upgrades' do
+              put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
+              expect(a_request(:patch, service_broker_url)).to have_been_made.times(0)
+            end
+
+            it 'returns a useful error to the user' do
+              put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
+              expect(last_response.body).to match /The service does not support changing plans/
+            end
           end
 
-          it 're-raises the error' do
-            put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
+          context 'when the user has read but not write permissions' do
+            let(:auditor) { User.make }
 
-            expect(last_response).to have_status_code 502
+            before do
+              service_instance.space.organization.add_auditor(auditor)
+            end
+
+            it 'does not call out to the service broker' do
+              put "/v2/service_instances/#{service_instance.guid}", body, headers_for(auditor)
+              expect(a_request(:patch, service_broker_url)).to have_been_made.times(0)
+            end
+          end
+
+          context 'when the requested plan does not exist' do
+            let(:body) do
+              MultiJson.dump(
+                service_plan_guid: 'some-non-existing-plan'
+              )
+            end
+
+            it 'returns an InvalidRelationError' do
+              put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
+              expect(last_response.status).to eq 400
+              expect(last_response.body).to match 'InvalidRelation'
+              expect(service_instance.reload.service_plan).to eq(old_service_plan)
+            end
+          end
+
+          context 'when the broker client returns an error as its second return value' do
+            let(:response_body) { '{"description": "error message"}' }
+
+            before do
+              stub_request(:patch, service_broker_url).
+                with(headers: { 'Accept' => 'application/json' }).
+                to_return(status: 500, body: response_body, headers: { 'Content-Type' => 'application/json' })
+            end
+
+            it 'saves the attributes provided by the first return value' do
+              put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
+
+              expect(service_instance.last_operation.state).to eq 'failed'
+              expect(service_instance.last_operation.type).to eq 'update'
+              expect(service_instance.last_operation.description).to eq 'Service broker error: error message'
+            end
+
+            it 're-raises the error' do
+              put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
+
+              expect(last_response).to have_status_code 502
+            end
           end
         end
 
-        context 'when accepts_incomplete is not true or false strings' do
-          it 'fails with with InvalidRequest' do
-            put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=lol", body, admin_headers
+        describe 'the space_guid parameter' do
+          let(:org) { Organization.make }
+          let(:space) { Space.make(organization: org) }
+          let(:user) { make_developer_for_space(space) }
+          let(:instance) { ManagedServiceInstance.make(space: space) }
 
-            expect(a_request(:patch, service_broker_url)).to have_been_made.times(0)
-            expect(a_request(:delete, service_broker_url)).to have_been_made.times(0)
+          it 'prevents a developer from moving the service instance to a space for which he is also a space developer' do
+            space2 = Space.make(organization: org)
+            space2.add_developer(user)
+
+            move_req = MultiJson.dump(
+              space_guid: space2.guid,
+            )
+
+            put "/v2/service_instances/#{instance.guid}", move_req, json_headers(headers_for(user))
+
             expect(last_response.status).to eq(400)
+            expect(decoded_response['description']).to match /Cannot update space for service instance/
+          end
+
+          it 'succeeds when the space_guid does not change' do
+            req = MultiJson.dump(space_guid: instance.space.guid)
+            put "/v2/service_instances/#{instance.guid}", req, json_headers(headers_for(user))
+            expect(last_response).to have_status_code 201
+          end
+
+          it 'succeeds when the space_guid is not provided' do
+            put "/v2/service_instances/#{instance.guid}", {}.to_json, json_headers(headers_for(user))
+            expect(last_response).to have_status_code 201
           end
         end
       end
 
-      describe 'the space_guid parameter' do
-        let(:org) { Organization.make }
-        let(:space) { Space.make(organization: org) }
-        let(:user) { make_developer_for_space(space) }
-        let(:instance) { ManagedServiceInstance.make(space: space) }
-
-        it 'prevents a developer from moving the service instance to a space for which he is also a space developer' do
-          space2 = Space.make(organization: org)
-          space2.add_developer(user)
-
-          move_req = MultiJson.dump(
-            space_guid: space2.guid,
-          )
-
-          put "/v2/service_instances/#{instance.guid}", move_req, json_headers(headers_for(user))
-
-          expect(last_response.status).to eq(400)
-          expect(decoded_response['description']).to match /Cannot update space for service instance/
+      context 'when the request is asynchronous' do
+        before do
+          stub_request(:patch, "#{service_broker_url}?accepts_incomplete=true").
+            to_return(status: status, body: response_body)
         end
 
-        it 'succeeds when the space_guid does not change' do
-          req = MultiJson.dump(space_guid: instance.space.guid)
-          put "/v2/service_instances/#{instance.guid}", req, json_headers(headers_for(user))
-          expect(last_response).to have_status_code 201
+        it 'creates a service audit event for updating the service instance' do
+          put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
+
+          event = VCAP::CloudController::Event.first(type: 'audit.service_instance.update')
+          expect(event.type).to eq('audit.service_instance.update')
+          expect(event.actor_type).to eq('user')
+          expect(event.actor).to eq(admin_user.guid)
+          expect(event.actor_name).to eq('admin@example.com')
+          expect(event.timestamp).to be
+          expect(event.actee).to eq(service_instance.guid)
+          expect(event.actee_type).to eq('service_instance')
+          expect(event.actee_name).to eq(service_instance.name)
+          expect(event.space_guid).to eq(service_instance.space.guid)
+          expect(event.space_id).to eq(service_instance.space.id)
+          expect(event.organization_guid).to eq(service_instance.space.organization.guid)
+          expect(event.metadata).to include({
+                'request' => {
+                  'service_plan_guid' => new_service_plan.guid,
+                }
+              })
         end
 
-        it 'succeeds when the space_guid is not provided' do
-          put "/v2/service_instances/#{instance.guid}", {}.to_json, json_headers(headers_for(user))
-          expect(last_response).to have_status_code 201
+        context 'when the service instance client returns a last_operation with state `in progress`' do
+          let(:status) { 202 }
+          let(:response_body) do
+            {
+              last_operation: {
+                state: 'in progress',
+                description: ''
+              }
+            }.to_json
+          end
+
+          it 'does not update the service plan in the database' do
+            put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+
+            expect(service_instance.reload.service_plan).to eq(old_service_plan)
+          end
+
+          it 'does not create an audit event' do
+            put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
+
+            event = VCAP::CloudController::Event.first(type: 'audit.service_instance.update')
+            expect(event).to be_nil
+          end
+
+          context 'when the broker returns 410 for a service instance fetch request' do
+            before do
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
+
+              stub_request(:get, service_broker_url).
+                to_return(status: 410, body: {}.to_json)
+            end
+
+            it 'updates the service instance operation to indicate it has failed' do
+              Timecop.freeze(Time.now + 5.minutes) do
+                expect(Delayed::Worker.new.work_off).to eq([1, 0])
+              end
+
+              service_instance.reload
+              expect(service_instance.last_operation.state).to eq('failed')
+            end
+          end
+
+          context 'when the broker successfully updates the service instance for a service instance fetch request' do
+            before do
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
+
+              stub_request(:get, service_broker_url).
+                to_return(status: 200, body: {
+                    last_operation: {
+                      state: 'succeeded',
+                      description: 'Phew, all done'
+                    }
+                  }.to_json)
+            end
+
+            it 'creates a service audit event for updating the service instance' do
+              Timecop.freeze(Time.now + 5.minutes) do
+                expect(Delayed::Worker.new.work_off).to eq([1, 0])
+              end
+
+              event = VCAP::CloudController::Event.first(type: 'audit.service_instance.update')
+              expect(event.type).to eq('audit.service_instance.update')
+              expect(event.actor_type).to eq('user')
+              expect(event.actor).to eq(admin_user.guid)
+              expect(event.actor_name).to eq('admin@example.com')
+              expect(event.timestamp).to be
+              expect(event.actee).to eq(service_instance.guid)
+              expect(event.actee_type).to eq('service_instance')
+              expect(event.actee_name).to eq(service_instance.name)
+              expect(event.space_guid).to eq(service_instance.space.guid)
+              expect(event.space_id).to eq(service_instance.space.id)
+              expect(event.organization_guid).to eq(service_instance.space.organization.guid)
+              expect(event.metadata).to include({
+                    'request' => {
+                      'service_plan_guid' => new_service_plan.guid,
+                    }
+                  })
+            end
+          end
+
+          context 'when the request is to update the instance to the plan it already has' do
+            let(:body) do
+              MultiJson.dump(
+                service_plan_guid: old_service_plan.guid
+              )
+            end
+
+            it 'does not make a request to the broker' do
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
+
+              expect(a_request(:patch, /#{service_broker_url}/)).not_to have_been_made
+            end
+
+            it 'marks last_operation state as `succeeded`' do
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
+
+              expect(service_instance.last_operation.reload.state).to eq 'succeeded'
+              expect(service_instance.last_operation.reload.description).to be_nil
+            end
+          end
+        end
+
+        context 'when the service instance client returns a last_operation with state `succeeded`' do
+          let(:response_body) do
+            {
+              last_operation: {
+                state: 'succeeded',
+                description: 'some description'
+              }
+            }.to_json
+          end
+
+          it 'updates the service plan in the database' do
+            put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+
+            expect(service_instance.reload.service_plan).to eq(new_service_plan)
+          end
+        end
+
+        context 'when the request is a service instance rename' do
+          let(:status) { 200 }
+          let(:body) do
+            MultiJson.dump(
+              name: 'new-name'
+            )
+          end
+          let(:last_operation) { ServiceInstanceOperation.make(state: 'succeeded') }
+          let(:service_instance) { ManagedServiceInstance.make(service_plan: old_service_plan) }
+
+          before do
+            service_instance.service_instance_operation = last_operation
+            service_instance.save
+          end
+
+          it 'updates service instance name in the database' do
+            put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+
+            expect(service_instance.reload.name).to eq('new-name')
+          end
+
+          it 'updates operation status to succeeded in the database' do
+            put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+
+            expect(service_instance.reload.last_operation.state).to eq('succeeded')
+          end
+        end
+
+        context 'when the request is to update the instance to the plan it already has' do
+          let(:body) do
+            MultiJson.dump(
+              service_plan_guid: old_service_plan.guid
+            )
+          end
+
+          it 'does not make a request to the broker' do
+            put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
+
+            expect(a_request(:patch, /#{service_broker_url}/)).not_to have_been_made
+          end
+
+          it 'marks last_operation state as `succeeded`' do
+            put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
+
+            expect(service_instance.last_operation.reload.state).to eq 'succeeded'
+            expect(service_instance.last_operation.reload.description).to be_nil
+          end
+        end
+
+        describe 'error cases' do
+          context 'when the service instance has an operation in progress' do
+            let(:last_operation) { ServiceInstanceOperation.make(state: 'in progress') }
+            let(:service_instance) { ManagedServiceInstance.make(service_plan: old_service_plan) }
+            before do
+              service_instance.service_instance_operation = last_operation
+              service_instance.save
+            end
+
+            it 'should show an error message for update operation' do
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+              expect(last_response).to have_status_code 400
+              expect(last_response.body).to match 'ServiceInstanceOperationInProgress'
+            end
+          end
+
+          context 'when the broker did not declare support for plan upgrades' do
+            let(:old_service_plan) { ServicePlan.make(:v2) }
+
+            before { service.update(plan_updateable: false) }
+
+            it 'does not update the service plan in the database' do
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+              expect(service_instance.reload.service_plan).to eq(old_service_plan)
+            end
+
+            it 'does not make an api call when the plan does not support upgrades' do
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+              expect(a_request(:patch, service_broker_url)).to have_been_made.times(0)
+            end
+
+            it 'returns a useful error to the user' do
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+              expect(last_response.body).to match /The service does not support changing plans/
+            end
+          end
+
+          context 'when the user has read but not write permissions' do
+            let(:auditor) { User.make }
+
+            before do
+              service_instance.space.organization.add_auditor(auditor)
+            end
+
+            it 'does not call out to the service broker' do
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(auditor)
+              expect(a_request(:patch, service_broker_url)).to have_been_made.times(0)
+            end
+          end
+
+          context 'when the requested plan does not exist' do
+            let(:body) do
+              MultiJson.dump(
+                service_plan_guid: 'some-non-existing-plan'
+              )
+            end
+
+            it 'returns an InvalidRelationError' do
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+              expect(last_response.status).to eq 400
+              expect(last_response.body).to match 'InvalidRelation'
+              expect(service_instance.reload.service_plan).to eq(old_service_plan)
+            end
+          end
+
+          context 'when the broker client returns an error as its second return value' do
+            let(:response_body) { '{"description": "error message"}' }
+
+            before do
+              stub_request(:patch,  "#{service_broker_url}?accepts_incomplete=true").
+                with(headers: { 'Accept' => 'application/json' }).
+                to_return(status: 500, body: response_body, headers: { 'Content-Type' => 'application/json' })
+            end
+
+            it 'saves the attributes provided by the first return value' do
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+
+              expect(service_instance.last_operation.state).to eq 'failed'
+              expect(service_instance.last_operation.type).to eq 'update'
+              expect(service_instance.last_operation.description).to eq 'Service broker error: error message'
+            end
+
+            it 're-raises the error' do
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+
+              expect(last_response).to have_status_code 502
+            end
+          end
+        end
+
+        describe 'the space_guid parameter' do
+          let(:org) { Organization.make }
+          let(:space) { Space.make(organization: org) }
+          let(:user) { make_developer_for_space(space) }
+          let(:instance) { ManagedServiceInstance.make(space: space) }
+
+          it 'prevents a developer from moving the service instance to a space for which he is also a space developer' do
+            space2 = Space.make(organization: org)
+            space2.add_developer(user)
+
+            move_req = MultiJson.dump(
+              space_guid: space2.guid,
+            )
+
+            put "/v2/service_instances/#{instance.guid}?accepts_incomplete=true", move_req, json_headers(headers_for(user))
+
+            expect(last_response.status).to eq(400)
+            expect(decoded_response['description']).to match /Cannot update space for service instance/
+          end
+
+          it 'succeeds when the space_guid does not change' do
+            req = MultiJson.dump(space_guid: instance.space.guid)
+            put "/v2/service_instances/#{instance.guid}?accepts_incomplete=true", req, json_headers(headers_for(user))
+            expect(last_response).to have_status_code 201
+          end
+
+          it 'succeeds when the space_guid is not provided' do
+            put "/v2/service_instances/#{instance.guid}?accepts_incomplete=true", {}.to_json, json_headers(headers_for(user))
+            expect(last_response).to have_status_code 201
+          end
+        end
+      end
+
+      context 'when accepts_incomplete is not true or false strings' do
+        it 'fails with with InvalidRequest' do
+          put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=lol", body, admin_headers
+
+          expect(a_request(:patch, service_broker_url)).to have_been_made.times(0)
+          expect(a_request(:delete, service_broker_url)).to have_been_made.times(0)
+          expect(last_response).to have_status_code(400)
         end
       end
     end
@@ -840,7 +1372,7 @@ module VCAP::CloudController
         let(:body) { '{}' }
         let(:status) { 200 }
 
-        before do
+        let(:uri) do
           guid = service_instance.guid
           plan_id = service_plan.unique_id
           service_id = service.unique_id
@@ -848,6 +1380,10 @@ module VCAP::CloudController
           uri = URI(service.service_broker.broker_url + path)
           uri.user = service.service_broker.auth_username
           uri.password = service.service_broker.auth_password
+          uri
+        end
+
+        before do
           stub_request(:delete, uri.to_s).to_return(body: body, status: status)
         end
 
@@ -861,6 +1397,8 @@ module VCAP::CloudController
 
         it 'creates a service audit event for deleting the service instance' do
           delete "/v2/service_instances/#{service_instance.guid}", {}, headers_for(admin_user, email: 'admin@example.com')
+
+          expect(last_response).to have_status_code 204
 
           event = VCAP::CloudController::Event.first(type: 'audit.service_instance.delete')
           expect(event.type).to eq('audit.service_instance.delete')
@@ -877,7 +1415,18 @@ module VCAP::CloudController
           expect(event.metadata).to eq({ 'request' => {} })
         end
 
-        context 'with ?accepts_incomplete=to_return' do
+        context 'with ?accepts_incomplete=true' do
+          let(:uri) do
+            guid = service_instance.guid
+            plan_id = service_plan.unique_id
+            service_id = service.unique_id
+            path = "/v2/service_instances/#{guid}?plan_id=#{plan_id}&service_id=#{service_id}&accepts_incomplete=true"
+            uri = URI(service.service_broker.broker_url + path)
+            uri.user = service.service_broker.auth_username
+            uri.password = service.service_broker.auth_password
+            uri
+          end
+
           context 'when the broker returns state `in progress`' do
             let(:status) { 202 }
             let(:body) do
@@ -889,8 +1438,37 @@ module VCAP::CloudController
               }.to_json
             end
 
+            it 'should not create a delete event' do
+              delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
+
+              expect(Event.find(type: 'audit.service_instance.delete')).to be_nil
+            end
+
+            it 'should create a delete event after the polling finishes' do
+              delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
+
+              broker = service_instance.service_plan.service.service_broker
+              broker_uri = URI.parse(broker.broker_url)
+              broker_uri.user = broker.auth_username
+              broker_uri.password = broker.auth_password
+              stub_request(:get, "#{broker_uri}/v2/service_instances/#{service_instance.guid}").
+                to_return(status: 200, body: {
+                  last_operation: {
+                    state: 'succeeded',
+                    description: 'Done!'
+                  }
+                }.to_json)
+
+              Timecop.freeze Time.now + 2.minute do
+                expect(Delayed::Worker.new.work_off).to eq [1, 0]
+                expect(Event.find(type: 'audit.service_instance.delete')).to be
+              end
+            end
+
             it 'indicates the service instance is being deleted' do
               delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
+
+              expect(last_response).to have_status_code 202
 
               expect(ManagedServiceInstance.last.last_operation.type).to eq('delete')
               expect(ManagedServiceInstance.last.last_operation.state).to eq('in progress')
@@ -900,25 +1478,56 @@ module VCAP::CloudController
               expect(decoded_response['entity']['last_operation']['type']).to eq('delete')
               expect(decoded_response['entity']['last_operation']['state']).to eq('in progress')
               expect(decoded_response['entity']['last_operation']['description']).to eq('fake-description')
+            end
 
-              expect(VCAP::CloudController::Event.first(type: 'audit.service_instance.delete')).to be
+            it 'enqueues a polling job to fetch state from the broker' do
+              delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
+
+              broker = service_instance.service_plan.service.service_broker
+              broker_uri = URI.parse(broker.broker_url)
+              broker_uri.user = broker.auth_username
+              broker_uri.password = broker.auth_password
+              stub_request(:get, "#{broker_uri}/v2/service_instances/#{service_instance.guid}").
+                to_return(status: 200, body: {
+                  last_operation: {
+                    state: 'in progress',
+                    description: 'Yep, still working'
+                  }
+                }.to_json)
+
+              expect(last_response).to have_status_code 202
+              Timecop.freeze Time.now + 30.minutes do
+                expect(Delayed::Worker.new.work_off).to eq [1, 0]
+              end
             end
           end
 
-          context 'when the broker returns 200 and state `succeded`' do
+          context 'when the broker returns 200 and state `succeeded`' do
             let(:status) { 200 }
             let(:body) do
               {
-                state: 'succeded',
+                last_operation: {
+                  state: 'succeeded',
+                }
               }.to_json
             end
 
-            it 'indicates the service instance is being deleted' do
+            it 'remove the service instance' do
+              service_instance_guid = service_instance.guid
               delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
 
-              expect(last_response.status).to eq(200)
+              expect(last_response).to have_status_code(204)
+              expect(ManagedServiceInstance.find(guid: service_instance_guid)).to be_nil
+            end
 
-              expect(VCAP::CloudController::Event.first(type: 'audit.service_instance.delete')).to be
+            context 'and with ?async=true' do
+              it 'gives accepts_incomplete precedence and deletes the instance synchronously', isolation: :truncation do
+                service_instance_guid = service_instance.guid
+                delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true&async=true", {}, headers_for(admin_user, email: 'admin@example.com')
+
+                expect(last_response).to have_status_code(204)
+                expect(ManagedServiceInstance.find(guid: service_instance_guid)).to be_nil
+              end
             end
           end
 
@@ -967,7 +1576,7 @@ module VCAP::CloudController
             it 'it fails the initial delete with description included in the error message' do
               delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
 
-              response_description = "The service broker API timed out: #{service.service_broker.broker_url}/v2/service_instances/#{service_instance.guid}"
+              response_description = "The request to the service broker timed out: #{service.service_broker.broker_url}/v2/service_instances/#{service_instance.guid}"
               expect(decoded_response['description']).to eq(response_description)
             end
           end
@@ -1007,13 +1616,28 @@ module VCAP::CloudController
               expect(decoded_response['error_code']).to eq('CF-ServiceBrokerResponseMalformed')
             end
           end
+
+          context 'when the broker returns a 200 with empty json' do
+            let(:status) { 200 }
+            let(:body) do
+              {}.to_json
+            end
+
+            it 'remove the service instance' do
+              service_instance_guid = service_instance.guid
+              delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
+
+              expect(last_response).to have_status_code(204)
+              expect(ManagedServiceInstance.find(guid: service_instance_guid)).to be_nil
+            end
+          end
         end
 
-        context 'with ?async=true' do
+        context 'with ?async=true & accepts_incomplete=false' do
           it 'returns a job id' do
             require 'support/stackato_yaml_override'
             delete "/v2/service_instances/#{service_instance.guid}?async=true", {}, admin_headers
-            expect(last_response.status).to eq 202
+            expect(last_response).to have_status_code 202
             expect(decoded_response['entity']['guid']).to be
             expect(decoded_response['entity']['status']).to eq 'queued'
 
@@ -1021,6 +1645,23 @@ module VCAP::CloudController
             expect(successes).to eq 1
             expect(failures).to eq 0
             expect(ServiceInstance.find(guid: service_instance.guid)).to be_nil
+          end
+
+          context 'when the service broker returns 500' do
+            let(:status) { 500 }
+
+            it 'does not delete the service instance, but indicates the last operation state as failed' do
+              service_instance_guid = service_instance.guid
+              delete "/v2/service_instances/#{service_instance.guid}?async=true", {}, admin_headers
+
+              successes, failures = Delayed::Worker.new.work_off
+              expect(successes + failures).to eq 1
+
+              service_instance = ServiceInstance.find(guid: service_instance_guid)
+              expect(service_instance).to be
+              expect(service_instance.last_operation.type).to eq 'delete'
+              expect(service_instance.last_operation.state).to eq 'failed'
+            end
           end
         end
 
@@ -1295,14 +1936,17 @@ module VCAP::CloudController
     end
 
     def create_managed_service_instance(user_opts={})
-      req = MultiJson.dump(
-        name: 'foo',
-        space_guid: space.guid,
-        service_plan_guid: plan.guid
-      )
-
+      arbitrary_params = user_opts.delete(:parameters)
       use_async = user_opts.delete(:async) { |_| 'true' }
       headers = json_headers(headers_for(developer, user_opts))
+
+      body = {
+        name: 'foo',
+        space_guid: space.guid,
+        service_plan_guid: plan.guid,
+      }
+      body[:parameters] = arbitrary_params if arbitrary_params
+      req = MultiJson.dump(body)
 
       if use_async
         post "/v2/service_instances?accepts_incomplete=#{use_async}", req, headers
