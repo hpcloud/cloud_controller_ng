@@ -867,7 +867,7 @@ module VCAP::CloudController
       end
 
       context 'when not using with nginx' do
-        before { TestConfig.override(staging_config.merge(nginx: { use_nginx: false })) }
+        before { TestConfig.override(staging_config.merge(nginx: { use_nginx: false }, stackato_upload_handler:{enabled: false})) }
 
         it 'succeeds for valid droplets' do
           encoded_expected_body = Base64.encode64(upload_droplet)
