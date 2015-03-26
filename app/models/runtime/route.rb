@@ -150,7 +150,11 @@ module VCAP::CloudController
       return if client_secret.nil?
       self.class.db.transaction do
         self.client_secret = nil
-        save
+        # Test spec/unit/controllers/runtime/organizations_controller_spec.rb
+        # 'when PrivateDomain is shared' failed when we merged in v201.
+        # The route is in a partial state right now -- and we don't care if
+        # it's not valid because we're in the middle of deleting it.
+        save(:raise_on_failure => false)
         begin 
           scim_api.delete :client, client_id
         rescue Exception => e
@@ -207,40 +211,20 @@ module VCAP::CloudController
 
     def validate_domain
       res = valid_domain
-      $stderr.puts("QQQ: valid_domain #{domain.name}:#{res}")
       errors.add(:domain, :invalid_relation) if !res
     end
 
     def valid_domain
-      $stderr.puts("\n\nQQQ: >> valid_domain #{domain.name}")
-      $stderr.puts("called from #{caller.join("\n    ")}")
-      $stderr.puts("QQQ: domain.nil?: #{domain.nil?}")
       return false if domain.nil?
 
       domain_change = column_change(:domain_id)
-      $stderr.puts("QQQ: domain_change: #{domain_change}")
-      $stderr.puts("QQQ: new?:#{new?}")
       return false if !new? && domain_change && domain_change[0] != domain_change[1]
 
-      $stderr.puts("QQQ: domain.shared?:#{domain.shared?}")
-      $stderr.puts("QQQ: host.present?:#{host.present?}")
-      $stderr.puts("QQQ: space: #{space}(#{space.class})")
-      if !space
-        usable_by_organization = false
-      else
-        $stderr.puts("QQQ: space.organization: #{space.organization}")
-        $stderr.puts("QQQ: space.organization.name: #{space.organization.name}")
-        $stderr.puts("QQQ: domain.usable_by_organization? at #{domain.method('usable_by_organization?'.to_sym).source_location}")
-        usable_by_organization = domain.usable_by_organization?(space.organization)
-        $stderr.puts("QQQ: domain.usable_by_organization?:#{usable_by_organization}")
-      end
       if (domain.shared? && !host.present?) ||
-          (space && !usable_by_organization)
-#          (space && !domain.usable_by_organization?(space.organization))
+          (space && !domain.usable_by_organization?(space.organization))
         return false
       end
 
-      $stderr.puts("QQQ: << true")
       true
     end
 
