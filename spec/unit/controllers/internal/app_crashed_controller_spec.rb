@@ -111,7 +111,11 @@ module VCAP::CloudController
     end
 
     context 'when the app does no longer exist' do
-      before { diego_app.delete }
+      before {
+        #XXX STILL figure out why deleting an app doesn't delete the versions.
+        AppVersion.where(:app_id => diego_app.id).delete
+        diego_app.delete
+      }
 
       it 'fails with a 404' do
         post url, MultiJson.dump(crashed_request)
