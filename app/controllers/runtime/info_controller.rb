@@ -19,13 +19,15 @@ module VCAP::CloudController
         description: @config[:info][:description],
         authorization_endpoint: @config[:login] ? @config[:login][:url] : @config[:uaa][:url],
         token_endpoint: config[:uaa][:url],
-        api_version: VCAP::CloudController::Constants::API_VERSION,
         vendor_version: StackatoVendorConfig.vendor_version,
         stackato: {
             license_accepted: StackatoLicenseHelper.get_license_accepted(license),
             zero_downtime: true,
-            UUID: STACKATO_UUID
-        }
+            UUID: STACKATO_UUID,
+        },
+        min_cli_version: @config[:info][:min_cli_version],
+        min_recommended_cli_version: @config[:info][:min_recommended_cli_version],
+        api_version: VCAP::CloudController::Constants::API_VERSION
       }
 
       if @config[:loggregator] && @config[:loggregator][:url]

@@ -89,7 +89,13 @@ module VCAP::CloudController
       )
       service_instance = provisioner.create_service_instance(@request_attrs, params)
 
-      [HTTP::CREATED,
+      if params['accepts_incomplete'] == 'true'
+        state = HTTP::ACCEPTED
+      else
+        state = HTTP::CREATED
+      end
+
+      [state,
        { 'Location' => "#{self.class.path}/#{service_instance.guid}" },
        object_renderer.render_json(self.class, service_instance, @opts)
       ]
@@ -113,7 +119,13 @@ module VCAP::CloudController
       updater = ServiceInstanceUpdater.new(@services_event_repository, self, logger, @access_context)
       updater.update_service_instance(service_instance, @request_attrs, params)
 
-      [HTTP::CREATED, {}, object_renderer.render_json(self.class, service_instance, @opts)]
+      if params['accepts_incomplete'] == 'true'
+        state = HTTP::ACCEPTED
+      else
+        state = HTTP::CREATED
+      end
+
+      [state, {}, object_renderer.render_json(self.class, service_instance, @opts)]
     rescue ServiceInstanceUpdater::InvalidRequest
       raise Errors::ApiError.new_from_details('InvalidRequest')
     rescue ServiceInstanceUpdater::ServicePlanNotUpdatable

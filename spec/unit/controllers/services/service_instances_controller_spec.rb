@@ -222,7 +222,7 @@ module VCAP::CloudController
         end
 
         it 'provisions a service instance' do
-          instance = create_managed_service_instance
+          instance = create_managed_service_instance(async: 'false')
 
           expect(last_response.status).to eq(201)
 
@@ -233,6 +233,17 @@ module VCAP::CloudController
           expect(last_operation['description']).to eq ''
           expect(last_operation['type']).to eq 'create'
           expect(last_operation['updated_at']).not_to be_nil
+        end
+
+        it 'creates a CREATED service usage event' do
+          instance = nil
+          expect {
+            instance = create_managed_service_instance(async: 'false')
+          }.to change { ServiceUsageEvent.count }.by(1)
+
+          event = ServiceUsageEvent.last
+          expect(event.state).to eq(Repositories::Services::ServiceUsageEventRepository::CREATED_EVENT_STATE)
+          expect(event).to match_service_instance(instance)
         end
 
         context 'when the client provides arbitrary parameters' do
@@ -351,6 +362,13 @@ module VCAP::CloudController
 
             event = VCAP::CloudController::Event.first(type: 'audit.service_instance.create')
             expect(event).to be_nil
+          end
+
+          it 'returns a 202 with the last operation state as in progress' do
+            service_instance = create_managed_service_instance
+
+            expect(last_response).to have_status_code(202)
+            expect(service_instance.last_operation.state).to eq('in progress')
           end
 
           context 'and the broker specifies a custom polling interval' do
@@ -509,17 +527,6 @@ module VCAP::CloudController
           end
         end
 
-        it 'creates a CREATED service usage event' do
-          instance = nil
-          expect {
-            instance = create_managed_service_instance
-          }.to change { ServiceUsageEvent.count }.by(1)
-
-          event = ServiceUsageEvent.last
-          expect(event.state).to eq(Repositories::Services::ServiceUsageEventRepository::CREATED_EVENT_STATE)
-          expect(event).to match_service_instance(instance)
-        end
-
         context 'when name is blank' do
           let(:body) do
             MultiJson.dump(
@@ -549,22 +556,6 @@ module VCAP::CloudController
               post '/v2/service_instances', body, headers
             }.to_not change(ServiceInstance, :count)
           end
-        end
-
-        it 'deprovisions the service instance when an exception is raised' do
-          req = MultiJson.dump(
-            name: 'foo',
-            space_guid: space.guid,
-            service_plan_guid: plan.guid
-          )
-
-          allow_any_instance_of(ManagedServiceInstance).to receive(:save).and_raise
-
-          post '/v2/service_instances', req, json_headers(headers_for(developer))
-
-          expect(last_response.status).to eq(500)
-          expect(a_request(:put, service_broker_url_regex)).to have_been_made.times(1)
-          expect(a_request(:delete, service_broker_url_regex)).to have_been_made.times(1)
         end
 
         context 'when the model save and the subsequent deprovision both raise errors' do
@@ -610,7 +601,7 @@ module VCAP::CloudController
 
         context 'with naming collisions' do
           it 'does not allow duplicate managed service instances' do
-            create_managed_service_instance
+            create_managed_service_instance(async: 'false')
             expect(last_response.status).to eq(201)
 
             create_managed_service_instance
@@ -619,7 +610,7 @@ module VCAP::CloudController
           end
 
           it 'does not allow duplicate user provided service instances' do
-            create_user_provided_service_instance
+            create_managed_service_instance(async: 'false')
             expect(last_response.status).to eq(201)
 
             create_user_provided_service_instance
@@ -628,7 +619,7 @@ module VCAP::CloudController
           end
 
           it 'does not allow a user provided service instance with same name as managed service instance' do
-            create_managed_service_instance
+            create_managed_service_instance(async: 'false')
             expect(last_response.status).to eq(201)
 
             create_user_provided_service_instance
@@ -664,13 +655,58 @@ module VCAP::CloudController
             expect(decoded_response['description']).to include('not a valid service plan')
           end
         end
+
+        describe 'orphan mitigation' do
+          context 'when the broker returns an error' do
+            let(:response_code) { 500 }
+
+            it 'enqueues a job to deprovision the instance' do
+              req = MultiJson.dump(
+                name: 'foo',
+                space_guid: space.guid,
+                service_plan_guid: plan.guid
+              )
+
+              post '/v2/service_instances', req, json_headers(headers_for(developer))
+
+              expect(last_response.status).to eq(502)
+              expect(a_request(:put, service_broker_url_regex)).to have_been_made.times(1)
+              expect(a_request(:delete, service_broker_url_regex)).not_to have_been_made.times(1)
+
+              orphan_mitigation_job = Delayed::Job.first
+              expect(orphan_mitigation_job).not_to be_nil
+              expect(orphan_mitigation_job).to be_a_fully_wrapped_job_of Jobs::Services::ServiceInstanceDeprovision
+            end
+          end
+
+          context 'when the instance fails to save to the DB' do
+            it 'deprovisions the service instance' do
+              req = MultiJson.dump(
+                name: 'foo',
+                space_guid: space.guid,
+                service_plan_guid: plan.guid
+              )
+
+              allow_any_instance_of(ManagedServiceInstance).to receive(:save).and_raise
+
+              post '/v2/service_instances', req, json_headers(headers_for(developer))
+
+              expect(last_response.status).to eq(500)
+              expect(a_request(:put, service_broker_url_regex)).to have_been_made.times(1)
+              expect(a_request(:delete, service_broker_url_regex)).to have_been_made.times(1)
+
+              orphan_mitigation_job = Delayed::Job.first
+              expect(orphan_mitigation_job).not_to be_a_fully_wrapped_job_of Jobs::Services::ServiceInstanceDeprovision
+            end
+          end
+        end
       end
 
       context 'with a v1 service' do
         let(:space) { Space.make }
         let(:developer) { make_developer_for_space(space) }
-        let(:plan) { ServicePlan.make(service: service) }
-        let(:service) { Service.make(description: 'blah blah foobar') }
+        let(:plan) { ServicePlan.make(:v1, service: service) }
+        let(:service) { Service.make(:v1, description: 'blah blah foobar') }
 
         before do
           allow(service).to receive(:v2?) { false }
@@ -971,6 +1007,12 @@ module VCAP::CloudController
             to_return(status: status, body: response_body)
         end
 
+        it 'returns a 202' do
+          put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
+
+          expect(last_response).to have_status_code 202
+        end
+
         it 'creates a service audit event for updating the service instance' do
           put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
 
@@ -1263,7 +1305,7 @@ module VCAP::CloudController
           end
         end
 
-        describe 'the space_guid parameter' do
+        describe 'and the space_guid is provided' do
           let(:org) { Organization.make }
           let(:space) { Space.make(organization: org) }
           let(:user) { make_developer_for_space(space) }
@@ -1286,12 +1328,12 @@ module VCAP::CloudController
           it 'succeeds when the space_guid does not change' do
             req = MultiJson.dump(space_guid: instance.space.guid)
             put "/v2/service_instances/#{instance.guid}?accepts_incomplete=true", req, json_headers(headers_for(user))
-            expect(last_response).to have_status_code 201
+            expect(last_response).to have_status_code 202
           end
 
           it 'succeeds when the space_guid is not provided' do
             put "/v2/service_instances/#{instance.guid}?accepts_incomplete=true", {}.to_json, json_headers(headers_for(user))
-            expect(last_response).to have_status_code 201
+            expect(last_response).to have_status_code 202
           end
         end
       end
@@ -1713,8 +1755,8 @@ module VCAP::CloudController
 
       context 'with a v1 service instance' do
         let(:service) { Service.make(:v1) }
-        let(:service_plan) { ServicePlan.make(service: service) }
-        let!(:service_instance) { ManagedServiceInstance.make(service_plan: service_plan) }
+        let(:service_plan) { ServicePlan.make(:v1, service: service) }
+        let!(:service_instance) { ManagedServiceInstance.make(:v1, service_plan: service_plan) }
 
         context 'when the service gateway returns a 409' do
           before do
