@@ -92,7 +92,7 @@ module VCAP::CloudController
   class DropletsHandler
     class Unauthorized < StandardError; end
     class PackageNotFound < StandardError; end
-    class SpaceNotFound < StandardError; end
+    class AppNotFound < StandardError; end
     class BuildpackNotFound < StandardError; end
     class InvalidRequest < StandardError; end
 
@@ -108,12 +108,17 @@ module VCAP::CloudController
       raise InvalidRequest.new('Cannot stage package whose state is not ready.') if package.state != PackageModel::READY_STATE
       raise InvalidRequest.new('Cannot stage package whose type is not bits.') if package.type != PackageModel::BITS_TYPE
 
-      space = Space.find(guid: package.space_guid)
-      raise SpaceNotFound if space.nil?
+      app_model = AppModel.find(guid: package.app_guid)
+      raise AppNotFound if app_model.nil?
+      space = Space.find(guid: app_model.space_guid)
 
       droplet = DropletModel.new(
-        state: DropletModel::PENDING_STATE, package_guid: package.guid,
-        buildpack_git_url: message.buildpack_git_url, buildpack_guid: message.buildpack_guid)
+        app_guid: package.app_guid,
+        buildpack_git_url: message.buildpack_git_url,
+        buildpack_guid: message.buildpack_guid,
+        package_guid: package.guid,
+        state: DropletModel::PENDING_STATE,
+      )
       raise Unauthorized if access_context.cannot?(:create, droplet, space)
 
       buildpack_key = nil
@@ -132,8 +137,8 @@ module VCAP::CloudController
     def show(guid, access_context)
       droplet = DropletModel.find(guid: guid)
       return nil if droplet.nil?
-      package = PackageModel.find(guid: droplet.package_guid)
-      raise Unauthorized if access_context.cannot?(:read, droplet, package)
+      app_model = AppModel.find(guid: droplet.app_guid)
+      raise Unauthorized if access_context.cannot?(:read, droplet, app_model)
       droplet
     end
 
@@ -146,26 +151,6 @@ module VCAP::CloudController
       end
 
       @paginator.get_page(dataset, pagination_options)
-    end
-
-    def delete(guid, access_context)
-      droplet = DropletModel.find(guid: guid)
-      return nil if droplet.nil?
-
-      package = PackageModel.find(guid: droplet.package_guid)
-      space = Space.find(guid: package.space_guid)
-
-      droplet.db.transaction do
-        droplet.lock!
-        raise Unauthorized if access_context.cannot?(:delete, droplet, space)
-        droplet.destroy
-      end
-
-      key = droplet.blobstore_key
-      blobstore_delete = Jobs::Runtime::BlobstoreDelete.new(key, :droplet_blobstore, nil)
-      Jobs::Enqueuer.new(blobstore_delete, queue: 'cc-generic').enqueue
-
-      droplet
     end
   end
 end

@@ -155,22 +155,5 @@ module VCAP::CloudController
     rescue ProcessRepository::InvalidProcess => e
       raise InvalidProcess.new(e.message)
     end
-
-    def delete(guid, access_context)
-      @process_repository.find_for_delete(guid) do |process, space|
-        if process.nil? || access_context.cannot?(:delete, process, space)
-          return nil
-        end
-
-        @process_repository.delete(process)
-
-        user = access_context.user
-        email = access_context.user_email
-
-        @process_event_repository.record_app_delete_request(process, space, user, email, true)
-        return process
-      end
-      nil
-    end
   end
 end

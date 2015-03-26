@@ -10,15 +10,16 @@ gem 'addressable', "2.3.6", :groups => [:default, :test]
 gem 'allowy', '0.4.0'
 gem 'arel', '3.0.3'
 gem 'ast', '2.0.0'
+#gem 'astrolabe', '1.3.0'
 gem 'atomic', '1.1.14'
 gem 'axiom-types', '0.0.5'
 gem 'backports', '3.6.3'
 gem "bcrypt", '3.1.7'
-gem 'beefcake', '~> 1.0.0'
+gem 'beefcake', '1.0.0'
 gem "builder", "3.0.0"
 gem 'celluloid', '0.15.2'
 gem "cf-message-bus","0.3.3", :github => "cloudfoundry/cf-message-bus", :ref => "b6a82b660598c7b5b94b269f7db66ca69a221228"
-gem 'cf-registrar', "1.0.1", :github => "cloudfoundry/cf-registrar", :ref => "49850ee876652a59dbd2d"
+gem 'cf-registrar', "1.0.3", :github => "cloudfoundry/cf-registrar" #, :ref => "49850ee876652a59dbd2d"
 #XXX Remove this:
 #gem 'cf-uaa-lib',    '2.1.0', :github => "ActiveState/cf-uaa-lib", :ref => "237a9f6cae9d552833056c941a4304e3f9ae7a9c"
 gem 'cf-uaa-lib',    '3.1.0', :github => "ActiveState/cf-uaa-lib", :ref => "b1e11235dc6cd7d8d4680e005526de37201305ea"
@@ -32,6 +33,7 @@ gem 'cookiejar', '0.3.0'
 gem 'daemons', '1.1.9'
 gem 'delayed_job', '4.0.4'
 gem 'delayed_job_active_record', '4.0.1'
+gem 'delayed_job_sequel', github: "cloudfoundry/delayed_job_sequel"
 gem 'descendants_tracker', '0.0.3'
 gem 'diff-lcs', '1.2.5', :groups => [:default, :test]
 gem 'docopt', '0.5.0'
@@ -57,7 +59,7 @@ gem 'inflecto', '0.0.2'
 gem 'ipaddress', '0.8.0'
 gem 'json_pure', '1.8.1'
 gem 'librrd', '1.0.3'
-gem 'loggregator_emitter', '~> 4.0.0'
+gem 'loggregator_emitter', '4.0.0'
 gem 'membrane', '1.0.0'
 gem 'method_source', '0.8.2', :groups => [:operations, :development, :test]
 gem 'mime-types', '2.4.3'

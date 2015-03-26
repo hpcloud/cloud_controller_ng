@@ -48,10 +48,18 @@ module VCAP::CloudController
       owning_organization.suspended?
     end
 
-    def addable_to_organization!(organization)
-      unless owned_by?(organization)
+    def addable_to_organization!(org)
+      unless owned_by?(org)
         raise UnauthorizedAccessToPrivateDomain
       end
+    end
+
+    def addable_to_organization?(org)
+      !owned_by?(org)
+    end
+
+    def usable_by_organization?(org)
+      owned_by?(org) || shared_by?(org)
     end
 
     def shared?
@@ -60,8 +68,8 @@ module VCAP::CloudController
 
     private
 
-    def owned_by?(org)
-      owning_organization_id == org.id
+    def shared_by?(org)
+      shared_organization_ids.include?(org.id)
     end
   end
 end

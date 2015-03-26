@@ -29,13 +29,13 @@ module VCAP::CloudController
   end
 
   describe PackageCreateMessage do
-    let(:guid) { 'my-guid' }
+    let(:app_guid) { 'my-guid' }
 
     context 'when a type parameter that is not allowed is provided' do
       let(:opts) { { 'type' => 'not-allowed' } }
 
       it 'is not valid' do
-        create_message = PackageCreateMessage.new(guid, opts)
+        create_message = PackageCreateMessage.new(app_guid, opts)
         valid, errors  = create_message.validate
         expect(valid).to be_falsey
         expect(errors).to include('The type field needs to be one of \'bits, docker\'')
@@ -46,7 +46,7 @@ module VCAP::CloudController
       let(:opts) { { 'type' => nil } }
 
       it 'is not valid' do
-        create_message = PackageCreateMessage.new(guid, opts)
+        create_message = PackageCreateMessage.new(app_guid, opts)
         valid, errors  = create_message.validate
         expect(valid).to be_falsey
         expect(errors).to include('The type field is required')
@@ -58,7 +58,7 @@ module VCAP::CloudController
 
       context 'no url is provided' do
         it 'is valid' do
-          create_message = PackageCreateMessage.new(guid, opts)
+          create_message = PackageCreateMessage.new(app_guid, opts)
           valid, errors  = create_message.validate
           expect(valid).to be_truthy
           expect(errors).to be_empty
@@ -69,7 +69,7 @@ module VCAP::CloudController
         let(:opts) { { 'type' => 'bits', 'url' => 'foobar' } }
 
         it 'is not valid' do
-          create_message = PackageCreateMessage.new(guid, opts)
+          create_message = PackageCreateMessage.new(app_guid, opts)
           valid, errors  = create_message.validate
           expect(valid).to be_falsey
           expect(errors).to include('The url field cannot be provided when type is bits.')
@@ -81,7 +81,7 @@ module VCAP::CloudController
       context 'and a url is provided' do
         let(:opts) { { 'type' => 'docker', 'url' => 'foobar' } }
         it 'is valid' do
-          create_message = PackageCreateMessage.new(guid, opts)
+          create_message = PackageCreateMessage.new(app_guid, opts)
           valid, errors  = create_message.validate
           expect(valid).to be_truthy
           expect(errors).to be_empty
@@ -92,7 +92,7 @@ module VCAP::CloudController
         let(:opts) { { 'type' => 'docker' } }
 
         it 'is not valid' do
-          create_message = PackageCreateMessage.new(guid, opts)
+          create_message = PackageCreateMessage.new(app_guid, opts)
           valid, errors  = create_message.validate
           expect(valid).to be_falsey
           expect(errors).to include('The url field must be provided for type docker.')
@@ -105,7 +105,7 @@ module VCAP::CloudController
         let(:body) { MultiJson.dump({ type: 'bits' }) }
 
         it 'creates a PackageCreateMessage from the json' do
-          pcm           = PackageCreateMessage.create_from_http_request(guid, body)
+          pcm           = PackageCreateMessage.create_from_http_request(app_guid, body)
           valid, errors = pcm.validate
 
           expect(valid).to be_truthy
@@ -117,7 +117,7 @@ module VCAP::CloudController
         let(:body) { '{{' }
 
         it 'returns a PackageCreateMessage that is not valid' do
-          pcm           = PackageCreateMessage.create_from_http_request(guid, body)
+          pcm           = PackageCreateMessage.create_from_http_request(app_guid, body)
           valid, errors = pcm.validate
 
           expect(valid).to be_falsey
@@ -140,6 +140,7 @@ module VCAP::CloudController
     let(:packages_handler) { described_class.new(config) }
     let(:access_context) { double(:access_context) }
     let(:space) { Space.make }
+    let(:app_model) { AppModel.make(space_guid: space.guid) }
 
     before do
       allow(access_context).to receive(:cannot?).and_return(false)
@@ -155,7 +156,7 @@ module VCAP::CloudController
       end
 
       context 'when the space exists' do
-        let(:create_message) { PackageCreateMessage.new(space.guid, create_opts) }
+        let(:create_message) { PackageCreateMessage.new(app_model.guid, create_opts) }
 
         context 'when a user can create a package' do
           it 'creates the package' do
@@ -214,24 +215,25 @@ module VCAP::CloudController
         end
       end
 
-      context 'when the space does not exist' do
+      context 'when the app does not exist' do
         let(:create_message) { PackageCreateMessage.new('non-existant', create_opts) }
 
         it 'raises SpaceNotFound' do
           expect {
             packages_handler.create(create_message, access_context)
-          }.to raise_error(PackagesHandler::SpaceNotFound)
+          }.to raise_error(PackagesHandler::AppNotFound)
         end
       end
     end
 
     describe '#upload' do
-      let(:package) { PackageModel.make(space_guid: space_guid, type: 'bits', state: PackageModel::CREATED_STATE) }
+      let(:app_model) { AppModel.make(space_guid: space.guid) }
+      let(:package) { PackageModel.make(app_guid: app_guid, type: 'bits', state: PackageModel::CREATED_STATE) }
       let(:upload_message) { PackageUploadMessage.new(package_guid, upload_opts) }
       let(:create_opts) { { 'bit_path' => 'path/to/bits' } }
       let(:upload_opts) { { 'bits_path' => 'foobar' } }
       let(:package_guid) { package.guid }
-      let(:space_guid) { space.guid }
+      let(:app_guid) { app_model.guid }
 
       before do
         allow(access_context).to receive(:cannot?).and_return(false)
@@ -283,7 +285,7 @@ module VCAP::CloudController
             end
 
             context 'when the package is not of type bits' do
-              let(:package) { PackageModel.make(space_guid: space_guid, type: 'docker') }
+              let(:package) { PackageModel.make(type: 'docker') }
 
               it 'raises an InvalidPackage exception' do
                 expect {
@@ -306,13 +308,13 @@ module VCAP::CloudController
           end
         end
 
-        context 'when the space does not exist' do
-          let(:space_guid) { 'non-existant' }
+        context 'when the app does not exist' do
+          let(:app_guid) { 'non-existant' }
 
-          it 'raises an SpaceNotFound exception' do
+          it 'raises an AppNotFound exception' do
             expect {
               packages_handler.upload(upload_message, access_context)
-            }.to raise_error(PackagesHandler::SpaceNotFound)
+            }.to raise_error(PackagesHandler::AppNotFound)
           end
         end
       end
@@ -365,60 +367,11 @@ module VCAP::CloudController
       end
     end
 
-    describe '#delete' do
-      let!(:package) { PackageModel.make(space_guid: space.guid) }
-      let(:package_guid) { package.guid }
-
-      context 'when the user can access a package' do
-        before do
-          allow(access_context).to receive(:cannot?).and_return(false)
-        end
-
-        context 'and the package does not exist' do
-          it 'returns nil' do
-            expect(packages_handler.delete('non-existant', access_context)).to eq(nil)
-          end
-        end
-
-        context 'and the package exists' do
-          it 'deletes the package and returns the deleted package' do
-            expect {
-              deleted_package = packages_handler.delete(package_guid, access_context)
-              expect(deleted_package.guid).to eq(package_guid)
-            }.to change { PackageModel.count }.by(-1)
-            expect(PackageModel.find(guid: package_guid)).to be_nil
-          end
-
-          it 'enqueues a job to delete the corresponding blob from the blobstore' do
-            job_opts = { queue: 'cc-generic' }
-            expect(Jobs::Enqueuer).to receive(:new).with(kind_of(BlobstoreDelete), job_opts).
-              and_call_original
-
-            expect {
-              packages_handler.delete(package_guid, access_context)
-            }.to change { Delayed::Job.count }.by(1)
-          end
-        end
-      end
-
-      context 'when the user cannot access a package' do
-        before do
-          allow(access_context).to receive(:cannot?).and_return(true)
-        end
-
-        it 'raises Unauthorized error' do
-          expect {
-            deleted_package = packages_handler.delete(package_guid, access_context)
-            expect(deleted_package).to be_nil
-          }.to raise_error(PackagesHandler::Unauthorized)
-          expect(access_context).to have_received(:cannot?).with(:delete, kind_of(PackageModel), space)
-        end
-      end
-    end
-
     describe '#list' do
-      let!(:package1) { PackageModel.make(space_guid: space.guid) }
-      let!(:package2) { PackageModel.make(space_guid: space.guid) }
+      let(:space) { Space.make }
+      let(:app_model) { AppModel.make(space_guid: space.guid) }
+      let!(:package1) { PackageModel.make(app_guid: app_model.guid) }
+      let!(:package2) { PackageModel.make(app_guid: app_model.guid) }
       let(:user) { User.make }
       let(:page) { 1 }
       let(:per_page) { 1 }
@@ -474,7 +427,7 @@ module VCAP::CloudController
         end
 
         it 'can filter by app_guid' do
-          v3app = AppModel.make
+          v3app = AppModel.make(space_guid: space.guid)
           package1.app_guid = v3app.guid
           package1.save
 

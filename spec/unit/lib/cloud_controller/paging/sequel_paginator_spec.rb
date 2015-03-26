@@ -33,8 +33,8 @@ module VCAP::CloudController
         expect(second_paginated_result.records.first.guid).to eq(app_model2.guid)
       end
 
-      it 'sorts by the sort option in the corresponding direction' do
-        options = { page: 1, per_page: 2, sort: 'name', direction: 'asc' }
+      it 'sorts by the order_by option in the corresponding order_direction' do
+        options = { page: 1, per_page: 2, order_by: 'name', order_direction: 'asc' }
         app_model2.update(name: 'a')
         app_model1.update(name: 'b')
         pagination_options      = PaginationOptions.new(options)

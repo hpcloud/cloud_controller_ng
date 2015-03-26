@@ -122,17 +122,19 @@ module VCAP::CloudController
     let(:config) { TestConfig.config }
     let(:stagers) { double(:stagers) }
     let(:droplets_handler) { described_class.new(config, stagers) }
+    let(:user) { User.make }
     let(:access_context) { double(:access_context) }
 
     before do
       allow(access_context).to receive(:cannot?).and_return(false)
+      allow(access_context).to receive(:user).and_return(user)
     end
 
     describe '#list' do
       let(:space) { Space.make }
-      let(:package) { PackageModel.make(space_guid: space.guid) }
-      let!(:droplet1) { DropletModel.make(package_guid: package.guid) }
-      let!(:droplet2) { DropletModel.make(package_guid: package.guid) }
+      let(:app_model) { AppModel.make(space_guid: space.guid) }
+      let!(:droplet1) { DropletModel.make(app_guid: app_model.guid) }
+      let!(:droplet2) { DropletModel.make(app_guid: app_model.guid) }
       let(:user) { User.make }
       let(:page) { 1 }
       let(:per_page) { 1 }
@@ -192,7 +194,9 @@ module VCAP::CloudController
 
     describe '#create' do
       let(:space) { Space.make }
-      let(:package) { PackageModel.make(space_guid: space.guid, state: PackageModel::READY_STATE, type: PackageModel::BITS_TYPE) }
+      let(:app_model) { AppModel.make(space_guid: space.guid) }
+      let(:app_guid) { app_model.guid }
+      let(:package) { PackageModel.make(app_guid: app_guid, state: PackageModel::READY_STATE, type: PackageModel::BITS_TYPE) }
       let(:package_guid) { package.guid }
       let(:stack) { 'trusty32' }
       let(:memory_limit) { 12340 }
@@ -218,7 +222,7 @@ module VCAP::CloudController
         allow(stager).to receive(:stage_package)
       end
 
-      context 'when the package does exist' do
+      context 'when the package exists' do
         context 'and the user is a space developer' do
           let(:buildpack) { Buildpack.make }
           let(:buildpack_guid) { buildpack.guid }
@@ -233,6 +237,7 @@ module VCAP::CloudController
             expect(droplet.package_guid).to eq(package_guid)
             expect(droplet.buildpack_git_url).to eq('something')
             expect(droplet.buildpack_guid).to eq(buildpack_guid)
+            expect(droplet.app_guid).to eq(app_guid)
           end
 
           it 'initiates a staging request' do
@@ -296,10 +301,10 @@ module VCAP::CloudController
           space.destroy
         end
 
-        it 'fails with SpaceNotFound' do
+        it 'fails with AppNotFound' do
           expect {
             droplets_handler.create(staging_message, access_context)
-          }.to raise_error(DropletsHandler::SpaceNotFound)
+          }.to raise_error(DropletsHandler::AppNotFound)
         end
       end
 
@@ -354,58 +359,6 @@ module VCAP::CloudController
         it 'returns nil' do
           expect(access_context).not_to receive(:cannot?)
           expect(droplets_handler.show('bogus-droplet', access_context)).to be_nil
-        end
-      end
-    end
-
-    describe 'delete' do
-      context 'when the droplet exists' do
-        let(:space) { Space.make }
-        let(:package) { PackageModel.make(space_guid: space.guid) }
-        let!(:droplet) { DropletModel.make(package_guid: package.guid, droplet_hash: 'jim') }
-        let(:droplet_guid) { droplet.guid }
-
-        context 'and the user has permissions to delete the droplet' do
-          it 'deletes the droplet' do
-            expect(access_context).to receive(:cannot?).and_return(false)
-            expect {
-              expect(droplets_handler.delete(droplet_guid, access_context)).to eq(droplet)
-            }.to change { DropletModel.count }.by(-1)
-            expect(droplets_handler.show(droplet_guid, access_context)).to be_nil
-          end
-
-          it 'enqueues a job to delete the corresponding blob from the blobstore' do
-            job_opts = { queue: 'cc-generic' }
-
-            expect(BlobstoreDelete).to receive(:new).
-              with(File.join(droplet.guid, droplet.droplet_hash), :droplet_blobstore, nil).
-              and_call_original
-
-            expect(Jobs::Enqueuer).to receive(:new).with(kind_of(BlobstoreDelete), job_opts).
-              and_call_original
-
-            expect {
-              droplets_handler.delete(droplet_guid, access_context)
-            }.to change { Delayed::Job.count }.by(1)
-          end
-        end
-
-        context 'and the user does not have permissions to delete the droplet' do
-          it 'raises an Unauthorized exception' do
-            expect(access_context).to receive(:cannot?).and_return(true)
-            expect {
-              expect {
-                droplets_handler.delete(droplet_guid, access_context)
-              }.to raise_error(DropletsHandler::Unauthorized)
-            }.not_to change { DropletModel.count }
-          end
-        end
-      end
-
-      context 'when the droplet does not exist' do
-        it 'returns nil' do
-          expect(access_context).to_not receive(:cannot?)
-          expect(droplets_handler.delete('bogus-droplet', access_context)).to be_nil
         end
       end
     end

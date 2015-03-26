@@ -197,6 +197,8 @@ module VCAP::CloudController
         optional(:varz_password) => String,
         optional(:disable_custom_buildpacks) => bool,
         optional(:broker_client_timeout_seconds) => Integer,
+        optional(:broker_client_default_async_poll_interval_seconds) => Integer,
+        optional(:broker_client_max_async_poll_attempts) => Integer,
         optional(:uaa_client_name) => String,
         optional(:uaa_client_secret) => String,
         optional(:uaa_client_scope) => String,
@@ -233,17 +235,6 @@ module VCAP::CloudController
         optional(:default_locale) => String,
         optional(:allowed_cors_domains) => [String],
 
-        optional(:diego) => {
-          optional(:staging) => enum(
-            'disabled',
-            'optional',
-          ),
-          optional(:running) => enum(
-            'disabled',
-            'optional',
-          )
-        },
-
         optional(:dea_advertisement_timeout_in_seconds) => Integer,
       }
     end
@@ -256,10 +247,8 @@ module VCAP::CloudController
 
       def from_file(file_name)
         config = super(file_name)
-        merge_defaults(config).tap do |c|
-          validate!(c)
-        end
-		apply_stackato_overrides(config)
+        merge_defaults(config)
+        apply_stackato_overrides(config)
       end
 
       def from_redis(config_overrides = {})
@@ -328,7 +317,7 @@ module VCAP::CloudController
 
         dependency_locator.register(:stagers, stagers)
         dependency_locator.register(:runners, runners)
-        dependency_locator.register(:instances_reporters, InstancesReporters.new(@config, diego_client, hm_client))
+        dependency_locator.register(:instances_reporters, InstancesReporters.new(diego_client, hm_client))
         dependency_locator.register(:index_stopper, IndexStopper.new(runners))
 
         diego_client.connect!
@@ -376,21 +365,14 @@ module VCAP::CloudController
         config[:db][:database] ||= ENV['DB_CONNECTION_STRING']
         config[:default_locale] ||= 'en_US'
         config[:allowed_cors_domains] ||= []
-        config[:diego] ||= {}
-        config[:diego][:staging] ||= 'disabled'
-        config[:diego][:running] ||= 'disabled'
         config[:diego_docker] ||= false
         config[:dea_advertisement_timeout_in_seconds] ||= 10
         config[:staging][:minimum_staging_memory_mb] ||= 1024
         config[:staging][:minimum_staging_disk_mb] ||= 4096
         config[:staging][:minimum_staging_file_descriptor_limit] ||= 16384
+        config[:broker_client_timeout_seconds] ||= 60
+        config[:broker_client_default_async_poll_interval_seconds] ||= 60
         sanitize(config)
-      end
-
-      def validate!(config)
-        if config[:diego][:staging] == 'disabled' && config[:diego][:running] != 'disabled'
-          raise 'Invalid diego configuration'
-        end
       end
 
       private

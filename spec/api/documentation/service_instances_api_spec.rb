@@ -4,7 +4,14 @@ require 'uri'
 
 resource 'Service Instances', type: [:api, :legacy_api] do
   let(:admin_auth_header) { admin_headers['HTTP_AUTHORIZATION'] }
-  let!(:service_instance) { VCAP::CloudController::ManagedServiceInstance.make }
+  let!(:service_instance) do
+    service_instance = VCAP::CloudController::ManagedServiceInstance.make
+    service_instance.service_instance_operation = VCAP::CloudController::ServiceInstanceOperation.make(
+      state: 'succeeded',
+      description: 'service broker-provided description'
+    )
+    service_instance
+  end
   let(:guid) { service_instance.guid }
 
   authenticated_request
@@ -21,34 +28,56 @@ resource 'Service Instances', type: [:api, :legacy_api] do
         to_return(status: 200, body: '{}')
     end
 
+    response_field 'name', 'The human-readable name of the service instance.'
+    response_field 'credentials', 'The service broker-provided credentials to use this service.'
+    response_field 'service_plan_guid', 'The service plan GUID that this service instance is utilizing.'
+    response_field 'space_guid', 'The space GUID that this service instance belongs to.'
+    response_field 'gateway_data', '',
+      deprecated: true
+    response_field 'dashboard_url', 'The service broker-provided URL to access administrative features of the service instance. May be null.'
+    response_field 'type', 'The type of service instance.',
+      valid_values: ['managed_service_instance', 'user_provided_service_instance']
+    response_field 'last_operation', 'The status of the last operation requested on the service instance. May be null.',
+      experimental: true
+    response_field 'last_operation.type', 'The type of operation that was last performed or currently being performed on the service instance',
+      experimental: true,
+      valid_values: ['create', 'update', 'delete']
+    response_field 'last_operation.state', 'The status of the last operation or current operation being performed on the service instance.',
+      experimental: true,
+      valid_values: ['in progress', 'succeeded', 'failed']
+    response_field 'last_operation.description', 'The service broker-provided description of the operation. May be null.', experimental: true
+    response_field 'last_operation.updated_at', 'The timestamp that the Cloud Controller last checked the service instance state from the broker.',
+      experimental: true
+    response_field 'space_url', 'The relative path to the space resource that this service instance belongs to.'
+    response_field 'service_plan_url', 'The relative path to the service plan resource that this service instance belongs to.'
+    response_field 'service_binding_url', 'The relative path to the service bindings that this service instance is bound to.'
+
     standard_model_list :managed_service_instance, VCAP::CloudController::ServiceInstancesController, path: :service_instance
     standard_model_get :managed_service_instance, path: :service_instance, nested_attributes: [:space, :service_plan]
-    standard_model_delete_without_async :service_instance
 
     post '/v2/service_instances/' do
       field :name, 'A name for the service instance', required: true, example_values: ['my-service-instance']
       field :service_plan_guid, 'The guid of the service plan to associate with the instance', required: true
       field :space_guid, 'The guid of the space in which the instance will be created', required: true
+      field :parameters, 'Arbitrary parameters to pass along to the service broker. Must be a JSON object', required: false
       field :gateway_data, 'Configuration information for the broker gateway in v1 services', required: false, deprecated: true
 
       param_description = <<EOF
 Set to `true` if the client allows asynchronous provisioning. The cloud controller may respond before the service is ready for use.
 EOF
-      parameter :accepts_incomplete, param_description, valid_values: [true, false]
+      parameter :accepts_incomplete, param_description, valid_values: [true, false], experimental: true
 
       example 'Creating a Service Instance' do
         space_guid = VCAP::CloudController::Space.make.guid
         service_plan_guid = VCAP::CloudController::ServicePlan.make(public: true).guid
-        request_hash = { space_guid: space_guid, name: 'my-service-instance', service_plan_guid: service_plan_guid }
-
-        client.post '/v2/service_instances', MultiJson.dump(request_hash, pretty: true), headers
-        expect(status).to eq(201)
-      end
-
-      example 'Creating a Service Instance asynchronously' do
-        space_guid = VCAP::CloudController::Space.make.guid
-        service_plan_guid = VCAP::CloudController::ServicePlan.make(public: true).guid
-        request_hash = { space_guid: space_guid, name: 'my-service-instance', service_plan_guid: service_plan_guid }
+        request_hash = {
+          space_guid: space_guid,
+          name: 'my-service-instance',
+          service_plan_guid: service_plan_guid,
+          parameters: {
+            the_service_broker: 'wants this object'
+          }
+        }
 
         client.post '/v2/service_instances?accepts_incomplete=true', MultiJson.dump(request_hash, pretty: true), headers
         expect(status).to eq(201)
@@ -65,20 +94,38 @@ EOF
       field :name, 'The new name for the service instance', required: false, example_values: ['my-new-service-instance']
       field :service_plan_guid, 'The new plan guid for the service instance', required: false, example_values: ['6c4bd80f-4593-41d1-a2c9-b20cb65ec76e']
 
+      param_description = <<EOF
+Set to `true` if the client allows asynchronous provisioning. The cloud controller may respond before the service is ready for use.
+EOF
+      parameter :accepts_incomplete, param_description, valid_values: [true, false], experimental: true
+
       before do
         uri = URI(service_broker.broker_url)
         uri.user = service_broker.auth_username
         uri.password = service_broker.auth_password
-        uri.path += "/v2/service_instances/#{service_instance.guid}/"
+        uri.path += "/v2/service_instances/#{service_instance.guid}"
+        uri.query = 'accepts_incomplete=true'
         stub_request(:patch, uri.to_s).to_return(status: 200, body: '{}', headers: {})
       end
 
       example 'Updating a service instance' do
         request_json = { service_plan_guid: new_plan.guid }.to_json
-        client.put "/v2/service_instances/#{service_instance.guid}", request_json, headers
+        client.put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", request_json, headers
 
         expect(status).to eq 201
         expect(service_instance.reload.service_plan.guid).to eq new_plan.guid
+      end
+    end
+
+    delete '/v2/service_instances/:guid' do
+      param_description = <<EOF
+Set to `true` if the client allows asynchronous provisioning. The cloud controller may respond before the service is ready for use.
+EOF
+      parameter :accepts_incomplete, param_description, valid_values: [true, false], experimental: true
+
+      example_request 'Deleting a service instance' do
+        expect(status).to eq 204
+        after_standard_model_delete(guid) if respond_to?(:after_standard_model_delete)
       end
     end
   end

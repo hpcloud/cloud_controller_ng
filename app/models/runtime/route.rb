@@ -5,6 +5,7 @@ module VCAP::CloudController
   class Route < Sequel::Model
     class InvalidDomainRelation < VCAP::Errors::InvalidRelation; end
     class InvalidAppRelation < VCAP::Errors::InvalidRelation; end
+    class InvalidOrganizationRelation < VCAP::Errors::InvalidRelation; end
 
     many_to_one :domain
     many_to_one :space, after_set: :validate_changed_space
@@ -75,10 +76,6 @@ module VCAP::CloudController
         unless domain.wildcard
           errors.add(:host, :host_not_empty) unless (host.nil? || host.empty?)
         end
-
-        if space && space.domains_dataset.filter(:id => domain.id).count < 1
-          errors.add(:domain, :invalid_relation)
-        end
         validate_domain
       end
 
@@ -107,7 +104,7 @@ module VCAP::CloudController
 
     def validate_changed_space(new_space)
       apps.each{ |app| validate_app(app) }
-      domain && domain.addable_to_organization!(new_space.organization)
+      raise InvalidOrganizationRelation if domain && !domain.usable_by_organization?(new_space.organization)
     end
 
     def self.user_visibility_filter(user)
@@ -153,7 +150,11 @@ module VCAP::CloudController
       return if client_secret.nil?
       self.class.db.transaction do
         self.client_secret = nil
-        save
+        # Test spec/unit/controllers/runtime/organizations_controller_spec.rb
+        # 'when PrivateDomain is shared' failed when we merged in v201.
+        # The route is in a partial state right now -- and we don't care if
+        # it's not valid because we're in the middle of deleting it.
+        save(:raise_on_failure => false)
         begin 
           scim_api.delete :client, client_id
         rescue Exception => e
@@ -193,6 +194,10 @@ module VCAP::CloudController
 
       loaded_apps.each do |app|
         handle_remove_app(app)
+
+        if app.dea_update_pending?
+          Dea::Client.update_uris(app)
+        end
       end
     end
 
@@ -205,7 +210,8 @@ module VCAP::CloudController
     end
 
     def validate_domain
-      errors.add(:domain, :invalid_relation) if !valid_domain
+      res = valid_domain
+      errors.add(:domain, :invalid_relation) if !res
     end
 
     def valid_domain

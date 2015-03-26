@@ -50,8 +50,10 @@ module VCAP::CloudController
   end
 
   describe AppsHandler do
+    let(:packages_handler) { double(:packages_handler) }
+    let(:droplets_handler) { double(:droplets_handler) }
     let(:processes_handler) { double(:processes_handler) }
-    let(:apps_handler) { described_class.new(processes_handler) }
+    let(:apps_handler) { described_class.new(packages_handler, droplets_handler, processes_handler) }
     let(:access_context) { double(:access_context, user: User.make, user_email: 'jim@jim.com') }
 
     before do
@@ -68,7 +70,7 @@ module VCAP::CloudController
       let(:options)  { { page: page, per_page: per_page } }
       let(:pagination_options) { PaginationOptions.new(options) }
       let(:paginator) { double(:paginator) }
-      let(:apps_handler) { described_class.new(processes_handler, paginator) }
+      let(:apps_handler) { described_class.new(packages_handler, droplets_handler, processes_handler, paginator) }
       let(:roles) { double(:roles, admin?: admin_role) }
       let(:admin_role) { false }
 
@@ -222,10 +224,12 @@ module VCAP::CloudController
     end
 
     describe '#update' do
-      let!(:app_model) { AppModel.make }
+      let!(:app_model) { AppModel.make(desired_droplet_guid: '123') }
+      let!(:droplet_model) { DropletModel.make(app_guid: guid) }
       let(:new_name) { 'new-name' }
       let(:guid) { app_model.guid }
-      let(:update_message) { AppUpdateMessage.new({ 'guid' => guid, 'name' => new_name }) }
+      let(:desired_droplet_guid) { droplet_model.guid }
+      let(:update_message) { AppUpdateMessage.new({ 'guid' => guid, 'name' => new_name, 'desired_droplet_guid' => desired_droplet_guid }) }
       let(:empty_update_message) { AppUpdateMessage.new({ 'guid' => guid }) }
 
       context 'when the user cannot update the app' do
@@ -246,18 +250,36 @@ module VCAP::CloudController
           result = apps_handler.update(update_message, access_context)
           expect(result.guid).to eq(guid)
           expect(result.name).to eq(new_name)
+          expect(result.desired_droplet_guid).to eq(desired_droplet_guid)
 
           updated_app = AppModel.find(guid: guid)
           expect(updated_app.name).to eq(new_name)
+          expect(updated_app.desired_droplet_guid).to eq(desired_droplet_guid)
+        end
+
+        it 'prevents droplets from other apps to be assigned' do
+          update_message = AppUpdateMessage.new({ 'guid' => guid, 'desired_droplet_guid' => DropletModel.make.guid })
+          expect {
+            apps_handler.update(update_message, access_context)
+          }.to raise_error AppsHandler::DropletNotFound
+        end
+
+        it 'prevents inexistent droplets to be assigned' do
+          update_message = AppUpdateMessage.new({ 'guid' => guid, 'desired_droplet_guid' => 'some-garbage' })
+          expect {
+            apps_handler.update(update_message, access_context)
+          }.to raise_error AppsHandler::DropletNotFound
         end
 
         it 'keeps current, non-updated attributes' do
           result = apps_handler.update(empty_update_message, access_context)
           expect(result.guid).to eq(guid)
           expect(result.name).to eq(app_model.name)
+          expect(result.desired_droplet_guid).to eq(app_model.desired_droplet_guid)
 
           updated_app = AppModel.find(guid: guid)
           expect(updated_app.name).to eq(app_model.name)
+          expect(updated_app.desired_droplet_guid).to eq(app_model.desired_droplet_guid)
         end
 
         context 'when the app has a web process' do
@@ -323,57 +345,6 @@ module VCAP::CloudController
           expect {
             apps_handler.update(update_message, access_context)
           }.to raise_error(AppsHandler::InvalidApp, 'the message')
-        end
-      end
-    end
-
-    describe '#delete' do
-      context 'when the app does not exist' do
-        let(:guid) { 'ABC123' }
-
-        it 'returns nil' do
-          result = apps_handler.delete(guid, access_context)
-          expect(result).to be_nil
-        end
-      end
-
-      context 'when the app does exist' do
-        let(:app_model) { AppModel.make }
-        let(:guid) { app_model.guid }
-
-        context 'when the user cannot access the app' do
-          before do
-            allow(access_context).to receive(:cannot?).and_return(true)
-          end
-
-          it 'raises Unauthorized' do
-            expect {
-              apps_handler.delete(guid, access_context)
-            }.to raise_error(AppsHandler::Unauthorized)
-            expect(access_context).to have_received(:cannot?).with(:delete, app_model)
-          end
-        end
-
-        context 'when the user has access to the app' do
-          it 'deletes the app' do
-            result = apps_handler.delete(guid, access_context)
-            expect(result).not_to be_nil
-
-            deleted_app = AppModel.find(guid: guid)
-            expect(deleted_app).to be_nil
-          end
-        end
-
-        context 'when the app has child processes' do
-          before do
-            AppFactory.make(app_guid: guid)
-          end
-
-          it 'raises a OliverTwist error' do
-            expect {
-              apps_handler.delete(guid, access_context)
-            }.to raise_error(AppsHandler::DeleteWithProcesses)
-          end
         end
       end
     end
@@ -487,63 +458,6 @@ module VCAP::CloudController
           apps_handler.remove_process(app_model, process, access_context)
 
           expect(app_model.processes.count).to eq(0)
-        end
-      end
-    end
-
-    describe '#add_package' do
-      let(:app_model) { AppModel.make }
-      let(:guid) { app_model.guid }
-      let(:package) { PackageModel.make(space_guid: app_model.space_guid) }
-
-      context 'when the user cannot update the app' do
-        before do
-          allow(access_context).to receive(:cannot?).and_return(true)
-        end
-
-        it 'raises Unauthorized' do
-          expect {
-            apps_handler.add_package(app_model, package, access_context)
-          }.to raise_error(AppsHandler::Unauthorized)
-          expect(access_context).to have_received(:cannot?).with(:update, app_model)
-        end
-      end
-
-      context 'when the package is not in the same space as the app' do
-        let(:another_space) { Space.make }
-        let(:package) { PackageModel.make(space_guid: another_space.guid) }
-
-        it 'raises IncorrectPackageSpace error' do
-          expect {
-            apps_handler.add_package(app_model, package, access_context)
-          }.to raise_error(AppsHandler::IncorrectPackageSpace)
-        end
-      end
-
-      context 'when the package is already associated with the app' do
-        before do
-          apps_handler.add_package(app_model, package, access_context)
-        end
-
-        it 'does nothing' do
-          expect(app_model.packages.count).to eq(1)
-          apps_handler.add_package(app_model, package, access_context)
-
-          app_model.reload
-          expect(app_model.packages.count).to eq(1)
-        end
-      end
-
-      context 'when a user can add a package to the app' do
-        it 'adds the package' do
-          expect(app_model.packages.count).to eq(0)
-
-          added_package = apps_handler.add_package(app_model, package, access_context)
-
-          app_model.reload
-          expect(app_model.packages.count).to eq(1)
-          expect(app_model.packages.first.guid).to eq(package.guid)
-          expect(added_package.app_guid).to eq(app_model.guid)
         end
       end
     end
