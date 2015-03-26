@@ -5,6 +5,7 @@ require "cloud_controller/health_manager_client"
 require "uri"
 require 'kato/config'
 require "cloud_controller/diego/traditional/staging_completion_handler"
+require "cloud_controller/diego/docker/staging_completion_handler"
 
 # Config template for cloud controller
 module VCAP::CloudController
@@ -209,6 +210,8 @@ module VCAP::CloudController
         ],
 
         optional(:app_bits_upload_grace_period_in_seconds) => Integer,
+
+        optional(:default_locale) => String
       }
     end
 
@@ -232,7 +235,7 @@ module VCAP::CloudController
         apply_stackato_overrides(config)
       end
 
-      attr_reader :config, :message_bus
+      attr_reader :config, :message_bus, :backends
 
       # Performs validation on the cc_ng config to make sure that any config values sitting under old keys (from previous
       # versions of the cc_ng component) that haven't been updated to their newer counterpart after an upgrade get updated
@@ -268,8 +271,10 @@ module VCAP::CloudController
 
       def configure_components_depending_on_message_bus(message_bus)
         @message_bus = message_bus
+        health_manager_client = HealthManagerClient.new(@message_bus, @config)
         stager_pool = Dea::StagerPool.new(@config, message_bus)
         dea_pool = Dea::Pool.new(message_bus)
+        @backends = StackatoBackends.new(@config, message_bus, dea_pool, stager_pool, health_manager_client)
         dependency_locator = CloudController::DependencyLocator.instance
 
         blobstore_url_generator = dependency_locator.blobstore_url_generator
@@ -277,13 +282,11 @@ module VCAP::CloudController
         diego_client = dependency_locator.diego_client
         diego_client.connect!
 
-        diego_messenger = dependency_locator.diego_messenger
-
         Dea::Client.configure(@config, message_bus, dea_pool, stager_pool, blobstore_url_generator)
 
-        Diego::Traditional::StagingCompletionHandler.new(message_bus, diego_messenger).subscribe!
+        Diego::Traditional::StagingCompletionHandler.new(message_bus, @backends).subscribe!
+        Diego::Docker::StagingCompletionHandler.new(message_bus, @backends).subscribe!
 
-        backends = StackatoBackends.new(@config, message_bus, dea_pool, stager_pool, health_manager_client)
         AppObserver.configure(backends)
 
         LegacyBulk.configure(@config, message_bus)
@@ -323,6 +326,7 @@ module VCAP::CloudController
         config[:app_bits_upload_grace_period_in_seconds] ||= 0
         config[:db] ||= {}
         config[:db][:database] ||= ENV["DB_CONNECTION_STRING"]
+        config[:default_locale] ||= "en_US"
         sanitize(config)
       end
 

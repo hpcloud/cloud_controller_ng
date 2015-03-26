@@ -81,7 +81,7 @@ module VCAP::CloudController
       end
 
       service_instance = ManagedServiceInstance.new(request_attrs)
-      validate_access(:create, service_instance, user, roles)
+      validate_access(:create, service_instance)
 
       unless service_instance.valid?
         raise Sequel::ValidationFailed.new(service_instance)
@@ -120,6 +120,17 @@ module VCAP::CloudController
         [HTTP::OK, {}, { changed_count: changed_count }.to_json]
       else
         [HTTP::BAD_REQUEST, {}, '']
+      end
+    end
+
+    def self.url_for_guid(guid)
+      object = ServiceInstance.where(guid: guid).first
+
+      if object.class == UserProvidedServiceInstance
+        user_provided_path = VCAP::CloudController::UserProvidedServiceInstancesController.path
+        return "#{user_provided_path}/#{guid}"
+      else
+        return "#{path}/#{guid}"
       end
     end
 

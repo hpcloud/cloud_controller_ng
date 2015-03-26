@@ -16,7 +16,7 @@ module VCAP::CloudController
     put "#{path_guid}/bits", :upload
     def upload(guid)
       check_maintenance_mode
-      app = find_guid_and_validate_access(:update, guid)
+      app = find_guid_and_validate_access(:upload, guid)
 
       raise Errors::ApiError.new_from_details("AppBitsUploadInvalid", "missing :resources") unless params["resources"]
 
@@ -24,7 +24,7 @@ module VCAP::CloudController
       app_bits_packer_job = Jobs::Runtime::AppBitsPacker.new(guid, uploaded_zip_of_files_not_in_blobstore_path, json_param("resources"))
 
       if async?
-        job = Jobs::Enqueuer.new(app_bits_packer_job, queue: LocalQueue.new(config)).enqueue()
+        job = Jobs::Enqueuer.new(app_bits_packer_job, queue: Jobs::LocalQueue.new(config)).enqueue()
         upload_json_data = [HTTP::CREATED, JobPresenter.new(job).to_json]
       else
         app_bits_packer_job.perform

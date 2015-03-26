@@ -24,34 +24,31 @@ module VCAP::CloudController
     end
 
     describe "Creating" do
-      let(:owning_org) { Organization.make }
-      let(:request_body) do
-        MultiJson.dump({ name: "blah.com", owning_organization_guid: owning_org.guid })
-      end
+      context "as an org manager" do
+        let(:user) { User.make }
+        let(:organization) { Organization.make }
 
-      context "when private_domain_creation feature_flag is disabled" do
+        let(:request_body) do
+          MultiJson.dump({ name: "blah.com", owning_organization_guid: organization.guid })
+        end
+
         before do
-          FeatureFlag.make(name: "private_domain_creation", enabled: false)
+          organization.add_user(user)
+          organization.add_manager(user)
         end
 
-        it "returns FeatureDisabled" do
-          post "/v2/private_domains", request_body, admin_headers
-          pending("This test will fail until we switch to CloudController > v178. It is a bug in upstream.")
-          expect(last_response.status).to eq(412)
-          expect(decoded_response["error_code"]).to match(/FeatureDisabled/)
-          expect(decoded_response["description"]).to match(/Feature Disabled/)
-        end
-      end
+        context "when domain_creation feature_flag is disabled" do
+          before do
+            FeatureFlag.make(name: "private_domain_creation", enabled: false, error_message: nil)
+          end
 
-      context "when private_domain_creation feature_flag is enabled" do
-        before do
-          FeatureFlag.make(name: "private_domain_creation", enabled: true)
-        end
+          it "returns FeatureDisabled" do
+            post "/v2/private_domains", request_body, headers_for(user)
 
-        it "works normally" do
-          post "/v2/private_domains", request_body, admin_headers
-
-          expect(last_response.status).to eq(201)
+            expect(last_response.status).to eq(403)
+            expect(decoded_response["error_code"]).to match(/FeatureDisabled/)
+            expect(decoded_response["description"]).to match(/private_domain_creation/)
+          end
         end
       end
     end

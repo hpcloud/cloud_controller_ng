@@ -21,6 +21,7 @@ module VCAP::CloudController
     before do
       VCAP::CloudController::SecurityContext.clear
       auth_token = env["HTTP_AUTHORIZATION"]
+      I18n.locale = env["HTTP_ACCEPT_LANGUAGE"]
 
       VCAP::CloudController::Security::SecurityContextConfigurer.new(@token_decoder).configure(auth_token)
 

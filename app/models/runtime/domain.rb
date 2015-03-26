@@ -47,7 +47,8 @@ module VCAP::CloudController
                   end
                 }
 
-    many_to_one :owning_organization, class: "VCAP::CloudController::Organization"
+    many_to_one :owning_organization, class: "VCAP::CloudController::Organization",
+                  :before_set => :validate_change_owning_organization
     one_to_many :routes
 
     add_association_dependencies routes: :destroy
@@ -121,7 +122,19 @@ module VCAP::CloudController
       owning_organization_id.nil?
     end
 
+    def in_suspended_org?
+      return owning_organization.suspended? if owning_organization
+      false
+    end
+
     private
+
+    def validate_change_owning_organization(organization)
+      return if owning_organization.nil?
+      return if organization.id == owning_organization.id
+      raise VCAP::Errors::ApiError.new_from_details("AssociationNotEmpty", "routes", "Domain") unless routes.empty?
+    end
+
     def intermediate_domains
       self.class.intermediate_domains(name)
     end

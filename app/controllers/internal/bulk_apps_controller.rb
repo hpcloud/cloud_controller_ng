@@ -26,12 +26,13 @@ module VCAP::CloudController
       staged_apps = staged_apps_query.all
 
       dependency_locator = ::CloudController::DependencyLocator.instance
-      diego_traditional_protocol = dependency_locator.diego_traditional_protocol
+      backends = dependency_locator.backends
 
       apps = []
       id_for_next_token = nil
       staged_apps.each do |app|
-        apps << diego_traditional_protocol.desire_app_message(app).as_json
+        msg = backends.find_one_to_run(app).desire_app_message
+        apps << msg
         id_for_next_token = app.id
       end
 

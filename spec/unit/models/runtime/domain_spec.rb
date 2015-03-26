@@ -8,6 +8,26 @@ module VCAP::CloudController
     describe "Associations" do
       it { is_expected.to have_associated :owning_organization, class: Organization }
       it { is_expected.to have_associated :routes }
+
+      context "changing owning_organization" do
+        subject(:domain) { PrivateDomain.make }
+
+        it "succeeds when there are no existing routes" do
+          expect{ subject.owning_organization = Organization.make }.not_to raise_error
+        end
+
+        context "when there are existing routes" do
+          it "succeeds when the organization is the same" do
+            route = Route.make(space: Space.make(organization: domain.owning_organization), domain: domain)
+            expect{ route.domain.owning_organization = domain.owning_organization }.to_not raise_error
+          end
+
+          it "fails when the organization changes" do
+            route = Route.make
+            expect{ route.domain.owning_organization = Organization.make }.to raise_error VCAP::Errors::ApiError, /delete the routes associations/
+          end
+        end
+      end
     end
 
     describe "Serialization" do

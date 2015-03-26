@@ -5,9 +5,9 @@ module VCAP::CloudController
     let(:message_bus) { CfMessageBus::MockMessageBus.new }
     let(:stager_pool) { double(:stager_pool, :reserve_app_memory => nil) }
     let(:dea_pool) { double(:dea_pool, :find_dea => "dea-id", :mark_app_started => nil,
-                            :reserve_app_memory => nil) }
+      :reserve_app_memory => nil) }
     let(:staging_timeout) { 320 }
-    let(:config_hash) { { staging: { timeout_in_seconds: staging_timeout } } }
+    let(:config_hash) { {staging: {timeout_in_seconds: staging_timeout}} }
     let(:blobstore_url_generator) { double(:blobstore_url_generator, :droplet_download_url => "download-url") }
     let(:tps_reporter) { double(:tps_reporter) }
     let(:diego_messenger) { Diego::Messenger.new(config_hash, message_bus, blobstore_url_generator) }
@@ -15,7 +15,7 @@ module VCAP::CloudController
     let(:backends) { StackatoBackends.new(config_hash, message_bus, dea_pool, stager_pool, health_manager_client) }
 
     before do
-      allow(CloudController::DependencyLocator.instance).to receive(:diego_messenger).and_return(diego_messenger)
+      allow(Diego::Messenger).to receive(:new).and_return(diego_messenger)
       Dea::Client.configure(config_hash, message_bus, dea_pool, stager_pool, blobstore_url_generator)
       AppObserver.configure(backends)
     end
@@ -25,8 +25,8 @@ module VCAP::CloudController
 
       describe "stopping the application" do
         context "when diego enabled" do
-          let(:config_hash) { { :diego => true} }
-          let(:environment_json) { {"CF_DIEGO_BETA"=>"true", "CF_DIEGO_RUN_BETA"=>"true"} }
+          let(:config_hash) { {:diego => true} }
+          let(:environment_json) { {"CF_DIEGO_BETA" => "true", "CF_DIEGO_RUN_BETA" => "true"} }
 
           before { app.environment_json = environment_json }
 
@@ -84,11 +84,11 @@ module VCAP::CloudController
 
       let(:app) do
         app = VCAP::CloudController::App.make(
-            last_stager_response: nil,
-            instances:            1,
-            package_hash:         package_hash,
-            droplet_hash:         "initial-droplet-hash",
-            name:                 "app-name"
+          last_stager_response: nil,
+          instances: 1,
+          package_hash: package_hash,
+          droplet_hash: "initial-droplet-hash",
+          name: "app-name"
         )
         allow(app).to receive(:environment_json) { environment_json }
         app
@@ -97,7 +97,7 @@ module VCAP::CloudController
       subject { AppObserver.updated(app) }
 
       describe "when the 'diego' flag is set" do
-        let(:config_hash) { { :diego => true} }
+        let(:config_hash) { {:diego => true} }
 
         before do
           allow(app).to receive_messages(previous_changes: changes)
@@ -106,7 +106,7 @@ module VCAP::CloudController
           allow(diego_messenger).to receive(:send_stage_request).with(app)
         end
 
-        let(:environment_json) { {"CF_DIEGO_BETA"=>"true", "CF_DIEGO_RUN_BETA"=>"true"} }
+        let(:environment_json) { {"CF_DIEGO_BETA" => "true", "CF_DIEGO_RUN_BETA" => "true"} }
 
         context "when the app needs staging" do
           before do
@@ -115,6 +115,19 @@ module VCAP::CloudController
 
           context "when its state has changed" do
             let(:changes) { {:state => "anything"} }
+
+            context "when docker_image is present" do
+              before do
+                allow(app).to receive(:docker_image).and_return("fake-docker-image")
+              end
+
+              it "validates for staging" do
+                expect {
+                  subject
+                }.not_to raise_error
+
+              end
+            end
 
             it 'uses the diego stager to do staging' do
               subject
@@ -129,7 +142,7 @@ module VCAP::CloudController
           end
 
           context "when the state changes" do
-            let(:changes) { { :state => "anything" } }
+            let(:changes) { {:state => "anything"} }
 
             context "when the app is started" do
               before do
@@ -182,7 +195,7 @@ module VCAP::CloudController
         context "when the desired instance count change" do
           context "when the app is started" do
             context "when the instance count change increases the number of instances" do
-              let(:changes) { { :instances => [5, 8] } }
+              let(:changes) { {:instances => [5, 8]} }
 
               before do
                 allow(app).to receive(:started?).and_return(true)
@@ -210,7 +223,7 @@ module VCAP::CloudController
             end
 
             context "when the instance count change decreases the number of instances" do
-              let(:changes) { { :instances => [5, 2] } }
+              let(:changes) { {:instances => [5, 2]} }
 
               before do
                 allow(app).to receive(:started?) { true }
@@ -225,7 +238,7 @@ module VCAP::CloudController
           end
 
           context "when the app is not started" do
-            let(:changes) { { :instances => [1, 2] } }
+            let(:changes) { {:instances => [1, 2]} }
 
             before do
               allow(app).to receive(:started?) { false }
@@ -241,17 +254,17 @@ module VCAP::CloudController
       end
 
       describe "when the 'diego' flag is not set" do
-        let(:config_hash) { { :diego => false } }
+        let(:config_hash) { {:diego => false} }
 
         before do
-         allow(Dea::AppStagerTask).to receive(:new).
+          allow(Dea::AppStagerTask).to receive(:new).
             with(config_hash,
-                 message_bus,
-                 app,
-                 dea_pool,
-                 stager_pool,
-                 instance_of(CloudController::Blobstore::UrlGenerator),
-         ).and_return(stager_task)
+            message_bus,
+            app,
+            dea_pool,
+            stager_pool,
+            instance_of(CloudController::Blobstore::UrlGenerator),
+          ).and_return(stager_task)
 
           allow(stager_task).to receive(:stage) do |&callback|
             allow(app).to receive(:droplet_hash) { "staged-droplet-hash" }
@@ -265,96 +278,8 @@ module VCAP::CloudController
           allow(Dea::Client).to receive(:change_running_instances)
         end
 
-        shared_examples_for(:stages_if_needed) do
-          def self.it_stages
-            it "initiates a staging task and waits for a response" do
-              expect(stager_task).to receive(:stage) do |&callback|
-                callback.call(started_instances: 1)
-                "stager response"
-              end
-
-              expect(app).to receive(:last_stager_response=).with("stager response")
-
-              subject
-            end
-          end
-
-          context "when the app is not staged" do
-            before do
-              app.mark_for_restaging
-            end
-
-            context "when the app package hash is blank" do
-              let(:package_hash) { '' }
-
-              it "raises" do
-                expect {
-                  subject
-                }.to raise_error(Errors::ApiError, /app package is invalid/)
-              end
-            end
-
-            context "when the app package is valid" do
-              let(:package_hash) { 'abc' }
-
-              it_stages
-            end
-
-            context "when custom buildpacks are disabled" do
-              context "and the app has a custom buildpack" do
-                before do
-                  app.buildpack = "git://example.com/foo/bar.git"
-                  app.save
-
-                  allow(app).to receive(:custom_buildpacks_enabled?).and_return(false)
-                end
-
-                it "raises" do
-                  expect {
-                    subject
-                  }.to raise_error(Errors::ApiError, /Custom buildpacks are disabled/)
-                end
-              end
-
-              context "and the app has an admin buildpack" do
-                before do
-                  buildpack     = Buildpack.make name: "some-admin-buildpack"
-                  app.buildpack = "some-admin-buildpack"
-                  app.save
-
-                  allow(app).to receive(:custom_buildpacks_enabled?).and_return(false)
-                end
-
-                it_stages
-              end
-
-              context "and the app has no buildpack configured" do
-                before do
-                  app.buildpack = nil
-                  app.save
-
-                  allow(app).to receive(:custom_buildpacks_enabled?).and_return(false)
-                end
-
-                it_stages
-              end
-            end
-          end
-
-          context "when the app is already staged" do
-            before do
-              app.mark_as_staged
-            end
-
-            it "should not make a stager task" do
-              expect(Dea::AppStagerTask).not_to receive(:new)
-              subject
-            end
-          end
-        end
-
         context "when the state changes" do
-          let(:changes) { { :state => "anything" } }
+          let(:changes) { {:state => "anything"} }
 
           context "when the app is started" do
             before do
@@ -362,7 +287,102 @@ module VCAP::CloudController
               allow(app).to receive(:started?) { true }
             end
 
-            it_behaves_like :stages_if_needed
+            shared_examples "it stages" do
+              it "initiates a staging task and waits for a response" do
+                expect(stager_task).to receive(:stage) do |&callback|
+                  callback.call(started_instances: 1)
+                  "stager response"
+                end
+
+                expect(app).to receive(:last_stager_response=).with("stager response")
+
+                subject
+              end
+            end
+
+            context "when the app is not staged" do
+              before do
+                app.mark_for_restaging
+              end
+
+              context "when the app package hash is blank" do
+                let(:package_hash) { '' }
+
+                it "raises" do
+                  expect {
+                    subject
+                  }.to raise_error(Errors::ApiError, /app package is invalid/)
+                end
+              end
+
+              context "when the app package is valid" do
+                let(:package_hash) { 'abc' }
+
+                it_behaves_like "it stages"
+              end
+
+              context "when custom buildpacks are disabled" do
+                context "and the app has a custom buildpack" do
+                  before do
+                    app.buildpack = "git://example.com/foo/bar.git"
+                    app.save
+
+                    allow(app).to receive(:custom_buildpacks_enabled?).and_return(false)
+                  end
+
+                  it "raises" do
+                    expect {
+                      subject
+                    }.to raise_error(Errors::ApiError, /Custom buildpacks are disabled/)
+                  end
+                end
+
+                context "and the app has an admin buildpack" do
+                  before do
+                    buildpack = Buildpack.make name: "some-admin-buildpack"
+                    app.buildpack = "some-admin-buildpack"
+                    app.save
+
+                    allow(app).to receive(:custom_buildpacks_enabled?).and_return(false)
+                  end
+
+                  it_behaves_like "it stages"
+                end
+
+                context "and the app has no buildpack configured" do
+                  before do
+                    app.buildpack = nil
+                    app.save
+
+                    allow(app).to receive(:custom_buildpacks_enabled?).and_return(false)
+                  end
+
+                  it_behaves_like "it stages"
+                end
+              end
+
+              context "when docker_image is present" do
+                let(:app) { AppFactory.make docker_image: "fake-image" }
+
+                it "raises" do
+                  expect {
+                    subject
+                  }.to raise_error(Errors::ApiError, /Diego has not been enabled/)
+
+                end
+              end
+            end
+
+            context "when the app is already staged" do
+              before do
+                app.mark_as_staged
+              end
+
+              it "should not make a stager task" do
+                expect(Dea::AppStagerTask).not_to receive(:new)
+                subject
+              end
+            end
 
             it "should start the app with specified number of instances" do
               expect(Dea::Client).to receive(:start).with(app, :instances_to_start => app.instances - started_instances)
@@ -385,7 +405,7 @@ module VCAP::CloudController
         context "when the desired instance count change" do
           context "when the app is started" do
             context "when the instance count change increases the number of instances" do
-              let(:changes) { { :instances => [5, 8] } }
+              let(:changes) { {:instances => [5, 8]} }
 
               before do
                 allow(Dea::Client).to receive(:change_running_instances).and_call_original
@@ -411,8 +431,8 @@ module VCAP::CloudController
                   allow_any_instance_of(VCAP::CloudController::StackatoBackends).to receive(:broadcast_app_updated)
                   expect(message_bus).to receive(:publish) { |subject, message|
                     expect(message).to include({
-                                                   sha1: "initial-droplet-hash"
-                                               })
+                      sha1: "initial-droplet-hash"
+                    })
                   }.exactly(3).times.ordered
                   subject
                 end
@@ -420,7 +440,7 @@ module VCAP::CloudController
             end
 
             context "when the instance count change decreases the number of instances" do
-              let(:changes) { { :instances => [5, 2] } }
+              let(:changes) { {:instances => [5, 2]} }
 
               before do
                 allow(app).to receive(:started?) { true }
@@ -434,7 +454,7 @@ module VCAP::CloudController
           end
 
           context "when the app is not started" do
-            let(:changes) { { :instances => [1, 2] } }
+            let(:changes) { {:instances => [1, 2]} }
 
             before do
               allow(app).to receive(:started?) { false }
@@ -452,18 +472,18 @@ module VCAP::CloudController
 
   def stager_config(fog_credentials)
     {
-        :resource_pool => {
-            :resource_directory_key => "spec-cc-resources",
-            :fog_connection         => fog_credentials
-        },
-        :packages      => {
-            :app_package_directory_key => "cc-packages",
-            :fog_connection            => fog_credentials
-        },
-        :droplets      => {
-            :droplet_directory_key => "cc-droplets",
-            :fog_connection        => fog_credentials
-        }
+      :resource_pool => {
+        :resource_directory_key => "spec-cc-resources",
+        :fog_connection => fog_credentials
+      },
+      :packages => {
+        :app_package_directory_key => "cc-packages",
+        :fog_connection => fog_credentials
+      },
+      :droplets => {
+        :droplet_directory_key => "cc-droplets",
+        :fog_connection => fog_credentials
+      }
     }
   end
 end

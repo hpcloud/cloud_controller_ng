@@ -85,6 +85,27 @@ module VCAP::CloudController
             expect(last_response.status).to eq(403)
             expect(MultiJson.load(last_response.body)['description']).to eq("You are not authorized to perform the requested action")
           end
+
+          it 'prevents a developer from moving a service to another space' do
+            plan = ServicePlan.make
+            req = MultiJson.dump(
+              :name => 'foo',
+              :space_guid => @space_a.guid,
+              :service_plan_guid => plan.guid
+            )
+            post "/v2/service_instances", req, json_headers(headers_for(member_a))
+
+            instance_guid = JSON.parse(last_response.body)['metadata']['guid']
+
+            move_req = MultiJson.dump(
+              :space_guid => @space_b.guid,
+            )
+
+            put "/v2/service_instances/#{instance_guid}", move_req, json_headers(headers_for(member_a))
+
+            expect(last_response.status).to eq(403)
+            expect(MultiJson.load(last_response.body)['description']).to eq("You are not authorized to perform the requested action")
+          end
         end
 
         describe "private plans" do
@@ -400,6 +421,12 @@ module VCAP::CloudController
           expect(last_response.status).to eq(200)
           expect(decoded_response.fetch('metadata').fetch('guid')).to eq(service_instance.guid)
         end
+
+        it "returns the bindings URL with user_provided_service_instance" do
+          get "v2/service_instances/#{service_instance.guid}", {}, admin_headers
+          expect(last_response.status).to eq(200)
+          expect(decoded_response.fetch('entity').fetch('service_bindings_url')).to include("user_provided_service_instances")
+        end
       end
     end
 
@@ -641,7 +668,7 @@ module VCAP::CloudController
       end
 
       it "returns space quota exceeded message correctly" do
-        space.space_quota_definition = SpaceQuotaDefinition.make(total_services: 0)
+        space.space_quota_definition = SpaceQuotaDefinition.make(total_services: 0, organization: space.organization)
         space.save
         service_instance_params = {
           name: "name",
@@ -655,7 +682,7 @@ module VCAP::CloudController
       end
 
       it "returns service plan not allowed by space quota message correctly" do
-        space.space_quota_definition = SpaceQuotaDefinition.make(non_basic_services_allowed: false)
+        space.space_quota_definition = SpaceQuotaDefinition.make(non_basic_services_allowed: false, organization: space.organization)
         space.save
         service_instance_params = {
           name: "name",

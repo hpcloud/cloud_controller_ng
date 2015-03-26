@@ -113,10 +113,34 @@ module VCAP::CloudController
     describe "update app" do
       let(:update_hash) { {} }
 
-      let(:app_obj) { AppFactory.make(:detected_buildpack => "buildpack-name") }
+      let(:app_obj) { AppFactory.make(:instances => 1) }
 
       def update_app
         put "/v2/apps/#{app_obj.guid}", MultiJson.dump(update_hash), json_headers(admin_headers)
+      end
+
+      describe "app_scaling feature flag" do
+        let(:developer) { make_developer_for_space(app_obj.space) }
+
+        context "when the flag is enabled" do
+          before { FeatureFlag.make(name: "app_scaling", enabled: true) }
+
+          it "allows updating memory" do
+            put "/v2/apps/#{app_obj.guid}", '{ "memory": 2 }', json_headers(headers_for(developer))
+            expect(last_response.status).to eq(201)
+          end
+        end
+
+        context "when the flag is disabled" do
+          before { FeatureFlag.make(name: "app_scaling", enabled: false, error_message: nil) }
+
+          it "fails with the proper error code and message" do
+            put "/v2/apps/#{app_obj.guid}", '{ "memory": 2 }', json_headers(headers_for(developer))
+            expect(last_response.status).to eq(403)
+            expect(decoded_response["error_code"]).to match(/FeatureDisabled/)
+            expect(decoded_response["description"]).to match(/app_scaling/)
+          end
+        end
       end
 
       describe "events" do
@@ -221,7 +245,7 @@ module VCAP::CloudController
 
         context 'when the user is not a space developer' do
           it 'returns a JSON payload indicating they do not have permission to manage this instance' do
-            get "/v2/apps/#{app_obj.guid}/env", {}, json_headers(headers_for(auditor, {scopes: ['cloud_controller.read']}))
+            get "/v2/apps/#{app_obj.guid}/env", '{}', json_headers(headers_for(auditor, {scopes: ['cloud_controller.read']}))
             expect(last_response.status).to eql(403)
             expect(JSON.parse(last_response.body)['description']).to eql('You are not authorized to perform the requested action')
           end
@@ -229,7 +253,7 @@ module VCAP::CloudController
 
         context 'when the user has only the cloud_controller.read scope' do
           it 'returns successfully' do
-            get "/v2/apps/#{app_obj.guid}/env", {}, json_headers(headers_for(developer, {scopes: ['cloud_controller.read']}))
+            get "/v2/apps/#{app_obj.guid}/env", '{}', json_headers(headers_for(developer, {scopes: ['cloud_controller.read']}))
             expect(last_response.status).to eql(200)
             expect(parse(last_response.body)).to have_key("system_env_json")
             expect(parse(last_response.body)).to have_key("environment_json")
@@ -241,7 +265,7 @@ module VCAP::CloudController
           let!(:service_binding) { ServiceBinding.make(app: app_obj, service_instance: service_instance) }
 
           it 'returns system environment with VCAP_SERVICES'do
-            get "/v2/apps/#{app_obj.guid}/env", {}, json_headers(headers_for(developer, {scopes: ['cloud_controller.read']}))
+            get "/v2/apps/#{app_obj.guid}/env", '{}', json_headers(headers_for(developer, {scopes: ['cloud_controller.read']}))
             expect(last_response.status).to eql(200)
 
             expect(decoded_response["system_env_json"].size).to eq(1)
@@ -291,7 +315,7 @@ module VCAP::CloudController
         let(:app_obj) { AppFactory.make(detected_buildpack: "buildpack-name") }
 
         it 'returns access denied' do
-          get "/v2/apps/#{app_obj.guid}/env", {}, json_headers(headers_for(developer))
+          get "/v2/apps/#{app_obj.guid}/env", '{}', json_headers(headers_for(developer))
           expect(last_response.status).to eql(403)
         end
       end
@@ -318,8 +342,8 @@ module VCAP::CloudController
       context "when app will be staged", isolation: :truncation do
         let(:app_obj) do
           AppFactory.make(:package_hash => "abc", :state => "STOPPED",
-                           :droplet_hash => nil, :package_state => "PENDING",
-                           :instances => 1)
+                          :droplet_hash => nil, :package_state => "PENDING",
+                          :instances => 1)
         end
 
         let(:stager_response) do
@@ -399,7 +423,7 @@ module VCAP::CloudController
         )
         get "#{@app_url}/routes", {}, @headers_for_user
         expect(decoded_response["resources"].map { |r|
-          r["metadata"]["guid"]
+                 r["metadata"]["guid"]
         }.sort).to eq([bar_route.guid, route.guid].sort)
 
         expect(Dea::Client).to receive(:update_uris).with(an_instance_of(VCAP::CloudController::App)) do |app|
