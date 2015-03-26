@@ -98,29 +98,29 @@ module VCAP::CloudController
     end
 
     def update(guid)
-      json_msg = self.class::UpdateMessage.decode(body)
-      @request_attrs = json_msg.extract(stringify_keys: true)
+      @request_attrs = self.class::UpdateMessage.decode(body).extract(stringify_keys: true)
       logger.debug 'cc.update', guid: guid, attributes: request_attrs
       raise Errors::ApiError.new_from_details('InvalidRequest') unless request_attrs
 
       service_instance = find_guid(guid)
       validate_access(:read_for_update, service_instance)
       validate_access(:update, service_instance)
-      validate_update_action(service_instance)
+      validate_update_request(service_instance)
 
-      is_async_request = params['accepts_incomplete'] == 'true'
+      err = nil
+      service_instance.lock_by_failing_other_operations('update') do
+        attributes_to_update = {}
+        if request_attrs['service_plan_guid']
+          new_plan = ServicePlan.find(guid: request_attrs['service_plan_guid'])
+          attributes_to_update, err = service_instance.client.update_service_plan(
+            service_instance,
+            new_plan,
+            async: (params['accepts_incomplete'] == 'true')
+          )
+        end
 
-      attributes_to_update = {}
-      if request_attrs['service_plan_guid']
-        new_plan = ServicePlan.find(guid: request_attrs['service_plan_guid'])
-        attributes_to_update, err = service_instance.client.update_service_plan(
-          service_instance,
-          new_plan,
-          async: is_async_request
-        )
+        service_instance.save_with_operation(attributes_to_update)
       end
-
-      service_instance.save_with_operation(attributes_to_update)
 
       raise err if err
 
@@ -184,29 +184,38 @@ module VCAP::CloudController
       service_instance = find_guid_and_validate_access(:delete, guid, ServiceInstance)
       raise_if_has_associations!(service_instance) if v2_api? && !recursive?
 
-      if service_instance.managed_instance? && service_instance.operation_in_progress?
-        raise Errors::ApiError.new_from_details('ServiceInstanceOperationInProgress')
+      build_and_enqueue_deletion_job = -> do
+        if params['accepts_incomplete'] == 'true' && service_instance.managed_instance?
+          attributes_to_update, err = service_instance.client.deprovision(service_instance)
+          raise err if err
+
+          delete_response = [HTTP::OK, {}, '{}']
+          if attributes_to_update['last_operation']
+            service_instance.save_with_operation(
+              last_operation: {
+                type: 'delete',
+                state: attributes_to_update['last_operation']['state'] || 'in progress',
+                description: attributes_to_update['last_operation']['description'] || ''
+              }
+            )
+            delete_response = [HTTP::ACCEPTED, {}, object_renderer.render_json(self.class, service_instance, @opts)]
+          end
+
+          @services_event_repository.record_service_instance_event(:delete, service_instance, request_attrs)
+          delete_response
+        else
+          deletion_job = Jobs::Runtime::ModelDeletion.new(ServiceInstance, guid)
+          event_method = service_instance.type == 'managed_service_instance' ?  :record_service_instance_event : :record_user_provided_service_instance_event
+          delete_and_audit_job = Jobs::AuditEventJob.new(deletion_job, @services_event_repository, event_method, :delete, service_instance, {})
+
+          enqueue_deletion_job(delete_and_audit_job)
+        end
       end
 
-      if params['accepts_incomplete'] == 'true' && service_instance.managed_instance?
-        attributes_to_update, err = service_instance.client.deprovision(service_instance)
-        raise err if err
-
-        service_instance.save_with_operation(
-          last_operation: {
-            type: 'delete',
-            state: attributes_to_update['last_operation']['state'] || 'in progress',
-            description: attributes_to_update['last_operation']['description'] || ''
-          }
-        )
-
-        [HTTP::ACCEPTED, {}, JSON.generate(entity: service_instance)]
+      if service_instance.managed_instance?
+        service_instance.lock_by_failing_other_operations('delete', &build_and_enqueue_deletion_job)
       else
-        deletion_job = Jobs::Runtime::ModelDeletion.new(ServiceInstance, guid)
-        event_method = service_instance.type == 'managed_service_instance' ?  :record_service_instance_event : :record_user_provided_service_instance_event
-        delete_and_audit_job = Jobs::AuditEventJob.new(deletion_job, @services_event_repository, event_method, :delete, service_instance, {})
-
-        enqueue_deletion_job(delete_and_audit_job)
+        build_and_enqueue_deletion_job.call
       end
     end
 
@@ -258,13 +267,9 @@ module VCAP::CloudController
       end
     end
 
-    def validate_update_action(service_instance)
+    def validate_update_request(service_instance)
       if request_attrs['space_guid'] && request_attrs['space_guid'] != service_instance.space.guid
         raise Errors::ApiError.new_from_details('ServiceInstanceSpaceChangeNotAllowed')
-      end
-
-      if service_instance.operation_in_progress?
-        raise Errors::ApiError.new_from_details('ServiceInstanceOperationInProgress')
       end
 
       if request_attrs['service_plan_guid']
