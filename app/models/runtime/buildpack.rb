@@ -16,7 +16,7 @@ module VCAP::CloudController
 
     def before_save
       if new? || column_changed?(:position)
-        Locking[name: 'buildpacks'].lock!
+        Locking[name: 'buildpacks'].lock! if !new? || name != "buildpacks"
         positioner = BuildpackPositioner.new
         self.position = if new?
                           if Buildpack.at_last_position.nil?
