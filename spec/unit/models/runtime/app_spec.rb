@@ -1754,7 +1754,7 @@ module VCAP::CloudController
         end
 
         it 'uses the instance_file_descriptor_limit config variable' do
-          app = App.create_from_hash(name: 'awesome app', space_guid: space.guid)
+          app = App.create_from_hash(name: 'awesomeApp', space_guid: space.guid)
           expect(app.file_descriptors).to eq(200)
         end
       end
