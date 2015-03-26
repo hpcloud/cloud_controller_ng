@@ -236,6 +236,10 @@ module VCAP::CloudController
         optional(:allowed_cors_domains) => [String],
 
         optional(:dea_advertisement_timeout_in_seconds) => Integer,
+
+        optional(:diego_docker) => bool,
+        optional(:users_can_select_backend) => bool,
+        optional(:default_to_diego_backend) => bool,
       }
     end
 
@@ -366,12 +370,18 @@ module VCAP::CloudController
         config[:default_locale] ||= 'en_US'
         config[:allowed_cors_domains] ||= []
         config[:diego_docker] ||= false
+        config[:default_to_diego_backend] ||= false
         config[:dea_advertisement_timeout_in_seconds] ||= 10
         config[:staging][:minimum_staging_memory_mb] ||= 1024
         config[:staging][:minimum_staging_disk_mb] ||= 4096
         config[:staging][:minimum_staging_file_descriptor_limit] ||= 16384
         config[:broker_client_timeout_seconds] ||= 60
         config[:broker_client_default_async_poll_interval_seconds] ||= 60
+
+        unless config.key?(:users_can_select_backend)
+          config[:users_can_select_backend] = true
+        end
+
         sanitize(config)
       end
 

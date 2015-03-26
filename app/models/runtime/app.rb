@@ -173,6 +173,10 @@ module VCAP::CloudController
       adjust_route_sso_clients if sso_updated?
       self.min_instances = 1 if self.min_instances.nil? # Stackato bug 103723
 
+      if diego.nil?
+        self.diego = Config.config[:default_to_diego_backend]
+      end
+
       super
     end
 
