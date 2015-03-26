@@ -138,7 +138,43 @@ module VCAP::Services::ServiceBrokers::V2
           }
       })
 
-      @response_parser.parse(:patch, path, response)
+      parsed_response = @response_parser.parse(:patch, path, response)
+      last_operation_hash = parsed_response['last_operation'] || {}
+
+      attributes = {
+        last_operation: {
+          type: 'update',
+          description: last_operation_hash['description'] || '',
+        },
+      }
+
+      state = last_operation_hash['state']
+      if state
+        attributes[:last_operation][:state] = state
+        attributes[:last_operation][:proposed_changes] = { service_plan_guid: plan.guid }
+        if attributes[:last_operation][:state] == 'in progress'
+          @state_poller.poll_service_instance_state(@attrs, instance)
+        end
+      else
+        attributes[:last_operation][:state] = 'succeeded'
+        attributes[:service_plan] = plan
+      end
+
+      return attributes, nil
+    rescue Errors::ServiceBrokerBadResponse,
+           Errors::ServiceBrokerApiTimeout,
+           Errors::ServiceBrokerResponseMalformed,
+           Errors::ServiceBrokerRequestRejected,
+           Errors::AsyncRequired => e
+
+      attributes = {
+        last_operation: {
+          state: 'failed',
+          type: 'update',
+          description: e.message
+        }
+      }
+      return attributes, e
     end
 
     private

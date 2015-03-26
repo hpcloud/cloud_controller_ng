@@ -3,8 +3,10 @@ require 'steno/codec/text'
 class BackgroundJobEnvironment
   def initialize(config)
     @config = config
+    @log_counter = Steno::Sink::Counter.new
+
     VCAP::CloudController::StenoConfigurer.new(config[:logging]).configure do |steno_config_hash|
-      steno_config_hash[:sinks] = [Steno::Sink::IO.new(STDOUT)]
+	  steno_config_hash[:sinks] << @log_counter
       steno_config_hash[:codec] = Steno::Codec::Text.new
       steno_config_hash[:context] = Steno::Context::ThreadLocal.new
     end

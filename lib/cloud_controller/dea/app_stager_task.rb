@@ -92,7 +92,7 @@ module VCAP::CloudController
 
       # We never stage if there is not a start request
       def staging_request
-        StagingMessage.new(@config, @blobstore_url_generator).staging_request(@app, nngtask_id)
+        StagingMessage.new(@config, @blobstore_url_generator).staging_request(@app, task_id)
       end
 
       private
