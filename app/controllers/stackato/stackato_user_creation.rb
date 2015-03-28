@@ -62,7 +62,7 @@ module VCAP::CloudController
         if first_user
           firstuser(password)
         else
-          validate_access(:create, @new_user, user, roles)
+          validate_access(:create, @new_user)
         end
       end
 
