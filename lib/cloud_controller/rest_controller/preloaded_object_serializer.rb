@@ -66,8 +66,8 @@ module VCAP::CloudController::RestController
       opts = opts.merge({
         inline_relations_depth: opts[:inline_relations_depth] || INLINE_RELATIONS_DEFAULT,
         max_number_of_associated_objects_to_inline: opts[:max_inline] || @@cc_config[:max_inline_relationships] || MAX_INLINE_DEFAULT,
-        relationships_to_exclude: opts[:exclude_relations] ? opts[:exclude_relations].split(',') : [],
-        relationships_to_include: opts[:include_relations] ? opts[:include_relations].split(',') : [],
+        relationships_to_exclude: opts[:exclude_relations] ? opts[:exclude_relations] : [],
+        relationships_to_include: opts[:include_relations] ? opts[:include_relations] : [],
       })
 
       {}.tap do |res|
