@@ -11,8 +11,7 @@ module VCAP::CloudController
         reason = app.staging_failed_reason || "StagingError"
         raise VCAP::Errors::ApiError.new_from_details(reason, "cannot get instances since staging failed: app name: #{app.name}, id: (#{app.guid})")
       elsif app.pending?
-        return Yajl::Encoder.encode({})
-        # raise VCAP::Errors::ApiError.new_from_details("NotStaged")
+        raise VCAP::Errors::ApiError.new_from_details("NotStaged")
       end
 
       if app.stopped?
