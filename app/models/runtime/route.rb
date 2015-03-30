@@ -246,13 +246,9 @@ module VCAP::CloudController
     end
 
     def scim_api
-      return @scim_api if @scim_api
-      target = Kato::Config.get("cloud_controller_ng", 'uaa/url')
-      secret = Kato::Config.get("cloud_controller_ng", 'aok/client_secret')
-      token_issuer =
-        CF::UAA::TokenIssuer.new(target, 'cloud_controller', secret)
-      token = token_issuer.client_credentials_grant
-      @scim_api = CF::UAA::Scim.new(target, token.auth_header)
+      if @scim_api.nil?
+        @scim_api = StackatoScimUtils.scim_api
+      end
       return @scim_api
     end
 
