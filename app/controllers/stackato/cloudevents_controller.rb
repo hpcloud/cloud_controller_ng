@@ -11,18 +11,20 @@ module VCAP::CloudController
       events_list =  redis { |r| r.lrange("cloud_events", 0, num-1) }
       since_md5 = params["since_md5"]
 
-      ignore = false
       filtered_events = []
       events_list.each do |event|
         digest = Digest::MD5.hexdigest(event)
         if since_md5 == digest
           # this and all following events have been seen already.
-          ignore = true
+          break
         end
-        next if ignore
-        event_hash = Yajl::Parser.parse(event)
-        event_hash[:md5] = digest
-        filtered_events << event_hash
+        begin
+          event_hash = Yajl::Parser.parse(event)
+          event_hash[:md5] = digest
+          filtered_events << event_hash
+        rescue
+          logger.warn("StackatoCloudeventsController: Can't Yaml-parse event '#{event}': #{$!}")
+        end
       end
       Yajl::Encoder.encode({ :results => filtered_events })
     end
