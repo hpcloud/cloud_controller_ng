@@ -17,6 +17,15 @@ module VCAP::CloudController
 
     describe 'transform' do
       it 'populates users with usernames from UAA' do
+        pending("STACKATO: This should pass once we move from AOK to UAA")
+        username_populator.transform(users)
+        expect(user1.username).to eq('Username1')
+        expect(user2.username).to eq('Username2')
+      end
+      it 'echoes user objects with usernames from UAA' do
+        # STACKATO: Remove this once we move from AOK to UAA
+        user1.username = 'Username1'
+        user2.username = 'Username2'
         username_populator.transform(users)
         expect(user1.username).to eq('Username1')
         expect(user2.username).to eq('Username2')
