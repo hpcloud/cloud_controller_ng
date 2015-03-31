@@ -24,6 +24,7 @@ require_relative 'stackato/backends/runners'
 require_relative 'stackato/deactivate_services'
 require_relative 'stackato/droplet_accountability'
 require_relative 'stackato/dea/app_stager_task'
+require_relative 'stackato/scim_utils'
 require_relative 'rest_controller/preloaded_object_serializer'
 
 module VCAP::CloudController

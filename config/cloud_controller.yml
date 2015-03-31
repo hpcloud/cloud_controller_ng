@@ -71,6 +71,8 @@ loggregator:
   shared_secret: "loggregatorsecret"
   url: "ws://loggregator.vcap.me:80"
 
+skip_cert_verify: true
+
 db:
   database:
     host: localhost
@@ -93,8 +95,6 @@ uaa:
       quota_name: "default"
       space_role: "developer"
       organization_role: "user"
-  connection_opts:
-    skip_ssl_validation: false
 
 hm9000:
   url: "http://localhost:5155"
