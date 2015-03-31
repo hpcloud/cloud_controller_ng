@@ -109,5 +109,35 @@ module VCAP::CloudController
         end
       end
     end
+
+    describe 'GET /v2/organizations/:id/summary?include-relations=app-usage' do
+      context 'admin users' do
+        before do
+          allow(VCAP::CloudController::StackatoDropletAccountability).to receive(:get_app_stats).and_return([])
+          get "/v2/organizations/#{org.guid}/summary?include-relations=app-usage", {:include_relations => "app-usage"}, admin_headers
+        end
+
+        it 'return organization data' do
+          expect(last_response.status).to eq(200)
+          expect(decoded_response['guid']).to eq(org.guid)
+          expect(decoded_response['name']).to eq(org.name)
+          expect(decoded_response['status']).to eq('active')
+          expect(decoded_response['spaces'].size).to eq(num_spaces)
+        end
+
+        it 'should return the correct info for all spaces' do
+          expect(decoded_response['spaces']).to include(
+            'guid' => @spaces.first.guid,
+            'name' => @spaces.first.name,
+            'app_count' => num_apps,
+            'service_count' => num_services,
+            'mem_dev_total' => 5120,
+            'mem_prod_total' => 384,
+            'mem_usage' => 0,
+          )
+        end
+      end
+    end
+    
   end
 end
