@@ -29,7 +29,7 @@ module TestConfig
                               },
                             }).merge(overrides)
     configure_components(config)
-    config
+    apply_stackato_overrides(config)
   end
   
   def self.aok_config
@@ -167,5 +167,15 @@ module TestConfig
     else
       "sqlite:///tmp/cc_test#{ENV["TEST_ENV_NUMBER"]}.db"
     end
+  end
+
+  def self.apply_stackato_overrides(config)
+    if config.fetch(:nginx, {}).fetch(:use_nginx, false)
+      # logging is unavailable at this point
+      # puts "Stackato does not support nginx/use_nginx; disabling it."
+      config[:nginx][:use_nginx] = false
+    end
+
+    config
   end
 end
