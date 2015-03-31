@@ -4,11 +4,11 @@ require "stackato/spec_helper"
 module VCAP::CloudController
   describe VCAP::CloudController::AppsController, type: :controller do
     before(:all) do
-      Kato::Config.set('cloud_controller_ng', '/maintenance_mode', true)
+      TestConfig.override({:maintenance_mode => true})
     end
 
     after(:all) do
-      Kato::Config.set('cloud_controller_ng', '/maintenance_mode', false)
+      TestConfig.override({:maintenance_mode => false})
     end
 
     describe "create app" do
