@@ -1,12 +1,9 @@
 # Copyright (c) ActiveState 2014 - ALL RIGHTS RESERVED.
 
 require 'spec_helper'
+require 'stackato/spec_helper'
 
 describe 'Application Migration', non_transactional: true do
-
-  before(:all) do
-    $spec_env.reset_database_with_seeds
-  end
 
   it 'migrates apps between spaces in the same organization' do
 
