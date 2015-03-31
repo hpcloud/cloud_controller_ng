@@ -188,7 +188,7 @@ module VCAP::CloudController::RestController
     end
 
     def check_maintenance_mode
-      raise Errors::ApiError.new_from_details("StackatoMaintenanceModeEnabled") unless @config[:maintenance_mode]
+      raise Errors::ApiError.new_from_details("StackatoMaintenanceModeEnabled") if @config[:maintenance_mode]
     end
 
     # hook called before +create+
