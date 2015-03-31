@@ -29,7 +29,7 @@ module TestConfig
                               },
                             }).merge(overrides)
     configure_components(config)
-    apply_stackato_overrides(config)
+    config
   end
   
   def self.aok_config
@@ -94,7 +94,7 @@ module TestConfig
     config_hash = VCAP::CloudController::Config.from_file(config_file)
 
     config_hash.update(
-        nginx: { use_nginx: true },
+        nginx: { use_nginx: false },
         resource_pool: {
             resource_directory_key: 'spec-cc-resources',
             fog_connection: {
@@ -169,13 +169,4 @@ module TestConfig
     end
   end
 
-  def self.apply_stackato_overrides(config)
-    if config.fetch(:nginx, {}).fetch(:use_nginx, false)
-      # logging is unavailable at this point
-      # puts "Stackato does not support nginx/use_nginx; disabling it."
-      config[:nginx][:use_nginx] = false
-    end
-
-    config
-  end
 end
