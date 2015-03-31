@@ -11,7 +11,7 @@ module VCAP::CloudController
       # If the options were run through CommonParams.parse,
       # this option will come in as an array.
       include_relations = @opts[:include_relations]
-      calculate_space_mem_usage = (!include_relations ?
+      calculate_space_mem_usage = (include_relations.nil? ?
                                    false :
                                    (include_relations.is_a?(Array) ?
                                     include_relations.include?('app-usage') :
