@@ -3,11 +3,11 @@ require "stackato/spec_helper"
 
 module VCAP::CloudController
   describe VCAP::CloudController::AppsController, type: :controller do
-    before(:all) do
+    before(:each) do
       TestConfig.override({:maintenance_mode => true})
     end
 
-    after(:all) do
+    after(:each) do
       TestConfig.override({:maintenance_mode => false})
     end
 
