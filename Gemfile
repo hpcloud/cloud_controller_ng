@@ -157,7 +157,7 @@ group :test do
   gem 'lumberjack', '1.0.5'
   gem 'machinist', '~> 1.0.6'
   gem 'parallel_tests', '0.16.0'
-  gem 'rubocop', '0.18.1'
+  gem 'rubocop', '0.28.0'
   gem 'simplecov-html', '0.8.0'
   gem 'simplecov-rcov', '0.2.3'
   gem 'timecop', '0.7.1'
