@@ -16,7 +16,6 @@ module VCAP::CloudController
 
     def before_save
       if new? || column_changed?(:position)
-        $stderr.puts("buildpack.before_save called from #{caller.first(10).join("\n    ")}")
         locking_buildpack = Locking[name: 'buildpacks'] rescue nil
         locking_buildpack.lock! if locking_buildpack
         positioner = BuildpackPositioner.new
