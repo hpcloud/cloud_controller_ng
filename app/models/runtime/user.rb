@@ -5,7 +5,6 @@ module VCAP::CloudController
     include StackatoUserCreation
 
     class InvalidOrganizationRelation < VCAP::Errors::InvalidRelation; end
-    attr_accessor :username
 
     no_auto_guid
 
@@ -57,7 +56,7 @@ module VCAP::CloudController
     add_association_dependencies spaces: :nullify
     add_association_dependencies managed_spaces: :nullify
 
-    export_attributes :admin, :active, :default_space_guid, :guid
+    export_attributes :admin, :active, :default_space_guid, :guid, :username
 
     import_attributes :guid, :admin, :active, :username,
                       :organization_guids,
@@ -100,15 +99,6 @@ module VCAP::CloudController
     def validate_organization_roles(org)
       if org && (managed_organizations.include?(org) || billing_managed_organizations.include?(org) || audited_organizations.include?(org))
         raise InvalidOrganizationRelation.new(org.guid)
-      end
-    end
-
-    def export_attrs
-      attrs = super
-      if username
-        attrs + [:username]
-      else
-        attrs
       end
     end
 
