@@ -8,8 +8,8 @@ module VCAP::CloudController
       extend Forwardable
 
       def configure(stagers, runners)
-        @stagers = stagers
-        @runners = runners #XXX: Instance of StackatoRunners
+        @stagers = stagers # Instance of StackatoStagers
+        @runners = runners # Instance of StackatoRunners
       end
 
       def deleted(app)

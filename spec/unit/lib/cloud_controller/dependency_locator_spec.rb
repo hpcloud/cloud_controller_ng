@@ -388,7 +388,7 @@ describe CloudController::DependencyLocator do
 
   describe '#stagers' do
     it 'returns the stagers' do
-      expect(locator.stagers).to be_an_instance_of(VCAP::CloudController::Stagers)
+      expect(locator.stagers).to be_an_instance_of(VCAP::CloudController::StackatoStagers)
     end
   end
 

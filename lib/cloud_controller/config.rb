@@ -318,7 +318,8 @@ module VCAP::CloudController
         stager_pool = Dea::StagerPool.new(@config, message_bus, blobstore_url_generator)
         dea_pool = Dea::Pool.new(@config, message_bus)
         runners = StackatoRunners.new(@config, message_bus, dea_pool, stager_pool, health_manager_client)
-        stagers = Stagers.new(@config, message_bus, dea_pool, stager_pool, runners)
+        stagers = StackatoStagers.new(@config, message_bus, dea_pool, stager_pool, runners)
+        runners.stagers = stagers
 
         dependency_locator.register(:stagers, stagers)
         dependency_locator.register(:runners, runners)

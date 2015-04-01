@@ -29,7 +29,8 @@ class BackgroundJobEnvironment
         health_manager_client = CloudController::DependencyLocator.instance.health_manager_client
 
         runners = VCAP::CloudController::StackatoRunners.new(@config, message_bus, no_op_dea_pool, no_op_staging_pool, health_manager_client)
-        stagers = VCAP::CloudController::Stagers.new(@config, message_bus, no_op_dea_pool, no_op_staging_pool, runners)
+        stagers = VCAP::CloudController::StackatoStagers.new(@config, message_bus, no_op_dea_pool, no_op_staging_pool, runners)
+        runners.stagers = stagers
         VCAP::CloudController::AppObserver.configure(stagers, runners)
 
         blobstore_url_generator = CloudController::DependencyLocator.instance.blobstore_url_generator
