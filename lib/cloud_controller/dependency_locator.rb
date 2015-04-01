@@ -108,7 +108,7 @@ module CloudController
     end
 
     def docker_registry
-      return "#{config[:external_host]}:5000"
+      return "#{Kato::Local::Node.get_local_node_id}:5000"
     end
 
     def app_event_repository
