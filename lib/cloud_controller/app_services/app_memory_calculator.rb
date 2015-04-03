@@ -15,6 +15,11 @@ module VCAP::CloudController
       app.memory * app.instances
     end
 
+    def total_existing_memory
+      return 0 if app.new?
+      total_requested_memory
+    end
+
     def currently_used_memory
       return 0 if app.new?
       db_app = app_from_db
