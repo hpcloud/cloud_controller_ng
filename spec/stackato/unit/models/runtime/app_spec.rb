@@ -19,7 +19,7 @@ module VCAP::CloudController
 
       describe 'instances' do
         let(:scaler) { double(:scaler, scale: nil) }
-        it 'gets one more instance' do
+        it 'broadcasts app-update after instances change' do
           allow(AppObserver).to receive(:react_to_state_change).and_return(nil)
           allow_any_instance_of(StackatoRunners).to receive(:runner_for_app).and_return(scaler)
           expect_any_instance_of(StackatoRunners).to receive(:broadcast_app_updated).once.with(app)
