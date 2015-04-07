@@ -7,7 +7,7 @@ module VCAP::CloudController
     let(:app_obj_2) { AppFactory.make(package_hash: 'hash2') }
     let(:developer) { make_developer_for_space(space) }
     let(:headers)   { headers_for(developer) }
-    let(:app_memory) { rand(700..900) }
+    let(:app_memory) { 798 }
 
     before do
       TestConfig.override({default_app_memory: app_memory}) # in mb
