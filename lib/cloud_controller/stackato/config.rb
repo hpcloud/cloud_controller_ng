@@ -224,6 +224,12 @@ module VCAP::CloudController
       end
     end
   
+    def _update__cloud_controller_ng__docker_apps(component, definition_key, definitions)
+      definitions.each do |key, value|
+        Kato::Config.set(component, "#{definition_key}/#{key}", value, {:must_exist => true})
+      end
+    end
+
     def _update__harbor_node__port_range(component, key, port_range)
       if ( !(port_range.key? "min") && !(port_range.key? "max") )
         raise Errors::ApiError.new_from_details("StackatoConfigUnsupportedUpdate", component, "Attempting to update port_range with no valid key/value pairs!")

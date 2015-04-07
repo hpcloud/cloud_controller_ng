@@ -32,13 +32,14 @@ module VCAP::CloudController
       attr_reader :config
       attr_reader :message_bus
 
-      def initialize(config, message_bus, app, dea_pool, stager_pool, blobstore_url_generator)
+      def initialize(config, message_bus, app, dea_pool, stager_pool, blobstore_url_generator, docker_registry)
         @config = config
         @message_bus = message_bus
         @app = app
         @dea_pool = dea_pool
         @stager_pool = stager_pool
         @blobstore_url_generator = blobstore_url_generator
+        @docker_registry = docker_registry
       end
 
       def task_id
@@ -126,6 +127,7 @@ module VCAP::CloudController
             upload_uri:                   @blobstore_url_generator.droplet_upload_url(@app),
             buildpack_cache_download_uri: @blobstore_url_generator.buildpack_cache_download_url(@app),
             buildpack_cache_upload_uri:   @blobstore_url_generator.buildpack_cache_upload_url(@app),
+            docker_image:                 @app.docker_image,
             start_message:                start_app_message,
             admin_buildpacks:             admin_buildpacks,
             egress_network_rules:         staging_egress_rules,
@@ -154,7 +156,7 @@ module VCAP::CloudController
       end
 
       def start_app_message
-        msg = Dea::StartAppMessage.new(@app, 0, @config, @blobstore_url_generator)
+        msg = Dea::StartAppMessage.new(@app, 0, @config, @blobstore_url_generator, @docker_registry)
         msg[:sha1] = nil
         msg
       end
@@ -242,6 +244,12 @@ module VCAP::CloudController
 
       def staging_completion(stager_response)
         instance_was_started_by_dea = !!stager_response.droplet_hash
+
+        if instance_was_started_by_dea && @app.docker_image
+          # in this case droplet_hash is actually the 12-char docker id
+          @app.add_new_droplet(stager_response.droplet_hash)
+        end
+
         @app.mark_as_staged
         @app.update_detected_buildpack(stager_response.detected_buildpack, stager_response.buildpack_key)
         @dea_pool.mark_app_started(:dea_id => @stager_id, :app_id => @app.guid) if instance_was_started_by_dea

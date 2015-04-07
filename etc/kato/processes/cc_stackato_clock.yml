@@ -1,4 +1,4 @@
 ---
-name: cc_monitor
+name: cc_stackato_clock
 roles:
   - controller
