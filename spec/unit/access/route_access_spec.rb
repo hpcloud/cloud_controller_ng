@@ -2,20 +2,51 @@ require 'spec_helper'
 
 module VCAP::CloudController
   describe RouteAccess, type: :access do
+    subject(:access) { RouteAccess.new(Security::AccessContext.new) }
+    let(:token) { { 'scope' => ['cloud_controller.read', 'cloud_controller.write'] } }
+
+    let(:user) { VCAP::CloudController::User.make }
+    let(:org) { VCAP::CloudController::Organization.make }
+    let(:space) { VCAP::CloudController::Space.make(organization: org) }
+    let(:domain) { VCAP::CloudController::PrivateDomain.make(owning_organization: org) }
+    let(:app) { VCAP::CloudController::AppFactory.make(space: space) }
+    let(:object) { VCAP::CloudController::Route.make(domain: domain, space: space) }
+
     before do
-      token = {'scope' => 'cloud_controller.read cloud_controller.write'}
-      allow(VCAP::CloudController::SecurityContext).to receive(:token).and_return(token)
+      SecurityContext.set(user, token)
     end
 
-    subject(:access) { RouteAccess.new(double(:context, user: user, roles: roles)) }
-    let(:user) { VCAP::CloudController::User.make }
-    let(:roles) { double(:roles, :admin? => false, :none? => false, :present? => true) }
-    let(:org) { VCAP::CloudController::Organization.make }
-    let(:space) { VCAP::CloudController::Space.make(:organization => org) }
-    let(:domain) { VCAP::CloudController::PrivateDomain.make(:owning_organization => org) }
-    let(:object) { VCAP::CloudController::Route.make(:domain => domain, :space => space) }
+    after do
+      SecurityContext.clear
+    end
 
-    it_should_behave_like :admin_full_access
+    context 'admin' do
+      include_context :admin_setup
+
+      before { FeatureFlag.make(name: 'route_creation', enabled: false) }
+
+      it_behaves_like :full_access
+      it { is_expected.to allow_op_on_object :reserved, nil }
+
+      it 'can create wildcard routes' do
+        object.host = '*'
+        expect(subject.create?(object)).to be_truthy
+      end
+
+      it 'can update wildcard routes' do
+        object.host = '*'
+        expect(subject.update?(object)).to be_truthy
+      end
+
+      context 'changing the space' do
+        it 'succeeds even if not a space developer in the new space' do
+          new_space = Space.make(organization: object.space.organization)
+
+          object.space = new_space
+          expect(subject.update?(object)).to be_truthy
+        end
+      end
+    end
 
     context 'organization manager' do
       before { org.add_manager(user) }
@@ -43,7 +74,7 @@ module VCAP::CloudController
         space.add_manager(user)
       end
 
-      it_behaves_like :full_access
+      it_behaves_like :read_only
     end
 
     context 'space developer' do
@@ -53,6 +84,47 @@ module VCAP::CloudController
       end
 
       it_behaves_like :full_access
+
+      it 'can create wildcard routes' do
+        object.host = '*'
+        expect(subject.create?(object)).to be_falsey
+      end
+
+      it 'can update wildcard routes' do
+        object.host = '*'
+        expect(subject.update?(object)).to be_falsey
+      end
+
+      context 'changing the space' do
+        it 'succeeds if a space developer in the new space' do
+          new_space = Space.make(organization: object.space.organization)
+          new_space.add_developer(user)
+
+          object.space = new_space
+          expect(subject.update?(object)).to be_truthy
+        end
+
+        it 'fails if not a space developer in the new space' do
+          new_space = Space.make(organization: object.space.organization)
+
+          object.space = new_space
+          expect(subject.update?(object)).to be_falsey
+        end
+      end
+
+      context 'when the route_creation feature flag is disabled' do
+        before { FeatureFlag.make(name: 'route_creation', enabled: false, error_message: nil) }
+
+        it 'raises when attempting to create a route' do
+          expect { subject.create?(object) }.to raise_error(VCAP::Errors::ApiError, /route_creation/)
+        end
+
+        it 'allows all other actions' do
+          expect(subject.read_for_update?(object)).to be_truthy
+          expect(subject.update?(object)).to be_truthy
+          expect(subject.delete?(object)).to be_truthy
+        end
+      end
     end
 
     context 'space auditor' do
@@ -89,14 +161,15 @@ module VCAP::CloudController
 
     context 'a user that isnt logged in (defensive)' do
       let(:user) { nil }
-      let(:roles) { double(:roles, :admin? => false, :none? => true, :present? => false) }
+      let(:token) { nil }
       it_behaves_like :no_access
+      it { is_expected.not_to allow_op_on_object :reserved, nil }
     end
 
     context 'any user using client without cloud_controller.write' do
+      let(:token) { { 'scope' => ['cloud_controller.read'] } }
+
       before do
-        token = { 'scope' => 'cloud_controller.read'}
-        allow(VCAP::CloudController::SecurityContext).to receive(:token).and_return(token)
         org.add_user(user)
         org.add_manager(user)
         org.add_billing_manager(user)
@@ -107,12 +180,13 @@ module VCAP::CloudController
       end
 
       it_behaves_like :read_only
+      it { is_expected.to allow_op_on_object :reserved, nil }
     end
 
     context 'any user using client without cloud_controller.read' do
+      let(:token) { { 'scope' => [] } }
+
       before do
-        token = { 'scope' => ''}
-        allow(VCAP::CloudController::SecurityContext).to receive(:token).and_return(token)
         org.add_user(user)
         org.add_manager(user)
         org.add_billing_manager(user)
@@ -123,6 +197,7 @@ module VCAP::CloudController
       end
 
       it_behaves_like :no_access
+      it { is_expected.not_to allow_op_on_object :reserved, nil }
     end
   end
 end

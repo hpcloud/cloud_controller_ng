@@ -12,10 +12,12 @@ module VCAP::CloudController
         instances = diego_client.lrp_instances(app)
 
         for_each_desired_instance(instances, app) do |instance|
-          result[instance[:index]] = {
-              state: instance[:state],
-              since: instance[:since],
+          info = {
+            state: instance[:state],
+            since: instance[:since],
           }
+          info[:details] = instance[:details] if instance[:details]
+          result[instance[:index]] = info
         end
 
         fill_unreported_instances_with_down_instances(result, app)
@@ -36,7 +38,7 @@ module VCAP::CloudController
         running_indices = Set.new
 
         for_each_desired_instance(instances, app) do |instance|
-          next unless (instance[:state] == 'RUNNING' || instance[:state] == 'STARTING')
+          next unless instance[:state] == 'RUNNING' || instance[:state] == 'STARTING'
           running_indices.add(instance[:index])
         end
 
@@ -63,24 +65,26 @@ module VCAP::CloudController
         raise Errors::InstancesUnavailable.new(e)
       end
 
-      #TODO: this is only a stub. stats are not yet available from diego.
+      # TODO: this is only a stub. stats are not yet available from diego.
       def stats_for_app(app)
         result    = {}
         instances = diego_client.lrp_instances(app)
 
         for_each_desired_instance(instances, app) do |instance|
-          result[instance[:index]] = {
-              'state' => instance[:state],
-              'stats' => {
-                  'mem_quota'  => 0,
-                  'disk_quota' => 0,
-                  'usage'      => {
-                      'cpu'  => 0,
-                      'mem'  => 0,
-                      'disk' => 0,
-                  }
+          info = {
+            'state' => instance[:state],
+            'stats' => {
+              'mem_quota'  => 0,
+              'disk_quota' => 0,
+              'usage'      => {
+                  'cpu'  => 0,
+                  'mem'  => 0,
+                  'disk' => 0,
               }
+            }
           }
+          info['details'] = instance[:details] if instance[:details]
+          result[instance[:index]] = info
         end
 
         fill_unreported_instances_with_down_instances(result, app)
@@ -90,9 +94,9 @@ module VCAP::CloudController
 
       private
 
-      def for_each_desired_instance(instances,app,&blk)
+      def for_each_desired_instance(instances, app, &blk)
         instances.each do |instance|
-          next unless instance_is_desired(instance,app)
+          next unless instance_is_desired(instance, app)
           blk.call(instance)
         end
       end
@@ -106,7 +110,7 @@ module VCAP::CloudController
           unless reported_instances[i]
             reported_instances[i] = {
                 state: 'DOWN',
-                since: Time.now.to_i,
+                since: Time.now.utc.to_i,
             }
           end
         end

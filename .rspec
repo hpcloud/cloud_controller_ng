@@ -1,4 +1,14 @@
---backtrace
---colour
+--color
 --profile
---order rand
+--order defined
+
+config.backtrace_exclusion_patterns = [
+%r{/home/\w+/\.rvm/gems/ruby-[.\d\w]+/gems/rspec},
+%r{/home/\w+/\.rvm/gems/ruby-[.\d\w]+/gems/sequel},
+%r{/home/\w+/\.rvm/gems/ruby-[.\d\w]+/bin/ruby_executable_hooks},
+%r{/home/\w+/\.rbenv/versions/[.\d\w]+/lib/ruby/gems/[.\d]+/gems/rspec},
+%r{/home/\w+/\.rbenv/versions/[.\d\w]+/lib/ruby/gems/[.\d]+/gems/sequel},
+%r{/home/\w+/\.rbenv/versions/[.\d\w]+/lib/ruby/gems/[.\d]+/bin/ruby_executable_hooks},
+%r{/home/\w+/\.rbenv/versions/[.\d\w]+/bin/rspec},
+%r{/opt/rubies/[.\d\w]+/lib/ruby/gems/[.\d]+/gems/rspec-},
+]

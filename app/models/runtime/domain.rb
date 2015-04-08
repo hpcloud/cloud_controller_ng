@@ -12,7 +12,7 @@ module VCAP::CloudController
       end
     end
 
-    SHARED_DOMAIN_CONDITION =  {owning_organization_id: nil}
+    SHARED_DOMAIN_CONDITION =  { owning_organization_id: nil }
 
     dataset_module do
       def shared_domains
@@ -29,8 +29,8 @@ module VCAP::CloudController
     end
 
     one_to_many :spaces_sti_eager_load,
-                class: "VCAP::CloudController::Space",
-                dataset: -> { raise "Must be used for eager loading" },
+                class: 'VCAP::CloudController::Space',
+                dataset: -> { raise 'Must be used for eager loading' },
                 eager_loader: proc { |eo|
                   id_map = {}
                   eo[:rows].each do |domain|
@@ -47,70 +47,85 @@ module VCAP::CloudController
                   end
                 }
 
-    many_to_one :owning_organization, class: "VCAP::CloudController::Organization"
+    many_to_one(
+      :owning_organization,
+      class: 'VCAP::CloudController::Organization',
+      before_set: :validate_change_owning_organization
+    )
     one_to_many :routes
+    many_to_many(
+      :shared_organizations,
+      class: 'VCAP::CloudController::Organization',
+      join_table: 'organizations_private_domains',
+      left_key: :private_domain_id,
+      right_key: :organization_id,
+      before_set: :validate_add_shared_organization
+    )
 
-    add_association_dependencies routes: :destroy
+    add_association_dependencies(
+      routes: :destroy,
+      shared_organizations: :nullify,
+    )
 
-    export_attributes :name, :owning_organization_guid
+    export_attributes :name, :owning_organization_guid, :shared_organizations
     import_attributes :name, :owning_organization_guid
-    strip_attributes  :name
+    strip_attributes :name
 
     def validate
       validates_presence :name
-      validates_unique   :name
+      validates_unique :name
 
       validates_format DOMAIN_REGEX, :name
       validates_length_range 3..255, :name
 
-      # See bug #105244 This is intentionally disabled.
-      # errors.add(:name, :overlapping_domain) if overlaps_domain_in_other_org?
-      errors.add(:name, :overlapping_domain) if overlaps_with_shared_domains?
+      errors.add(:name, :overlapping_domain) if name_overlaps?
+      errors.add(:name, :route_conflict) if routes_match?
     end
 
-    def overlaps_domain_in_other_org?
-      domains_to_check = intermediate_domains
-      return unless domains_to_check
-
-      overlapping_domains = Domain.dataset.filter(
-        :name => domains_to_check
-      ).exclude(:id => id)
-
-      if owning_organization
-        overlapping_domains = overlapping_domains.exclude(
-          :owning_organization => owning_organization
-        )
+    def name_overlaps?
+      return true unless intermediate_domains.drop(1).all? do |suffix|
+        d = Domain.find(name: suffix)
+        d.nil? || d.owning_organization == owning_organization || d.shared?
       end
 
-      overlapping_domains.count != 0
+      false
     end
-    
-    def overlaps_with_shared_domains?
-      if owning_organization
-        return true if Domain.dataset.filter(
-          Sequel.like(:name,"%.#{name}"),
-          owning_organization_id: nil
-        ).count > 0
+
+    def routes_match?
+      return false unless name && name =~ DOMAIN_REGEX
+
+      if name.include?('.')
+        route_host = name[0, name.index('.')]
+        route_domain_name = name[name.index('.') + 1, name.length]
+        route_domain = Domain.find(name: route_domain_name)
+        return false if route_domain.nil?
+        return true if Route.dataset.filter(host: route_host, domain: route_domain).count > 0
       end
+      false
     end
 
     def self.intermediate_domains(name)
-      return unless name and name =~ DOMAIN_REGEX
+      return [] unless name && name =~ DOMAIN_REGEX
 
-      name.split(".").reverse.inject([]) do |a, e|
+      name.split('.').reverse.inject([]) do |a, e|
         a.push(a.empty? ? e : "#{e}.#{a.last}")
       end
     end
 
     def self.user_visibility_filter(user)
-      allowed_organizations = Organization.filter(Sequel.or(
+      allowed_organization_ids = Organization.filter(Sequel.or(
                                      managers: [user],
                                      auditors: [user],
-                                     spaces: Space.having_developers(user)))
+                                     spaces: Space.having_developers(user))).select(:id)
 
-      Sequel.or(
-        SHARED_DOMAIN_CONDITION.merge(owning_organization: allowed_organizations)
-      )
+      r = Organization.association_reflection(:private_domains)
+      shared_domains = r.associated_dataset.select(r.qualified_right_key).where(r.predicate_key => allowed_organization_ids)
+
+      Sequel.or([
+        SHARED_DOMAIN_CONDITION.flatten,
+        [:owning_organization_id, allowed_organization_ids],
+        [:id, shared_domains]
+      ])
     end
 
     def usable_by_organization?(org)
@@ -121,9 +136,28 @@ module VCAP::CloudController
       owning_organization_id.nil?
     end
 
+    def owned_by?(org)
+      owning_organization_id == org.id
+    end
+
+    def in_suspended_org?
+      return owning_organization.suspended? if owning_organization
+      false
+    end
+
     private
+
+    def validate_change_owning_organization(organization)
+      return if self.new? || owning_organization == organization
+      raise VCAP::Errors::ApiError.new_from_details('DomainInvalid', 'the owning organization cannot be changed')
+    end
+
     def intermediate_domains
       self.class.intermediate_domains(name)
+    end
+
+    def validate_add_shared_organization(organization)
+      !shared? && !owned_by(organization)
     end
   end
 end

@@ -6,17 +6,34 @@ module VCAP
 
       def self.new_from_details(name, *args)
         details = Details.new(name)
-        api_error = new
-        api_error.details = details
-        api_error.args = args
-        api_error
+        new(details, args)
+      end
+
+      def self.setup_i18n(load_path, default_locale)
+        I18n.enforce_available_locales = false
+        I18n.load_path = load_path
+        I18n.default_locale = default_locale
+        I18n::Backend::Simple.send(:include, I18n::Backend::Fallbacks)
+        I18n.backend.reload!
+      end
+
+      def initialize(details=nil, args=nil)
+        @details = details
+        @args = args
       end
 
       def message
+        return unless args || details
+
         formatted_args = args.map do |arg|
           (arg.is_a? Array) ? arg.map(&:to_s).join(', ') : arg.to_s
         end
-        sprintf(details.message_format, *formatted_args)
+
+        begin
+          sprintf(I18n.translate(details.name, raise: true, locale: I18n.locale), *formatted_args)
+        rescue I18n::MissingTranslationData
+          sprintf(details.message_format, *formatted_args)
+        end
       end
 
       def code
@@ -33,5 +50,3 @@ module VCAP
     end
   end
 end
-
-

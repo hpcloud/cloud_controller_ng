@@ -1,18 +1,21 @@
-require "cloud_controller/dea/client"
+require 'cloud_controller/dea/client'
 require 'uri'
 
 module VCAP::CloudController
   class Route < Sequel::Model
     class InvalidDomainRelation < VCAP::Errors::InvalidRelation; end
     class InvalidAppRelation < VCAP::Errors::InvalidRelation; end
+    class InvalidOrganizationRelation < VCAP::Errors::InvalidRelation; end
 
     many_to_one :domain
-    many_to_one :space
+    many_to_one :space, after_set: :validate_changed_space
+
+    many_to_many :app_models, join_table: :apps_v3_routes
 
     many_to_many :apps,
       before_add:   :validate_app,
-      after_add:    :mark_app_routes_changed,
-      after_remove: :mark_app_routes_changed
+      after_add:    :handle_add_app,
+      after_remove: :handle_remove_app
 
     add_association_dependencies apps: :nullify
 
@@ -49,7 +52,7 @@ module VCAP::CloudController
 
       errors.add(:host, :presence) if host.nil?
 
-      validates_format /^([\w\-]+)$/, :host if (host && !host.empty?)
+      validates_format /^([\w\-]+|\*)$/, :host if host && !host.empty?
       validates_unique [:host, :domain_id]
 
       main_domain = Kato::Config.get("cluster", "endpoint").gsub(/^api\./, '')
@@ -59,31 +62,36 @@ module VCAP::CloudController
       reserved_domains.push(URI(Kato::Config.get("cloud_controller_ng", "uaa/url")).host)
 
       if domain
-        reserved_domains.each do |rdomain|
-          if rdomain == fqdn
-            errors.add(:host, :reserved_host)
-            break
+        if host
+          reserved_domains.each do |rdomain|
+            if rdomain == fqdn
+              errors.add(:host, :reserved_host)
+              break
+            end
           end
-        end
 
-        if fqdn == main_domain
-          errors.add(:host, :reserved_host)
+          if fqdn == main_domain
+            errors.add(:host, :reserved_host)
+          end
         end
 
         unless domain.wildcard
           errors.add(:host, :host_not_empty) unless (host.nil? || host.empty?)
         end
-
-        if space && space.domains_dataset.filter(:id => domain.id).count < 1
-          errors.add(:domain, :invalid_relation)
-        end
+        validate_domain
       end
 
       validate_total_routes
+      errors.add(:host, :domain_conflict) if domains_match?
+    end
+
+    def domains_match?
+      return false if domain.nil? || host.nil? || host.empty?
+      !Domain.find(name: fqdn).nil?
     end
 
     def validate_app(app)
-      return unless (space && app && domain)
+      return unless space && app && domain
 
       unless app.space == space
         raise InvalidAppRelation.new(app.guid)
@@ -94,6 +102,11 @@ module VCAP::CloudController
       end
 
       register_oauth_client if app.sso_enabled
+    end
+
+    def validate_changed_space(new_space)
+      apps.each{ |app| validate_app(app) }
+      raise InvalidOrganizationRelation if domain && !domain.usable_by_organization?(new_space.organization)
     end
 
     def self.user_visibility_filter(user)
@@ -109,7 +122,7 @@ module VCAP::CloudController
         organization: orgs,
       ))
 
-      { :space => spaces }
+      { space: spaces }
     end
 
     def register_oauth_client
@@ -139,7 +152,11 @@ module VCAP::CloudController
       return if client_secret.nil?
       self.class.db.transaction do
         self.client_secret = nil
-        save
+        # Test spec/unit/controllers/runtime/organizations_controller_spec.rb
+        # 'when PrivateDomain is shared' failed when we merged in v201.
+        # The route is in a partial state right now -- and we don't care if
+        # it's not valid because we're in the middle of deleting it.
+        save(:raise_on_failure => false)
         begin 
           scim_api.delete :client, client_id
         rescue Exception => e
@@ -178,21 +195,39 @@ module VCAP::CloudController
       super
 
       loaded_apps.each do |app|
-        mark_app_routes_changed(app)
+        handle_remove_app(app)
+
+        if app.dea_update_pending?
+          Dea::Client.update_uris(app)
+        end
       end
     end
 
-    def mark_app_routes_changed(app)
-      app.mark_routes_changed
+    def handle_add_app(app)
+      app.handle_add_route(self)
+    end
+
+    def handle_remove_app(app)
+      app.handle_remove_route(self)
     end
 
     def validate_domain
-      return unless domain
+      res = valid_domain
+      errors.add(:domain, :invalid_relation) if !res
+    end
+
+    def valid_domain
+      return false if domain.nil?
+
+      domain_change = column_change(:domain_id)
+      return false if !new? && domain_change && domain_change[0] != domain_change[1]
 
       if (domain.shared? && !host.present?) ||
-        (space && !domain.usable_by_organization?(space.organization))
-        errors.add(:domain, :invalid_relation)
+          (space && !domain.usable_by_organization?(space.organization))
+        return false
       end
+
+      true
     end
 
     def validate_total_routes
@@ -211,13 +246,9 @@ module VCAP::CloudController
     end
 
     def scim_api
-      return @scim_api if @scim_api
-      target = Kato::Config.get("cloud_controller_ng", 'uaa/url')
-      secret = Kato::Config.get("cloud_controller_ng", 'aok/client_secret')
-      token_issuer =
-        CF::UAA::TokenIssuer.new(target, 'cloud_controller', secret)
-      token = token_issuer.client_credentials_grant
-      @scim_api = CF::UAA::Scim.new(target, token.auth_header)
+      if @scim_api.nil?
+        @scim_api = StackatoScimUtils.scim_api
+      end
       return @scim_api
     end
 
