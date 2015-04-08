@@ -666,7 +666,7 @@ module VCAP::CloudController
 
     def docker_image=(value)
       super
-      self.package_hash = value
+      self.package_hash = "#{value}###{Time.now.hash}"
     end
 
     def package_hash=(hash)
