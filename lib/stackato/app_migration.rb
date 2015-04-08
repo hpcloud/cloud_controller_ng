@@ -42,7 +42,9 @@ module VCAP::CloudController
 
           routes.each { |route|
             logger.info("[#{migration_id}] Migrating route '#{route.host}' with application")
+            app.eventual_space = new_space
             route.space = new_space
+            app.eventual_space = nil
             route.save
           }
 

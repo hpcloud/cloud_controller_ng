@@ -93,7 +93,7 @@ module VCAP::CloudController
     def validate_app(app)
       return unless space && app && domain
 
-      unless app.space == space
+      unless app.space == space || app.eventual_space == space
         raise InvalidAppRelation.new(app.guid)
       end
 

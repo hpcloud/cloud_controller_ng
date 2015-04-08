@@ -86,6 +86,9 @@ module VCAP::CloudController
 
     # Last staging response which will contain streaming log url
     attr_accessor :last_stager_response
+    
+    # Used for migrating apps from one space to another
+    attr_accessor :eventual_space
 
     alias_method :diego?, :diego
 
