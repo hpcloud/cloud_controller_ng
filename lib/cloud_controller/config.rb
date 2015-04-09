@@ -386,8 +386,9 @@ module VCAP::CloudController
 
       def apply_stackato_overrides(config)
         if config.fetch(:nginx, {}).fetch(:use_nginx, false)
-          # logging is unavailable at this point
-          puts "Stackato does not support nginx/use_nginx; disabling it."
+          # Stackato does not support nginx/use_nginx; disable it.
+          # logging is unavailable at this point, so we can't report this
+          # via logging.
           config[:nginx][:use_nginx] = false
         end
 
