@@ -1,3 +1,4 @@
+require 'json'
 require 'net/http'
 require 'set'
 require "cloud_controller/dependency_locator"
@@ -19,9 +20,10 @@ module VCAP::CloudController
             docker_registry = CloudController::DependencyLocator.instance.docker_registry
             url = URI("http://#{docker_registry}/v1/cleanup/")
             req = Net::HTTP::Post.new(url.request_uri)
-            req.form_data = {
+            req.content_type = "application/json"
+            req.body = {
               :cleanup_limit => target_size_in_megabytes,
-              :known_hashes => droplet_hashes.to_a.join(",")}
+              :known_hashes => droplet_hashes.to_a}.to_json
             http = Net::HTTP.new(url.hostname, url.port)
             logger.info("Cleaning up docker registry; aiming for #{target_size_in_megabytes} MB (#{droplet_hashes.length} in use)")
             response = http.request(req)
