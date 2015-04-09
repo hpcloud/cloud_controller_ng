@@ -1,5 +1,4 @@
 --color
---profile
 --order defined
 
 config.backtrace_exclusion_patterns = [
