@@ -192,6 +192,11 @@ allowed_repos:
   - "deb mirror://mirrors.ubuntu.com/mirrors.txt precise-updates main restricted universe multiverse"
   - "deb http://security.ubuntu.com/ubuntu precise-security main universe"
 
+docker_apps:
+  require_sudo: true
+  allow_any_registry: true
+  allowed_registries: []
+
 app_uris:
   # Allow applications to register URIs that are outside your domain.
   reserved_list: []

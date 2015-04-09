@@ -1,7 +1,7 @@
 module VCAP::CloudController
   module Dea
     class StartAppMessage < Hash
-      def initialize(app, index, config, blobstore_url_generator)
+      def initialize(app, index, config, blobstore_url_generator, docker_registry)
         super()
 
         self[:droplet]        = app.guid
@@ -29,6 +29,9 @@ module VCAP::CloudController
         self[:env]                  = (app.environment_json || {}).map { |k, v| "#{k}=#{v}" }
         self[:console]              = app.console
         self[:debug]                = app.debug
+        self[:docker_image]         = app.docker_image
+        self[:docker_registry]      = docker_registry
+        self[:docker_apps_config]   = config[:docker_apps]
         self[:start_command]        = app.command
         self[:health_check_timeout] = app.health_check_timeout
         self[:sso_enabled] = app.sso_enabled
@@ -51,6 +54,9 @@ module VCAP::CloudController
 
       def has_app_package?
         return !self[:executableUri].nil?
+      end
+      def has_docker_image?
+        return !self[:docker_image].nil?
       end
     end
   end

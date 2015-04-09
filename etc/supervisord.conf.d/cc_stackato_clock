@@ -1,10 +1,9 @@
-
-[program:cc_monitor]
+[program:cc_stackato_clock]
 directory=/s/code/cloud_controller_ng
-command=/opt/rubies/current/bin/bundle exec rake monitor:start
+command=/opt/rubies/current/bin/bundle exec rake stackato_clock:start
 priority=999
 redirect_stderr=true
-stdout_logfile=/s/logs/cc_monitor.log
+stdout_logfile=/s/logs/cc_stackato_clock.log
 stdout_logfile_maxbytes=1MB
 stdout_logfile_backups=3
 autostart=false

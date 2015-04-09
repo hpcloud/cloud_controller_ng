@@ -1,5 +1,3 @@
-require 'clockwork'
-require 'kato/config'
 require 'kato/node_process_controller'
 
 class Numeric
@@ -17,17 +15,21 @@ class String
   end
 end
 
-module VCAP::CloudController::Stackato
-  class Monitor
+module VCAP::CloudController::Jobs::Runtime::Stackato
+  class Monitor < Struct.new(:config)
     PAGE_SIZE = 4096
     DEFAULT_THRESHOLD_RATIO = 0.95
 
-    def start
-      Clockwork.every 1.hour, 'cc.monitor.job' do |_|
-        check_cc_memory_usage
-      end
-      logger.info "Cloud controller monitoring started, max VmSize #{vmsize_limit.delimited}, max VmRSS #{rss_limit.delimited}"
-      Clockwork.run
+    def perform
+      check_cc_memory_usage
+    end
+
+    def job_name_in_configuration
+      :monitor
+    end
+
+    def max_attempts
+      1 # If the job fails, we can just let it run next hour
     end
 
     def logger
@@ -35,15 +37,15 @@ module VCAP::CloudController::Stackato
     end
 
     def vmsize_limit
-      Kato::Config.get('cloud_controller_ng', 'resource_monitoring/max_vm_size') || 4 * 1024 ** 3
+      config[:resource_monitoring][:max_vm_size] || 4 * 1024 ** 3
     end
 
     def rss_limit
-      Kato::Config.get('cloud_controller_ng', 'resource_monitoring/max_rss_size') || 2 * 1024 ** 3
+      config[:resource_monitoring][:max_rss_size] || 2 * 1024 ** 3
     end
 
     def get_threshold_ratio
-      threshold_ratio = Kato::Config.get('cloud_controller_ng', 'resource_monitoring/threshold_ratio') || DEFAULT_THRESHOLD_RATIO
+      threshold_ratio = config[:resource_monitoring].fetch(:threshold_ratio, DEFAULT_THRESHOLD_RATIO)
       msg = nil
       begin
         if threshold_ratio > 1.0
@@ -57,7 +59,7 @@ module VCAP::CloudController::Stackato
       if msg
         logger.warn(msg)
         threshold_ratio = DEFAULT_THRESHOLD_RATIO
-        Kato::Config.set 'cloud_controller_ng', 'resource_monitoring/threshold_ratio', threshold_ratio
+        config[:resource_monitoring][:threshold_ratio] = threshold_ratio
       end
       return threshold_ratio
     end

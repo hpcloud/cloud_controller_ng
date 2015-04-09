@@ -16,6 +16,7 @@ processes:
     quota_definitions: RW
     staging:
       max_staging_runtime: RW
+    docker_apps: RW
 
   health_manager:
     logging: RW

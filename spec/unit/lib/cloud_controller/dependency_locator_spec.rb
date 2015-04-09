@@ -208,6 +208,14 @@ describe CloudController::DependencyLocator do
     end
   end
 
+  describe "#docker_registry" do
+    let(:config) { { external_host: "external.host" } }
+
+    it "returns the host and port of the docker registry" do
+      expect(locator.docker_registry).to eq("#{config[:external_host]}:5000")
+    end
+  end
+
   describe "#app_event_repository" do
     subject { locator.app_event_repository }
 
