@@ -84,8 +84,8 @@ def stub_logyard_request
 end
 
 def stub_appstore
-  # appstore_controller does not care about the body at the momemnt, but the body needs to 
-  # be updated with what is actually retruned from the appstore service
+  # appstore_controller does not care about the body of the response at the momemnt, but  
+  # the response body needs to be updated with what is actually retruned from the appstore service
   stub_request(:post, %r"http://127.0.0.1:9256/(create|push)").
          to_return(:status => 200, :body => '{"result": "success"}', :headers => {})
 end
