@@ -11,8 +11,6 @@ module VCAP::CloudController
     describe 'POST /v2/appstore' do
 
       let(:space)     { Space.make }
-      # let(:user)      { make_user_for_space(space) }
-      # let(:headers)   { headers_for(user) }
       let(:req_body)  { 
         { :space_guid => space.guid, 
           :app_name => "test-app"
