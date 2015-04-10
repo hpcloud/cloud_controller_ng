@@ -32,7 +32,7 @@ module VCAP::CloudController
         expect(last_response.status).to eq(201)
       end
 
-      it "should reject update if in maintenance mode" do
+      it "should reject adding new drains if in maintenance mode" do
         TestConfig.override({:maintenance_mode => true})
         post "/v2/drains", MultiJson.dump(new_drain), admin_headers
         expect(last_response.status).to eq(503)
@@ -66,7 +66,7 @@ module VCAP::CloudController
         expect(last_response.status).to eq(200)
       end
 
-      it "should reject update if in maintenance mode" do
+      it "should reject delete if in maintenance mode" do
         TestConfig.override({:maintenance_mode => true})
         delete "/v2/drains/#{drain_name}", {}, admin_headers
         expect(last_response.status).to eq(503)
