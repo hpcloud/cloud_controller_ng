@@ -25,6 +25,10 @@ module VCAP::CloudController
         success_callback.call(:started_instances => 0)
       end
     end
+
+    def dea_stager(app)
+      Dea::StackatoStager.new(app, @config, @message_bus, @dea_pool, @stager_pool, @runners)
+    end
     
     private
     
