@@ -32,12 +32,15 @@ module VCAP::CloudController
         expect(last_response.status).to eq(201)
       end
 
-      it "should reject adding new drains if in maintenance mode" do
-        TestConfig.override({:maintenance_mode => true})
-        post "/v2/drains", MultiJson.dump(new_drain), admin_headers
-        expect(last_response.status).to eq(503)
-        expect(last_response.body).to match(/Maintenance mode is enabled/)
-        TestConfig.override({:maintenance_mode => false})
+      context "when in maintenance mode" do
+        before { TestConfig.override({:maintenance_mode => true})  }
+        after  { TestConfig.override({:maintenance_mode => false}) }
+
+        it "should reject adding new drains" do
+          post "/v2/drains", MultiJson.dump(new_drain), admin_headers
+          expect(last_response.status).to eq(503)
+          expect(last_response.body).to match(/Maintenance mode is enabled/)
+        end
       end
     end
 
@@ -66,12 +69,15 @@ module VCAP::CloudController
         expect(last_response.status).to eq(200)
       end
 
-      it "should reject delete if in maintenance mode" do
-        TestConfig.override({:maintenance_mode => true})
-        delete "/v2/drains/#{drain_name}", {}, admin_headers
-        expect(last_response.status).to eq(503)
-        expect(last_response.body).to match(/Maintenance mode is enabled/)
-        TestConfig.override({:maintenance_mode => false})
+      context "when in maintenance mode" do
+        before { TestConfig.override({:maintenance_mode => true})  }
+        after  { TestConfig.override({:maintenance_mode => false}) }
+
+        it "should reject deleting a drain" do
+          delete "/v2/drains/#{drain_name}", {}, admin_headers
+          expect(last_response.status).to eq(503)
+          expect(last_response.body).to match(/Maintenance mode is enabled/)
+        end
       end
     end
 
