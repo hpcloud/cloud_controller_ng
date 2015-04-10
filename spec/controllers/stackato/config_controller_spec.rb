@@ -1,9 +1,7 @@
 require 'spec_helper'
-require 'kato/config'
 
 module VCAP::CloudController
   describe VCAP::CloudController::StackatoConfigController, type: :controller do
-
 
     describe "GET /v2/stackato/config/components" do
       it "should return the list of components" do
