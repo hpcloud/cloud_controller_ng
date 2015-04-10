@@ -7,7 +7,8 @@ module VCAP::CloudController
     let(:task_id) { 'somthing' }
     let(:droplet_guid) { 'abc123' }
     let(:log_id) { 'log-id' }
-    let(:staging_message) { Dea::StagingMessage.new(config_hash, blobstore_url_generator) }
+    let(:docker_registry) { "localhost:5000" }
+    let(:staging_message) { Dea::StagingMessage.new(config_hash, blobstore_url_generator, docker_registry) }
 
     before do
       SecurityGroup.make(rules: [{ 'protocol' => 'udp', 'ports' => '8080-9090', 'destination' => '198.41.191.47/1' }], staging_default: true)
@@ -25,7 +26,7 @@ module VCAP::CloudController
       subject(:staging_message) do
         Dea::PackageDEAStagingMessage.new(
           package, droplet_guid, log_id, stack, memory_limit, disk_limit,
-          buildpack_key, buildpack_git_url, config_hash, blobstore_url_generator)
+          buildpack_key, buildpack_git_url, config_hash, blobstore_url_generator, docker_registry)
       end
 
       its(:stack) { should eq('trusty32') }

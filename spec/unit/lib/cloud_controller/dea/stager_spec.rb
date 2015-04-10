@@ -39,6 +39,7 @@ module VCAP::CloudController
       let(:detected_start_command) { 'wait_for_godot' }
       let(:buildpack_key) { nil }
       let(:droplet_hash) { 'droplet-sha1' }
+      let(:docker_registry) { "127.0.0.1:5000" }
       let(:reply_json) do
         {
           'task_id' => 'task-id',
@@ -77,7 +78,8 @@ module VCAP::CloudController
                                                             thing_to_stage,
                                                             dea_pool,
                                                             stager_pool,
-                                                            an_instance_of(CloudController::Blobstore::UrlGenerator))
+                                                            an_instance_of(CloudController::Blobstore::UrlGenerator),
+                                                            docker_registry)
         end
 
         it 'starts the app with the returned staging result' do
@@ -117,7 +119,8 @@ module VCAP::CloudController
               anything,
               buildpack_git_url,
               config,
-              an_instance_of(CloudController::Blobstore::UrlGenerator)).
+              an_instance_of(CloudController::Blobstore::UrlGenerator),
+              an_instance_of(String)).
             and_return(staging_message)
           allow(stager_task).to receive(:stage).and_yield(staging_result, staging_error).and_return('fake-stager-response')
         end

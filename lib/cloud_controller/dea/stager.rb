@@ -12,11 +12,12 @@ module VCAP::CloudController
 
       def stage_package(droplet, stack, memory_limit, disk_limit, buildpack_key, buildpack_git_url)
         blobstore_url_generator = CloudController::DependencyLocator.instance.blobstore_url_generator
+        docker_registry = CloudController::DependencyLocator.instance.docker_registry
         task = PackageStagerTask.new(@config, @message_bus, @dea_pool, @stager_pool, blobstore_url_generator)
 
         staging_message = PackageDEAStagingMessage.new(
           @app, droplet.guid, droplet.guid, stack, memory_limit, disk_limit, buildpack_key,
-          buildpack_git_url, @config, blobstore_url_generator)
+          buildpack_git_url, @config, blobstore_url_generator, docker_registry)
 
         task.stage(staging_message) do |staging_result, error|
           if error

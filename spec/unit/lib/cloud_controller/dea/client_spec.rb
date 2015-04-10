@@ -22,9 +22,10 @@ module VCAP::CloudController
     let(:blobstore_url_generator) do
       double('blobstore_url_generator', droplet_download_url: 'app_uri')
     end
+    let(:docker_registry) { "localhost:5000" }
 
     before do
-      Dea::Client.configure(TestConfig.config, message_bus, dea_pool, stager_pool, blobstore_url_generator)
+      Dea::Client.configure(TestConfig.config, message_bus, dea_pool, stager_pool, blobstore_url_generator, docker_registry)
     end
 
     describe '.run' do
@@ -182,7 +183,7 @@ module VCAP::CloudController
 
       it 'sends a dea start message that includes cc_partition' do
         TestConfig.override(cc_partition: 'ngFTW')
-        Dea::Client.configure(TestConfig.config, message_bus, dea_pool, stager_pool, blobstore_url_generator)
+        Dea::Client.configure(TestConfig.config, message_bus, dea_pool, stager_pool, blobstore_url_generator, docker_registry)
 
         app.instances = 1
         expect(dea_pool).to receive(:find_dea).and_return('abc')

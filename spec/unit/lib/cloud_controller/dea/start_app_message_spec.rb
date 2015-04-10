@@ -3,6 +3,7 @@ require 'spec_helper'
 module VCAP::CloudController
   describe Dea::StartAppMessage do
     let(:num_service_instances) { 3 }
+    let(:docker_registry) { "localhost:5000" }
 
     let(:app) do
       AppFactory.make.tap do |app|
@@ -23,7 +24,7 @@ module VCAP::CloudController
 
     describe '.start_app_message' do
       it 'should return a serialized dea message' do
-        res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator)
+        res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator, docker_registry)
         expect(res[:executableUri]).to eq('app_uri')
         expect(res).to be_kind_of(Hash)
 
@@ -47,7 +48,7 @@ module VCAP::CloudController
       end
 
       it 'should have an app package' do
-        res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator)
+        res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator, docker_registry)
 
         expect(res[:executableUri]).to eq('app_uri')
         expect(res.has_app_package?).to be true
@@ -59,7 +60,7 @@ module VCAP::CloudController
         end
 
         it 'should have no app package' do
-          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator)
+          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator, docker_registry)
 
           expect(res[:executableUri]).to be_nil
           expect(res.has_app_package?).to be false
@@ -69,7 +70,7 @@ module VCAP::CloudController
       context 'with an app enabled for console support' do
         it 'should enable console in the start message' do
           app.update(console: true)
-          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator)
+          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator, docker_registry)
           expect(res[:console]).to eq(true)
         end
       end
@@ -77,7 +78,7 @@ module VCAP::CloudController
       context 'with an app enabled for debug support' do
         it 'should pass debug mode in the start message' do
           app.update(debug: 'run')
-          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator)
+          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator, docker_registry)
           expect(res[:debug]).to eq('run')
         end
       end
@@ -85,7 +86,7 @@ module VCAP::CloudController
       context 'with an app with custom start command' do
         it 'should pass command in the start message' do
           app.update(command: 'custom start command')
-          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator)
+          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator, docker_registry)
           expect(res[:start_command]).to eq('custom start command')
         end
       end
@@ -93,7 +94,7 @@ module VCAP::CloudController
       context 'with an app enabled for custom health check timeout value' do
         it 'should enable health check timeout in the start message' do
           app.update(health_check_timeout: 82)
-          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator)
+          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator, docker_registry)
           expect(res[:health_check_timeout]).to eq(82)
         end
       end
@@ -110,7 +111,7 @@ module VCAP::CloudController
         end
 
         it 'should provide the egress rules in the start message' do
-          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator)
+          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator, docker_registry)
           expect(res[:egress_network_rules]).to match_array(
             [sg_default_rules_1, sg_default_rules_2, sg_for_space_rules].flatten
           )
@@ -123,7 +124,7 @@ module VCAP::CloudController
         end
 
         it 'includes app environment variables' do
-          request = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator)
+          request = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator, docker_registry)
           expect(request[:env]).to eq(['KEY=value'])
         end
 
@@ -132,7 +133,7 @@ module VCAP::CloudController
           group.environment_json = { 'RUNNINGKEY' => 'running_value' }
           group.save
 
-          request = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator)
+          request = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator, docker_registry)
           expect(request[:env]).to match_array(['KEY=value', 'RUNNINGKEY=running_value'])
         end
 
@@ -141,7 +142,7 @@ module VCAP::CloudController
           group.environment_json = { 'KEY' => 'running_value' }
           group.save
 
-          request = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator)
+          request = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator, docker_registry)
           expect(request[:env]).to match_array(['KEY=value'])
         end
       end
@@ -156,7 +157,7 @@ module VCAP::CloudController
         end
 
         it 'should have a v3 download url, droplet_hash, and an app package' do
-          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator)
+          res = Dea::StartAppMessage.new(app, 1, TestConfig.config, blobstore_url_generator, docker_registry)
 
           expect(res[:executableUri]).to eq('v3_app_uri')
           expect(res[:sha1]).to eq(droplet.droplet_hash)
