@@ -15,11 +15,12 @@ module VCAP::CloudController
     let(:buildpack_guid) { 'bp-guid' }
     let(:buildpack_git_url) { 'bp-git-url' }
     let(:droplet_guid) { 'drop-guid' }
+    let(:docker_registry) { "localhost:5000" }
     let(:log_id) { 'log-id' }
     let(:staging_message) do
       Dea::PackageDEAStagingMessage.new(
         package, droplet_guid, log_id, stack, memory_limit, disk_limit, buildpack_guid, buildpack_git_url,
-        config_hash, blobstore_url_generator)
+        config_hash, blobstore_url_generator, docker_registry)
     end
     let(:stager_id) { 'my_stager' }
 

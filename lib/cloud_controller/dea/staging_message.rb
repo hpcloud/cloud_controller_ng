@@ -1,9 +1,10 @@
 module VCAP::CloudController
   module Dea
     class StagingMessage
-      def initialize(config, blobstore_url_generator)
+      def initialize(config, blobstore_url_generator, docker_registry)
         @blobstore_url_generator = blobstore_url_generator
         @config = config
+        @docker_registry = docker_registry
       end
 
       def staging_request(app, task_id)
@@ -18,6 +19,7 @@ module VCAP::CloudController
           upload_uri:                   @blobstore_url_generator.droplet_upload_url(app),
           buildpack_cache_download_uri: @blobstore_url_generator.buildpack_cache_download_url(app),
           buildpack_cache_upload_uri:   @blobstore_url_generator.buildpack_cache_upload_url(app),
+          docker_image:                 app.docker_image,
           start_message:                start_app_message(app),
           admin_buildpacks:             admin_buildpacks,
           egress_network_rules:         staging_egress_rules,
@@ -63,7 +65,7 @@ module VCAP::CloudController
       end
 
       def start_app_message(app)
-        msg = Dea::StartAppMessage.new(app, 0, @config, @blobstore_url_generator)
+        msg = Dea::StartAppMessage.new(app, 0, @config, @blobstore_url_generator, @docker_registry)
         msg[:sha1] = nil
         msg
       end
@@ -72,7 +74,7 @@ module VCAP::CloudController
     class PackageDEAStagingMessage < StagingMessage
       attr_reader :stack, :memory_limit, :disk_limit, :buildpack_key, :buildpack_git_url, :log_id, :droplet_guid
 
-      def initialize(package, droplet_guid, log_id, stack, memory_limit, disk_limit, buildpack_key, buildpack_git_url, config, blobstore_url_generator)
+      def initialize(package, droplet_guid, log_id, stack, memory_limit, disk_limit, buildpack_key, buildpack_git_url, config, blobstore_url_generator, docker_registry)
         @package           = package
         @stack             = stack
         @memory_limit      = memory_limit
@@ -81,7 +83,7 @@ module VCAP::CloudController
         @buildpack_git_url = buildpack_git_url
         @droplet_guid      = droplet_guid
         @log_id            = log_id
-        super(config, blobstore_url_generator)
+        super(config, blobstore_url_generator, docker_registry)
       end
 
       def staging_request

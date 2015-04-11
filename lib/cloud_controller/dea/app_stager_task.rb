@@ -22,44 +22,18 @@ module VCAP::CloudController
         @task_id ||= VCAP.secure_uuid
       end
 
-      def find_stager_retry
-        # Bug 104558 - Allow for dead droplet-slots to be made available
-        # Same code as in StackatoStagers.stage_if_needed
-        num_tries = @config[:staging].fetch(:num_repeated_tries, 10)
-        delay = @config[:staging].fetch(:time_between_tries, 3)
-        num_tries.times do | iter |
-          if iter > 0
-            logger.warn("#{iter}/#{num_tries}: Waiting #{delay} secs for next attempt to find a stager for #{@app.name}")
-            sleep delay
-          end
-          @stager_id = @stager_pool.find_stager(@app.stack.name, staging_task_memory_mb, staging_task_disk_mb, @app.distribution_zone)
-          if @stager_id
-            return @stager_id
-          end
-        end
-        nil
-      end
-
       def stage(&completion_callback)
-        find_stager_retry
-        if !@stager_id
-          parts = ["stack #{@app.stack.name}", "mem #{@app.memory}"]
-          if @app.distribution_zone && @app.distribution_zone != "default"
-            partString = parts.join(", ") + ", and zone #{@app.distribution_zone}"
-          else
-            partString = parts.join(" and ")
-          end
-          available_zones = available_placement_zones
-          if available_zones.size > 1 || available_zones.first != "default"
-              partString += ". Requested placement_zone: #{@app.distribution_zone}, available placement zones: #{available_zones.join(" ")}"
-          end
-          raise Errors::ApiError.new_from_details('StagingError', "no available stagers for #{partString}; available mem: #{staging_task_memory_mb}, disk: #{staging_task_disk_mb}")
-        end
+        @stager_id = @stager_pool.find_stager(@app.stack.name, staging_task_memory_mb, staging_task_disk_mb)
+        raise Errors::ApiError.new_from_details('StagingError', 'no available stagers') unless @stager_id
+        finish_stage(&completion_callback)
+      end
+      
+      def finish_stage(&completion_callback)
         subject = "staging.#{@stager_id}.start"
         @multi_message_bus_request = MultiResponseMessageBusRequest.new(@message_bus, subject)
 
         # Save the current staging task
-        @app.update(staging_task_id: task_id)
+        @app.update(package_state: 'PENDING', staging_task_id: task_id)
 
         # Attempt to stop any in-flight staging for this app
         @message_bus.publish('staging.stop', app_id: @app.guid)
@@ -70,6 +44,8 @@ module VCAP::CloudController
         @stager_pool.reserve_app_memory(@stager_id, staging_task_memory_mb)
 
         logger.info('staging.begin', app_guid: @app.guid)
+        staging_msg = staging_request
+
         staging_result = EM.schedule_sync do |promise|
           # First response is blocking stage_app.
           @multi_message_bus_request.on_response(staging_timeout) do |response, error|
@@ -85,7 +61,7 @@ module VCAP::CloudController
             handle_second_response(response, error)
           end
 
-          @multi_message_bus_request.request(staging_request)
+          @multi_message_bus_request.request(staging_msg)
         end
 
         staging_result
@@ -93,21 +69,7 @@ module VCAP::CloudController
 
       # We never stage if there is not a start request
       def staging_request
-        {
-            app_id:                       @app.guid,
-            space_guid:                   @app.space_guid,
-            task_id:                      task_id,
-            properties:                   staging_task_properties(@app),
-            # All url generation should go to blobstore_url_generator
-            download_uri:                 @blobstore_url_generator.app_package_download_url(@app),
-            upload_uri:                   @blobstore_url_generator.droplet_upload_url(@app),
-            buildpack_cache_download_uri: @blobstore_url_generator.buildpack_cache_download_url(@app),
-            buildpack_cache_upload_uri:   @blobstore_url_generator.buildpack_cache_upload_url(@app),
-            docker_image:                 @app.docker_image,
-            start_message:                start_app_message,
-            admin_buildpacks:             admin_buildpacks,
-            egress_network_rules:         staging_egress_rules,
-        }
+        StagingMessage.new(@config, @blobstore_url_generator, @docker_registry).staging_request(@app, task_id)
       end
 
       private
