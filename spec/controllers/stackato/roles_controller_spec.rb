@@ -3,6 +3,8 @@ require 'spec_helper'
 module VCAP::CloudController
   describe VCAP::CloudController::StackatoRolesController, type: :controller do
 
+    let (:node_id) { "127.0.0.1" }
+
     let (:node_roles) do
       '{
           "roles": {
@@ -19,7 +21,7 @@ module VCAP::CloudController
     end
 
     let (:node_response) do
-      "{ \"127.0.0.1\": #{node_roles} }"
+      "{ \"#{node_id}\": #{node_roles} }"
     end
 
     describe "GET /v2/stackato/cluster/roles" do
@@ -36,8 +38,6 @@ module VCAP::CloudController
     end
 
     context "when dealing with a given node" do
-
-      let (:node_id) { "127.0.0.1" }
 
       before(:each) do
         allow(Kato::Config).to receive(:get).and_call_original
