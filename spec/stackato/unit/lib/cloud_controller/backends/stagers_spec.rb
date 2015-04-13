@@ -44,7 +44,9 @@ module VCAP::CloudController
           expect(stager).to be_a(Dea::StackatoStager)
         end
         it 'can create an app-stager-task via stager.stage_app' do
-          stager.stage_app
+          expect {
+            stager.stage_app
+          }.to_not raise_error
         end
       end
     end
