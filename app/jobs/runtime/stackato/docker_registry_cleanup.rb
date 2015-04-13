@@ -12,7 +12,7 @@ module VCAP::CloudController
           def perform
             logger = Steno.logger("cc.stackato.clock")
             logger.info "Performing docker registry cleanup job"
-            target_size_in_megabytes = config[:docker_apps][:droplet_cleanup_limit_mb] || 1024
+            target_size_in_megabytes = config[:docker_apps][:droplet_cleanup_limit_mb] || 10240
             droplet_hashes = Set.new
             VCAP::CloudController::App.where{docker_image != nil}.each do |app|
               droplet_hashes.merge app.droplets.map(&:droplet_hash)
