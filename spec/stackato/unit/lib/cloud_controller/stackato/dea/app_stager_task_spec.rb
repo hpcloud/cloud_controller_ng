@@ -82,11 +82,5 @@ module VCAP::CloudController
         end
       end
     end
-
-    def ignore_staging_error
-      yield
-    rescue VCAP::Errors::ApiError => e
-      raise e unless e.name == 'StagingError'
-    end
   end
 end
