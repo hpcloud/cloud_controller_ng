@@ -43,7 +43,7 @@ module VCAP::CloudController
         it 'finds a DEA/Stackato backend' do
           expect(stager).to be_a(Dea::StackatoStager)
         end
-        it 'can create an app-stager-task via stager.stage_app' do
+        it 'can should stage an app without throwing an error' do
           expect {
             stager.stage_app
           }.to_not raise_error
