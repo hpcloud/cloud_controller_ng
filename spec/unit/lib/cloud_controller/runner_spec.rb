@@ -88,7 +88,7 @@ module VCAP::CloudController
           allow(subject).to receive(:start_thin_server).and_call_original
           ip = 'some_local_ip'
           allow(VCAP).to receive(:local_ip).and_return(ip)
-          expect(Kato::Local::Node).to receive(:get_local_node_id).and_return(ip).exactly(3).times
+          expect(Kato::Local::Node).to receive(:get_local_node_id).and_return(ip).exactly(4).times
           expect(Thin::Server).to receive(:new).with(ip, 8181, { signals: false }).and_return(double(:thin_server).as_null_object)
           subject.run!
         end
