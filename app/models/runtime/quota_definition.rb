@@ -1,9 +1,6 @@
 module VCAP::CloudController
   class QuotaDefinition < Sequel::Model
-
     one_to_many :organizations
-
-    add_association_dependencies organizations: :destroy
 
     export_attributes :name, :non_basic_services_allowed, :total_services, :total_routes,
                       :memory_limit, :trial_db_allowed, :instance_memory_limit,
@@ -21,6 +18,13 @@ module VCAP::CloudController
       validates_presence :memory_limit
       validates_presence :allow_sudo
       errors.add(:memory_limit, :less_than_zero) if memory_limit && memory_limit < 0
+      errors.add(:instance_memory_limit, :invalid_instance_memory_limit) if instance_memory_limit && instance_memory_limit < -1
+    end
+
+    def before_destroy
+      if organizations.present?
+        raise VCAP::Errors::ApiError.new_from_details('AssociationNotEmpty', 'organization', 'quota definition')
+      end
     end
 
     def before_create
@@ -45,12 +49,12 @@ module VCAP::CloudController
       @config = config
     end
 
-    def self.default_quota_name
-      @default_quota_name
+    class << self
+      attr_reader :default_quota_name
     end
 
     def self.default
-      self[:name => @default_quota_name]
+      self[name: @default_quota_name]
     end
 
     def self.user_visibility_filter(user)

@@ -14,8 +14,16 @@ module CloudController
         generate_download_url(@package_blobstore, "/staging/apps/#{app.guid}", app.guid)
       end
 
+      def package_download_url(package)
+        generate_download_url(@package_blobstore, "/staging/packages/#{package.guid}", package.guid)
+      end
+
       def buildpack_cache_download_url(app)
         generate_download_url(@buildpack_cache_blobstore, "/staging/buildpack_cache/#{app.guid}/download", app.guid)
+      end
+
+      def package_buildpack_cache_download_url(package)
+        generate_download_url(@buildpack_cache_blobstore, "/staging/packages/buildpack_cache/#{package.guid}/download", package.guid)
       end
 
       def admin_buildpack_download_url(buildpack)
@@ -30,7 +38,11 @@ module CloudController
         url = blob.download_url if blob
 
         return nil unless url
-        return @droplet_blobstore.local? ? staging_uri("/staging/droplets/#{app.guid}/download") : url
+        @droplet_blobstore.local? ? staging_uri("/staging/droplets/#{app.guid}/download") : url
+      end
+
+      def v3_droplet_download_url(droplet)
+        generate_download_url(@droplet_blobstore, "/staging/v3_droplets/#{droplet.guid}/download", droplet.blobstore_key)
       end
 
       def perma_droplet_download_url(app_guid)
@@ -42,15 +54,24 @@ module CloudController
         staging_uri("/staging/droplets/#{app.guid}/upload")
       end
 
+      def package_droplet_upload_url(droplet_guid)
+        staging_uri("/staging/packages/droplets/#{droplet_guid}/upload")
+      end
+
+      def package_buildpack_cache_upload_url(package)
+        staging_uri("/staging/packages/buildpack_cache/#{package.guid}/upload")
+      end
+
       def buildpack_cache_upload_url(app)
         staging_uri("/staging/buildpack_cache/#{app.guid}/upload")
       end
 
       private
+
       def generate_download_url(store, path, blobstore_key)
         uri = store.download_uri(blobstore_key)
         return nil unless uri
-        return store.local? ? staging_uri(path) : uri
+        store.local? ? staging_uri(path) : uri
       end
 
       def staging_uri(path)

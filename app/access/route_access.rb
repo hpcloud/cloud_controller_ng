@@ -1,18 +1,34 @@
 module VCAP::CloudController
   class RouteAccess < BaseAccess
-    def create?(route)
+    def create?(route, params=nil)
       return true if admin_user?
       return false if route.in_suspended_org?
-      route.space.developers.include?(context.user) ||
-        route.space.managers.include?(context.user)
+      return false if route.host == '*'
+      FeatureFlag.raise_unless_enabled!('route_creation')
+      route.space.developers.include?(context.user)
     end
 
-    def update?(route)
-      create?(route)
+    def read_for_update?(route, params=nil)
+      update?(route, params)
+    end
+
+    def update?(route, params=nil)
+      return true if admin_user?
+      return false if route.in_suspended_org?
+      return false if route.host == '*'
+      route.space.developers.include?(context.user)
     end
 
     def delete?(route)
-      create?(route)
+      update?(route)
+    end
+
+    def reserved?(_)
+      logged_in?
+    end
+
+    def reserved_with_token?(_)
+      admin_user? || has_read_scope?
     end
   end
 end

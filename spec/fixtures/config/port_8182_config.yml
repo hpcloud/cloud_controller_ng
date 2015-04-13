@@ -1,7 +1,7 @@
 ---
 local_route: 127.0.0.1
+port: 8182
 external_port: 8182
-instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
 
 pid_filename: /tmp/cloud_controller.8182.pid
 
@@ -42,6 +42,12 @@ default_app_memory: 1024 #mb
 default_app_disk_in_mb: 1024
 maximum_app_disk_in_mb: 2048
 
+broker_client_default_async_poll_interval_seconds: 60
+broker_client_max_async_poll_attempts: 25
+
+hm9000:
+  url: "http://localhost:5155"
+
 uaa:
   url: "http://localhost:8080/uaa"
   resource_id: "cloud_controller"
@@ -58,10 +64,18 @@ bulk_api:
   auth_user: bulk_user
   auth_password: bulk_password
 
+internal_api:
+  auth_user: internal_user
+  auth_password: internal_password
+
 cc_partition: ng
 
 nginx:
   use_nginx: false
+  instance_socket: "/var/vcap/sys/run/cloud_controller_ng/cloud_controller.sock"
+
+stackato_upload_handler:
+  enabled: false
 
 quota_definitions:
   default:
@@ -69,11 +83,13 @@ quota_definitions:
     total_services: 100
     non_basic_services_allowed: true
     total_routes: 1000
+    allow_sudo: false
 
 default_quota_definition: default
 
 
 resource_pool:
+  resource_directory_key: "cc-resources"
   fog_connection:
     provider: Local
 
@@ -100,6 +116,7 @@ staging:
     user: zxsfhgjg
     password: ZNVfdase9
 
+default_health_check_timeout: 60
 maximum_health_check_timeout: 180
 
 renderer:

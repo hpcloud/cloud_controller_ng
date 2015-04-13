@@ -1,20 +1,26 @@
+require 'actions/space_delete'
+
 module VCAP::CloudController
   class SpacesController < RestController::ModelController
+    def self.dependencies
+      [:space_event_repository]
+    end
+
     define_attributes do
       attribute  :name,            String
-      attribute  :is_default, Message::Boolean, :default => false
+      attribute  :is_default, Message::Boolean, default: false
       to_one     :organization
       to_many    :developers
       to_many    :managers
       to_many    :auditors
-      to_many    :apps
-      to_many    :routes
+      to_many    :apps,                    exclude_in: [:create, :update], route_for: :get
+      to_many    :routes,                  exclude_in: [:create, :update], route_for: :get
       to_many    :domains
-      to_many    :service_instances
-      to_many    :app_events,              link_only: true
-      to_many    :events,                  link_only: true
+      to_many    :service_instances,       route_for: :get
+      to_many    :app_events,              link_only: true, exclude_in: [:create, :update], route_for: :get
+      to_many    :events,                  link_only: true, exclude_in: [:create, :update], route_for: :get
       to_many    :security_groups
-      to_one     :space_quota_definition,  optional_in: :create
+      to_one     :space_quota_definition,  optional_in: [:create], exclude_in: [:update]
     end
 
     query_parameters :name, :organization_guid, :developer_guid, :manager_guid, :app_guid
@@ -24,11 +30,11 @@ module VCAP::CloudController
     def self.translate_validation_exception(e, attributes)
       name_errors = e.errors.on([:organization_id, :name])
       if name_errors && name_errors.include?(:unique)
-        Errors::ApiError.new_from_details("SpaceNameTaken", attributes["name"])
+        Errors::ApiError.new_from_details('SpaceNameTaken', attributes['name'])
       elsif name_errors && name_errors.include?(:max_length)
-        Errors::ApiError.new_from_details("StackatoParameterLengthInvalid", 64, attributes["name"])
+        Errors::ApiError.new_from_details('StackatoParameterLengthInvalid', 64, attributes['name'])
       else
-        Errors::ApiError.new_from_details("SpaceInvalid", e.errors.full_messages)
+        Errors::ApiError.new_from_details('SpaceInvalid', e.errors.full_messages)
       end
     end
 
@@ -37,9 +43,9 @@ module VCAP::CloudController
       @space_event_repository = dependencies.fetch(:space_event_repository)
     end
 
-    get "/v2/spaces/:guid/services", :enumerate_services
+    get '/v2/spaces/:guid/services', :enumerate_services
     def enumerate_services(guid)
-      logger.debug "cc.enumerate.related", guid: guid, association: "services"
+      logger.debug 'cc.enumerate.related', guid: guid, association: 'services'
 
       space = find_guid_and_validate_access(:read, guid)
 
@@ -69,7 +75,7 @@ module VCAP::CloudController
       )
     end
 
-    get "/v2/spaces/:guid/service_instances", :enumerate_service_instances
+    get '/v2/spaces/:guid/service_instances', :enumerate_service_instances
     def enumerate_service_instances(guid)
       space = find_guid_and_validate_access(:read, guid)
 
@@ -98,8 +104,21 @@ module VCAP::CloudController
 
     def delete(guid)
       space = find_guid_and_validate_access(:delete, guid)
+      raise_if_has_associations!(space) if v2_api? && !recursive?
+
+      if !space.app_models.empty? && !recursive?
+        raise VCAP::Errors::ApiError.new_from_details('AssociationNotEmpty', 'app_model', Space.table_name)
+      end
+
+      if !space.service_instances.empty? && !recursive?
+        raise VCAP::Errors::ApiError.new_from_details('AssociationNotEmpty', 'service_instances', Space.table_name)
+      end
+
       @space_event_repository.record_space_delete_request(space, SecurityContext.current_user, SecurityContext.current_user_email, recursive?)
-      do_delete(space)
+
+      delete_action = SpaceDelete.new(current_user.id, current_user_email)
+      deletion_job = VCAP::CloudController::Jobs::DeleteActionJob.new(Space, guid, delete_action)
+      enqueue_deletion_job(deletion_job)
     end
 
     private
@@ -109,25 +128,6 @@ module VCAP::CloudController
 
     def after_update(space)
       @space_event_repository.record_space_update(space, SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
-    end
-
-    module ServiceSerialization
-      def self.to_hash(controller, service, opts)
-        entity_hash = service.to_hash.merge({
-          "service_plans" => service.service_plans_dataset.organization_visible(opts[:organization]).map do |service_plan|
-            RestController::ObjectSerialization.to_hash(ServicePlansController, service_plan, opts)
-          end
-        })
-
-        metadata_hash = {
-          "guid" => service.guid,
-          "url" => controller.url_for_guid(service.guid),
-          "created_at" => service.created_at,
-          "updated_at" => service.updated_at
-        }
-
-        {"metadata" => metadata_hash, "entity" => entity_hash}
-      end
     end
 
     define_messages

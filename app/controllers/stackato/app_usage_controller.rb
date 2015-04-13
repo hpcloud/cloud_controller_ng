@@ -17,7 +17,7 @@ module VCAP::CloudController
         :mem => 0
       }
 
-      allocated_total[:mem] = app.total_existing_memory * 1024
+      allocated_total[:mem] = AppMemoryCalculator.new(app).total_existing_memory * 1024
       instances = StackatoDropletAccountability.get_app_stats(app)
       instances.each do |index, instance|
         next unless instance["stats"] && instance["stats"]["usage"] && instance["stats"]["usage"]["mem"]

@@ -1,29 +1,33 @@
-require "steno"
-require "steno/codec/text"
-require "optparse"
-require "vcap/uaa_token_decoder"
-require "vcap/uaa_verification_key"
-require "cf_message_bus/message_bus"
-require "cf/registrar"
-require "loggregator_emitter"
-require "loggregator"
+require 'steno'
+require 'steno/codec/text'
+require 'optparse'
+require 'i18n'
+require 'i18n/backend/fallbacks'
+require 'vcap/uaa_token_decoder'
+require 'vcap/uaa_verification_key'
+require 'cf_message_bus/message_bus'
+require 'cf/registrar'
+require 'loggregator_emitter'
+require 'loggregator'
 require 'kato/local/node'
-require "kato/proc_ready"
-require "cloud_controller/dea/sub_system"
-require "cloud_controller/rack_app_builder"
-require "cloud_controller/varz"
+require 'kato/proc_ready'
+require 'cloud_controller/dea/sub_system'
+require 'cloud_controller/rack_app_builder'
+require 'cloud_controller/varz'
 
-require_relative "seeds"
-require_relative "message_bus_configurer"
-require_relative "stackato/redis_client"
-require_relative "stackato/app_logs_client"
-require_relative "stackato/auto_scaler_respondent"
-require_relative "stackato/backends"
-require_relative "stackato/deactivate_services"
-require_relative "stackato/droplet_accountability"
-require_relative "stackato/dea/app_stager_task"
-require_relative "rest_controller/preloaded_object_serializer"
-
+require_relative 'seeds'
+require_relative 'message_bus_configurer'
+require_relative 'stackato/redis_client'
+require_relative 'stackato/app_logs_client'
+require_relative 'stackato/auto_scaler_respondent'
+require_relative 'stackato/backends/runners'
+require_relative 'stackato/backends/stagers'
+require_relative 'stackato/deactivate_services'
+require_relative 'stackato/droplet_accountability'
+require_relative 'stackato/dea/app_stager_task'
+require_relative 'stackato/dea/stager'
+require_relative 'stackato/scim_utils'
+require_relative 'rest_controller/preloaded_object_serializer'
 
 module VCAP::CloudController
   class Runner
@@ -33,31 +37,37 @@ module VCAP::CloudController
       @argv = argv
 
       # default to production. this may be overridden during opts parsing
-      ENV["RACK_ENV"] ||= "production"
+      ENV['RACK_ENV'] ||= 'production'
 
-      @config_file = File.expand_path("../../../config/cloud_controller.yml", __FILE__)
+      @config_file = File.expand_path('../../../config/cloud_controller.yml', __FILE__)
       parse_options!
       parse_config
+
+      setup_i18n
 
       @log_counter = Steno::Sink::Counter.new
     end
 
+    def setup_i18n
+      Errors::ApiError.setup_i18n(Dir[File.expand_path('../../../vendor/errors/i18n/*.yml', __FILE__)], @config[:default_locale])
+    end
+
     def logger
-      @logger ||= Steno.logger("cc.runner")
+      @logger ||= Steno.logger('cc.runner')
     end
 
     def options_parser
       @parser ||= OptionParser.new do |opts|
-        opts.on("-c", "--config [ARG]", "Configuration File") do |opt|
+        opts.on('-c', '--config [ARG]', 'Configuration File') do |opt|
           @config_file = opt
         end
 
-        opts.on("-m", "--run-migrations", "Actually it means insert seed data") do
-          deprecation_warning "Deprecated: Use -s or --insert-seed flag"
+        opts.on('-m', '--run-migrations', 'Actually it means insert seed data') do
+          deprecation_warning 'Deprecated: Use -s or --insert-seed flag'
           @insert_seed_data = true
         end
 
-        opts.on("-s", "--insert-seed", "Insert seed data") do
+        opts.on('-s', '--insert-seed', 'Insert seed data') do
           @insert_seed_data = true
         end
       end
@@ -75,12 +85,27 @@ module VCAP::CloudController
     end
 
     def parse_config
-      @config = VCAP::CloudController::Config.from_redis
+      # Merge note: refactor out the call to Config.from_redis to allow stubbing for testing
+      @config = parse_config_from_redis
     rescue Membrane::SchemaValidationError => ve
       puts "ERROR: There was a problem validating the supplied config: #{ve}"
       exit 1
     rescue => e
       exit 1
+    end
+
+    def parse_config_from_redis
+      @config = VCAP::CloudController::Config.from_redis
+    end
+
+    def parse_config_from_config_file
+      @config = Config.from_file(@config_file)
+    end
+
+    def parse_options_from_file(config_file)
+      # This code needed for bug 301178 (runner_spec tests failing with custom config-files
+      @config_file = config_file
+      parse_config_from_config_file
     end
 
     def setup_logging
@@ -131,7 +156,7 @@ module VCAP::CloudController
           ::Kato::ProcReady.i_am_ready("cloud_controller_ng")
 
           VCAP::CloudController::Varz.setup_updates
-        rescue Exception => e
+        rescue => e
           logger.error "Encountered error: #{e}\n#{e.backtrace.join("\n")}"
           raise e
         end
@@ -141,42 +166,40 @@ module VCAP::CloudController
     def trap_signals
       %w(TERM INT QUIT).each do |signal|
         trap(signal) do
-          logger.warn("Caught signal #{signal}")
-          stop!
+          EM.add_timer(0) do
+            logger.warn("Caught signal #{signal}")
+            stop!
+          end
         end
       end
 
       trap('USR1') do
-        logger.warn("Collecting diagnostics")
-        collect_diagnostics
+        EM.add_timer(0) do
+          logger.warn('Collecting diagnostics')
+          collect_diagnostics
+        end
       end
 
       trap('USR2') do
-        logger.warn("Caught signal USR2")
-        stop_router_registrar
+        EM.add_timer(0) do
+          logger.warn('Caught signal USR2')
+          stop_router_registrar
+        end
       end
     end
 
     def stop!
       stop_router_registrar do
         stop_thin_server
-        logger.info("Stopping EventMachine")
+        logger.info('Stopping EventMachine')
         EM.stop
       end
-    end
-
-    def merge_vcap_config
-      services = JSON.parse(ENV["VCAP_SERVICES"])
-      pg_key = services.keys.select { |svc| svc =~ /postgres/i }.first
-      c = services[pg_key].first["credentials"]
-      @config[:db][:database] = "postgres://#{c["user"]}:#{c["password"]}@#{c["hostname"]}:#{c["port"]}/#{c["name"]}"
-      @config[:external_port] = ENV["VCAP_APP_PORT"].to_i
     end
 
     private
 
     def stop_router_registrar(&blk)
-      logger.info("Unregistering routes.")
+      logger.info('Unregistering routes.')
       router_registrar.shutdown(&blk)
     end
 
@@ -210,14 +233,21 @@ module VCAP::CloudController
 
     def setup_db
       logger.info "db config #{@config[:db]}"
-      db_logger = Steno.logger("cc.db")
+      db_logger = Steno.logger('cc.db')
       DB.load_models(@config[:db], db_logger)
+    end
+
+    def setup_loggregator_emitter
+      if @config[:loggregator] && @config[:loggregator][:router] && @config[:loggregator][:shared_secret]
+        Loggregator.emitter = LoggregatorEmitter::Emitter.new(@config[:loggregator][:router], 'API', @config[:index], @config[:loggregator][:shared_secret])
+        Loggregator.logger = logger
+      end
     end
 
     def start_thin_server(app)
       if @config[:nginx][:use_nginx] || @config[:stackato_upload_handler][:enabled]
         @thin_server = Thin::Server.new(
-            @config[:instance_socket],
+            @config[:nginx][:instance_socket],
             :signals => false
         )
       else
@@ -235,7 +265,7 @@ module VCAP::CloudController
     end
 
     def stop_thin_server
-      logger.info("Stopping Thin Server.")
+      logger.info('Stopping Thin Server.')
       @thin_server.stop if @thin_server
     end
 
@@ -245,22 +275,22 @@ module VCAP::CloudController
           host: @config[:external_host],
           port: @config[:external_port],
           uri: @config[:external_domain],
-          tags: {:component => "CloudController"},
+          tags: { component: 'CloudController' },
           index: @config[:index],
       )
     end
 
     def register_with_collector(message_bus)
       VCAP::Component.register(
-          :type => 'CloudController',
-          :host => @config[:external_host],
-          :port => @config[:varz_port],
-          :user => @config[:varz_user],
-          :password => @config[:varz_password],
-          :index => @config[:index],
-          :nats => message_bus,
-          :logger => logger,
-          :log_counter => @log_counter
+          type: 'CloudController',
+          host: @config[:external_host],
+          port: @config[:varz_port],
+          user: @config[:varz_user],
+          password: @config[:varz_password],
+          index: @config[:index],
+          nats: message_bus,
+          logger: logger,
+          log_counter: @log_counter
       )
     end
 
