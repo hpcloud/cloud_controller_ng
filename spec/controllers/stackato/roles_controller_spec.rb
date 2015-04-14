@@ -30,9 +30,9 @@ module VCAP::CloudController
         allow(Kato::Config).to receive(:get).with("node").and_return(MultiJson.load(node_response))
         get "/v2/stackato/cluster/roles", {}, admin_headers
         expect(last_response.status).to eq(200)
-        expect(decoded_response["available"]).to be
-        expect(decoded_response["nodes"]).to be
-        expect(decoded_response["required"]).to be
+        expect(decoded_response["available"]).not_to be_nil
+        expect(decoded_response["nodes"]).not_to be_nil
+        expect(decoded_response["required"]).not_to be_nil
         expect(decoded_response["nodes"].size).to be 1
       end
     end
@@ -49,6 +49,7 @@ module VCAP::CloudController
           get "/v2/stackato/cluster/roles/#{node_id}", {}, admin_headers
           expect(last_response.status).to eq(200)
           expect(decoded_response.size).to be > 0
+          expect(decoded_response).to include("base", "primary", "controller")
         end
       end
 
@@ -56,11 +57,15 @@ module VCAP::CloudController
         let (:new_node_roles) do
           ["base", "primary", "controller", "router", "dea", "postgresql", "redis", "filesystem"]
         end
-        it "should update information on a node" do
+        it "should update information the node with the given id" do
           allow(Kato::Cluster::SSH).to receive(:authorize_key_pair_on_dea_node).and_return(true)
           allow(Kato::Cluster::SSH).to receive(:authorize_key_pair_on_frontend).and_return(true)
           put "/v2/stackato/cluster/roles/#{node_id}", MultiJson.dump(new_node_roles), admin_headers
-          expect(last_response.status).to eq(204)
+          # passing the controller to the original kato config to see if the change is applied.
+          allow(Kato::Config).to receive(:get).with("node", node_id).and_call_original
+          expect(Kato::Config.get("node", node_id)["roles"]).to include("primary", "controller")
+          expect(Kato::Config.get("node", node_id)["roles"]).to include("redis")
+          expect(Kato::Config.get("node", node_id)["roles"]).not_to include("mysql")
         end
       end
 
