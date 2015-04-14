@@ -1,7 +1,7 @@
 require 'spec_helper'
 
 module VCAP::CloudController
-  describe VCAP::CloudController::StackatoRolesController, type: :controller do
+  describe VCAP::CloudController::StackatoSpaceUsageController, type: :controller do
 
     let(:app_obj) { AppFactory.make }
     let(:space)   { app_obj.space }
