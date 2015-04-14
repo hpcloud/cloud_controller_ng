@@ -8,22 +8,25 @@ require "cf/registrar"
 require "loggregator_emitter"
 require "loggregator"
 require 'kato/local/node'
-require "kato/proc_ready"
-require "cloud_controller/dea/sub_system"
-require "cloud_controller/rack_app_builder"
-require "cloud_controller/varz"
+require 'kato/proc_ready'
+require 'cloud_controller/dea/sub_system'
+require 'cloud_controller/rack_app_builder'
+require 'cloud_controller/varz'
+require 'stackato/retry_with_intervals'
 
-require_relative "seeds"
-require_relative "message_bus_configurer"
-require_relative "stackato/redis_client"
-require_relative "stackato/app_logs_client"
-require_relative "stackato/auto_scaler_respondent"
-require_relative "stackato/backends"
-require_relative "stackato/deactivate_services"
-require_relative "stackato/droplet_accountability"
-require_relative "stackato/dea/app_stager_task"
-require_relative "rest_controller/preloaded_object_serializer"
-
+require_relative 'seeds'
+require_relative 'message_bus_configurer'
+require_relative 'stackato/redis_client'
+require_relative 'stackato/app_logs_client'
+require_relative 'stackato/auto_scaler_respondent'
+require_relative 'stackato/backends/runners'
+require_relative 'stackato/backends/stagers'
+require_relative 'stackato/deactivate_services'
+require_relative 'stackato/droplet_accountability'
+require_relative 'stackato/dea/app_stager_task'
+require_relative 'stackato/dea/stager'
+require_relative 'stackato/scim_utils'
+require_relative 'rest_controller/preloaded_object_serializer'
 
 module VCAP::CloudController
   class Runner
@@ -126,6 +129,7 @@ module VCAP::CloudController
 
           start_thin_server(app)
 
+          router_registrar.wait_for_server_and_connect(@config.fetch(:stackato_nats_intervals, {}))
           router_registrar.register_with_router
           
           ::Kato::ProcReady.i_am_ready("cloud_controller_ng")

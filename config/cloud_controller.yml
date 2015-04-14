@@ -9,6 +9,12 @@ pid_filename: /tmp/cloud_controller.pid
 message_bus_servers:
   - nats://127.0.0.1:4222
 
+stackato_nats_intervals:
+  initial_wait_interval: 0.5 # seconds
+  wait_interval_increase_factor: 1.2
+  max_wait_interval: 60 # seconds
+  max_total_wait_time: 600 # seconds  
+
 external_port: 8181
 external_domain: api.vcap.me
 
