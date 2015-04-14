@@ -20,6 +20,8 @@ module VCAP::CloudController
       it "should crete app drains" do
         post "/v2/apps/#{app_obj.guid}/stackato_drains", req_body, headers
         expect(last_response.status).to eq(204)
+        expect(Kato::Config.get("logyard", "drains").size).to be > 0
+        expect(Kato::Config.get("logyard", "drains").keys.first).to match(/test_drain/)
       end
     end
 
@@ -37,8 +39,10 @@ module VCAP::CloudController
     describe "DELETE /v2/apps/:id/stackato_drains" do
       before { VCAP::CloudController::StackatoAppDrains.create(app_obj, drain_name, drain_uri, nil) }
       it "should delete app drain" do
+        expect(Kato::Config.get("logyard", "drains")).not_to be_empty
         delete "/v2/apps/#{app_obj.guid}/stackato_drains/#{drain_name}", {}, headers
         expect(last_response.status).to eq(204)
+        expect(Kato::Config.get("logyard", "drains")).to be_empty
       end
     end
 
