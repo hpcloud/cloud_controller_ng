@@ -35,7 +35,7 @@ module VCAP::CloudController
           before { TestConfig.override({:maintenance_mode => true})  }
           after  { TestConfig.override({:maintenance_mode => false}) }
 
-          it "should reject adding new drains" do
+          it "should reject adding new users" do
             post "/v2/stackato/users", {}, admin_headers
             expect(last_response.status).to eq(503)
             expect(last_response.body).to match(/Maintenance mode is enabled/)
@@ -84,14 +84,14 @@ module VCAP::CloudController
           before { TestConfig.override({:maintenance_mode => true})  }
           after  { TestConfig.override({:maintenance_mode => false}) }
 
-          it "should reject adding new drains" do
+          it "should reject adding new users" do
             post "/v2/stackato/users", {}, admin_headers
             expect(last_response.status).to eq(503)
             expect(last_response.body).to match(/Maintenance mode is enabled/)
           end
         end
 
-        it "shoudl update user info" do
+        it "should update user info" do
           user_info[:given_name]  = "updated_test_given_name"
           user_info[:family_name] = "updated_test_family_name"
           user_info[:admin] = true
