@@ -229,7 +229,6 @@ module VCAP::CloudController
           expect(job.queue).to eq('cc-api_z1-99')
           expect(job.guid).not_to be_nil
           expect(last_response.status).to eq 201
-          pending('The following fails. we need to switch to yajl 1.2.1 for this to be fixed.')
           expect(response_body).to eq({
                                           metadata: {
                                               guid: job.guid,
