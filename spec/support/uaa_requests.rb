@@ -70,5 +70,41 @@ module UAARequests
         :body => '',
         :headers => {})
 
+    # stubs for stackato controller user_controller_spec.rb
+    WebMock::API.stub_request(:post, %r"http://localhost:8080/uaa/Users").
+      to_return(
+        :status  => 200, 
+        :body    => { id: 'some-id', client_id: 'dash-id' }.to_json,
+        :headers => { 'content-type' => 'application/json' })
+
+    # stubs for stackato controller user_controller_spec.rb
+    WebMock::API.stub_request(:get, %r"http://localhost:8080/uaa/Groups").
+         to_return(
+          :status => 200, 
+          :body => { :totalResults => 1, :schemas => ["urn:scim:schemas:core:1.0"], :resources => [{ :id => "123456" }] }.to_json, 
+          :headers => { 'content-type' => 'application/json' })
+
+    # stubs for stackato controller user_controller_spec.rb
+    WebMock::API.stub_request(:patch, %r"http://localhost:8080/uaa/Groups/.+").
+         to_return(
+          :status => 200, 
+          :body => { 
+            :schemas => ["urn:scim:schemas:core:1.0"], 
+            :id => "123456",
+            :meta => {
+                :versoin => 0,
+                :created => "2015-04-01T21:32:44.882Z",
+                :lastModified => "2015-04-11T21:32:44.882Z",
+              },
+            :displayName => "uaa.admin"
+          }.to_json, 
+          :headers => { 'content-type' => 'application/json' })
+
+    WebMock::API.stub_request(:delete, %r"http://localhost:8080/uaa/Users/uaa-id-\d+").
+      to_return(
+        :status => 200, 
+        :body => '',
+        :headers => { 'content-type' => 'application/json' })
+
   end
 end
