@@ -2,17 +2,20 @@ require 'spec_helper'
 
 module VCAP::CloudController
   describe SpaceQuotaDefinitionAccess, type: :access do
-    before do
-      token = { 'scope' => 'cloud_controller.read cloud_controller.write' }
-      allow(VCAP::CloudController::SecurityContext).to receive(:token).and_return(token)
-    end
-
-    subject(:access) { SpaceQuotaDefinitionAccess.new(double(:context, user: user, roles: roles)) }
+    subject(:access) { SpaceQuotaDefinitionAccess.new(Security::AccessContext.new) }
     let(:user) { VCAP::CloudController::User.make }
-    let(:roles) { double(:roles, :admin? => false, :none? => false, :present? => true) }
     let(:org) { Organization.make }
     let(:space) { Space.make(organization: org) }
     let(:object) { VCAP::CloudController::SpaceQuotaDefinition.make(organization: org) }
+    let(:token) { { 'scope' => ['cloud_controller.read', 'cloud_controller.write'] } }
+
+    before do
+      SecurityContext.set(user, token)
+    end
+
+    after do
+      SecurityContext.clear
+    end
 
     it_should_behave_like :admin_full_access
 
@@ -28,7 +31,6 @@ module VCAP::CloudController
     end
 
     context 'when it is not applied to the space' do
-
       context 'space manager' do
         before do
           org.add_user(user)
@@ -55,15 +57,14 @@ module VCAP::CloudController
 
         it_behaves_like :no_access
       end
-
     end
 
     context 'when it is applied to the space' do
-
       before do
         space.space_quota_definition = object
         space.save
       end
+
       context 'space manager' do
         before do
           org.add_user(user)
@@ -90,7 +91,6 @@ module VCAP::CloudController
 
         it_behaves_like :read_only
       end
-
     end
 
     context 'organization auditor (defensive)' do
@@ -128,14 +128,14 @@ module VCAP::CloudController
 
     context 'a user that isnt logged in (defensive)' do
       let(:user) { nil }
-      let(:roles) { double(:roles, :admin? => false, :none? => true, :present? => false) }
+
       it_behaves_like :no_access
     end
 
     context 'any user using client without cloud_controller.write' do
+      let(:token) { { 'scope' => ['cloud_controller.read'] } }
+
       before do
-        token = { 'scope' => 'cloud_controller.read' }
-        allow(VCAP::CloudController::SecurityContext).to receive(:token).and_return(token)
         org.add_user(user)
         org.add_manager(user)
         org.add_billing_manager(user)
@@ -149,9 +149,9 @@ module VCAP::CloudController
     end
 
     context 'any user using client without cloud_controller.read' do
+      let(:token) { { 'scope' => [] } }
+
       before do
-        token = { 'scope' => '' }
-        allow(VCAP::CloudController::SecurityContext).to receive(:token).and_return(token)
         org.add_user(user)
         org.add_manager(user)
         org.add_billing_manager(user)

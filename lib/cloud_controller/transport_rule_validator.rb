@@ -1,25 +1,17 @@
 module CloudController
   class TransportRuleValidator < RuleValidator
-    TRANSPORT_RULE_FIELDS = ["protocol", "ports", "destination"].map(&:freeze).freeze
+    self.required_fields += ['ports']
 
     def self.validate(rule)
-      errs = validate_fields(rule, TRANSPORT_RULE_FIELDS)
+      errs = super
       return errs unless errs.empty?
 
-      port = rule['ports']
-      unless validate_port(port)
-        errs << "contains invalid ports"
-      end
-
-      destination = rule['destination']
-      unless validate_destination(destination)
-        errs << "contains invalid destination"
+      unless validate_port(rule['ports'])
+        errs << 'contains invalid ports'
       end
 
       errs
     end
-
-    private
 
     def self.validate_port(port)
       return false if /[^\d\s\-,]/.match(port)

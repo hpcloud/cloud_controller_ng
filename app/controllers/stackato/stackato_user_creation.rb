@@ -62,7 +62,7 @@ module VCAP::CloudController
         if first_user
           firstuser(password)
         else
-          validate_access(:create, @new_user, user, roles)
+          validate_access(:create, @new_user)
         end
       end
 
@@ -194,13 +194,9 @@ module VCAP::CloudController
     end
 
     def scim_client
-      return @scim_client if @scim_client
-      target = Kato::Config.get("cloud_controller_ng", 'uaa/url')
-      secret = Kato::Config.get("cloud_controller_ng", 'aok/client_secret')
-      token_issuer =
-        CF::UAA::TokenIssuer.new(target, 'cloud_controller', secret)
-      token = token_issuer.client_credentials_grant
-      @scim_client = CF::UAA::Scim.new(target, token.auth_header)
+      if @scim_client.nil?
+        @scim_client = StackatoScimUtils.scim_api
+      end
       return @scim_client
     end
 

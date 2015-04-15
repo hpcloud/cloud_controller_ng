@@ -2,7 +2,7 @@ require 'presenters/api/user_summary_presenter'
 
 module VCAP::CloudController
   class UserSummariesController < RestController::ModelController
-    path_base "users"
+    path_base 'users'
     model_class_name :User
 
     get "#{path_guid}/summary", :summary
@@ -10,7 +10,7 @@ module VCAP::CloudController
       # only admins should have unfettered access to all users
       # UserAccess allows all to read so org and space user lists show all users in those lists
       if guid != user.guid
-        raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
+        raise Errors::ApiError.new_from_details('NotAuthorized') unless roles.admin?
       end
 
       user = find_guid_and_validate_access(:read, guid)

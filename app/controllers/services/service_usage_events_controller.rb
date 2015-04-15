@@ -12,7 +12,7 @@ module VCAP::CloudController
 
     post '/v2/service_usage_events/destructively_purge_all_and_reseed_existing_instances', :reset
     def reset
-      validate_access(:reset, model, user, roles)
+      validate_access(:reset, model)
 
       repository = Repositories::Services::ServiceUsageEventRepository.new
       repository.purge_and_reseed_service_instances!
@@ -32,7 +32,7 @@ module VCAP::CloudController
         repository = Repositories::Services::ServiceUsageEventRepository.new
         previous_event = repository.find(after_guid)
         raise Errors::ApiError.new_from_details('BadQueryParameter', after_guid) unless previous_event
-        ds = ds.filter{ id > previous_event.id }
+        ds = ds.filter { id > previous_event.id }
       end
       super(model, ds, qp, opts)
     end

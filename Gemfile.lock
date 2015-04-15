@@ -1,36 +1,73 @@
 GIT
-  remote: git://github.com/ActiveState/cf-message-bus.git
-  revision: cb951d204beeb028dd98e36f087d2464d5059762
+  remote: git://github.com/ActiveState/cf-uaa-lib.git
+  revision: b1e11235dc6cd7d8d4680e005526de37201305ea
+  ref: b1e11235dc6cd7d8d4680e005526de37201305ea
   specs:
-    cf-message-bus (0.2.0)
-      eventmachine (~> 1.0.0)
+    cf-uaa-lib (3.1.0)
+      multi_json
+
+GIT
+  remote: git://github.com/ActiveState/steno-codec-text.git
+  revision: e760c1e058076d58262d7ae5dca9994f603495a4
+  specs:
+    steno-codec-text (0.1)
+      steno (~> 1.1.0)
+
+GIT
+  remote: git://github.com/ActiveState/vcap-common.git
+  revision: 0b3adb9a51aea8a4a41fb282206db32f3a26bb74
+  specs:
+    vcap_common (3.0.0)
+      addressable (~> 2.2)
+      em-http-request (~> 1.0)
+      eventmachine
+      httpclient
+      membrane (~> 1.0.0)
+      mime-types
+      multipart-post
       nats (>= 0.5.0.beta.12, < 0.6)
-      vcap-concurrency
+      posix-spawn (~> 0.3.6)
+      squash_ruby
+      steno
+      thin
+      uuidtools
+      vmstat (~> 2.0)
+      yajl-ruby
+
+GIT
+  remote: git://github.com/cloudfoundry/cf-message-bus.git
+  revision: b6a82b660598c7b5b94b269f7db66ca69a221228
+  ref: b6a82b660598c7b5b94b269f7db66ca69a221228
+  specs:
+    cf-message-bus (0.3.3)
+      eventmachine (~> 1.0.0)
+      nats (>= 0.5.0.beta.16, < 0.6)
       vcap-concurrency
       yajl-ruby
 
 GIT
   remote: git://github.com/cloudfoundry/cf-registrar.git
-  revision: 49850ee876652a59dbd2d73dad726b3b808bb8f9
+  revision: 20fdf4c15553eb90855300a81e276659c9dbd2f0
   specs:
-    cf-registrar (1.0.1)
-      cf-message-bus
+    cf-registrar (1.0.3)
+      cf-message-bus (~> 0.3.0)
       eventmachine (~> 1.0.0)
       steno
       vcap-concurrency
 
 GIT
-  remote: git://github.com/cloudfoundry/cf-uaa-lib.git
-  revision: 4b94e14aa772e5b376e1be1c710aaeee7bd51a5c
-  ref: 4b94e14aa772e5b376e1be1c710aaeee7bd51a5c
+  remote: git://github.com/cloudfoundry/delayed_job_sequel.git
+  revision: ae606dd8dd72f3491ff5073da2276dc6fcdd204e
   specs:
-    cf-uaa-lib (2.1.0)
-      multi_json
+    delayed_job_sequel (4.0.1)
+      delayed_job (~> 4.0.0)
+      sequel (>= 3.38, < 5.0)
+      tzinfo
 
 GIT
   remote: git://github.com/cloudfoundry/stager-client.git
-  revision: 04c2aee9ceed39571d47704a42a70beb472503b9
-  ref: 04c2aee9
+  revision: bf0e728a7acf2dbb2a369a70fb5e3e72c2fca71c
+  ref: bf0e728a7acf2dbb2a369a70fb5e3e72c2fca71c
   specs:
     stager-client (0.0.2)
       eventmachine
@@ -60,44 +97,18 @@ GIT
       rack-mount
       virtus (>= 1.0.0)
 
-PATH
-  remote: vendor/cache/common
-  specs:
-    vcap_common (3.0.0)
-      addressable (~> 2.2)
-      em-http-request (~> 1.0)
-      eventmachine
-      httpclient
-      membrane (~> 1.0.0)
-      mime-types
-      multipart-post
-      nats (>= 0.5.0.beta.12, < 0.6)
-      posix-spawn (~> 0.3.6)
-      squash_ruby
-      steno
-      thin
-      uuidtools
-      vmstat (~> 2.0)
-      yajl-ruby
-
-PATH
-  remote: vendor/cache/steno-codec-text
-  specs:
-    steno-codec-text (0.1)
-      steno (~> 1.1.0)
-
 GEM
   remote: https://rubygems.org/
   specs:
-    activemodel (3.2.18)
-      activesupport (= 3.2.18)
+    activemodel (3.2.21)
+      activesupport (= 3.2.21)
       builder (~> 3.0.0)
-    activerecord (3.2.18)
-      activemodel (= 3.2.18)
-      activesupport (= 3.2.18)
+    activerecord (3.2.21)
+      activemodel (= 3.2.21)
+      activesupport (= 3.2.21)
       arel (~> 3.0.2)
       tzinfo (~> 0.3.29)
-    activesupport (3.2.18)
+    activesupport (3.2.21)
       i18n (~> 0.6, >= 0.6.4)
       multi_json (~> 1.0)
     addressable (2.3.6)
@@ -105,22 +116,25 @@ GEM
       activesupport (>= 3.2)
       i18n
     arel (3.0.3)
-    ast (1.1.0)
+    ast (2.0.0)
+    astrolabe (1.3.0)
+      parser (>= 2.2.0.pre.3, < 3.0)
     atomic (1.1.14)
+    awesome_print (1.6.1)
     axiom-types (0.0.5)
       descendants_tracker (~> 0.0.1)
       ice_nine (~> 0.9)
-    backports (3.3.5)
-    bcrypt-ruby (3.1.2)
-    beefcake (0.3.7)
-    builder (3.0.4)
+    backports (3.6.3)
+    bcrypt (3.1.7)
+    beefcake (1.0.0)
+    builder (3.0.0)
     celluloid (0.15.2)
       timers (~> 1.1.0)
     ci_reporter (1.9.0)
       builder (>= 2.1.2)
-    clockwork (0.7.0)
+    clockwork (1.0.0)
       activesupport
-      tzinfo (~> 0.3.35)
+      tzinfo
     cloudfront-signer (2.1.1)
     codeclimate-test-reporter (0.3.0)
       simplecov (>= 0.7.1, < 1.0.0)
@@ -134,14 +148,8 @@ GEM
     crack (0.4.2)
       safe_yaml (~> 1.0.0)
     daemons (1.1.9)
-    debugger (1.6.6)
-      columnize (>= 0.3.1)
-      debugger-linecache (~> 1.2.0)
-      debugger-ruby_core_source (~> 1.3.2)
-    debugger-linecache (1.2.0)
-    debugger-ruby_core_source (1.3.5)
-    delayed_job (4.0.0)
-      activesupport (>= 3.0, < 4.1)
+    delayed_job (4.0.4)
+      activesupport (>= 3.0, < 4.2)
     delayed_job_active_record (4.0.1)
       activerecord (>= 3.0, < 4.2)
       delayed_job (>= 3.0, < 4.1)
@@ -159,8 +167,8 @@ GEM
       eventmachine (>= 1.0.0.beta.4)
     equalizer (0.0.8)
     errand (0.7.3)
-    eventmachine (1.0.3)
-    excon (0.33.0)
+    eventmachine (1.0.7)
+    excon (0.44.1)
     fakefs (0.5.2)
     ffi (1.9.3)
     fluent-logger (0.4.7)
@@ -193,10 +201,13 @@ GEM
       lumberjack (~> 1.0)
       pry (>= 0.9.12)
       thor (>= 0.18.1)
+    guard-rspec (4.3.1)
+      guard (~> 2.1)
+      rspec (>= 2.14, < 4.0)
     hashie (2.1.1)
     http_parser.rb (0.6.0)
-    httpclient (2.3.4.1)
-    i18n (0.6.9)
+    httpclient (2.5.3.3)
+    i18n (0.6.11)
     ice_nine (0.10.0)
     inflecto (0.0.2)
     ipaddress (0.8.0)
@@ -207,15 +218,13 @@ GEM
       celluloid (>= 0.15.2)
       rb-fsevent (>= 0.9.3)
       rb-inotify (>= 0.9)
-    loggregator_emitter (0.0.16)
-      beefcake (~> 0.3.7)
-    loggregator_messages (0.0.5.pre)
-      beefcake (~> 0.3.7)
+    loggregator_emitter (4.0.0)
+      beefcake (~> 1.0.0)
     lumberjack (1.0.5)
     machinist (1.0.6)
     membrane (1.0.0)
     method_source (0.8.2)
-    mime-types (2.1)
+    mime-types (2.4.3)
     mini_portile (0.6.0)
     msgpack (0.5.8)
     multi_json (1.10.1)
@@ -223,24 +232,23 @@ GEM
     multipart-post (2.0.0)
     mustache (0.99.4)
     mysql2 (0.3.13)
-    nats (0.5.0.beta.12)
-      daemons (>= 1.1.9)
-      eventmachine (>= 1.0.3)
-      json_pure (>= 1.8.0)
-      thin (>= 1.5.0)
+    nats (0.5.0.beta.16)
+      daemons (~> 1.1, >= 1.1.9)
+      eventmachine (~> 1.0, >= 1.0.3)
+      json_pure (~> 1.8, >= 1.8.1)
+      thin (~> 1.6, >= 1.6.3)
     net-scp (1.1.2)
       net-ssh (>= 2.6.5)
-    net-ssh (2.7.0)
+    net-ssh (2.9.2)
     netaddr (1.5.0)
     newrelic_rpm (3.7.3.204)
     nokogiri (1.6.2.1)
       mini_portile (= 0.6.0)
-    parallel (1.0.0)
-    parallel_tests (0.16.10)
+    parallel (1.4.1)
+    parallel_tests (0.16.0)
       parallel
-    parser (2.1.4)
-      ast (~> 1.1)
-      slop (~> 3.4, >= 3.4.5)
+    parser (2.2.0.3)
+      ast (>= 1.1, < 3.0)
     pg (0.14.1)
     posix-spawn (0.3.8)
     powerpack (0.0.9)
@@ -259,65 +267,67 @@ GEM
       rack (>= 1.0)
     rainbow (2.0.0)
     rake (10.3.2)
-    rb-fsevent (0.9.3)
-    rb-inotify (0.9.2)
+    rb-fsevent (0.9.4)
+    rb-inotify (0.9.5)
       ffi (>= 0.5.0)
-    rbvmomi (1.6.0)
-      builder
-      nokogiri (>= 1.4.1)
-      trollop
     redis (3.0.6)
     rfc822 (0.1.4)
     roodi (4.0.0)
       ruby_parser (~> 3.2, >= 3.2.2)
-    rspec (3.0.0)
-      rspec-core (~> 3.0.0)
-      rspec-expectations (~> 3.0.0)
-      rspec-mocks (~> 3.0.0)
-    rspec-collection_matchers (1.0.0)
+    rspec (3.1.0)
+      rspec-core (~> 3.1.0)
+      rspec-expectations (~> 3.1.0)
+      rspec-mocks (~> 3.1.0)
+    rspec-collection_matchers (1.1.2)
       rspec-expectations (>= 2.99.0.beta1)
-    rspec-core (3.0.4)
-      rspec-support (~> 3.0.0)
-    rspec-expectations (3.0.4)
+    rspec-core (3.1.7)
+      rspec-support (~> 3.1.0)
+    rspec-expectations (3.1.2)
       diff-lcs (>= 1.2.0, < 2.0)
-      rspec-support (~> 3.0.0)
+      rspec-support (~> 3.1.0)
     rspec-instafail (0.2.5)
       rspec
-    rspec-its (1.0.1)
-      rspec-core (>= 2.99.0.beta1)
-      rspec-expectations (>= 2.99.0.beta1)
-    rspec-mocks (3.0.4)
-      rspec-support (~> 3.0.0)
-    rspec-support (3.0.4)
-    rspec_api_documentation (4.1.0)
+    rspec-its (1.1.0)
+      rspec-core (>= 3.0.0)
+      rspec-expectations (>= 3.0.0)
+    rspec-mocks (3.1.3)
+      rspec-support (~> 3.1.0)
+    rspec-support (3.1.2)
+    rspec_api_documentation (4.3.0)
       activesupport (>= 3.0.0)
       json (~> 1.4, >= 1.4.6)
       mustache (~> 0.99, >= 0.99.4)
-      rspec (~> 3.0.0, >= 3.0.0)
-    rubocop (0.18.1)
-      json (>= 1.7.7, < 2)
-      parser (~> 2.1.3)
+      rspec (>= 3.0.0)
+    rspec_junit_formatter (0.2.0)
+      builder (< 4)
+      rspec (>= 2, < 4)
+      rspec-core (!= 2.12.0)
+    rubocop (0.28.0)
+      astrolabe (~> 1.3)
+      parser (>= 2.2.0.pre.7, < 3.0)
       powerpack (~> 0.0.6)
       rainbow (>= 1.99.1, < 3.0)
+      ruby-progressbar (~> 1.4)
     ruby-hmac (0.4.0)
+    ruby-progressbar (1.7.5)
     ruby-termios (0.9.6)
     ruby_parser (3.6.2)
       sexp_processor (~> 4.1)
     rubyzip (1.1.0)
-    safe_yaml (1.0.3)
-    sequel (4.11.0)
+    safe_yaml (1.0.4)
+    sequel (4.17.0)
     sexp_processor (4.4.3)
-    simplecov (0.9.0)
+    simplecov (0.9.1)
       docile (~> 1.1.0)
-      multi_json
+      multi_json (~> 1.0)
       simplecov-html (~> 0.8.0)
     simplecov-html (0.8.0)
     simplecov-rcov (0.2.3)
       simplecov (>= 0.4.1)
-    sinatra (1.4.3)
+    sinatra (1.4.6)
       rack (~> 1.4)
       rack-protection (~> 1.4)
-      tilt (~> 1.3, >= 1.3.4)
+      tilt (>= 1.3, < 3)
     sinatra-contrib (1.4.2)
       backports (>= 2.0)
       multi_json
@@ -334,6 +344,7 @@ GEM
       docopt (= 0.5.0)
       futuroscope (~> 0.1.5)
       ipaddress (= 0.8.0)
+      loggregator_emitter (= 4.0.0)
       mustache (= 0.99.4)
       pg (= 0.14.1)
       redis (= 3.0.6)
@@ -351,10 +362,10 @@ GEM
       sequel (>= 3.38, < 5.0)
       tzinfo
     term-ansicolor (1.0.7)
-    thin (1.6.2)
-      daemons (>= 1.0.9)
-      eventmachine (>= 1.0.0)
-      rack (>= 1.0.0)
+    thin (1.6.3)
+      daemons (~> 1.0, >= 1.0.9)
+      eventmachine (~> 1.0)
+      rack (~> 1.0)
     thor (0.18.1)
     thread_safe (0.1.3)
       atomic
@@ -366,7 +377,7 @@ GEM
     unf (0.1.3)
       unf_ext
     unf_ext (0.0.6)
-    uuidtools (2.1.4)
+    uuidtools (2.1.5)
     virtus (1.0.0)
       axiom-types (~> 0.0.5)
       coercible (~> 0.2)
@@ -383,25 +394,26 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  activemodel (= 3.2.18)
-  activerecord (= 3.2.18)
-  activesupport (= 3.2.18)
+  activemodel (= 3.2.21)
+  activerecord (= 3.2.21)
+  activesupport (= 3.2.21)
   addressable (= 2.3.6)
   allowy (= 0.4.0)
   arel (= 3.0.3)
-  ast (= 1.1.0)
+  ast (= 2.0.0)
   atomic (= 1.1.14)
+  awesome_print
   axiom-types (= 0.0.5)
-  backports (= 3.3.5)
-  bcrypt-ruby (= 3.1.2)
-  beefcake (= 0.3.7)
-  builder (= 3.0.4)
+  backports (= 3.6.3)
+  bcrypt (= 3.1.7)
+  beefcake (= 1.0.0)
+  builder (= 3.0.0)
   celluloid (= 0.15.2)
-  cf-message-bus (= 0.2.0)!
-  cf-registrar (= 1.0.1)!
-  cf-uaa-lib (= 2.1.0)!
+  cf-message-bus (= 0.3.3)!
+  cf-registrar (= 1.0.3)!
+  cf-uaa-lib (= 3.1.0)!
   ci_reporter (= 1.9.0)
-  clockwork (= 0.7.0)
+  clockwork (= 1.0.0)
   cloudfront-signer (= 2.1.1)
   codeclimate-test-reporter (= 0.3.0)
   coderay (= 1.1.0)
@@ -411,11 +423,9 @@ DEPENDENCIES
   cookiejar (= 0.3.0)
   crack (= 0.4.2)
   daemons (= 1.1.9)
-  debugger (= 1.6.6)
-  debugger-linecache (= 1.2.0)
-  debugger-ruby_core_source (= 1.3.5)
-  delayed_job (= 4.0.0)
+  delayed_job (= 4.0.4)
   delayed_job_active_record (= 4.0.1)
+  delayed_job_sequel!
   descendants_tracker (= 0.0.3)
   diff-lcs (= 1.2.5)
   docile (= 1.1.1)
@@ -424,8 +434,8 @@ DEPENDENCIES
   em-socksify (= 0.3.0)
   equalizer (= 0.0.8)
   errand (= 0.7.3)
-  eventmachine (= 1.0.3)
-  excon (= 0.33.0)
+  eventmachine (~> 1.0.3)
+  excon (= 0.44.1)
   fakefs (= 0.5.2)
   ffi (= 1.9.3)
   fluent-logger (= 0.4.7)
@@ -437,10 +447,11 @@ DEPENDENCIES
   futuroscope (= 0.1.5)
   grape (= 0.7.0)!
   guard (= 2.2.4)
+  guard-rspec (= 4.3.1)
   hashie (= 2.1.1)
   http_parser.rb (= 0.6.0)
-  httpclient (= 2.3.4.1)
-  i18n (= 0.6.9)
+  httpclient (= 2.5.3.3)
+  i18n (= 0.6.11)
   ice_nine (= 0.10.0)
   inflecto (= 0.0.2)
   ipaddress (= 0.8.0)
@@ -448,13 +459,12 @@ DEPENDENCIES
   json_pure (= 1.8.1)
   librrd (= 1.0.3)
   listen (= 2.3.1)
-  loggregator_emitter (= 0.0.16)
-  loggregator_messages (= 0.0.5.pre)
+  loggregator_emitter (= 4.0.0)
   lumberjack (= 1.0.5)
-  machinist (= 1.0.6)
+  machinist (~> 1.0.6)
   membrane (= 1.0.0)
   method_source (= 0.8.2)
-  mime-types (= 2.1)
+  mime-types (= 2.4.3)
   mini_portile (= 0.6.0)
   msgpack (= 0.5.8)
   multi_json (= 1.10.1)
@@ -462,64 +472,57 @@ DEPENDENCIES
   multipart-post (= 2.0.0)
   mustache (= 0.99.4)
   mysql2 (= 0.3.13)
-  nats (= 0.5.0.beta.12)
+  nats (= 0.5.0.beta.16)
   net-scp (= 1.1.2)
-  net-ssh (= 2.7.0)
+  net-ssh (= 2.9.2)
   netaddr (= 1.5.0)
   newrelic_rpm (= 3.7.3.204)
   nokogiri (= 1.6.2.1)
-  parallel (= 1.0.0)
-  parallel_tests (= 0.16.10)
-  parser (= 2.1.4)
+  parallel_tests (= 0.16.0)
   pg (= 0.14.1)
   posix-spawn (= 0.3.8)
-  powerpack (= 0.0.9)
   pry (= 0.9.12.6)
   rack (= 1.5.2)
   rack-accept (= 0.4.5)
   rack-mount (= 0.8.3)
   rack-protection (= 1.5.1)
   rack-test (= 0.6.2)
-  rainbow (= 2.0.0)
   rake (= 10.3.2)
-  rb-fsevent (= 0.9.3)
-  rb-inotify (= 0.9.2)
-  rbvmomi (= 1.6.0)
-  redis (= 3.0.6)
+  redis (~> 3.0.4)
   rfc822 (= 0.1.4)
   roodi (= 4.0.0)
-  rspec (~> 3.0)
-  rspec-collection_matchers (= 1.0.0)
-  rspec-core (= 3.0.4)
-  rspec-expectations (= 3.0.4)
+  rspec (= 3.1.0)
+  rspec-collection_matchers (= 1.1.2)
+  rspec-core (= 3.1.7)
+  rspec-expectations (= 3.1.2)
   rspec-instafail (= 0.2.5)
-  rspec-its (= 1.0.1)
-  rspec-mocks (= 3.0.4)
-  rspec-support (= 3.0.4)
-  rspec_api_documentation (= 4.1.0)
-  rubocop (= 0.18.1)
+  rspec-its (= 1.1.0)
+  rspec-mocks (= 3.1.3)
+  rspec-support (= 3.1.2)
+  rspec_api_documentation (= 4.3.0)
+  rspec_junit_formatter (= 0.2.0)
+  rubocop (= 0.28.0)
   ruby-hmac (= 0.4.0)
   ruby-termios (= 0.9.6)
   ruby_parser (= 3.6.2)
   rubyzip (= 1.1.0)
-  safe_yaml (= 1.0.3)
-  sequel (= 4.11.0)
+  safe_yaml (= 1.0.4)
+  sequel (= 4.17.0)
   sexp_processor (= 4.4.3)
-  simplecov (= 0.9.0)
   simplecov-html (= 0.8.0)
   simplecov-rcov (= 0.2.3)
-  sinatra (= 1.4.3)
+  sinatra (~> 1.4.3)
   sinatra-contrib (= 1.4.2)
   slop (= 3.5.0)
   sqlite3 (= 1.3.7)
   squash_ruby (= 1.4.0)
-  stackato-kato (= 3.0.0)
-  stager-client (= 0.0.2)!
+  stackato-kato (~> 3.0.0)
+  stager-client (~> 0.0.02)!
   steno (= 1.1.0)
   steno-codec-text (= 0.1)!
   talentbox-delayed_job_sequel (= 4.0.0)
   term-ansicolor (= 1.0.7)
-  thin (= 1.6.2)
+  thin (= 1.6.3)
   thor (= 0.18.1)
   thread_safe (= 0.1.3)
   tilt (= 1.4.1)
@@ -529,9 +532,9 @@ DEPENDENCIES
   tzinfo (= 0.3.35)
   unf (= 0.1.3)
   unf_ext (= 0.0.6)
-  uuidtools (= 2.1.4)
+  uuidtools (= 2.1.5)
   vcap-concurrency (= 0.1.0)!
-  vcap_common (= 3.0.0)!
+  vcap_common (~> 3.0.0)!
   virtus (= 1.0.0)
   vmstat (= 2.1.0)
   webmock (= 1.18.0)

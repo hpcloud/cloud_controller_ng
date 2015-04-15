@@ -1,14 +1,23 @@
-require "cloudfront-signer"
-require "cloud_controller/blobstore/client"
+require 'cloudfront-signer'
+require 'cloud_controller/blobstore/client'
+require 'presenters/api/staging_job_presenter'
 
 module VCAP::CloudController
   class StagingsController < RestController::BaseController
+    def self.dependencies
+      [:droplet_blobstore, :buildpack_cache_blobstore, :package_blobstore,
+       :blobstore_url_generator, :missing_blob_handler, :blob_sender, :config]
+    end
+
     include VCAP::Errors
 
-    STAGING_PATH = "/staging"
+    STAGING_PATH = '/staging'
 
-    DROPLET_PATH = "#{STAGING_PATH}/droplets"
-    BUILDPACK_CACHE_PATH = "#{STAGING_PATH}/buildpack_cache"
+    DROPLET_PATH                 = "#{STAGING_PATH}/droplets"
+    PACKAGE_DROPLET_PATH         = "#{STAGING_PATH}/packages/droplets"
+    PACKAGE_BUILDPACK_CACHE_PATH = "#{STAGING_PATH}/packages/buildpack_cache"
+    BUILDPACK_CACHE_PATH         = "#{STAGING_PATH}/buildpack_cache"
+    V3_DROPLET_PATH              = "#{STAGING_PATH}/v3_droplets"
 
     # Endpoint does its own basic auth
     allow_unauthenticated_access
@@ -20,7 +29,7 @@ module VCAP::CloudController
 
     attr_reader :config, :blobstore, :buildpack_cache_blobstore, :package_blobstore
 
-    get "/staging/apps/:guid", :download_app
+    get '/staging/apps/:guid', :download_app
     def download_app(guid)
       raise InvalidRequest unless package_blobstore.local?
       app = App.find(guid: guid)
@@ -29,39 +38,43 @@ module VCAP::CloudController
       blob = package_blobstore.blob(guid)
       unless blob
         logger.error "could not find package for #{guid}"
-        raise ApiError.new_from_details("AppPackageNotFound", guid)
+        raise ApiError.new_from_details('AppPackageNotFound', guid)
       end
-
-      @blob_sender.send_blob(app.guid, "AppPackage", blob, self)
+      @blob_sender.send_blob(app.guid, 'AppPackage', blob, self)
     end
 
     post "#{DROPLET_PATH}/:guid/upload", :upload_droplet
     def upload_droplet(guid)
-      app = App.find(:guid => guid)
+      app = App.find(guid: guid)
 
       check_app_exists(app, guid)
       check_file_was_uploaded(app)
       check_file_md5
 
-      logger.info "droplet.begin-upload", :app_guid => app.guid
+      logger.info 'droplet.begin-upload', app_guid: app.guid
 
       droplet_upload_job = Jobs::Runtime::DropletUpload.new(upload_path, app.id)
 
       if async?
-        job = Jobs::Enqueuer.new(droplet_upload_job, queue: LocalQueue.new(config)).enqueue()
-        external_domain = Array(config[:external_domain]).first
-        [HTTP::OK, JobPresenter.new(job, "#{config[:external_protocol]}://#{external_domain}").to_json]
+        job = Jobs::Enqueuer.new(droplet_upload_job, queue: Jobs::LocalQueue.new(config)).enqueue
+        [HTTP::OK, StagingJobPresenter.new(job).to_json]
       else
         droplet_upload_job.perform
         HTTP::OK
       end
     end
 
+    get "#{STAGING_PATH}/jobs/:guid", :find_job
+    def find_job(guid)
+      job = Delayed::Job[guid: guid]
+      StagingJobPresenter.new(job).to_json
+    end
+
     get "#{DROPLET_PATH}/:guid/download", :download_droplet
     def download_droplet(guid)
-      app = App.find(:guid => guid)
+      app = App.find(guid: guid)
       check_app_exists(app, guid)
-      blob_name = "droplet"
+      blob_name = 'droplet'
 
       if @blobstore.local?
         droplet = app.current_droplet
@@ -76,27 +89,99 @@ module VCAP::CloudController
 
     post "#{BUILDPACK_CACHE_PATH}/:guid/upload", :upload_buildpack_cache
     def upload_buildpack_cache(guid)
-      app = App.find(:guid => guid)
+      app = App.find(guid: guid)
 
       check_app_exists(app, guid)
       check_file_was_uploaded(app)
       check_file_md5
 
       blobstore_upload = Jobs::Runtime::BlobstoreUpload.new(upload_path, app.guid, :buildpack_cache_blobstore)
-      Jobs::Enqueuer.new(blobstore_upload, queue: LocalQueue.new(config)).enqueue()
+      Jobs::Enqueuer.new(blobstore_upload, queue: Jobs::LocalQueue.new(config)).enqueue
       HTTP::OK
     end
 
     get "#{BUILDPACK_CACHE_PATH}/:guid/download", :download_buildpack_cache
     def download_buildpack_cache(guid)
-      app = App.find(:guid => guid)
+      app = App.find(guid: guid)
       check_app_exists(app, guid)
 
       blob = buildpack_cache_blobstore.blob(app.guid)
-      blob_name = "buildpack cache"
+      blob_name = 'buildpack cache'
 
       @missing_blob_handler.handle_missing_blob!(app.guid, blob_name) unless blob
       @blob_sender.send_blob(app.guid, blob_name, blob, self)
+    end
+
+    ##  V3
+
+    get '/staging/packages/:guid', :download_package
+    def download_package(guid)
+      raise ApiError.new_from_details('BlobstoreNotLocal') unless package_blobstore.local?
+
+      package = PackageModel.find(guid: guid)
+      raise ApiError.new_from_details('NotFound', guid) if package.nil?
+
+      blob = package_blobstore.blob(guid)
+      if blob.nil?
+        logger.error "could not find package for #{guid}"
+        raise ApiError.new_from_details('NotFound', guid)
+      end
+      @blob_sender.send_blob(guid, 'Package', blob, self)
+    end
+
+    post "#{PACKAGE_DROPLET_PATH}/:guid/upload", :upload_package_droplet
+    def upload_package_droplet(guid)
+      droplet = DropletModel.find(guid: guid)
+
+      raise ApiError.new_from_details('NotFound', guid) if droplet.nil?
+      raise ApiError.new_from_details('StagingError', "malformed droplet upload request for #{guid}") unless upload_path
+      check_file_md5
+
+      logger.info 'v3-droplet.begin-upload', droplet_guid: guid
+
+      droplet_upload_job = Jobs::V3::DropletUpload.new(upload_path, guid)
+
+      job = Jobs::Enqueuer.new(droplet_upload_job, queue: Jobs::LocalQueue.new(config)).enqueue
+      [HTTP::OK, StagingJobPresenter.new(job).to_json]
+    end
+
+    post "#{PACKAGE_BUILDPACK_CACHE_PATH}/:guid/upload", :upload_package_buildpack_cache
+    def upload_package_buildpack_cache(guid)
+      package = PackageModel.find(guid: guid)
+
+      raise VCAP::Errors::ApiError.new_from_details('ResourceNotFound', 'Package not found') if package.nil?
+      raise ApiError.new_from_details('StagingError', "malformed buildpack cache upload request for #{guid}") unless upload_path
+      check_file_md5
+
+      blobstore_upload = Jobs::Runtime::BlobstoreUpload.new(upload_path, guid, :buildpack_cache_blobstore)
+      Jobs::Enqueuer.new(blobstore_upload, queue: Jobs::LocalQueue.new(config)).enqueue
+      HTTP::OK
+    end
+
+    get "#{PACKAGE_BUILDPACK_CACHE_PATH}/:guid/download", :download_package_buildpack_cache
+    def download_package_buildpack_cache(guid)
+      package = PackageModel.find(guid: guid)
+      raise VCAP::Errors::ApiError.new_from_details('ResourceNotFound', 'Package not found') if package.nil?
+
+      blob = buildpack_cache_blobstore.blob(guid)
+      blob_name = 'buildpack cache'
+
+      @missing_blob_handler.handle_missing_blob!(guid, blob_name) unless blob
+      @blob_sender.send_blob(guid, blob_name, blob, self)
+    end
+
+    get "#{V3_DROPLET_PATH}/:guid/download", :download_v3_droplet
+    def download_v3_droplet(guid)
+      raise ApiError.new_from_details('BlobstoreNotLocal') unless @blobstore.local?
+
+      droplet = DropletModel.find(guid: guid)
+      raise VCAP::Errors::ApiError.new_from_details('ResourceNotFound', 'Package not found') if droplet.nil?
+
+      blob = @blobstore.blob(droplet.blobstore_key)
+      blob_name = "droplet_#{droplet.guid}"
+
+      @missing_blob_handler.handle_missing_blob!(droplet.blobstore_key, blob_name) unless blob
+      @blob_sender.send_blob(guid, blob_name, blob, self)
     end
 
     private
@@ -114,14 +199,18 @@ module VCAP::CloudController
     def upload_path
       @upload_path ||=
         if get_from_hash_tree(config, :nginx, :use_nginx) || get_from_hash_tree(config, :stackato_upload_handler, :enabled)
-          safe_path = Pathname.new(params["droplet_path"]).cleanpath.to_s
-          # value is hardcoded into the nginx config for now. No real need to
-          # expose this node local upload op.
-          raise if not safe_path.start_with? "/var/stackato/data/cloud_controller_ng/tmp/staged_droplet_uploads/"
+          safe_path = Pathname.new(params['droplet_path']).cleanpath.to_s
+          prevent_local_access safe_path
           safe_path
-        elsif (tempfile = get_from_hash_tree(params, "upload", "droplet", :tempfile))
+        elsif (tempfile = get_from_hash_tree(params, 'upload', 'droplet', :tempfile))
           tempfile.path
         end
+    end
+
+    def prevent_local_access safe_path
+      # value is hardcoded into the nginx config for now. No real need to
+      # expose this node local upload op.
+      raise if not safe_path.start_with? "/var/stackato/data/cloud_controller_ng/tmp/staged_droplet_uploads/"
     end
 
     def get_from_hash_tree(hash, *path)
@@ -132,18 +221,18 @@ module VCAP::CloudController
     end
 
     def check_app_exists(app, guid)
-      raise ApiError.new_from_details("AppNotFound", guid) if app.nil?
+      raise ApiError.new_from_details('AppNotFound', guid) if app.nil?
     end
 
     def check_file_was_uploaded(app)
-      raise ApiError.new_from_details("StagingError", "malformed droplet upload request for #{app.guid}") unless upload_path
+      raise ApiError.new_from_details('StagingError', "malformed droplet upload request for #{app.guid}") unless upload_path
     end
 
     def check_file_md5
       file_md5 = Digest::MD5.base64digest(File.read(upload_path))
-      header_md5 = env["HTTP_CONTENT_MD5"]
+      header_md5 = env['HTTP_CONTENT_MD5']
       if header_md5.present? && file_md5 != header_md5
-        raise ApiError.new_from_details("StagingError", "content md5 did not match")
+        raise ApiError.new_from_details('StagingError', 'content md5 did not match')
       end
     end
   end

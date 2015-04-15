@@ -1,11 +1,11 @@
-require "cloud_controller/dea/nats_messages/advertisment"
+require 'cloud_controller/dea/nats_messages/advertisment'
 
 module VCAP::CloudController
   module Dea
     module NatsMessages
       class DeaAdvertisement < Advertisement
         def dea_id
-          stats["id"]
+          stats['id']
         end
 
         def dea_ip
@@ -13,11 +13,11 @@ module VCAP::CloudController
         end
 
         def increment_instance_count(app_id)
-          stats["app_id_to_count"][app_id] = num_instances_of(app_id) + 1
+          stats['app_id_to_count'][app_id] = num_instances_of(app_id) + 1
         end
 
         def num_instances_of(app_id)
-          stats["app_id_to_count"].fetch(app_id, 0)
+          stats['app_id_to_count'].fetch(app_id, 0)
         end
 
         def availability_zone
@@ -29,7 +29,7 @@ module VCAP::CloudController
         end
 
         def zone
-          stats.fetch("placement_properties", {}).fetch("zone", "default")
+          stats.fetch('placement_properties', {}).fetch('zone', 'default')
         end
       end
     end

@@ -1,7 +1,7 @@
 # Controller to interact with a locally running Stackato AppStore backend.
 
 module VCAP::CloudController
-  rest_controller :StackatoAppStoreController do
+  rest_controller :StackatoAppStore do
     path_base "appstore"
     model_class_name :App
 
@@ -15,7 +15,8 @@ module VCAP::CloudController
       response = invoke_api "/create", {
         :Token => auth_token_header,
         :Space => body_params["space_guid"],
-        :AppName => body_params["app_name"]
+        :AppName => body_params["app_name"],
+        :Memory => body_params["memory"]
       }
       Yajl::Encoder.encode({
         :app_guid => response["GUID"]

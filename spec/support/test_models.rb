@@ -18,8 +18,8 @@ module VCAP::CloudController
     one_to_many :test_model_many_to_ones
     many_to_many :test_model_many_to_manies, join_table: :test_model_m_to_m_test_models
 
-    add_association_dependencies(:test_model_destroy_deps => :destroy,
-                                 :test_model_nullify_deps => :nullify)
+    add_association_dependencies(test_model_destroy_deps: :destroy,
+                                 test_model_nullify_deps: :nullify)
 
     import_attributes :required_attr, :unique_value, :test_model_many_to_many_guids
     export_attributes :unique_value
@@ -33,6 +33,7 @@ module VCAP::CloudController
   class TestModelDestroyDepAccess < BaseAccess; end
   class TestModelNullifyDepAccess < BaseAccess; end
   class TestModelManyToOneAccess < BaseAccess; end
+  class TestModelManyToManyAccess < BaseAccess; end
 
   class TestModelsController < RestController::ModelController
     define_attributes do
@@ -49,11 +50,13 @@ module VCAP::CloudController
     define_routes
 
     def delete(guid)
-      do_delete(find_guid_and_validate_access(:delete, guid))
+      obj = find_guid(guid)
+      validate_access(:delete, obj)
+      do_delete(obj)
     end
 
     def self.translate_validation_exception(e, attributes)
-      Errors::ApiError.new_from_details("TestModelValidation", attributes["unique_value"])
+      Errors::ApiError.new_from_details('TestModelValidation', attributes['unique_value'])
     end
   end
 

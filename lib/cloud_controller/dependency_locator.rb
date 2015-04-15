@@ -1,33 +1,81 @@
-require "repositories/runtime/app_event_repository"
-require "repositories/runtime/space_event_repository"
-require "cloud_controller/rest_controller/object_renderer"
-require "cloud_controller/rest_controller/paginated_collection_renderer"
-require "cloud_controller/upload_handler"
-require "cloud_controller/blob_sender/ngx_blob_sender"
-require "cloud_controller/blob_sender/default_blob_sender"
-require "cloud_controller/blob_sender/missing_blob_handler"
-require "cloud_controller/diego/client"
-require "cloud_controller/diego/messenger"
-require "cloud_controller/diego/traditional/protocol"
+require 'repositories/runtime/app_event_repository'
+require 'repositories/runtime/space_event_repository'
+require 'cloud_controller/rest_controller/object_renderer'
+require 'cloud_controller/rest_controller/paginated_collection_renderer'
+require 'cloud_controller/upload_handler'
+require 'cloud_controller/blob_sender/ngx_blob_sender'
+require 'cloud_controller/blob_sender/default_blob_sender'
+require 'cloud_controller/blob_sender/missing_blob_handler'
+require 'cloud_controller/diego/client'
+require 'cloud_controller/diego/messenger'
+require 'cloud_controller/diego/traditional/protocol'
 
 module CloudController
   class DependencyLocator
     include Singleton
     include VCAP::CloudController
 
-    def initialize(config = VCAP::CloudController::Config.config, message_bus = VCAP::CloudController::Config.message_bus)
+    LARGE_COLLECTION_SIZE = 10_000
+
+    attr_accessor :config
+
+    def initialize(config = VCAP::CloudController::Config.config,
+                   message_bus = VCAP::CloudController::Config.message_bus,
+                  backends=VCAP::CloudController::Config.backends)
       @config = config
       @message_bus = message_bus
+      @backends = backends
+      @dependencies = {}
+    end
+
+    def config
+      @config || raise('config not set')
+    end
+
+    def register(name, value)
+      @dependencies[name] = value
     end
 
     def health_manager_client
-      @health_manager_client ||= (@config[:hm9000_noop] ?
-                                HealthManagerClient :
-                                Dea::HM9000::Client).new(@message_bus, @config)
+	    # @health_manager_client ||= (@config[:hm9000_noop] ?
+        #                        HealthManagerClient :
+        #                        Dea::HM9000::Client).new(@message_bus, @config)
+
+	    # this is a migration to the new cloud controller client. we need to verify that 
+      # this works	
+      @dependencies[:health_manager_client] || raise('health_manager_client not set')
+    end
+
+    def runners
+      @dependencies[:runners] || raise('runners not set')
+    end
+
+    def stagers
+      @dependencies[:stagers] || raise('stagers not set')
+    end
+
+    def diego_client
+      @dependencies[:diego_client] || raise('diego_client not set')
+    end
+
+    def upload_handler
+      @dependencies[:upload_handler] || raise('upload_handler not set')
+    end
+
+    def app_event_repository
+      @dependencies[:app_event_repository] || raise('app_event_repository not set')
+    end
+
+    def instances_reporters
+      @dependencies[:instances_reporters] || raise('instances_reporters not set')
+    end
+
+    def index_stopper
+      @dependencies[:index_stopper] || raise('index_stopper not set')
     end
 
     def droplet_blobstore
-      droplets = config.fetch(:droplets)
+      droplets = @config.fetch(:droplets)
       cdn_uri = droplets.fetch(:cdn, nil) && droplets.fetch(:cdn).fetch(:uri, nil)
       droplet_cdn = CloudController::Blobstore::Cdn.make(cdn_uri)
 
@@ -39,7 +87,7 @@ module CloudController
     end
 
     def buildpack_cache_blobstore
-      droplets = config.fetch(:droplets)
+      droplets = @config.fetch(:droplets)
       cdn_uri = droplets.fetch(:cdn, nil) && droplets.fetch(:cdn).fetch(:uri, nil)
       droplet_cdn = CloudController::Blobstore::Cdn.make(cdn_uri)
 
@@ -47,12 +95,12 @@ module CloudController
         droplets.fetch(:fog_connection),
         droplets.fetch(:droplet_directory_key),
         droplet_cdn,
-        "buildpack_cache"
+        'buildpack_cache'
       )
     end
 
     def package_blobstore
-      packages = config.fetch(:packages)
+      packages = @config.fetch(:packages)
       cdn_uri = packages.fetch(:cdn, nil) && packages.fetch(:cdn).fetch(:uri, nil)
       package_cdn = CloudController::Blobstore::Cdn.make(cdn_uri)
 
@@ -64,7 +112,7 @@ module CloudController
     end
 
     def global_app_bits_cache
-      resource_pool = config.fetch(:resource_pool)
+      resource_pool = @config.fetch(:resource_pool)
       cdn_uri = resource_pool.fetch(:cdn, nil) && resource_pool.fetch(:cdn).fetch(:uri, nil)
       min_file_size = resource_pool[:minimum_size]
       max_file_size = resource_pool[:maximum_size]
@@ -82,21 +130,17 @@ module CloudController
 
     def buildpack_blobstore
       Blobstore::Client.new(
-        config[:buildpacks][:fog_connection],
-        config[:buildpacks][:buildpack_directory_key] || "cc-buildpacks"
+        @config[:buildpacks][:fog_connection],
+        @config[:buildpacks][:buildpack_directory_key] || 'cc-buildpacks'
       )
-    end
-
-    def upload_handler
-      @upload_handler ||= UploadHandler.new(config)
     end
 
     def blobstore_url_generator
       connection_options = {
-        blobstore_host: config[:external_host],
-        blobstore_port: config[:external_port],
-        user: config[:staging][:auth][:user],
-        password: config[:staging][:auth][:password]
+        blobstore_host: @config[:external_host],
+        blobstore_port: @config[:external_port],
+        user: @config[:staging][:auth][:user],
+        password: @config[:staging][:auth][:password]
       }
       Blobstore::UrlGenerator.new(
         connection_options,
@@ -111,12 +155,63 @@ module CloudController
       return "#{Kato::Local::Node.get_local_node_id}:5000"
     end
 
-    def app_event_repository
-      @app_event_repository ||= Repositories::Runtime::AppEventRepository.new
-    end
-
     def space_event_repository
       Repositories::Runtime::SpaceEventRepository.new
+    end
+
+    def services_event_repository
+      Repositories::Services::EventRepository.new(
+        user: SecurityContext.current_user,
+        user_email: SecurityContext.current_user_email
+      )
+    end
+
+    def service_manager
+      VCAP::Services::ServiceBrokers::ServiceManager.new(services_event_repository)
+    end
+
+    def process_repository
+      ProcessRepository.new
+    end
+
+    def app_repository
+      AppRepository.new
+    end
+
+    def processes_handler
+      ProcessesHandler.new(process_repository, app_event_repository)
+    end
+
+    def procfile_handler
+      ProcfileHandler.new(apps_handler, processes_handler)
+    end
+
+    def process_presenter
+      ProcessPresenter.new
+    end
+
+    def apps_handler
+      AppsHandler.new(packages_handler, droplets_handler, processes_handler)
+    end
+
+    def app_presenter
+      AppPresenter.new
+    end
+
+    def packages_handler
+      PackagesHandler.new(@config)
+    end
+
+    def package_presenter
+      PackagePresenter.new
+    end
+
+    def droplets_handler
+      DropletsHandler.new(@config, stagers)
+    end
+
+    def droplet_presenter
+      DropletPresenter.new
     end
 
     def object_renderer
@@ -124,30 +219,32 @@ module CloudController
       serializer   = VCAP::CloudController::RestController::PreloadedObjectSerializer.new
 
       VCAP::CloudController::RestController::ObjectRenderer.new(eager_loader, serializer, {
-        max_inline_relations_depth: config[:renderer][:max_inline_relations_depth],
+        max_inline_relations_depth: @config[:renderer][:max_inline_relations_depth],
       })
     end
 
     def paginated_collection_renderer
-      eager_loader = VCAP::CloudController::RestController::SecureEagerLoader.new
-      serializer   = VCAP::CloudController::RestController::PreloadedObjectSerializer.new
+      create_paginated_collection_renderer
+    end
 
-      VCAP::CloudController::RestController::PaginatedCollectionRenderer.new(eager_loader, serializer, {
-        max_results_per_page:       config[:renderer][:max_results_per_page],
-        default_results_per_page:   config[:renderer][:default_results_per_page],
-        max_inline_relations_depth: config[:renderer][:max_inline_relations_depth],
-      })
+    def large_paginated_collection_renderer
+      create_paginated_collection_renderer(max_results_per_page: LARGE_COLLECTION_SIZE)
     end
 
     def entity_only_paginated_collection_renderer
-      eager_loader = VCAP::CloudController::RestController::SecureEagerLoader.new
-      serializer   = VCAP::CloudController::RestController::EntityOnlyPreloadedObjectSerializer.new
+      create_paginated_collection_renderer(serializer: VCAP::CloudController::RestController::EntityOnlyPreloadedObjectSerializer.new)
+    end
 
-      VCAP::CloudController::RestController::PaginatedCollectionRenderer.new(eager_loader, serializer, {
-        max_results_per_page:       config[:renderer][:max_results_per_page],
-        default_results_per_page:   config[:renderer][:default_results_per_page],
-        max_inline_relations_depth: config[:renderer][:max_inline_relations_depth],
-      })
+    def username_populating_collection_renderer
+      create_paginated_collection_renderer(collection_transformer: UsernamePopulator.new(username_lookup_uaa_client))
+    end
+
+    def username_lookup_uaa_client
+      client_id = @config[:cloud_controller_username_lookup_client_name]
+      secret = @config[:cloud_controller_username_lookup_client_secret]
+      target = @config[:uaa][:url]
+      skip_cert_verify = @config[:skip_cert_verify]
+      UaaClient.new(target, client_id, secret, { skip_ssl_validation: skip_cert_verify })
     end
 
     def missing_blob_handler
@@ -155,30 +252,29 @@ module CloudController
     end
 
     def blob_sender
-      if config[:nginx][:use_nginx] || config[:stackato_upload_handler][:enabled]
+      if @config[:nginx][:use_nginx] || @config[:stackato_upload_handler][:enabled]
         CloudController::BlobSender::NginxLocalBlobSender.new(missing_blob_handler)
       else
         CloudController::BlobSender::DefaultLocalBlobSender.new(missing_blob_handler)
       end
     end
 
-    def diego_client
-      @diego_client ||= Diego::Client.new(Diego::ServiceRegistry.new(message_bus))
-    end
-
-    def diego_traditional_protocol
-      @diego_traditional_protocol ||= Diego::Traditional::Protocol.new(blobstore_url_generator)
-    end
-
-    def diego_messenger
-      @diego_messenger ||= Diego::Messenger.new(config[:diego], message_bus, diego_traditional_protocol)
-    end
-
-    def instances_reporter
-      @instances_reporter ||= VCAP::CloudController::CompositeInstancesReporter.new(diego_client, health_manager_client)
-    end
-
     private
-    attr_reader :config, :message_bus
+
+    def create_paginated_collection_renderer(opts={})
+      eager_loader               = opts[:eager_loader] || VCAP::CloudController::RestController::SecureEagerLoader.new
+      serializer                 = opts[:serializer] || VCAP::CloudController::RestController::PreloadedObjectSerializer.new
+      max_results_per_page       = opts[:max_results_per_page] || @config[:renderer][:max_results_per_page]
+      default_results_per_page   = opts[:default_results_per_page] || @config[:renderer][:default_results_per_page]
+      max_inline_relations_depth = opts[:max_inline_relations_depth] || @config[:renderer][:max_inline_relations_depth]
+      collection_transformer     = opts[:collection_transformer]
+
+      VCAP::CloudController::RestController::PaginatedCollectionRenderer.new(eager_loader, serializer, {
+        max_results_per_page:       max_results_per_page,
+        default_results_per_page:   default_results_per_page,
+        max_inline_relations_depth: max_inline_relations_depth,
+        collection_transformer: collection_transformer
+      })
+    end
   end
 end
