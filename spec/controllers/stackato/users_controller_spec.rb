@@ -70,8 +70,9 @@ module VCAP::CloudController
       describe "GET /v2/stackato/users" do
         context "when the requesting user is an admin" do
           it "shoudl return the list of users in all orgz" do
-            get "/v2/stackato/users", MultiJson.dump({:q => "#{user.guid}"}), admin_headers
+            get "/v2/stackato/users?q=test", {}, admin_headers
             pending ("needs fixing for proper json encoding")
+            puts last_response.inspect
             expect(last_response.status).to eq(200)
           end
         end
@@ -104,6 +105,17 @@ module VCAP::CloudController
       end
 
       describe "DELETE /v2/stackato/users/:id" do
+
+        context "when in maintenance mode" do
+          before { TestConfig.override({:maintenance_mode => true})  }
+          after  { TestConfig.override({:maintenance_mode => false}) }
+
+          it "should reject adding new users" do
+            delete "/v2/stackato/users/#{user.guid}", {}, admin_headers
+            expect(last_response.status).to eq(503)
+            expect(last_response.body).to match(/Maintenance mode is enabled/)
+          end
+        end
 
         it "should delete the user" do
           delete "/v2/stackato/users/#{user.guid}", {}, admin_headers
