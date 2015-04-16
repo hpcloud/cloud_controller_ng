@@ -226,7 +226,7 @@ module VCAP::CloudController
           response_body = JSON.parse(last_response.body, symbolize_names: true)
           job = Delayed::Job.last
           expect(job.handler).to include(app_obj.guid)
-          expect(job.queue).to eq('cc-api_z1-99')
+          expect(job.queue).to eq('cc-127.0.0.1')
           expect(job.guid).not_to be_nil
           expect(last_response.status).to eq 201
           expect(response_body).to eq({

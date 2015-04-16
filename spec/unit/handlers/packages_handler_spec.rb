@@ -254,7 +254,7 @@ module VCAP::CloudController
                 }.to change { Delayed::Job.count }.by(1)
 
                 job = Delayed::Job.last
-                expect(job.queue).to eq('cc-local-1')
+                expect(job.queue).to eq('cc-127.0.0.1')
                 expect(job.handler).to include(package_guid)
                 expect(job.handler).to include('PackageBits')
               end
