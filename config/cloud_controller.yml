@@ -208,6 +208,7 @@ docker_apps:
   require_sudo: true
   allow_any_registry: true
   allowed_registries: []
+  droplet_cleanup_limit_mb: 10240
 
 app_uris:
   # Allow applications to register URIs that are outside your domain.

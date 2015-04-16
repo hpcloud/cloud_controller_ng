@@ -1,3 +1,4 @@
+require 'json'
 require 'net/http'
 require 'set'
 require "cloud_controller/dependency_locator"
@@ -11,7 +12,7 @@ module VCAP::CloudController
           def perform
             logger = Steno.logger("cc.stackato.clock")
             logger.info "Performing docker registry cleanup job"
-            target_size_in_megabytes = config[:docker_apps][:droplet_cleanup_limit_mb] || 1024
+            target_size_in_megabytes = config[:docker_apps][:droplet_cleanup_limit_mb] || 10240
             droplet_hashes = Set.new
             VCAP::CloudController::App.where{docker_image != nil}.each do |app|
               droplet_hashes.merge app.droplets.map(&:droplet_hash)
@@ -19,9 +20,10 @@ module VCAP::CloudController
             docker_registry = CloudController::DependencyLocator.instance.docker_registry
             url = URI("http://#{docker_registry}/v1/cleanup/")
             req = Net::HTTP::Post.new(url.request_uri)
-            req.form_data = {
+            req.content_type = "application/json"
+            req.body = {
               :cleanup_limit => target_size_in_megabytes,
-              :known_hashes => droplet_hashes.to_a.join(",")}
+              :known_hashes => droplet_hashes.to_a}.to_json
             http = Net::HTTP.new(url.hostname, url.port)
             logger.info("Cleaning up docker registry; aiming for #{target_size_in_megabytes} MB (#{droplet_hashes.length} in use)")
             response = http.request(req)
