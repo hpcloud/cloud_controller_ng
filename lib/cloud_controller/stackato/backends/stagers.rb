@@ -35,7 +35,8 @@ module VCAP::CloudController
     def stage_app(app, &completion_callback)
       validate_app(app)
       blobstore_url_generator = CloudController::DependencyLocator.instance.blobstore_url_generator
-      task = VCAP::CloudController::Dea::StackatoAppStagerTask.new(@config, @message_bus, app, @dea_pool, @stager_pool, blobstore_url_generator)
+      docker_registry = CloudController::DependencyLocator.instance.docker_registry
+      task = VCAP::CloudController::Dea::StackatoAppStagerTask.new(@config, @message_bus, app, @dea_pool, @stager_pool, blobstore_url_generator, docker_registry)
       task.stage(&completion_callback)
     end
     
