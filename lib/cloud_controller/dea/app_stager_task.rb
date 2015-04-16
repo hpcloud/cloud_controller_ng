@@ -23,7 +23,7 @@ module VCAP::CloudController
 
       def find_stager_retry
         # Bug 104558 - Allow for dead droplet-slots to be made available
-        # Same code as in StackatoBackends.stage_if_needed
+        # Same code as in StackatoStagers.stage_if_needed
         num_tries = @config[:staging].fetch(:num_repeated_tries, 10)
         delay = @config[:staging].fetch(:time_between_tries, 3)
         num_tries.times do | iter |

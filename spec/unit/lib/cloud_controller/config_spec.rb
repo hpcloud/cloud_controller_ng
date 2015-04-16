@@ -229,6 +229,7 @@ module VCAP::CloudController
     end
 
     describe '.configure_components' do
+      let(:runners) { double(:runners, 'stagers='.to_sym => nil) }
       before do
         @test_config = {
           packages: {
@@ -286,7 +287,7 @@ module VCAP::CloudController
                                     message_bus,
                                     instance_of(Dea::Pool),
                                     instance_of(Dea::StagerPool),
-                                    instance_of(HealthManagerClient))
+                                    instance_of(HealthManagerClient)).and_return(runners)
         Config.configure_components(@test_config)
         Config.configure_components_depending_on_message_bus(message_bus)
       end
@@ -310,7 +311,7 @@ module VCAP::CloudController
       end
 
       it 'sets up the app manager' do
-        expect(AppObserver).to receive(:configure).with(instance_of(VCAP::CloudController::Stagers),
+        expect(AppObserver).to receive(:configure).with(instance_of(VCAP::CloudController::StackatoStagers),
                                                         instance_of(VCAP::CloudController::StackatoRunners))
 
         Config.configure_components(@test_config)

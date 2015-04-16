@@ -2,8 +2,8 @@ require 'spec_helper'
 
 module VCAP::CloudController
   describe AppObserver do
-    let(:stagers) { double(:stagers, stager_for_app: stager, broadcast_app_updated:nil) }
-    let(:runners) { double(:runners, runner_for_app: runner) }
+    let(:stagers) { double(:stagers, stager_for_app: stager) }
+    let(:runners) { double(:runners, runner_for_app: runner, broadcast_app_updated:nil) }
     let(:stager) { double(:stager) }
     let(:runner) { double(:runner, stop: nil, start: nil) }
     let(:app) do

@@ -8,7 +8,14 @@ module VCAP::CloudController
       org = find_guid_and_validate_access(:read, guid)
 
       logger.debug "params: #{@opts}"
-      calculate_space_mem_usage = (@opts[:include_relations] || '').split(',').include? 'app-usage'
+      # If the options were run through CommonParams.parse,
+      # this option will come in as an array.
+      include_relations = @opts[:include_relations]
+      calculate_space_mem_usage = (include_relations.nil? ?
+                                   false :
+                                   (include_relations.is_a?(Array) ?
+                                    include_relations.include?('app-usage') :
+                                    include_relations.split(',').include?('app-usage')))
 
       MultiJson.dump(
         guid: org.guid,
