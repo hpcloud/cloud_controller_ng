@@ -208,12 +208,6 @@ module VCAP::CloudController
       exit 1
     end
 
-    def setup_db
-      logger.info "db config #{@config[:db]}"
-      db_logger = Steno.logger("cc.db")
-      DB.load_models(@config[:db], db_logger)
-    end
-
     def start_thin_server(app)
       if @config[:nginx][:use_nginx] || @config[:stackato_upload_handler][:enabled]
         @thin_server = Thin::Server.new(
