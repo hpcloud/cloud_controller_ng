@@ -138,7 +138,7 @@ module VCAP::CloudController
 
         context 'with an invalid version' do
           it 'should return bad request' do
-            #pending('AUTH: not authorized to add a service')
+            #pending('AUTH: not authorized to add a service'
             
             @req[:version] = 'invalid'
             post '/services', MultiJson.dump(@req), json_headers(headers_for(user))
@@ -146,11 +146,6 @@ module VCAP::CloudController
             expect(ManagedServiceInstance.count).to eq(@num_instances_before)
             expect(decoded_response['code']).to eq(120001)
             expect(decoded_response['description']).to match(/service is invalid: postgres-invalid/)
-          end
-
-          it "wrap test so it can be marked pending" do
-            pending("AUTH: not authorized to add a service")
-            it_behaves_like "a vcap rest error response", /service instance name is taken: duplicate/
           end
         end
       end
