@@ -72,7 +72,6 @@ module VCAP::CloudController
           it "shoudl return the list of users in all orgz" do
             get "/v2/stackato/users?q=test", {}, admin_headers
             pending ("needs fixing for proper json encoding")
-            puts last_response.inspect
             expect(last_response.status).to eq(200)
           end
         end
