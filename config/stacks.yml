@@ -1,7 +1,7 @@
 # lucid64 stack is just a default stack that was made
 # in the create_stacks_table migration
-default: "lucid64"
+default: "alsek"
 
 stacks:
-  - name: "lucid64"
-    description: "test lucid entry"
+  - name: "alsek"
+    description: "Stackato Alsek Stack"
