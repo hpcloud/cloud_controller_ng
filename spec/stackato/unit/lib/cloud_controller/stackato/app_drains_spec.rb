@@ -50,7 +50,7 @@ module VCAP::CloudController
         expect { StackatoAppDrains.sanitize_uri("#{drain_uri}:#{invalid_drain_port}") }.to raise_error(VCAP::Errors::ApiError)
       end
 
-      it "should uri without proper scheme" do
+      it "should reject uri without proper scheme" do
         expect { StackatoAppDrains.sanitize_uri(no_scheme_drain_uri) }.to raise_error(VCAP::Errors::ApiError)
       end
 
