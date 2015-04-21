@@ -50,7 +50,7 @@ module VCAP::CloudController
         expect { StackatoAppDrains.sanitize_uri("#{drain_uri}:#{invalid_drain_port}") }.to raise_error(VCAP::Errors::ApiError)
       end
 
-      it "should reject unacceptable ports" do
+      it "should uri without proper scheme" do
         expect { StackatoAppDrains.sanitize_uri(no_scheme_drain_uri) }.to raise_error(VCAP::Errors::ApiError)
       end
 
@@ -98,7 +98,7 @@ module VCAP::CloudController
         end
       end
 
-      describe "delete_all" do
+      describe "#delete_all" do
         it "should delete all drains for a given app" do
           expect(Kato::Config.get("logyard", "drains").size).to be 2
           StackatoAppDrains.delete_all(app)
