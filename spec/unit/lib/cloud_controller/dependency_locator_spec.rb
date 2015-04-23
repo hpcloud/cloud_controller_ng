@@ -215,7 +215,11 @@ describe CloudController::DependencyLocator do
   end
 
   describe "#docker_registry" do
-    let(:config) { { external_host: "external.host" } }
+    let(:config) { { external_host: Kato::Local::Node.get_local_node_id } }
+    before do
+      TestConfig.override(config)
+    end
+
 
     it "returns the host and port of the docker registry" do
       expect(locator.docker_registry).to eq("#{config[:external_host]}:5000")
