@@ -5,7 +5,7 @@ module VCAP::CloudController
     class StackatoAppStagerTask < AppStagerTask
 
       def stage(&completion_callback)
-        find_stager_retry
+        @stager_id = find_stager_retry
         if !@stager_id
           parts = ["stack #{@app.stack.name}", "mem #{@app.memory}"]
           if @app.distribution_zone && @app.distribution_zone != "default"
