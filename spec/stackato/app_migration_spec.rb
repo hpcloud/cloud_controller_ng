@@ -1,6 +1,7 @@
 # Copyright (c) ActiveState 2014 - ALL RIGHTS RESERVED.
 
 require 'spec_helper'
+require 'stackato/spec_helper'
 
 describe 'Application Migration', non_transactional: true do
 

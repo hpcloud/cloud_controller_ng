@@ -62,7 +62,7 @@ module VCAP::CloudController
         new_plan_attrs = Array(req.plans).map {|plan_name|
           {
             'name' => plan_name,
-            "free" => (plan_name == "free") || !!(plan_name =~ /^1[0-9][0-9]$/), #only 100-level plans are free
+            'free' => (plan_name == 'free') || !!(plan_name =~ /^1[0-9][0-9]$/), # only 100-level plans are free
           }
         }
       end

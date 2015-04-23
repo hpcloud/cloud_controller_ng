@@ -7,6 +7,11 @@ module VCAP::CloudController
     let(:app_obj_2) { AppFactory.make(package_hash: 'hash2') }
     let(:developer) { make_developer_for_space(space) }
     let(:headers)   { headers_for(developer) }
+    let(:app_memory) { 798 }
+
+    before do
+      TestConfig.override({default_app_memory: app_memory}) # in mb
+    end
 
     it 'returns the amount the app is using' do
       # Instantiate the apps and hook them to the space we're testing
@@ -19,7 +24,7 @@ module VCAP::CloudController
       expect(last_response.status).to eq(200)
       amts = Yajl::Parser.parse(last_response.body)
       expect(amts["usage"]["mem"]).to eq(0)
-      expect(amts["allocated"]["mem"]).to eq(1048576 * 2)
+      expect(amts["allocated"]["mem"]).to eq(2 * 1024 * app_memory)
     end
   end
 end

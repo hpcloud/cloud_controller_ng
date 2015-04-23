@@ -74,3 +74,20 @@ def mock_hostname(hostname="stackato-test.local")
     .and_return(@hostname)
 end
 
+def init_logyard_drains
+  Kato::Config.set("logyard", "drains", Hash.new)
+end
+
+def stub_logyard_request
+  stub_request(:post, "http://127.0.0.1:8891/").
+         to_return(:status => 200, :body => '{"appdrain.fb619ab2-f434-44d1-b8e1-2da7fe998f79.test_drain":{"127.0.0.1":{"name":"RUNNING","rev":"6"}}}', :headers => {})
+end
+
+def stub_appstore
+  # appstore_controller does not care about the body of the response at the momemnt, but  
+  # the response body needs to be updated with what is actually retruned from the appstore service
+  stub_request(:post, %r"http://127.0.0.1:9256/(create|push)").
+         to_return(:status => 200, :body => '{"result": "success"}', :headers => {})
+end
+
+
