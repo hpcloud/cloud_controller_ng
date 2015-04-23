@@ -69,6 +69,7 @@ module VCAP::CloudController
         end
 
         it 'sets up loggregator emitter' do
+          pending("As of 14-08-06 Stackato doesn't use Loggregator")
           loggregator_emitter = double(:loggregator_emitter)
           expect(LoggregatorEmitter::Emitter).to receive(:new).and_return(loggregator_emitter)
           expect(Loggregator).to receive(:emitter=).with(loggregator_emitter)

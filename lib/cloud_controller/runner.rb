@@ -116,20 +116,6 @@ module VCAP::CloudController
       Steno.init(Steno::Config.new(steno_config))
     end
 
-    def setup_db
-      logger.info "db config #{@config[:db]}"
-      db_logger = Steno.logger("cc.db")
-      DB.load_models(@config[:db], db_logger)
-    end
-
-    def setup_loggregator_emitter
-      # xxx: As of 14-08-06 Stackato doesn't use Loggregator so we make sure to never initialize the emitter here
-      return true
-      if @config[:loggregator] && @config[:loggregator][:router] && @config[:loggregator][:shared_secret]
-        Loggregator.emitter = LoggregatorEmitter::Emitter.new(@config[:loggregator][:router], LogMessage::SourceType::CLOUD_CONTROLLER, @config[:index])
-      end
-    end
-
     def development_mode?
       @config[:development_mode]
     end
@@ -238,6 +224,8 @@ module VCAP::CloudController
     end
 
     def setup_loggregator_emitter
+      # xxx: As of 14-08-06 Stackato doesn't use Loggregator so we make sure to never initialize the emitter here
+      return true
       if @config[:loggregator] && @config[:loggregator][:router] && @config[:loggregator][:shared_secret]
         Loggregator.emitter = LoggregatorEmitter::Emitter.new(@config[:loggregator][:router], 'API', @config[:index], @config[:loggregator][:shared_secret])
         Loggregator.logger = logger
