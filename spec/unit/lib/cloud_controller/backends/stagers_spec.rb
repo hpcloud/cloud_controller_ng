@@ -92,6 +92,7 @@ module VCAP::CloudController
           end
 
           it 'raises' do
+            pending("Stackato always supports Docker. Ignore or delete this test")
             expect {
               subject.validate_app(app)
             }.to raise_error(Errors::ApiError, /Docker support has not been enabled/)

@@ -18,7 +18,7 @@ module VCAP::CloudController
 
     def validate_app(app)
       # Stackato supports pushing docker apps without Diego
-      if false && app.docker_image.present? && docker_disabled?
+      if app.docker_image.present? && docker_disabled?
         raise Errors::ApiError.new_from_details('DockerDisabled')
       end
 
@@ -46,7 +46,8 @@ module VCAP::CloudController
     private
 
     def docker_disabled?
-      !@config[:diego_docker]
+      # Stackato supports pushing docker apps without Diego
+      false
     end
 
     def dea_stager(app)
