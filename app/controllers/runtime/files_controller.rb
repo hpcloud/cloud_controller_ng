@@ -23,6 +23,7 @@ module VCAP::CloudController
       # new VMC and new DEA, let's hand out the directory server url.
       # We sadly still have to serve the files through CC otherwise
       uri = info.file_uri_v2
+      uri = add_tail(uri) if params.include?('tail')
       if opts['allow_redirect'] == true # cli_request? == true
         uri = add_tail(uri) if params.include?('tail')
         uri.sub!(/^http:/, 'https:')
@@ -36,9 +37,14 @@ module VCAP::CloudController
         http_response = http_get(uri, headers, nil, nil)
       end
 
-      uri = info.file_uri_v2
-      uri = add_tail(uri) if params.include?('tail')
-      [HTTP::FOUND, { 'Location' => uri }, nil]
+      unless [200, 206, 416].include? http_response.status
+        msg = "Request failed for app: #{app.name}, search_param: #{search_param}"
+        msg << " as there was an error retrieving the files."
+        logger.error("#{msg} For uri:'#{uri}', headers:#{headers} => http status #{http_response.status}")
+        raise Errors::ApiError.new_from_details("FileError", msg)
+      end
+      
+      [http_response.status, http_response.body]
     end
 
     get "#{path_guid}/instances/:instance_id/files/*", :files
