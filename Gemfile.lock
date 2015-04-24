@@ -270,6 +270,10 @@ GEM
     rb-fsevent (0.9.4)
     rb-inotify (0.9.5)
       ffi (>= 0.5.0)
+    rbvmomi (1.8.2)
+      builder
+      nokogiri (>= 1.4.1)
+      trollop
     redis (3.0.6)
     rfc822 (0.1.4)
     roodi (4.0.0)
@@ -488,6 +492,7 @@ DEPENDENCIES
   rack-protection (= 1.5.1)
   rack-test (= 0.6.2)
   rake (= 10.3.2)
+  rbvmomi (~> 1.8.2)
   redis (~> 3.0.4)
   rfc822 (= 0.1.4)
   roodi (= 4.0.0)

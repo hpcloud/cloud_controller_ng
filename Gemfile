@@ -84,6 +84,7 @@ gem 'rack-mount', '0.8.3'
 gem 'rack-protection', '1.5.1'
 gem 'rack-test', '0.6.2', :groups => [:test, :default]
 gem 'rake', '10.3.2'
+gem 'rbvmomi', '~> 1.8.2'
 gem 'redis', '~> 3.0.4'
 gem 'rfc822', '0.1.4'
 gem 'ruby-hmac', '0.4.0'
