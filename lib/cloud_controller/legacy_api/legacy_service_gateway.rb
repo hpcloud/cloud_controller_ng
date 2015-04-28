@@ -224,7 +224,7 @@ module VCAP::CloudController
       elsif binding
         binding.set(
           configuration: req.configuration.to_s,
-          credentials: req.credentials.to_s,
+          credentials: req.credentials,
         )
         binding.save_changes
       else
