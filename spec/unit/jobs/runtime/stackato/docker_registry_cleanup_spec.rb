@@ -33,7 +33,7 @@ describe VCAP::CloudController::Jobs::Runtime::Stackato::DockerRegistryCleanup d
       expect(req).to have_been_made
     end
     it 'should support custom target sizes' do
-      config[:docker_apps][:droplet_cleanup_limit_mb] = 12345
+      config[:docker_apps][:storage_limit_mb] = 12345
       req = stub_request(:post, "http://docker.registry:12345/v1/cleanup/")
         .with(:body => {"cleanup_limit"=>"12345", "known_hashes"=>""},
               :headers => {'Content-Type'=>'application/x-www-form-urlencoded'})
