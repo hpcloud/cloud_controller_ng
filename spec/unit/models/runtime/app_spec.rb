@@ -2124,13 +2124,13 @@ module VCAP::CloudController
       it 'sets the package hash to the image name any time the image is set' do
         expect {
           app.docker_image = 'foo/bar:latest'
-        }.to change { app.package_hash }.to('foo/bar:latest')
+        }.to change { app.package_hash }.to match('foo/bar:latest')
       end
 
       it 'preserves its existing behavior as a setter' do
         expect {
           app.docker_image = 'foo/bar:latest'
-        }.to change { app.docker_image }.to('foo/bar:latest')
+        }.to change { app.docker_image }.to match('foo/bar:latest')
       end
 
       user_docker_images = [
