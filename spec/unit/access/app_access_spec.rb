@@ -84,6 +84,11 @@ module VCAP::CloudController
           expect { subject.read_for_update?(object, { 'memory' => 2 }) }.to raise_error(VCAP::Errors::ApiError, /app_scaling/)
           expect { subject.read_for_update?(object, { 'disk_quota' => 2 }) }.to raise_error(VCAP::Errors::ApiError, /app_scaling/)
           expect { subject.read_for_update?(object, { 'instances' => 2 }) }.to raise_error(VCAP::Errors::ApiError, /app_scaling/)
+          expect { subject.read_for_update?(object, { 'autoscale_enabled' => true }) }.to raise_error(VCAP::Errors::ApiError, /app_scaling/)
+          expect { subject.read_for_update?(object, { 'min_cpu_threshold' => 2 }) }.to raise_error(VCAP::Errors::ApiError, /app_scaling/)
+          expect { subject.read_for_update?(object, { 'max_cpu_threshold' => 2 }) }.to raise_error(VCAP::Errors::ApiError, /app_scaling/)
+          expect { subject.read_for_update?(object, { 'min_instances' => 2 }) }.to raise_error(VCAP::Errors::ApiError, /app_scaling/)
+          expect { subject.read_for_update?(object, { 'max_instances' => 4 }) }.to raise_error(VCAP::Errors::ApiError, /app_scaling/)
         end
 
         it 'allows unchanged fields to be specified' do
