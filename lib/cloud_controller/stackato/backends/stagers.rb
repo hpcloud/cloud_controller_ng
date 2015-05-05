@@ -2,6 +2,10 @@ require "cloud_controller/backends/stagers"
 
 module VCAP::CloudController
   class StackatoStagers < Stagers
+
+    def logger
+      @logger ||= Steno.logger("cc.stackato.stagers")
+    end
     
     def stage_if_needed(app, &success_callback)
       if app.needs_staging?

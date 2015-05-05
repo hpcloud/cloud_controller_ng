@@ -7,6 +7,10 @@ module VCAP::CloudController
       super(config, message_bus, dea_pool, stager_pool)
       @health_manager_client = health_manager_client
     end
+
+    def logger
+      @logger ||= Steno.logger("cc.stackato.runners")
+    end
     
     def update_autoscaling_fields(changes)
       @health_manager_client.update_autoscaling_fields(changes)
