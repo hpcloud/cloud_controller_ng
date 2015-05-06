@@ -7,6 +7,19 @@ module VCAP::CloudController
 
     def app_create
       check_maintenance_mode
+      if !SecurityContext.admin?
+        begin
+          FeatureFlag.raise_unless_enabled!('app_bits_upload')
+          FeatureFlag.raise_unless_enabled!('route_creation')
+        rescue VCAP::Errors::ApiError => e
+          app_bits_upload_enabled = FeatureFlag.enabled?('app_bits_upload')
+          route_creation_enabled = FeatureFlag.enabled?('route_creation')
+          details = (app_bits_upload_enabled ?
+                     (route_creation_enabled ? "both app_bits_upload and route_creation are off." : "app_bits_upload is off") :
+                     "route_creation is off")
+          raise VCAP::Errors::ApiError.new_from_details('FeatureDisabled', "Non-admin users currently can't push apps because #{details}. Both app_bits_upload and route_creation should be on.")
+        end
+      end
       body_params = Yajl::Parser.parse(body)
       ensure_params(body_params, ["space_guid", "app_name"])
       validate_app_name(body_params["app_name"])
