@@ -12,10 +12,10 @@ module VCAP::CloudController
           FeatureFlag.raise_unless_enabled!('app_bits_upload')
           FeatureFlag.raise_unless_enabled!('route_creation')
         rescue VCAP::Errors::ApiError => e
-          app_bits_upload_enabled = FeatureFlag.enabled?('app_bits_upload')
-          route_creation_enabled = FeatureFlag.enabled?('route_creation')
-          details = (app_bits_upload_enabled ?
-                     (route_creation_enabled ? "both app_bits_upload and route_creation are off." : "app_bits_upload is off") :
+          app_bits_upload_disabled = !FeatureFlag.enabled?('app_bits_upload')
+          route_creation_disabled = !FeatureFlag.enabled?('route_creation')
+          details = (app_bits_upload_disabled ?
+                     (route_creation_disabled ? "both app_bits_upload and route_creation are off" : "app_bits_upload is off") :
                      "route_creation is off")
           raise VCAP::Errors::ApiError.new_from_details('FeatureDisabled', "Non-admin users currently can't push apps because #{details}. Both app_bits_upload and route_creation should be on.")
         end
