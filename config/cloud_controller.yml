@@ -205,8 +205,6 @@ allowed_repos:
   - "deb http://security.ubuntu.com/ubuntu precise-security main universe"
 
 docker_apps:
-  require_sudo: true
-  allow_any_registry: true
   allowed_registries: []
   storage_limit_mb: 10240
 
