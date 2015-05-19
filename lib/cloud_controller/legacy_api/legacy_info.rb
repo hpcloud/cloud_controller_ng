@@ -22,7 +22,7 @@ module VCAP::CloudController
         authorization_endpoint: config[:login] ? config[:login][:url] : config[:uaa][:url],
         token_endpoint: config[:uaa][:url],
         allow_debug: config.fetch(:allow_debug, true),
-        applog_endpoint: "ws://#{applog_endpoint}",
+        applog_endpoint: "ws://#{applog_endpoint}", # to be removed once logyard is decommissioned (OP task #300040). 
         allow_debug: config.fetch(:allow_debug, true),
         vendor_version: StackatoVendorConfig.vendor_version,
         stackato: {
@@ -31,6 +31,14 @@ module VCAP::CloudController
           UUID: STACKATO_UUID,
         },
       }
+
+      if @config[:loggregator] && @config[:loggregator][:url]
+        info[:trafficcontroller_endpoint] = @config[:loggregator][:url]
+      end
+
+      if @config[:loggregator] && @config[:loggregator][:legacy_url]
+        info[:logging_endpoint] = @config[:loggregator][:legacy_url]
+      end
 
       # If there is a logged in user, give out additional information
       if user

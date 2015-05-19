@@ -69,8 +69,8 @@ logging:
 loggregator:
   router: "127.0.0.1:3456"
   shared_secret: "loggregatorsecret"
-  url: "ws://loggregator.vcap.me:80"
-  legacy_url: "ws://loggregator.vcap.me:80"
+  url: "ws://loggregator.vcap.me:51101"
+  legacy_url: "ws://logging.vcap.me:80"
 
 skip_cert_verify: true
 

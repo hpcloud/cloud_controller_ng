@@ -40,7 +40,9 @@ module VCAP::CloudController
       expect(hash['authorization_endpoint']).to eq(TestConfig.config[:uaa][:url])
       expect(hash['token_endpoint']).to eq(TestConfig.config[:uaa][:url])
       expect(hash['allow_debug']).to eq(TestConfig.config.fetch(:allow_debug, true))
-      expect(hash['applog_endpoint']).to eq("ws://logs.#{TestConfig.config[:system_domain]}")
+      expect(hash['applog_endpoint']).to eq("ws://logs.#{TestConfig.config[:system_domain]}") # logyard endpoint to be deleted once logyard is retired, May 19, 2015 (ivans).
+      expect(hash['logging_endpoint']).to eq("ws://logging.#{TestConfig.config[:system_domain]}:80")
+      expect(hash['trafficcontroller_endpoint']).to eq("ws://loggregator.#{TestConfig.config[:system_domain]}:51101")
     end
 
     it 'includes login url when configured' do
