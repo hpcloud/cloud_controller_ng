@@ -242,6 +242,7 @@ module VCAP::CloudController
                   local_root: buildpacks_root,
                 },
               },
+              nginx: { use_nginx: true },
             }
           end
 
