@@ -2,7 +2,7 @@ require 'spec_helper'
 require 'stackato/spec_helper'
 
 module VCAP::CloudController
-  describe VCAP::CloudController::StackatoAppStoreControllerController, type: :controller do
+  describe VCAP::CloudController::StackatoAppStoreController, type: :controller do
 
     before do
       stub_appstore
