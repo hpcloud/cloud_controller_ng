@@ -26,7 +26,7 @@ class ErrorHasher < Struct.new(:error)
   def traced_error_hash(payload=nil)
     ehash = UNKNOWN_ERROR_HASH.dup
     desc = payload || ehash["description"]
-    ehash["description"] = desc + " Please contact your adminstrator, specifying error tracker ID #{log_cookie} along with this message."
+    ehash["description"] = desc + " Please contact your administrator, specifying error tracker ID #{log_cookie} along with this message."
     ehash
   end
 
