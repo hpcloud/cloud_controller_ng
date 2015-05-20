@@ -6,7 +6,7 @@ module VCAP::CloudController
       @uaa_client = uaa_client
     end
 
-    def transform(users)
+    def transform(users, opts={})
       # STACKATO: Remove this return statement when we switch from AOK to UAA
       return users
       user_ids = users.collect(&:guid)

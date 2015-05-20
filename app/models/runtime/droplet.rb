@@ -54,6 +54,10 @@ module VCAP::CloudController
       update(detected_start_command: metadata)
     end
 
+    def update_cached_docker_image(image)
+      update(cached_docker_image: image)
+    end
+
     private
 
     def blobstore

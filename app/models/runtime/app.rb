@@ -30,7 +30,7 @@ module VCAP::CloudController
     one_to_many :app_versions
     one_to_many :service_bindings
     one_to_many :events, class: VCAP::CloudController::AppEvent
-    one_to_one :app, class: 'VCAP::CloudController::AppModel', key: :guid, primary_key: :app_guid
+    many_to_one :app, class: 'VCAP::CloudController::AppModel', key: :app_guid, primary_key: :guid, without_guid_generation: true
     many_to_one :admin_buildpack, class: VCAP::CloudController::Buildpack
     many_to_one :space, after_set: :validate_space
     many_to_one :stack
@@ -448,6 +448,7 @@ module VCAP::CloudController
     end
 
     def vcap_application
+      app_name = app.nil? ? name : app.name
       {
         limits: {
           mem: memory,
@@ -455,7 +456,7 @@ module VCAP::CloudController
           fds: file_descriptors
         },
         application_version: version,
-        application_name: name,
+        application_name: app_name,
         application_uris: uris,
         version: version,
         name: name,
@@ -641,6 +642,7 @@ module VCAP::CloudController
       self.package_state = 'FAILED'
       self.staging_failed_reason = reason
       self.package_pending_since = nil
+      self.state = 'STOPPED' if diego?
       save
     end
 
@@ -741,7 +743,7 @@ module VCAP::CloudController
       begin
         AppObserver.updated(self)
       rescue Errors::ApiError => e
-        UndoAppChanges.new(self).undo(previous_changes)
+        UndoAppChanges.new(self).undo(previous_changes) unless diego?
         raise e
       end
     end

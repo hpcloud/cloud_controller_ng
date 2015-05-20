@@ -28,10 +28,8 @@ module VCAP::CloudController
             protocol.stage_app_request(app, staging_config)
           end
 
-          it 'includes a subject and message for CfMessageBus::MessageBus#publish' do
-            expect(request.size).to eq(2)
-            expect(request.first).to eq('diego.docker.staging.start')
-            expect(request.last).to match_json(protocol.stage_app_message(app, staging_config))
+          it 'returns the staging request message to be used by the stager client' do
+            expect(request).to eq(protocol.stage_app_message(app, staging_config).to_json)
           end
         end
 
@@ -51,15 +49,19 @@ module VCAP::CloudController
 
           it 'contains the correct payload for staging a Docker app' do
             expect(message).to eq({
-              'app_id' => app.guid,
-              'task_id' => app.staging_task_id,
-              'memory_mb' => app.memory,
-              'disk_mb' => app.disk_quota,
-              'file_descriptors' => app.file_descriptors,
-              'stack' => app.stack.name,
-              'docker_image' => app.docker_image,
-              'egress_rules' => ['staging_egress_rule'],
-              'timeout' => 90,
+              app_id: app.guid,
+              log_guid: app.guid,
+              environment: Environment.new(app).as_json,
+              memory_mb: app.memory,
+              disk_mb: app.disk_quota,
+              file_descriptors: app.file_descriptors,
+              stack: app.stack.name,
+              egress_rules: ['staging_egress_rule'],
+              timeout: 90,
+              lifecycle: 'docker',
+              lifecycle_data: {
+                docker_image: app.docker_image,
+              },
             })
           end
 
@@ -71,7 +73,7 @@ module VCAP::CloudController
             end
 
             it 'uses the minimum staging memory' do
-              expect(message['memory_mb']).to eq(staging_config[:minimum_staging_memory_mb])
+              expect(message[:memory_mb]).to eq(staging_config[:minimum_staging_memory_mb])
             end
           end
 
@@ -83,7 +85,7 @@ module VCAP::CloudController
             end
 
             it 'includes the fields needed to stage a Docker app' do
-              expect(message['disk_mb']).to eq(staging_config[:minimum_staging_disk_mb])
+              expect(message[:disk_mb]).to eq(staging_config[:minimum_staging_disk_mb])
             end
           end
 
@@ -95,7 +97,7 @@ module VCAP::CloudController
             end
 
             it 'includes the fields needed to stage a Docker app' do
-              expect(message['file_descriptors']).to eq(staging_config[:minimum_staging_file_descriptor_limit])
+              expect(message[:file_descriptors]).to eq(staging_config[:minimum_staging_file_descriptor_limit])
             end
           end
         end
@@ -105,10 +107,8 @@ module VCAP::CloudController
             protocol.desire_app_request(app, default_health_check_timeout)
           end
 
-          it 'includes a subject and message for CfMessageBus::MessageBus#publish' do
-            expect(request.size).to eq(2)
-            expect(request.first).to eq('diego.docker.desire.app')
-            expect(request.last).to match_json(protocol.desire_app_message(app, default_health_check_timeout))
+          it 'returns the message' do
+            expect(request).to match_json(protocol.desire_app_message(app, default_health_check_timeout))
           end
         end
 
@@ -149,46 +149,32 @@ module VCAP::CloudController
               expect(message['health_check_timeout_in_seconds']).to eq(default_health_check_timeout)
             end
           end
-        end
 
-        describe '#stop_staging_app_request' do
-          let(:app) do
-            AppFactory.make
+          context 'when there is a cached_docker_image' do
+            let(:cached_docker_image) { '10.244.2.6:8080/uuid' }
+            let(:app) { AppFactory.make(docker_image: 'cloudfoundry/diego-docker-app:latest') }
+
+            before { app.current_droplet.cached_docker_image = cached_docker_image }
+
+            it 'uses the cached_docker_image instead of the user provided' do
+              expect(message['docker_image']).to eq(cached_docker_image)
+            end
           end
-          let(:task_id) { 'staging_task_id' }
 
-          subject(:request) do
-            protocol.stop_staging_app_request(app, task_id)
-          end
+          context 'when there is no current_droplet for app' do
+            let(:docker_image) { 'cloudfoundry/diego-docker-app:latest' }
+            let(:app) do
+              App.new(
+                name: Sham.name,
+                space: Space.make,
+                stack: Stack.default,
+                docker_image: docker_image,
+              )
+            end
 
-          it 'returns an array of arguments including the subject and message' do
-            expect(request.size).to eq(2)
-            expect(request[0]).to eq('diego.docker.staging.stop')
-            expect(request[1]).to match_json(protocol.stop_staging_message(app, task_id))
-          end
-        end
-
-        describe '#stop_staging_message' do
-          let(:staging_app) { AppFactory.make }
-          let(:task_id) { 'staging_task_id' }
-          subject(:message) { protocol.stop_staging_message(staging_app, task_id) }
-
-          it 'is a nats message with the appropriate staging subject and payload' do
-            expect(message).to eq(
-              'app_id' => staging_app.guid,
-              'task_id' => task_id,
-            )
-          end
-        end
-
-        describe '#stop_index_request' do
-          let(:app) { AppFactory.make }
-          before { allow(common_protocol).to receive(:stop_index_request) }
-
-          it 'delegates to the common protocol' do
-            protocol.stop_index_request(app, 33)
-
-            expect(common_protocol).to have_received(:stop_index_request).with(app, 33)
+            it 'uses the user provided docker image' do
+              expect(message['docker_image']).to eq(docker_image)
+            end
           end
         end
       end

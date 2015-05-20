@@ -47,6 +47,7 @@ module VCAP::CloudController
           'task_streaming_log_url' => nil,
           'detected_buildpack' => detected_buildpack,
           'buildpack_key' => buildpack_key,
+          'procfile' => { 'web' => 'npm start' },
           'detected_start_command' => detected_start_command,
           'error' => reply_json_error,
           'error_info' => reply_error_info,
@@ -119,6 +120,7 @@ module VCAP::CloudController
               anything,
               buildpack_git_url,
               config,
+              environment_variables,
               an_instance_of(CloudController::Blobstore::UrlGenerator),
               an_instance_of(String)).
             and_return(staging_message)
@@ -127,9 +129,10 @@ module VCAP::CloudController
 
         let(:buildpack) { Buildpack.make(name: 'buildpack-name') }
         let(:buildpack_key) { buildpack.key }
+        let(:environment_variables) { { 'VAR' => 'IABLE' } }
 
         let(:package) { PackageModel.make }
-        let(:droplet) { DropletModel.make }
+        let(:droplet) { DropletModel.make(environment_variables: environment_variables) }
         let(:thing_to_stage) { package }
 
         it 'stages the package with a stager task' do
@@ -157,6 +160,13 @@ module VCAP::CloudController
         it 'updates the droplet with the detected start command' do
           stager.stage_package(droplet, stack, mem, disk, bp_guid, buildpack_git_url)
           expect(droplet.refresh.detected_start_command).to eq(detected_start_command)
+        end
+
+        it 'updates the droplet with the procfile' do
+          stager.stage_package(droplet, stack, mem, disk, bp_guid, buildpack_git_url)
+          expect(droplet.refresh.procfile).to eq(YAML.dump({
+            'web' => 'npm start'
+          }))
         end
 
         context 'when buildpack is not present' do

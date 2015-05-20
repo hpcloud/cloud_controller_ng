@@ -20,6 +20,8 @@ module VCAP::CloudController
 
     one_to_many :service_bindings, before_add: :validate_service_binding
 
+    one_to_many :service_keys
+
     many_to_one :space, after_set: :validate_space
 
     many_to_one :service_plan_sti_eager_load,
@@ -125,6 +127,14 @@ module VCAP::CloudController
     def after_destroy
       super
       service_instance_usage_event_repository.deleted_event_from_service_instance(self)
+    end
+
+    def last_operation
+      nil
+    end
+
+    def operation_in_progress?
+      false
     end
 
     private

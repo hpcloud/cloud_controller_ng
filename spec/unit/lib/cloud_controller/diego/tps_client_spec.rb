@@ -1,15 +1,17 @@
 require 'spec_helper'
 
 module VCAP::CloudController::Diego
-  describe Client do
+  describe TPSClient do
     let(:app) { VCAP::CloudController::AppFactory.make }
-    subject(:client) { Client.new(TestConfig.config) }
+    let(:tps_url) { "#{TestConfig.config[:diego_tps_url]}/lrps/#{app.guid}-#{app.version}" }
+
+    subject(:client) { TPSClient.new(TestConfig.config) }
 
     describe 'getting app instance information' do
       context 'when there is a tps url configured' do
         context 'and the first endpoint returns instance info' do
           before do
-            stub_request(:get, "http://tps.service.dc1.consul:1518/lrps/#{app.guid}-#{app.version}").to_return(
+            stub_request(:get, "#{tps_url}").to_return(
               status: 200,
               body: [{ process_guid: 'abc', instance_guid: '123', index: 0, state: 'running', since_in_ns: '1257894000000000001' },
                      { process_guid: 'abc', instance_guid: '456', index: 1, state: 'starting', since_in_ns: '1257895000000000001' },
@@ -26,21 +28,21 @@ module VCAP::CloudController::Diego
         end
 
         context 'when the TPS endpoint is unavailable' do
-          it 'retries and eventually raises Diego::Unavailable' do
-            stub = stub_request(:get, "http://tps.service.dc1.consul:1518/lrps/#{app.guid}-#{app.version}").to_raise(Errno::ECONNREFUSED)
+          it 'retries and eventually raises InstancesUnavailable' do
+            stub = stub_request(:get, "#{tps_url}").to_raise(Errno::ECONNREFUSED)
 
-            expect { client.lrp_instances(app) }.to raise_error(Unavailable, /connection refused/i)
+            expect { client.lrp_instances(app) }.to raise_error(VCAP::Errors::InstancesUnavailable, /connection refused/i)
             expect(stub).to have_been_requested.times(3)
           end
         end
 
         context 'when the TPS endpoint fails' do
           before do
-            stub_request(:get, "http://tps.service.dc1.consul:1518/lrps/#{app.guid}-#{app.version}").to_return(status: 500, body: ' ')
+            stub_request(:get, "#{tps_url}").to_return(status: 500, body: ' ')
           end
 
-          it 'raises DiegoUnavailable' do
-            expect { client.lrp_instances(app) }.to raise_error(Unavailable, /unavailable/i)
+          it 'raises InstancesUnavailable' do
+            expect { client.lrp_instances(app) }.to raise_error(VCAP::Errors::InstancesUnavailable, /response code: 500/i)
           end
         end
 
@@ -72,8 +74,8 @@ module VCAP::CloudController::Diego
           TestConfig.override(diego_tps_url: nil)
         end
 
-        it 'raises Diego::Unavailable' do
-          expect { client.lrp_instances(app) }.to raise_error(Unavailable, 'Diego runtime is unavailable.')
+        it 'raises InstancesUnavailable' do
+          expect { client.lrp_instances(app) }.to raise_error(VCAP::Errors::InstancesUnavailable, 'invalid config')
         end
       end
     end

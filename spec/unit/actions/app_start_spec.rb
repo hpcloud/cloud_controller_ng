@@ -3,12 +3,22 @@ require 'actions/app_start'
 
 module VCAP::CloudController
   describe AppStart do
-    let(:app_start) { AppStart.new }
+    let(:user) { double(:user, guid: '7') }
+    let(:user_email) { '1@2.3' }
+    let(:app_start) { AppStart.new(user, user_email) }
 
     describe '#start' do
-      let(:app_model) { AppModel.make(desired_state: 'STOPPED', desired_droplet_guid: droplet_guid) }
+      let(:environment_variables) { { 'FOO' => 'bar' } }
       let(:process1) { AppFactory.make(state: 'STOPPED') }
       let(:process2) { AppFactory.make(state: 'STOPPED') }
+
+      let(:app_model) do
+        AppModel.make({
+          desired_state: 'STOPPED',
+          desired_droplet_guid: droplet_guid,
+          environment_variables: environment_variables
+        })
+      end
 
       before do
         app_model.add_process_by_guid(process1.guid)
@@ -32,6 +42,17 @@ module VCAP::CloudController
         it 'sets the desired state on the app' do
           app_start.start(app_model)
           expect(app_model.desired_state).to eq('STARTED')
+        end
+
+        it 'creates an audit event' do
+          app_start.start(app_model)
+
+          event = Event.last
+          expect(event.type).to eq('audit.app.start')
+          expect(event.actor).to eq('7')
+          expect(event.actor_name).to eq(user_email)
+          expect(event.actee_type).to eq('v3-app')
+          expect(event.actee).to eq(app_model.guid)
         end
 
         context 'and the droplet has a package' do
@@ -63,6 +84,7 @@ module VCAP::CloudController
             expect(process.needs_staging?).to eq(false)
             expect(process.started?).to eq(true)
             expect(process.state).to eq('STARTED')
+            expect(process.environment_json).to eq(app_model.environment_variables)
           end
         end
       end

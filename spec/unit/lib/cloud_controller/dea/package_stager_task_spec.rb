@@ -20,11 +20,11 @@ module VCAP::CloudController
     let(:staging_message) do
       Dea::PackageDEAStagingMessage.new(
         package, droplet_guid, log_id, stack, memory_limit, disk_limit, buildpack_guid, buildpack_git_url,
-        config_hash, blobstore_url_generator, docker_registry)
+        config_hash, {}, blobstore_url_generator, docker_registry)
     end
     let(:stager_id) { 'my_stager' }
 
-    subject(:staging_task) { Dea::PackageStagerTask.new(config_hash, message_bus, dea_pool, stager_pool, blobstore_url_generator) }
+    subject(:staging_task) { Dea::PackageStagerTask.new(config_hash, message_bus, dea_pool, stager_pool) }
 
     let(:first_reply_json_error) { nil }
 

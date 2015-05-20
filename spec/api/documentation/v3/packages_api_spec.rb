@@ -71,7 +71,7 @@ resource 'Packages (Experimental)', type: :api do
               'created_at' => package1.created_at.as_json,
               '_links'     => {
                 'self'   => { 'href' => "/v3/packages/#{package1.guid}" },
-                'upload' => { 'href' => "/v3/packages/#{package1.guid}/upload" },
+                'upload' => { 'href' => "/v3/packages/#{package1.guid}/upload", 'method' => 'POST' },
                 'app'    => { 'href' => "/v3/apps/#{package1.app_guid}" },
               }
             },
@@ -125,7 +125,7 @@ resource 'Packages (Experimental)', type: :api do
         'created_at' => package_model.created_at.as_json,
         '_links'     => {
           'self'   => { 'href' => "/v3/packages/#{guid}" },
-          'upload' => { 'href' => "/v3/packages/#{guid}/upload" },
+          'upload' => { 'href' => "/v3/packages/#{guid}/upload", 'method' => 'POST' },
           'app'    => { 'href' => "/v3/apps/#{app_model.guid}" },
         }
       }
@@ -186,6 +186,17 @@ resource 'Packages (Experimental)', type: :api do
       parsed_response = MultiJson.load(response_body)
       expect(response_status).to eq(201)
       expect(parsed_response).to match(expected_response)
+      event = VCAP::CloudController::Event.last
+      expect(event.values).to include({
+        type: 'audit.app.add_package',
+        actee: guid,
+        actee_type: 'v3-app',
+        actee_name: app_model.name,
+        actor: user.guid,
+        actor_type: 'user',
+        space_guid: space.guid,
+        organization_guid: space.organization.guid,
+      })
     end
   end
 
@@ -247,7 +258,7 @@ resource 'Packages (Experimental)', type: :api do
         'created_at' => package_model.created_at.as_json,
         '_links'     => {
           'self'   => { 'href' => "/v3/packages/#{package_model.guid}" },
-          'upload' => { 'href' => "/v3/packages/#{package_model.guid}/upload" },
+          'upload' => { 'href' => "/v3/packages/#{package_model.guid}/upload", 'method' => 'POST' },
           'app'    => { 'href' => "/v3/apps/#{app_model.guid}" },
         }
       }
@@ -306,10 +317,11 @@ resource 'Packages (Experimental)', type: :api do
 
     let(:stager_id) { 'abc123' }
     let(:stager_subject) { "staging.#{stager_id}.start" }
+    let(:stack) { 'trusty64' }
     let(:advertisment) do
       {
         'id' => stager_id,
-        'stacks' => ['default-stack-name'],
+        'stacks' => [stack],
         'available_memory' => 2048,
         'app_id_to_count' => {},
       }
@@ -327,6 +339,7 @@ resource 'Packages (Experimental)', type: :api do
     end
 
     example 'Stage a package' do
+      stub_const('SecureRandom', double(:sr, uuid: 'whatuuid', hex: '8-octetx'))
       VCAP::CloudController::Dea::Client.dea_pool.register_subscriptions
       message_bus.publish('dea.advertise', advertisment)
       message_bus.publish('staging.advertise', advertisment)
@@ -343,6 +356,18 @@ resource 'Packages (Experimental)', type: :api do
         'buildpack_git_url'      => 'http://github.com/myorg/awesome-buildpack',
         'failure_reason'         => nil,
         'detected_start_command' => nil,
+        'procfile'               => nil,
+        'environment_variables'  => { 'CF_STACK' => stack, 'VCAP_APPLICATION' => {
+          'limits' => { 'mem' => 1024, 'disk' => 4096, 'fds' => 16384 },
+          'application_version' => 'whatuuid',
+          'application_name' => app_model.name, 'application_uris' => [],
+          'version' => 'whatuuid',
+          'name' => app_model.name,
+          'space_name' => space.name,
+          'space_id' => space.guid,
+          'uris' => [],
+          'users' => nil
+        } },
         'created_at'             => droplet.created_at.as_json,
         '_links'                 => {
           'self'    => { 'href' => "/v3/droplets/#{droplet.guid}" },

@@ -9,14 +9,30 @@ module VCAP::CloudController
     def deprovision_service_instance(service_instance, params)
       @access_validator.validate_access(:delete, service_instance)
 
-      return perform_delete(service_instance, params) unless service_instance.managed_instance?
+      delete_action = ServiceInstanceDelete.new(
+        accepts_incomplete: accepts_incomplete?(params),
+        event_repository_opts: event_repository_opts
+      )
 
-      service_instance.lock_by_failing_other_operations('delete') do
-        if accepts_incomplete?(params) && service_instance.managed_instance?
-          perform_accepts_incomplete_delete(service_instance)
+      delete_job = build_delete_job(service_instance, delete_action)
+
+      if accepts_incomplete?(params)
+        delete_job.perform
+        if service_instance.exists?
+          return instance_remains_response(service_instance)
         else
-          perform_delete(service_instance, params)
+          return delete_complete_response
         end
+      end
+
+      delete_and_audit_job = build_audit_job(service_instance, delete_job)
+
+      if async?(params)
+        enqueued_job = Jobs::Enqueuer.new(delete_and_audit_job, queue: 'cc-generic').enqueue
+        enqueued_delete_response(enqueued_job)
+      else
+        delete_and_audit_job.perform
+        delete_complete_response
       end
     end
 
@@ -30,47 +46,32 @@ module VCAP::CloudController
       params['async'] == 'true'
     end
 
-    def enqueue_deletion_job(deletion_job, params)
-      if async?(params)
-        job = Jobs::Enqueuer.new(deletion_job, queue: 'cc-generic').enqueue
-        [nil, job]
-      else
-        deletion_job.perform
-        nil
-      end
+    def instance_remains_response(service_instance)
+      [service_instance, nil]
     end
 
-    def perform_delete(service_instance, params)
-      deletion_job = Jobs::Services::ServiceInstanceDeletion.new(service_instance.guid)
-      event_method = service_instance.type == 'managed_service_instance' ?  :record_service_instance_event : :record_user_provided_service_instance_event
-      delete_and_audit_job = Jobs::AuditEventJob.new(deletion_job, @services_event_repository, event_method, :delete, service_instance, {})
-
-      enqueue_deletion_job(delete_and_audit_job, params)
+    def delete_complete_response
+      nil
     end
 
-    def perform_accepts_incomplete_delete(service_instance)
-      attributes_to_update = service_instance.client.deprovision(
-        service_instance,
-        event_repository_opts: {
-          user: SecurityContext.current_user,
-          user_email: SecurityContext.current_user_email
-        },
-        request_attrs: {},
-        accepts_incomplete: true
-      )
+    def enqueued_delete_response(enqueued_job)
+      [nil, enqueued_job]
+    end
 
-      service_instance.update_from_broker_response(attributes_to_update)
-      if service_instance.last_operation.state == 'succeeded'
-        service_instance.last_operation.try(:destroy)
-        # do not destroy, we already deprovisioned from the broker
-        service_instance.delete
-      end
+    def build_delete_job(service_instance, delete_action)
+      Jobs::DeleteActionJob.new(VCAP::CloudController::ServiceInstance, service_instance.guid, delete_action)
+    end
 
-      attributes_to_update ||= {}
-      last_operation_hash = attributes_to_update[:last_operation] || {}
-      if last_operation_hash[:state] == 'in progress'
-        [service_instance, nil]
-      end
+    def build_audit_job(service_instance, deletion_job)
+      event_method = service_instance.managed_instance? ? :record_service_instance_event : :record_user_provided_service_instance_event
+      Jobs::AuditEventJob.new(deletion_job, @services_event_repository, event_method, :delete, service_instance, {})
+    end
+
+    def event_repository_opts
+      {
+        user: SecurityContext.current_user,
+        user_email: SecurityContext.current_user_email
+      }
     end
   end
 end

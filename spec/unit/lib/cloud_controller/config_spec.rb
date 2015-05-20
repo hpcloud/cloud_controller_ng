@@ -86,6 +86,10 @@ module VCAP::CloudController
         it 'sets a default value for broker_client_default_async_poll_interval_seconds' do
           expect(config[:broker_client_default_async_poll_interval_seconds]).to eq(60)
         end
+
+        it 'does not set a default value for internal_service_hostname' do
+          expect(config[:internal_service_hostname]).to be_nil
+        end
       end
 
       context 'when config values are provided' do
@@ -176,6 +180,10 @@ module VCAP::CloudController
             expect(config[:broker_client_default_async_poll_interval_seconds]).to eq(120)
           end
 
+          it 'preserves the internal_service_hostname value from the file' do
+            expect(config[:internal_service_hostname]).to eq('cloud_controller_ng.service.consul')
+          end
+
           context 'when the staging auth is already url encoded' do
             let(:tmpdir) { Dir.mktmpdir }
             let(:config_from_file) { Config.from_file(File.join(tmpdir, 'overridden_with_urlencoded_values.yml')) }
@@ -229,7 +237,9 @@ module VCAP::CloudController
     end
 
     describe '.configure_components' do
+      let(:dependency_locator) { CloudController::DependencyLocator.instance }
       let(:runners) { double(:runners, 'stagers='.to_sym => nil) }
+
       before do
         @test_config = {
           packages: {
@@ -398,6 +408,20 @@ module VCAP::CloudController
           Config.configure_components(config)
           expect(GC::Profiler.enabled?).to eq(true)
         end
+      end
+
+      it 'creates the nsync client' do
+        expect(Diego::NsyncClient).to receive(:new).with(@test_config).and_call_original
+
+        Config.configure_components(@test_config)
+        expect(dependency_locator.nsync_client).to be_an_instance_of(VCAP::CloudController::Diego::NsyncClient)
+      end
+
+      it 'creates the stager client' do
+        expect(Diego::StagerClient).to receive(:new).with(@test_config).and_call_original
+
+        Config.configure_components(@test_config)
+        expect(dependency_locator.stager_client).to be_an_instance_of(VCAP::CloudController::Diego::StagerClient)
       end
     end
   end

@@ -28,7 +28,7 @@ module VCAP::CloudController
   end
 
   class AppCreateMessage
-    attr_reader :name, :space_guid
+    attr_reader :name, :space_guid, :environment_variables
     attr_accessor :error
 
     def self.create_from_http_request(body)
@@ -36,35 +36,15 @@ module VCAP::CloudController
       raise MultiJson::ParseError.new('invalid request body') unless opts.is_a?(Hash)
       AppCreateMessage.new(opts)
     rescue MultiJson::ParseError => e
-      message = AppCreateMessage.new({})
+      message       = AppCreateMessage.new({})
       message.error = e.message
       message
     end
 
     def initialize(opts)
-      @name       = opts['name']
-      @space_guid = opts['space_guid']
-    end
-  end
-
-  class AppUpdateMessage
-    attr_reader :guid, :name, :desired_droplet_guid
-    attr_accessor :error
-
-    def self.create_from_http_request(guid, body)
-      opts = body && MultiJson.load(body)
-      raise MultiJson::ParseError.new('invalid request body') unless opts.is_a?(Hash)
-      AppUpdateMessage.new(opts.merge('guid' => guid))
-    rescue MultiJson::ParseError => e
-      message = AppUpdateMessage.new({})
-      message.error = e.message
-      message
-    end
-
-    def initialize(opts)
-      @guid = opts['guid']
-      @name = opts['name']
-      @desired_droplet_guid = opts['desired_droplet_guid']
+      @name                  = opts['name']
+      @space_guid            = opts['space_guid']
+      @environment_variables = opts['environment_variables']
     end
   end
 
@@ -78,11 +58,11 @@ module VCAP::CloudController
     class IncorrectPackageSpace < StandardError; end
 
     def initialize(packages_handler, droplets_handler, processes_handler, paginator=SequelPaginator.new, apps_repository=AppsRepository.new)
-      @packages_handler = packages_handler
-      @droplets_handler = droplets_handler
+      @packages_handler  = packages_handler
+      @droplets_handler  = droplets_handler
       @processes_handler = processes_handler
-      @paginator = paginator
-      @apps_repository = apps_repository
+      @paginator         = paginator
+      @apps_repository   = apps_repository
     end
 
     def show(guid, access_context)
@@ -97,49 +77,6 @@ module VCAP::CloudController
       @paginator.get_page(dataset, pagination_options)
     end
 
-    def create(message, access_context)
-      app            = AppModel.new
-      app.name       = message.name
-      app.space_guid = message.space_guid
-
-      raise InvalidApp.new('Space was not found') if Space.find(guid: message.space_guid).nil?
-      raise Unauthorized if access_context.cannot?(:create,  app)
-
-      app.save
-      app
-    rescue Sequel::ValidationFailed => e
-      raise InvalidApp.new(e.message)
-    end
-
-    def update(message, access_context)
-      app = AppModel.find(guid: message.guid)
-      return nil if app.nil?
-
-      app.db.transaction do
-        app.lock!
-
-        app.name = message.name unless message.name.nil?
-        if message.desired_droplet_guid
-          droplet = DropletModel.find(guid: message.desired_droplet_guid)
-          raise DropletNotFound if droplet.nil?
-          raise DropletNotFound if droplet.app_guid != app.guid
-          app.desired_droplet_guid = message.desired_droplet_guid
-        end
-
-        raise Unauthorized if access_context.cannot?(:update, app)
-
-        app.save
-
-        web_process = app.processes.find { |p| p.type == 'web' }
-        update_web_process_name(web_process, message.name, access_context) unless web_process.nil?
-      end
-
-      return app
-
-    rescue Sequel::ValidationFailed => e
-      raise InvalidApp.new(e.message)
-    end
-
     def add_process(app, process, access_context)
       raise Unauthorized if access_context.cannot?(:update, app)
       raise IncorrectProcessSpace if app.space_guid != process.space_guid
@@ -152,19 +89,50 @@ module VCAP::CloudController
           raise DuplicateProcessType if p.type == process.type
         end
 
+        Event.create({
+          type: 'audit.app.add_process',
+          actee: app.guid,
+          actee_type: 'v3-app',
+          actee_name: app.name,
+          actor: access_context.user.guid,
+          actor_type: 'user',
+          actor_name: access_context.user_email,
+          space_guid: app.space_guid,
+          organization_guid: app.space.organization.guid,
+          timestamp: Sequel::CURRENT_TIMESTAMP,
+        })
+
         app.add_process_by_guid(process.guid)
+        routes = app.routes_dataset.where(type: process.type)
+        routes.each do |route|
+          real_process = App.find(guid: process.guid)
+          real_process.add_route(route)
+        end
       end
     end
 
     def update_web_process_name(process, name, access_context)
       opts = { 'name' => name }
-      msg = ProcessUpdateMessage.new(process.guid, opts)
+      msg  = ProcessUpdateMessage.new(process.guid, opts)
       @processes_handler.update(msg, access_context)
     end
 
     def remove_process(app, process, access_context)
       raise Unauthorized if access_context.cannot?(:update, app)
       app.remove_process_by_guid(process.guid)
+
+      Event.create({
+        type: 'audit.app.remove_process',
+        actee: app.guid,
+        actee_type: 'v3-app',
+        actee_name: app.name,
+        actor: access_context.user.guid,
+        actor_type: 'user',
+        actor_name: access_context.user_email,
+        space_guid: app.space_guid,
+        organization_guid: app.space.organization.guid,
+        timestamp: Sequel::CURRENT_TIMESTAMP,
+      })
     end
   end
 end

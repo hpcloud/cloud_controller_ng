@@ -19,6 +19,7 @@ module VCAP::CloudController
         :port => Integer,
         :external_port => Integer,
         :external_protocol => String,
+        optional(:internal_service_hostname) => String,
         :info => {
           name: String,
           build: String,
@@ -238,6 +239,7 @@ module VCAP::CloudController
         optional(:dea_advertisement_timeout_in_seconds) => Integer,
 
         optional(:diego_docker) => bool,
+        optional(:diego_stager_url) => String,
         optional(:diego_tps_url) => String,
         optional(:users_can_select_backend) => bool,
         optional(:default_to_diego_backend) => bool,
@@ -295,6 +297,12 @@ module VCAP::CloudController
         QuotaDefinition.configure(config)
         Stack.configure(config[:stacks_file])
 
+        dependency_locator = CloudController::DependencyLocator.instance
+        nsync_client = Diego::NsyncClient.new(@config)
+        dependency_locator.register(:nsync_client, nsync_client)
+        stager_client = Diego::StagerClient.new(@config)
+        dependency_locator.register(:stager_client, stager_client)
+
         run_initializers(config)
       end
 
@@ -309,8 +317,8 @@ module VCAP::CloudController
           hm_client = Dea::HM9000::Client.new(legacy_hm_client, @config)
         end
         dependency_locator.register(:health_manager_client, hm_client)
-        diego_client = Diego::Client.new(@config)
-        dependency_locator.register(:diego_client, diego_client)
+        tps_client = Diego::TPSClient.new(@config)
+        dependency_locator.register(:tps_client, tps_client)
         dependency_locator.register(:upload_handler, UploadHandler.new(config))
         dependency_locator.register(:app_event_repository, Repositories::Runtime::AppEventRepository.new)
 
@@ -324,7 +332,7 @@ module VCAP::CloudController
 
         dependency_locator.register(:stagers, stagers)
         dependency_locator.register(:runners, runners)
-        dependency_locator.register(:instances_reporters, InstancesReporters.new(diego_client, hm_client))
+        dependency_locator.register(:instances_reporters, InstancesReporters.new(tps_client, hm_client))
         dependency_locator.register(:index_stopper, IndexStopper.new(runners))
 
         Dea::Client.configure(@config, message_bus, dea_pool, stager_pool, blobstore_url_generator, docker_registry)

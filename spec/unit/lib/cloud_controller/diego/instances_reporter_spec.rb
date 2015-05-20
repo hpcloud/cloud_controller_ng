@@ -3,9 +3,9 @@ require 'spec_helper'
 module VCAP::CloudController
   module Diego
     describe InstancesReporter do
-      subject { described_class.new(diego_client) }
+      subject { described_class.new(tps_client) }
       let(:app) { AppFactory.make(package_hash: 'abc', package_state: 'STAGED', instances: desired_instances) }
-      let(:diego_client) { double(:diego_client) }
+      let(:tps_client) { double(:tps_client) }
       let(:desired_instances) { 3 }
       let(:instances_to_return) {
         [
@@ -20,14 +20,14 @@ module VCAP::CloudController
       }
 
       before do
-        allow(diego_client).to receive(:lrp_instances).and_return(instances_to_return)
+        allow(tps_client).to receive(:lrp_instances).and_return(instances_to_return)
       end
 
       describe '#all_instances_for_app' do
         it 'should return all instances reporting for the specified app within range of app.instances' do
           result = subject.all_instances_for_app(app)
 
-          expect(diego_client).to have_received(:lrp_instances).with(app)
+          expect(tps_client).to have_received(:lrp_instances).with(app)
           expect(result).to eq(
                                 {
                                     0 => { state: 'RUNNING', details: 'some-details', since: 1 },
@@ -41,19 +41,30 @@ module VCAP::CloudController
 
           result = subject.all_instances_for_app(app)
 
-          expect(diego_client).to have_received(:lrp_instances).with(app)
+          expect(tps_client).to have_received(:lrp_instances).with(app)
           expect(result.length).to eq(app.instances)
           expect(result[5][:state]).to eq('DOWN')
           expect(result[6][:state]).to eq('DOWN')
         end
 
-        context 'when diego is unavailable' do
+        context 'when an error is raised' do
           before do
-            allow(diego_client).to receive(:lrp_instances).and_raise(Diego::Unavailable)
+            allow(tps_client).to receive(:lrp_instances).and_raise(StandardError.new('oh no'))
           end
 
           it 'raises an InstancesUnavailable exception' do
-            expect { subject.all_instances_for_app(app) }.to raise_error(Errors::InstancesUnavailable, /Diego/)
+            expect { subject.all_instances_for_app(app) }.to raise_error(VCAP::Errors::InstancesUnavailable, /oh no/)
+          end
+
+          context 'when its an InstancesUnavailable' do
+            let(:error) { Errors::InstancesUnavailable.new('oh my') }
+            before do
+              allow(tps_client).to receive(:lrp_instances).and_raise(error)
+            end
+
+            it 're-raises' do
+              expect { subject.all_instances_for_app(app) }.to raise_error(error)
+            end
           end
         end
       end
@@ -67,7 +78,7 @@ module VCAP::CloudController
           it 'returns 0' do
             result = subject.number_of_starting_and_running_instances_for_app(app)
 
-            expect(diego_client).not_to have_received(:lrp_instances)
+            expect(tps_client).not_to have_received(:lrp_instances)
             expect(result).to eq(0)
           end
         end
@@ -90,7 +101,7 @@ module VCAP::CloudController
             it 'returns the number of desired indices that have an instance in the running/starting state ' do
               result = subject.number_of_starting_and_running_instances_for_app(app)
 
-              expect(diego_client).to have_received(:lrp_instances).with(app)
+              expect(tps_client).to have_received(:lrp_instances).with(app)
               expect(result).to eq(2)
             end
           end
@@ -108,7 +119,7 @@ module VCAP::CloudController
             it 'returns the number of desired indices that have an instance in the running/starting state ' do
               result = subject.number_of_starting_and_running_instances_for_app(app)
 
-              expect(diego_client).to have_received(:lrp_instances).with(app)
+              expect(tps_client).to have_received(:lrp_instances).with(app)
               expect(result).to eq(3)
             end
           end
@@ -126,7 +137,7 @@ module VCAP::CloudController
             it 'returns the number of desired indices that have an instance in the running/starting state ' do
               result = subject.number_of_starting_and_running_instances_for_app(app)
 
-              expect(diego_client).to have_received(:lrp_instances).with(app)
+              expect(tps_client).to have_received(:lrp_instances).with(app)
               expect(result).to eq(3)
             end
           end
@@ -144,20 +155,31 @@ module VCAP::CloudController
             it 'returns the number of desired indices that have an instance in the running/starting state ' do
               result = subject.number_of_starting_and_running_instances_for_app(app)
 
-              expect(diego_client).to have_received(:lrp_instances).with(app)
+              expect(tps_client).to have_received(:lrp_instances).with(app)
               expect(result).to eq(2)
             end
           end
 
           context 'when diego is unavailable' do
             before do
-              allow(diego_client).to receive(:lrp_instances).and_raise(Diego::Unavailable)
+              allow(tps_client).to receive(:lrp_instances).and_raise(StandardError.new('oh no'))
             end
 
             it 'raises an InstancesUnavailable exception' do
               expect {
                 subject.number_of_starting_and_running_instances_for_app(app)
-              }.to raise_error(Errors::InstancesUnavailable, /Diego/)
+              }.to raise_error(Errors::InstancesUnavailable, /oh no/)
+            end
+
+            context 'when its an InstancesUnavailable' do
+              let(:error) { Errors::InstancesUnavailable.new('oh my') }
+              before do
+                allow(tps_client).to receive(:lrp_instances).and_raise(error)
+              end
+
+              it 're-raises' do
+                expect { subject.number_of_starting_and_running_instances_for_app(app) }.to raise_error(error)
+              end
             end
           end
         end
@@ -171,25 +193,13 @@ module VCAP::CloudController
           result = subject.number_of_starting_and_running_instances_for_apps([app1, app2])
           expect(result).to eq({ app1.guid => 2, app2.guid => 4 })
         end
-
-        context 'when diego is unavailable' do
-          before do
-            allow(diego_client).to receive(:lrp_instances).and_raise(Diego::Unavailable)
-          end
-
-          it 'raises an InstancesUnavailable exception' do
-            expect {
-              subject.number_of_starting_and_running_instances_for_apps([app1, app2])
-            }.to raise_error(Errors::InstancesUnavailable, /Diego/)
-          end
-        end
       end
 
       describe '#crashed_instances_for_app' do
         it 'returns an array of crashed instances' do
           result = subject.crashed_instances_for_app(app)
 
-          expect(diego_client).to have_received(:lrp_instances).with(app)
+          expect(tps_client).to have_received(:lrp_instances).with(app)
           expect(result).to eq([
             { 'instance' => 'instance-C', 'since' => 3 },
           ])
@@ -197,13 +207,24 @@ module VCAP::CloudController
 
         context 'when diego is unavailable' do
           before do
-            allow(diego_client).to receive(:lrp_instances).and_raise(Diego::Unavailable)
+            allow(tps_client).to receive(:lrp_instances).and_raise(StandardError.new('oh no'))
           end
 
           it 'raises an InstancesUnavailable exception' do
             expect {
               subject.crashed_instances_for_app(app)
-            }.to raise_error(Errors::InstancesUnavailable, /Diego/)
+            }.to raise_error(Errors::InstancesUnavailable, /oh no/)
+          end
+
+          context 'when its an InstancesUnavailable' do
+            let(:error) { Errors::InstancesUnavailable.new('oh my') }
+            before do
+              allow(tps_client).to receive(:lrp_instances).and_raise(error)
+            end
+
+            it 're-raises' do
+              expect { subject.crashed_instances_for_app(app) }.to raise_error(error)
+            end
           end
         end
       end
@@ -259,7 +280,7 @@ module VCAP::CloudController
 
           result = subject.stats_for_app(app)
 
-          expect(diego_client).to have_received(:lrp_instances).with(app)
+          expect(tps_client).to have_received(:lrp_instances).with(app)
           expect(result.length).to eq(app.instances)
           expect(result[5][:state]).to eq('DOWN')
           expect(result[6][:state]).to eq('DOWN')
@@ -267,13 +288,24 @@ module VCAP::CloudController
 
         context 'when diego is unavailable' do
           before do
-            allow(diego_client).to receive(:lrp_instances).and_raise(Diego::Unavailable)
+            allow(tps_client).to receive(:lrp_instances).and_raise(StandardError.new('oh no'))
           end
 
           it 'raises an InstancesUnavailable exception' do
             expect {
               subject.stats_for_app(app)
-            }.to raise_error(Errors::InstancesUnavailable, /Diego/)
+            }.to raise_error(Errors::InstancesUnavailable, /oh no/)
+          end
+
+          context 'when its an InstancesUnavailable' do
+            let(:error) { Errors::InstancesUnavailable.new('oh my') }
+            before do
+              allow(tps_client).to receive(:lrp_instances).and_raise(error)
+            end
+
+            it 're-raises' do
+              expect { subject.stats_for_app(app) }.to raise_error(error)
+            end
           end
         end
       end

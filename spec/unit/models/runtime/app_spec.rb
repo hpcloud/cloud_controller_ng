@@ -774,26 +774,54 @@ module VCAP::CloudController
     end
 
     describe 'vcap_application' do
-      it 'has the expected values' do
-        app = AppFactory.make(memory: 259, disk_quota: 799, file_descriptors: 1234, name: 'app-name')
-        expected_hash = {
-            limits: {
-                mem: 259,
-                disk: 799,
-                fds: 1234,
-            },
-            application_version: app.version,
-            application_name: 'app-name',
-            application_uris: app.uris,
-            version: app.version,
-            name: 'app-name',
-            space_name: app.space.name,
-            space_id: app.space.guid,
-            uris: app.uris,
-            users: nil
-        }
+      context 'when a v3 app is associated' do
+        it 'has the expected values' do
+          app_model = AppModel.make(name: 'jim-is-suiteeeee')
+          process = AppFactory.make(memory: 259, disk_quota: 799, file_descriptors: 1234, name: 'process-name')
+          app_model.add_process(process)
+          expected_hash = {
+              limits: {
+                  mem: 259,
+                  disk: 799,
+                  fds: 1234,
+              },
+              application_version: process.version,
+              application_name: app_model.name,
+              application_uris: process.uris,
+              version: process.version,
+              name: process.name,
+              space_name: process.space.name,
+              space_id: process.space.guid,
+              uris: process.uris,
+              users: nil
+          }
 
-        expect(app.vcap_application).to eq(expected_hash)
+          expect(process.vcap_application).to eq(expected_hash)
+        end
+      end
+
+      context 'when a v3 app is not associated' do
+        it 'has the expected values' do
+          app = AppFactory.make(memory: 259, disk_quota: 799, file_descriptors: 1234, name: 'app-name')
+          expected_hash = {
+              limits: {
+                  mem: 259,
+                  disk: 799,
+                  fds: 1234,
+              },
+              application_version: app.version,
+              application_name: 'app-name',
+              application_uris: app.uris,
+              version: app.version,
+              name: 'app-name',
+              space_name: app.space.name,
+              space_id: app.space.guid,
+              uris: app.uris,
+              users: nil
+          }
+
+          expect(app.vcap_application).to eq(expected_hash)
+        end
       end
     end
 
@@ -1554,7 +1582,7 @@ module VCAP::CloudController
     end
 
     describe '#mark_as_failed_to_stage' do
-      let(:app) { AppFactory.make }
+      let(:app) { AppFactory.make(state: 'STARTED') }
 
       it 'should set the package state to failed' do
         expect {
@@ -1590,7 +1618,27 @@ module VCAP::CloudController
         it 'should use the default, generic reason' do
           expect {
             app.mark_as_failed_to_stage
-          }.to change { app.staging_failed_reason }. to 'StagingError'
+          }.to change { app.staging_failed_reason }.to 'StagingError'
+        end
+      end
+
+      context 'when the app is a dea app' do
+        it 'does not change the app state' do
+          expect {
+            app.mark_as_failed_to_stage
+          }.to_not change { app.state }
+        end
+      end
+
+      context 'when the app is a diego app' do
+        before do
+          app.update(diego: true)
+        end
+
+        it 'should mark the app as stopped' do
+          expect {
+            app.mark_as_failed_to_stage
+          }.to change { app.state }.from('STARTED').to('STOPPED')
         end
       end
     end
@@ -1755,20 +1803,34 @@ module VCAP::CloudController
       end
 
       context 'when AppObserver.updated fails' do
+        let(:app) { AppFactory.make }
         let(:undo_app) { double(:undo_app_changes, undo: true) }
 
-        it 'should undo any change', isolation: :truncation do
-          app = AppFactory.make
-          allow(UndoAppChanges).to receive(:new).with(app).and_return(undo_app)
+        context 'when the app is a dea app' do
+          it 'should undo any change', isolation: :truncation do
+            allow(UndoAppChanges).to receive(:new).with(app).and_return(undo_app)
 
-          expect(AppObserver).to receive(:updated).once.with(app).and_raise Errors::ApiError.new_from_details('AppPackageInvalid', 'The app package hash is empty')
-          expect(undo_app).to receive(:undo)
-          expect { app.update(state: 'STARTED') }.to raise_error
+            expect(AppObserver).to receive(:updated).once.with(app).and_raise Errors::ApiError.new_from_details('AppPackageInvalid', 'The app package hash is empty')
+            expect(undo_app).to receive(:undo)
+            expect { app.update(state: 'STARTED') }.to raise_error(Errors::ApiError, /app package hash/)
+          end
+        end
+
+        context 'when the app is a diego app' do
+          before do
+            allow(UndoAppChanges).to receive(:new)
+          end
+
+          let(:app) { AppFactory.make(diego: true) }
+
+          it 'does not call UndoAppChanges', isolation: :truncation do
+            expect(AppObserver).to receive(:updated).once.with(app).and_raise Errors::ApiError.new_from_details('AppPackageInvalid', 'The app package hash is empty')
+            expect { app.update(state: 'STARTED') }.to raise_error(Errors::ApiError, /app package hash/)
+            expect(UndoAppChanges).not_to have_received(:new)
+          end
         end
 
         it 'does not call UndoAppChanges when its not an ApiError', isolation: :truncation do
-          app = AppFactory.make
-
           expect(AppObserver).to receive(:updated).once.with(app).and_raise('boom')
           expect(UndoAppChanges).not_to receive(:new)
           expect { app.update(state: 'STARTED') }.to raise_error
@@ -2219,9 +2281,10 @@ module VCAP::CloudController
 
         before do
           subject.diego = true
+          allow(AppObserver).to receive(:routes_changed).with(subject)
         end
 
-        it "do not update the app's version" do
+        it 'does not update the app version' do
           expect { subject.add_route(route) }.to_not change(subject, :version)
           expect { subject.remove_route(route) }.to_not change(subject, :version)
         end
@@ -2241,6 +2304,8 @@ module VCAP::CloudController
           let(:routes) { 3.times.collect { Route.make domain: domain, space: subject.space } }
 
           before do
+            allow(AppObserver).to receive(:updated).with(subject)
+
             subject.add_route(route)
             subject.save
           end

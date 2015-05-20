@@ -1,38 +1,33 @@
-require 'cloud_controller/diego/unavailable'
 require 'cloud_controller/diego/process_guid'
 
 module VCAP::CloudController
   module Diego
-    class Client
+    class TPSClient
       def initialize(config)
-        @tps_url = config[:diego_tps_url]
+        @url = URI(config[:diego_tps_url]) if config[:diego_tps_url]
       end
 
       def lrp_instances(app)
-        if @tps_url.nil?
-          raise Unavailable
+        if @url.nil?
+          raise Errors::InstancesUnavailable.new('invalid config')
         end
 
         guid = ProcessGuid.from_app(app)
 
-        uri = URI("#{@tps_url}/lrps/#{guid}")
-        logger.info "Requesting lrp information for #{guid} from #{@tps_url}"
-
-        http = Net::HTTP.new(uri.host, uri.port)
-        http.read_timeout = 10
-        http.open_timeout = 10
+        path = "#{@tps_url}/lrps/#{guid}"
+        logger.info('lrp.instances', process_guid: guid)
 
         begin
           tries ||= 3
-          response = http.get(uri.path)
+          response = http_client.get(path)
         rescue Errno::ECONNREFUSED => e
           retry unless (tries -= 1).zero?
-          raise Unavailable.new(e)
+          raise Errors::InstancesUnavailable.new(e)
         end
 
-        raise Unavailable.new unless response.code == '200'
+        raise Errors::InstancesUnavailable.new("response code: #{response.code}") unless response.code == '200'
 
-        logger.info "Received lrp response for #{guid}: #{response.body}"
+        logger.info('lrp.instances.response', process_guid: guid, response_code: response.code)
 
         result = []
 
@@ -49,15 +44,20 @@ module VCAP::CloudController
           result << info
         end
 
-        logger.info "Returning lrp instances for #{guid}: #{result.inspect}"
-
         result
       end
 
       private
 
+      def http_client
+        http_client = Net::HTTP.new(@url.host, @url.port)
+        http_client.read_timeout = 10
+        http_client.open_timeout = 10
+        http_client
+      end
+
       def logger
-        @logger ||= Steno.logger('cc.diego.client')
+        @logger ||= Steno.logger('cc.tps.client')
       end
     end
   end

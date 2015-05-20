@@ -13,7 +13,12 @@ module VCAP::Services
     def unbind(_)
     end
 
-    def deprovision(_)
+    def deprovision(_, _={})
+      {
+        last_operation: {
+          state: 'succeeded'
+        }
+      }
     end
   end
 end

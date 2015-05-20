@@ -9,7 +9,7 @@ resource 'Apps (Experimental)', type: :api do
 
   def do_request_with_error_handling
     do_request
-    if response_status == 500
+    if response_status > 299
       error = MultiJson.load(response_body)
       ap error
       raise error['description']
@@ -29,9 +29,10 @@ resource 'Apps (Experimental)', type: :api do
     let(:name1) { 'my_app1' }
     let(:name2) { 'my_app2' }
     let(:name3) { 'my_app3' }
+    let(:environment_variables) { { 'magic' => 'beautiful' } }
     let!(:app_model1) { VCAP::CloudController::AppModel.make(name: name1, space_guid: space.guid, created_at: Time.at(1)) }
     let!(:app_model2) { VCAP::CloudController::AppModel.make(name: name2, space_guid: space.guid, created_at: Time.at(2)) }
-    let!(:app_model3) { VCAP::CloudController::AppModel.make(name: name3, space_guid: space.guid, created_at: Time.at(3)) }
+    let!(:app_model3) { VCAP::CloudController::AppModel.make(name: name3, space_guid: space.guid, environment_variables: environment_variables, created_at: Time.at(3)) }
     let!(:app_model4) { VCAP::CloudController::AppModel.make(space_guid: VCAP::CloudController::Space.make.guid) }
     let(:space) { VCAP::CloudController::Space.make }
     let(:page) { 1 }
@@ -58,22 +59,28 @@ resource 'Apps (Experimental)', type: :api do
             'name'   => name3,
             'guid'   => app_model3.guid,
             'desired_state' => app_model3.desired_state,
+            'environment_variables' => environment_variables,
             '_links' => {
               'self'      => { 'href' => "/v3/apps/#{app_model3.guid}" },
               'processes' => { 'href' => "/v3/apps/#{app_model3.guid}/processes" },
               'packages'  => { 'href' => "/v3/apps/#{app_model3.guid}/packages" },
               'space'     => { 'href' => "/v2/spaces/#{space.guid}" },
+              'start'     => { 'href' => "/v3/apps/#{app_model3.guid}/start", 'method' => 'PUT' },
+              'stop'      => { 'href' => "/v3/apps/#{app_model3.guid}/stop", 'method' => 'PUT' },
             }
           },
           {
             'name'   => name2,
             'guid'   => app_model2.guid,
             'desired_state' => app_model2.desired_state,
+            'environment_variables' => {},
             '_links' => {
               'self'      => { 'href' => "/v3/apps/#{app_model2.guid}" },
               'processes' => { 'href' => "/v3/apps/#{app_model2.guid}/processes" },
               'packages'  => { 'href' => "/v3/apps/#{app_model2.guid}/packages" },
               'space'     => { 'href' => "/v2/spaces/#{space.guid}" },
+              'start'     => { 'href' => "/v3/apps/#{app_model2.guid}/start", 'method' => 'PUT' },
+              'stop'      => { 'href' => "/v3/apps/#{app_model2.guid}/stop", 'method' => 'PUT' },
             }
           }
         ]
@@ -92,10 +99,12 @@ resource 'Apps (Experimental)', type: :api do
       let(:space_guids) { [app_model5.space_guid, space.guid, app_model6.space_guid] }
       let(:per_page) { 2 }
       let(:names) { [name1] }
+
       def space_guid_facets(space_guids)
         space_guids.map { |sg| "space_guids[]=#{sg}" }.join('&')
       end
-      example 'Filters apps by name and spaces and guids and orgs' do
+
+      example 'Filters Apps by guids, names, spaces, and organizations' do
         user.admin = true
         user.save
         expected_pagination = {
@@ -118,7 +127,8 @@ resource 'Apps (Experimental)', type: :api do
 
   get '/v3/apps/:guid' do
     let(:desired_droplet_guid) { 'a-droplet-guid' }
-    let(:app_model) { VCAP::CloudController::AppModel.make(name: name, desired_droplet_guid: desired_droplet_guid) }
+    let(:environment_variables) { { 'darkness' => 'ugly' } }
+    let(:app_model) { VCAP::CloudController::AppModel.make(name: name, desired_droplet_guid: desired_droplet_guid, environment_variables: environment_variables) }
     let(:guid) { app_model.guid }
     let(:space_guid) { app_model.space_guid }
     let(:space) { VCAP::CloudController::Space.find(guid: space_guid) }
@@ -134,12 +144,15 @@ resource 'Apps (Experimental)', type: :api do
         'name'   => name,
         'guid'   => guid,
         'desired_state' => app_model.desired_state,
+        'environment_variables' => environment_variables,
         '_links' => {
           'self'            => { 'href' => "/v3/apps/#{guid}" },
           'processes'       => { 'href' => "/v3/apps/#{guid}/processes" },
           'packages'        => { 'href' => "/v3/apps/#{guid}/packages" },
           'space'           => { 'href' => "/v2/spaces/#{space_guid}" },
           'desired_droplet' => { 'href' => "/v3/droplets/#{desired_droplet_guid}" },
+          'start'           => { 'href' => "/v3/apps/#{guid}/start", 'method' => 'PUT' },
+          'stop'           => { 'href' => "/v3/apps/#{guid}/stop", 'method' => 'PUT' },
         }
       }
 
@@ -155,6 +168,7 @@ resource 'Apps (Experimental)', type: :api do
     let(:space) { VCAP::CloudController::Space.make }
     let(:space_guid) { space.guid }
     let(:name) { 'my_app' }
+    let(:environment_variables) { { 'open' => 'source' } }
 
     before do
       space.organization.add_user(user)
@@ -163,6 +177,7 @@ resource 'Apps (Experimental)', type: :api do
 
     parameter :name, 'Name of the App', required: true
     parameter :space_guid, 'GUID of associated Space', required: true
+    parameter :environment_variables, 'Environment variables to be used for the App when running', required: false
 
     let(:raw_post) { MultiJson.dump(params, pretty: true) }
 
@@ -176,17 +191,31 @@ resource 'Apps (Experimental)', type: :api do
         'name'   => name,
         'guid'   => expected_guid,
         'desired_state' => 'STOPPED',
+        'environment_variables' => environment_variables,
         '_links' => {
           'self'      => { 'href' => "/v3/apps/#{expected_guid}" },
           'processes' => { 'href' => "/v3/apps/#{expected_guid}/processes" },
           'packages'  => { 'href' => "/v3/apps/#{expected_guid}/packages" },
           'space'     => { 'href' => "/v2/spaces/#{space_guid}" },
+          'start'     => { 'href' => "/v3/apps/#{expected_guid}/start", 'method' => 'PUT' },
+          'stop'      => { 'href' => "/v3/apps/#{expected_guid}/stop", 'method' => 'PUT' },
         }
       }
 
       parsed_response = MultiJson.load(response_body)
       expect(response_status).to eq(201)
       expect(parsed_response).to match(expected_response)
+      event = VCAP::CloudController::Event.last
+      expect(event.values).to include({
+        type: 'audit.app.create',
+        actee: expected_guid,
+        actee_type: 'v3-app',
+        actee_name: name,
+        actor: user.guid,
+        actor_type: 'user',
+        space_guid: space_guid,
+        organization_guid: space.organization.guid,
+      })
     end
   end
 
@@ -203,9 +232,16 @@ resource 'Apps (Experimental)', type: :api do
 
     parameter :name, 'Name of the App'
     parameter :desired_droplet_guid, 'GUID of the Droplet to be used for the App'
+    parameter :environment_variables, 'Environment variables to be used for the App when running'
 
     let(:name) { 'new_name' }
     let(:desired_droplet_guid) { droplet.guid }
+    let(:environment_variables) do
+      {
+        'MY_ENV_VAR' => 'foobar',
+        'FOOBAR' => 'MY_ENV_VAR'
+      }
+    end
     let(:guid) { app_model.guid }
 
     let(:raw_post) { MultiJson.dump(params, pretty: true) }
@@ -217,18 +253,33 @@ resource 'Apps (Experimental)', type: :api do
         'name'   => name,
         'guid'   => app_model.guid,
         'desired_state' => app_model.desired_state,
+        'environment_variables' => environment_variables,
         '_links' => {
           'self'            => { 'href' => "/v3/apps/#{app_model.guid}" },
           'processes'       => { 'href' => "/v3/apps/#{app_model.guid}/processes" },
           'packages'        => { 'href' => "/v3/apps/#{app_model.guid}/packages" },
           'space'           => { 'href' => "/v2/spaces/#{space_guid}" },
           'desired_droplet' => { 'href' => "/v3/droplets/#{desired_droplet_guid}" },
+          'start'     => { 'href' => "/v3/apps/#{app_model.guid}/start", 'method' => 'PUT' },
+          'stop'      => { 'href' => "/v3/apps/#{app_model.guid}/stop", 'method' => 'PUT' },
         }
       }
 
       parsed_response = MultiJson.load(response_body)
       expect(response_status).to eq(200)
       expect(parsed_response).to match(expected_response)
+      event = VCAP::CloudController::Event.last
+      expect(event.values).to include({
+        type: 'audit.app.update',
+        actee: app_model.guid,
+        actee_type: 'v3-app',
+        actee_name: name,
+        actor: user.guid,
+        actor_type: 'user',
+        space_guid: space_guid,
+        organization_guid: space.organization.guid
+      })
+      expect(event.metadata['updated_fields']).to include('name', 'environment_variables', 'desired_droplet_guid')
     end
   end
 
@@ -253,6 +304,17 @@ resource 'Apps (Experimental)', type: :api do
       expect { package.refresh }.to raise_error Sequel::Error, 'Record not found'
       expect { droplet.refresh }.to raise_error Sequel::Error, 'Record not found'
       expect { process.refresh }.to raise_error Sequel::Error, 'Record not found'
+      event = VCAP::CloudController::Event.last
+      expect(event.values).to include({
+        type: 'audit.app.delete',
+        actee: app_model.guid,
+        actee_type: 'v3-app',
+        actee_name: app_model.name,
+        actor: user.guid,
+        actor_type: 'user',
+        space_guid: space_guid,
+        organization_guid: space.organization.guid
+      })
     end
   end
 
@@ -283,18 +345,32 @@ resource 'Apps (Experimental)', type: :api do
         'name'   => app_model.name,
         'guid'   => app_model.guid,
         'desired_state'   => 'STARTED',
+        'environment_variables' => {},
         '_links' => {
           'self'            => { 'href' => "/v3/apps/#{app_model.guid}" },
           'processes'       => { 'href' => "/v3/apps/#{app_model.guid}/processes" },
           'packages'        => { 'href' => "/v3/apps/#{app_model.guid}/packages" },
           'space'           => { 'href' => "/v2/spaces/#{space_guid}" },
           'desired_droplet' => { 'href' => "/v3/droplets/#{droplet_guid}" },
+          'start'           => { 'href' => "/v3/apps/#{app_model.guid}/start", 'method' => 'PUT' },
+          'stop'            => { 'href' => "/v3/apps/#{app_model.guid}/stop", 'method' => 'PUT' },
         }
       }
 
       parsed_response = MultiJson.load(response_body)
       expect(response_status).to eq(200)
       expect(parsed_response).to match(expected_response)
+      event = VCAP::CloudController::Event.last
+      expect(event.values).to include({
+        type: 'audit.app.start',
+        actee: guid,
+        actee_type: 'v3-app',
+        actee_name: app_model.name,
+        actor: user.guid,
+        actor_type: 'user',
+        space_guid: space_guid,
+        organization_guid: space.organization.guid,
+      })
     end
   end
 
@@ -325,12 +401,94 @@ resource 'Apps (Experimental)', type: :api do
         'name'   => app_model.name,
         'guid'   => app_model.guid,
         'desired_state'   => 'STOPPED',
+        'environment_variables' => {},
         '_links' => {
           'self'            => { 'href' => "/v3/apps/#{app_model.guid}" },
           'processes'       => { 'href' => "/v3/apps/#{app_model.guid}/processes" },
           'packages'        => { 'href' => "/v3/apps/#{app_model.guid}/packages" },
           'space'           => { 'href' => "/v2/spaces/#{space_guid}" },
           'desired_droplet' => { 'href' => "/v3/droplets/#{droplet_guid}" },
+          'start'           => { 'href' => "/v3/apps/#{app_model.guid}/start", 'method' => 'PUT' },
+          'stop'            => { 'href' => "/v3/apps/#{app_model.guid}/stop", 'method' => 'PUT' },
+        }
+      }
+
+      parsed_response = MultiJson.load(response_body)
+      expect(response_status).to eq(200)
+      expect(parsed_response).to match(expected_response)
+      event = VCAP::CloudController::Event.last
+      expect(event.values).to include({
+        type: 'audit.app.stop',
+        actee: guid,
+        actee_type: 'v3-app',
+        actee_name: app_model.name,
+        actor: user.guid,
+        actor_type: 'user',
+        space_guid: space_guid,
+        organization_guid: space.organization.guid,
+      })
+    end
+  end
+
+  get '/v3/apps/:guid/env' do
+    let(:space_name) { 'some_space' }
+    let(:space) { VCAP::CloudController::Space.make(name: space_name) }
+    let(:space_guid) { space.guid }
+
+    let(:app_model) do
+      VCAP::CloudController::AppModel.make(
+        name: 'app_name',
+        space_guid: space_guid,
+        environment_variables: {
+          'SOME_KEY' => 'some_val'
+        }
+      )
+    end
+
+    before do
+      space.organization.add_user(user)
+      space.add_developer(user)
+      VCAP::CloudController::EnvironmentVariableGroup.make name: :staging, environment_json: { STAGING_ENV: 'staging_value' }
+      VCAP::CloudController::EnvironmentVariableGroup.make name: :running, environment_json: { RUNNING_ENV: 'running_value' }
+    end
+
+    let(:guid) { app_model.guid }
+
+    let(:raw_post) { MultiJson.dump(params, pretty: true) }
+
+    example 'getting the env of an app' do
+      do_request_with_error_handling
+
+      expected_response = {
+        'staging_env_json' => {
+          'STAGING_ENV' => 'staging_value'
+        },
+        'running_env_json' => {
+          'RUNNING_ENV' => 'running_value'
+        },
+        'environment_variables' => {
+          'SOME_KEY' => 'some_val'
+        },
+        # 'system_env_json' => {
+        #   'VCAP_SERVICES' => "NOT YET IMPLEMENTED"
+        # },
+        'application_env_json' =>   {
+          'VCAP_APPLICATION' =>     {
+            'limits' => {
+              # 'mem' => 1024,
+              # 'disk' => 1024,
+              'fds' => 16384
+            },
+            # 'application_version' => 'a4340b70-5fe6-425f-a319-f6af377ea26b',
+            'application_name' => 'app_name',
+            'application_uris' => [],
+            # 'version' => 'a4340b70-5fe6-425f-a319-f6af377ea26b',
+            'name' => 'app_name',
+            'space_name' => space_name,
+            'space_id' => space_guid,
+            'uris' => [],
+            'users' => nil
+          }
         }
       }
 

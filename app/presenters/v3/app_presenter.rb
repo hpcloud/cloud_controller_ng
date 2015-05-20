@@ -26,10 +26,11 @@ module VCAP::CloudController
 
     def app_hash(app)
       {
-        guid:            app.guid,
-        name:            app.name,
-        desired_state:   app.desired_state,
-        _links:          build_links(app),
+        guid:                  app.guid,
+        name:                  app.name,
+        desired_state:         app.desired_state,
+        environment_variables: app.environment_variables || {},
+        _links:                build_links(app)
       }
     end
 
@@ -47,6 +48,8 @@ module VCAP::CloudController
         packages:        { href: "/v3/apps/#{app.guid}/packages" },
         space:           { href: "/v2/spaces/#{app.space_guid}" },
         desired_droplet: desired_droplet_link,
+        start:           { href: "/v3/apps/#{app.guid}/start", method: 'PUT' },
+        stop:            { href: "/v3/apps/#{app.guid}/stop", method: 'PUT' },
       }
 
       links.delete_if { |_, v| v.nil? }

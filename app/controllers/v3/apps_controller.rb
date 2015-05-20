@@ -7,6 +7,7 @@ require 'actions/app_update'
 require 'queries/app_fetcher'
 require 'actions/app_start'
 require 'actions/app_stop'
+require 'actions/app_create'
 
 module VCAP::CloudController
   class AppsV3Controller < RestController::BaseController
@@ -44,15 +45,17 @@ module VCAP::CloudController
 
     post '/v3/apps', :create
     def create
+      check_write_permissions!
       message = AppCreateMessage.create_from_http_request(body)
       bad_request!(message.error) if message.error
 
-      app = @app_handler.create(message, @access_context)
+      membership = Membership.new(current_user)
+      space_not_found! unless membership.space_role?(:developer, message.space_guid)
+
+      app = AppCreate.new(current_user, current_user_email).create(message)
 
       [HTTP::CREATED, @app_presenter.present_json(app)]
-    rescue AppsHandler::Unauthorized
-      unauthorized!
-    rescue AppsHandler::InvalidApp => e
+    rescue AppCreate::InvalidApp => e
       unprocessable!(e.message)
     end
 
@@ -61,10 +64,12 @@ module VCAP::CloudController
       check_write_permissions!
       message = parse_and_validate_json(body)
 
-      app = AppFetcher.new(current_user).fetch(guid)
+      app = AppFetcher.new.fetch(guid)
       app_not_found! if app.nil?
+      membership = Membership.new(current_user)
+      app_not_found! unless membership.space_role?(:developer, app.space_guid)
 
-      app = AppUpdate.update(app, message)
+      app = AppUpdate.new(current_user, current_user_email).update(app, message)
 
       [HTTP::OK, @app_presenter.present_json(app)]
     rescue AppUpdate::DropletNotFound
@@ -77,9 +82,11 @@ module VCAP::CloudController
     def delete(guid)
       check_write_permissions!
 
-      app_delete_fetcher = AppDeleteFetcher.new(current_user)
+      app_delete_fetcher = AppDeleteFetcher.new
       app_dataset        = app_delete_fetcher.fetch(guid)
       app_not_found! if app_dataset.empty?
+      membership = Membership.new(current_user)
+      app_not_found! unless membership.space_role?(:developer, app_dataset.first.space_guid)
 
       AppDelete.new(current_user, current_user_email).delete(app_dataset)
 
@@ -90,10 +97,12 @@ module VCAP::CloudController
     def start(guid)
       check_write_permissions!
 
-      app = AppFetcher.new(current_user).fetch(guid)
+      app = AppFetcher.new.fetch(guid)
       app_not_found! if app.nil?
+      membership = Membership.new(current_user)
+      app_not_found! unless membership.space_role?(:developer, app.space_guid)
 
-      AppStart.new.start(app)
+      AppStart.new(current_user, current_user_email).start(app)
       [HTTP::OK, @app_presenter.present_json(app)]
     rescue AppStart::DropletNotFound
       droplet_not_found!
@@ -103,11 +112,50 @@ module VCAP::CloudController
     def stop(guid)
       check_write_permissions!
 
-      app = AppFetcher.new(current_user).fetch(guid)
+      app = AppFetcher.new.fetch(guid)
       app_not_found! if app.nil?
+      membership = Membership.new(current_user)
+      app_not_found! unless membership.space_role?(:developer, app.space_guid)
 
-      AppStop.new.stop(app)
+      AppStop.new(current_user, current_user_email).stop(app)
       [HTTP::OK, @app_presenter.present_json(app)]
+    end
+
+    get '/v3/apps/:guid/env', :env
+    def env(guid)
+      check_read_permissions!
+
+      app = AppFetcher.new.fetch(guid)
+      app_not_found! if app.nil?
+      membership = Membership.new(current_user)
+      app_not_found! unless membership.space_role?(:developer, app.space_guid)
+
+      env_vars = app.environment_variables
+      uris = app.routes.map(&:fqdn)
+      vcap_application = {
+        'VCAP_APPLICATION' => {
+          limits: {
+            fds: Config.config[:instance_file_descriptor_limit] || 16384,
+          },
+          application_name: app.name,
+          application_uris: uris,
+          name: app.name,
+          space_name: app.space.name,
+          space_id: app.space.guid,
+          uris: uris,
+          users: nil
+        }
+      }
+
+      [
+        HTTP::OK,
+        {
+          'environment_variables' => env_vars,
+          'staging_env_json' => EnvironmentVariableGroup.staging.environment_json,
+          'running_env_json' => EnvironmentVariableGroup.running.environment_json,
+          'application_env_json' => vcap_application
+        }.to_json
+      ]
     end
 
     private
@@ -144,6 +192,10 @@ module VCAP::CloudController
 
     def droplet_not_found!
       raise VCAP::Errors::ApiError.new_from_details('ResourceNotFound', 'Droplet not found')
+    end
+
+    def space_not_found!
+      raise VCAP::Errors::ApiError.new_from_details('ResourceNotFound', 'Space not found')
     end
 
     def app_not_found!

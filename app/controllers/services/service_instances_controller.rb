@@ -1,6 +1,5 @@
 require 'services/api'
 require 'jobs/audit_event_job'
-require 'jobs/services/service_instance_deletion'
 require 'controllers/services/lifecycle/service_instance_provisioner'
 require 'controllers/services/lifecycle/service_instance_updater'
 require 'controllers/services/lifecycle/service_instance_deprovisioner'
@@ -14,9 +13,10 @@ module VCAP::CloudController
       to_one :space
       to_one :service_plan
       to_many :service_bindings
+      to_many :service_keys
     end
 
-    query_parameters :name, :space_guid, :service_plan_guid, :service_binding_guid, :gateway_name, :organization_guid
+    query_parameters :name, :space_guid, :service_plan_guid, :service_binding_guid, :gateway_name, :organization_guid, :service_key_guid
     # added :organization_guid here for readability, it is actually implemented as a search filter
     # in the #get_filtered_dataset_for_enumeration method because ModelControl does not support
     # searching on parameters that are not directly associated with the model
@@ -190,6 +190,10 @@ module VCAP::CloudController
     def delete(guid)
       service_instance = find_guid(guid, ServiceInstance)
       raise_if_has_associations!(service_instance) if v2_api? && !recursive?
+
+      unless service_instance.service_bindings.empty? || recursive?
+        raise VCAP::Errors::ApiError.new_from_details('AssociationNotEmpty', :service_bindings, :service_instances)
+      end
 
       deprovisioner = ServiceInstanceDeprovisioner.new(@services_event_repository, self, logger)
       service_instance, delete_job = deprovisioner.deprovision_service_instance(service_instance, params)
