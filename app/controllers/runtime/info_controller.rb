@@ -30,8 +30,12 @@ module VCAP::CloudController
         api_version: VCAP::CloudController::Constants::API_VERSION
       }
 
+      if @config[:loggregator] && @config[:loggregator][:legacy_url]
+        info[:logging_endpoint] = @config[:loggregator][:legacy_url]
+      end
+
       if @config[:loggregator] && @config[:loggregator][:url]
-        info[:logging_endpoint] = @config[:loggregator][:url]
+        info[:trafficcontroller_endpoint] = @config[:loggregator][:url]
       end
 
       if @config[:info][:custom]
