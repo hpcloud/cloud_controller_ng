@@ -91,7 +91,7 @@ gem 'ruby-hmac', '0.4.0'
 gem 'ruby-termios', '0.9.6'
 gem 'rubyzip', '1.1.0'
 gem 'safe_yaml', '1.0.4'
-gem 'sequel', '4.17.0'
+gem 'sequel', '4.21.0'
 gem 'sinatra', '~> 1.4.3'
 gem 'sinatra-contrib', '1.4.2'
 gem 'slop', '3.5.0', :groups => [:test, :operations, :development]
@@ -141,7 +141,7 @@ group :development do
   gem 'roodi', '4.0.0'
   gem 'columnize', '0.3.6'
   gem 'ruby_parser', '3.6.2'
-  gem 'sexp_processor', '4.4.3'
+  gem 'sexp_processor', '4.4.4'
 end
 
 group :test do
