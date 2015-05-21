@@ -140,3 +140,5 @@ default_staging_security_groups:
 default_running_security_groups:
 - defaults
 
+hm9000_noop: true
+
