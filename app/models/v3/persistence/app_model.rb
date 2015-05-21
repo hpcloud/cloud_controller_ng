@@ -6,9 +6,12 @@ module VCAP::CloudController
     many_to_many :routes, join_table: :apps_v3_routes, left_key: :app_v3_id
 
     many_to_one :space, class: 'VCAP::CloudController::Space', key: :space_guid, primary_key: :guid, without_guid_generation: true
+    one_through_one :organization, join_table: Space.table_name, left_key: :guid, left_primary_key: :space_guid, right_primary_key: :guid, right_key: :space_guid
+
     one_to_many :processes, class: 'VCAP::CloudController::App', key: :app_guid, primary_key: :guid
     one_to_many :packages, class: 'VCAP::CloudController::PackageModel', key: :app_guid, primary_key: :guid
     one_to_many :droplets, class: 'VCAP::CloudController::DropletModel', key: :app_guid, primary_key: :guid
+    many_to_one :desired_droplet, class: 'VCAP::CloudController::DropletModel', key: :desired_droplet_guid, primary_key: :guid, without_guid_generation: true
 
     encrypt :environment_variables, salt: :salt, column: :encrypted_environment_variables
     serializes_via_json :environment_variables

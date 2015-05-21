@@ -9,37 +9,22 @@ module VCAP::Services
           @logger = Steno.logger('cc.service_broker.v2.client')
         end
 
-        def parse(method, path, response)
-          case method
-          when :put
-            return parse_provision_or_bind(method, path, response)
-          when :delete
-            return parse_deprovision_or_unbind(method, path, response)
-          when :get
-            return parse_catalog(method, path, response)
-          when :patch
-            return parse_update(method, path, response)
-          end
-        end
-
-        def parse_provision_or_bind(method, path, response)
-          unvalidated_response = UnvalidatedResponse.new(method, @url, path, response)
+        def parse_provision_or_bind(path, response)
+          unvalidated_response = UnvalidatedResponse.new(:put, @url, path, response)
 
           validator =
           case unvalidated_response.code
           when 200
             JsonObjectValidator.new(@logger,
-              OldNonDescriptiveStateValidator.new(['succeeded', 'failed', 'in progress', nil],
-                SuccessValidator.new))
+                SuccessValidator.new(state: 'succeeded'))
           when 201
             JsonObjectValidator.new(@logger,
-              StateValidator.new(['succeeded', nil],
-                SuccessValidator.new))
+                SuccessValidator.new(state: 'succeeded'))
           when 202
             JsonObjectValidator.new(@logger,
               IfElsePathMatchValidator.new(SERVICE_BINDINGS_REGEX,
                 FailingValidator.new(Errors::ServiceBrokerBadResponse),
-                StateValidator.new(['in progress'], SuccessValidator.new)))
+                SuccessValidator.new(state: 'in progress')))
           when 409
             FailingValidator.new(Errors::ServiceBrokerConflict)
           when 422
@@ -53,30 +38,26 @@ module VCAP::Services
           validator.validate(unvalidated_response.to_hash)
         end
 
-        def parse_deprovision_or_unbind(method, path, response)
-          unvalidated_response = UnvalidatedResponse.new(method, @url, path, response)
+        def parse_deprovision_or_unbind(path, response)
+          unvalidated_response = UnvalidatedResponse.new(:delete, @url, path, response)
 
           validator =
           case unvalidated_response.code
           when 200
             JsonObjectValidator.new(@logger,
-              IfElsePathMatchValidator.new(SERVICE_BINDINGS_REGEX,
-                SuccessValidator.new,
-                OldNonDescriptiveStateValidator.new(['succeeded', nil],
-                  SuccessValidator.new)))
+                SuccessValidator.new(state: 'succeeded'))
           when 201
             IgnoreDescriptionKeyFailingValidator.new(Errors::ServiceBrokerBadResponse)
           when 202
             JsonObjectValidator.new(@logger,
               IfElsePathMatchValidator.new(SERVICE_BINDINGS_REGEX,
                 FailingValidator.new(Errors::ServiceBrokerBadResponse),
-                StateValidator.new(['in progress'],
-                  SuccessValidator.new)))
+                  SuccessValidator.new(state: 'in progress')))
           when 204
             SuccessValidator.new { |res| {} }
           when 410
             @logger.warn("Already deleted: #{unvalidated_response.uri}")
-            SuccessValidator.new { |res| nil }
+            SuccessValidator.new { |res| {} }
           when 422
             FailWhenValidator.new('error', ['AsyncRequired'], Errors::AsyncRequired,
               FailingValidator.new(Errors::ServiceBrokerBadResponse))
@@ -88,8 +69,8 @@ module VCAP::Services
           validator.validate(unvalidated_response.to_hash)
         end
 
-        def parse_catalog(method, path, response)
-          unvalidated_response = UnvalidatedResponse.new(method, @url, path, response)
+        def parse_catalog(path, response)
+          unvalidated_response = UnvalidatedResponse.new(:get, @url, path, response)
 
           validator =
           case unvalidated_response.code
@@ -106,21 +87,19 @@ module VCAP::Services
           validator.validate(unvalidated_response.to_hash)
         end
 
-        def parse_update(method, path, response)
-          unvalidated_response = UnvalidatedResponse.new(method, @url, path, response)
+        def parse_update(path, response)
+          unvalidated_response = UnvalidatedResponse.new(:patch, @url, path, response)
 
           validator =
           case unvalidated_response.code
           when 200
             JsonObjectValidator.new(@logger,
-              StateValidator.new(['succeeded', nil],
-                SuccessValidator.new))
+                SuccessValidator.new(state: 'succeeded'))
           when 201
             IgnoreDescriptionKeyFailingValidator.new(Errors::ServiceBrokerBadResponse)
           when 202
             JsonObjectValidator.new(@logger,
-              StateValidator.new(['in progress'],
-                SuccessValidator.new))
+                SuccessValidator.new(state: 'in progress'))
           when 422
             FailWhenValidator.new('error', ['AsyncRequired'], Errors::AsyncRequired,
               FailingValidator.new(Errors::ServiceBrokerRequestRejected))
@@ -132,14 +111,14 @@ module VCAP::Services
           validator.validate(unvalidated_response.to_hash)
         end
 
-        def parse_fetch_state(method, path, response)
-          unvalidated_response = UnvalidatedResponse.new(method, @url, path, response)
+        def parse_fetch_state(path, response)
+          unvalidated_response = UnvalidatedResponse.new(:get, @url, path, response)
 
           validator =
           case unvalidated_response.code
           when 200
             JsonObjectValidator.new(@logger,
-              OldNonDescriptiveStateValidator.new(['succeeded', 'failed', 'in progress'],
+              StateValidator.new(['succeeded', 'failed', 'in progress'],
                 SuccessValidator.new))
           when 201, 202
             JsonObjectValidator.new(@logger,
@@ -221,11 +200,23 @@ module VCAP::Services
         end
 
         class SuccessValidator
-          def initialize(&block)
+          def initialize(state: nil, &block)
             if block_given?
               @processor = block
             else
-              @processor = ->(response) { MultiJson.load(response.body) }
+              @processor = ->(response) do
+                broker_response = MultiJson.load(response.body)
+                base_body = {
+                  'last_operation' => {
+                    'state' => state
+                  }
+                }
+                if state
+                  broker_response.merge(base_body)
+                else
+                  broker_response
+                end
+              end
             end
           end
 
@@ -281,10 +272,7 @@ module VCAP::Services
           end
         end
 
-        # This exists because of discussions on story #87686056
-        # Once an error description for the state description is finalized and made more
-        # consistent, remove this class and use StateValidator instead.
-        class OldNonDescriptiveStateValidator
+        class StateValidator
           def initialize(valid_states, validator)
             @valid_states = valid_states
             @validator = validator
@@ -310,41 +298,6 @@ module VCAP::Services
 
           def error_description(actual)
             "expected state was 'succeeded', broker returned '#{actual}'."
-          end
-        end
-
-        class StateValidator
-          def initialize(valid_states, validator)
-            @valid_states = valid_states
-            @validator = validator
-          end
-
-          def validate(method:, uri:, code:, response:)
-            parsed_response = MultiJson.load(response.body)
-            parsed_state = state_from_parsed_response(parsed_response)
-            if @valid_states.include?(parsed_state)
-              @validator.validate(method: method, uri: uri, code: code, response: response)
-            else
-              raise Errors::ServiceBrokerResponseMalformed.new(
-                uri.to_s,
-                @method,
-                response,
-                description_from_states(parsed_state, @valid_states)
-              )
-            end
-          end
-
-          private
-
-          def state_from_parsed_response(parsed_response)
-            parsed_response ||= {}
-            last_operation = parsed_response['last_operation'] || {}
-            last_operation['state']
-          end
-
-          def description_from_states(actual_state, expected_states)
-            actual = actual_state ? "'#{actual_state}'" : 'null'
-            "expected state was '#{expected_states.first}', broker returned #{actual}."
           end
         end
 

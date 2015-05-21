@@ -14,7 +14,7 @@ module VCAP::CloudController
         service_instance.last_operation.lock! if service_instance.last_operation
 
         if service_instance.operation_in_progress?
-          raise Errors::ApiError.new_from_details('ServiceInstanceOperationInProgress')
+          raise Errors::ApiError.new_from_details('AsyncServiceInstanceOperationInProgress', service_instance.name)
         end
 
         service_instance.save_with_operation(
@@ -38,6 +38,8 @@ module VCAP::CloudController
     end
 
     def unlock_and_destroy!
+      # set state for code that use the service instance afterwards
+      service_instance.last_operation.state = 'succeeded' if service_instance.last_operation
       service_instance.destroy
       @needs_unlock = false
     end

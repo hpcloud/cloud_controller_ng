@@ -18,12 +18,12 @@ module VCAP::CloudController
       raise ServiceInstanceNotBindable unless service_instance.bindable?
       raise AppNotFound unless App.first(guid: request_attrs['app_guid'])
 
-      service_binding = ServiceBinding.new(request_attrs)
+      service_binding = ServiceBinding.new(request_attrs.except('parameters'))
       @access_validator.validate_access(:create, service_binding)
       raise Sequel::ValidationFailed.new(service_binding) unless service_binding.valid?
 
       lock_service_instance_by_blocking(service_instance) do
-        attributes_to_update = service_binding.client.bind(service_binding)
+        attributes_to_update = service_binding.client.bind(service_binding, request_attrs: request_attrs)
         begin
           service_binding.set_all(attributes_to_update)
           service_binding.save
@@ -37,15 +37,18 @@ module VCAP::CloudController
     end
 
     def delete_service_instance_binding(service_binding, params)
-      service_instance = ServiceInstance.first(guid: service_binding.service_instance_guid)
+      delete_action = ServiceBindingDelete.new
+      deletion_job = Jobs::DeleteActionJob.new(ServiceBinding, service_binding.guid, delete_action)
+      delete_and_audit_job = Jobs::AuditEventJob.new(
+        deletion_job,
+        @services_event_repository,
+        :record_service_binding_event,
+        :delete,
+        service_binding.class,
+        service_binding.guid
+      )
 
-      lock_service_instance_by_blocking(service_instance) do
-        delete_action = ServiceBindingDelete.new
-        deletion_job = Jobs::DeleteActionJob.new(ServiceBinding, service_binding.guid, delete_action)
-        delete_and_audit_job = Jobs::AuditEventJob.new(deletion_job, @services_event_repository, :record_service_binding_event, :delete, service_binding)
-
-        enqueue_deletion_job(delete_and_audit_job, params)
-      end
+      enqueue_deletion_job(delete_and_audit_job, params)
     end
 
     private

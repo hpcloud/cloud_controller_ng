@@ -54,7 +54,7 @@ module VCAP::CloudController
 
       it 'defaults accepts_incomplete to false' do
         service_instance_delete.delete([service_instance_1])
-        broker_url = service_instance_deprovision_url(service_instance_1, accepts_incomplete: nil)
+        broker_url = service_instance_deprovision_url(service_instance_1)
         expect(a_request(:delete, broker_url)).to have_been_made
       end
 
@@ -69,27 +69,19 @@ module VCAP::CloudController
 
       context 'when accepts_incomplete is true' do
         let(:service_instance) { ManagedServiceInstance.make }
-        let(:last_operation_hash) do
-          {
-            last_operation: {
-              state: 'in progress',
-              description: 'description',
-              async_poll_interval_seconds: polling_interval
-            }
-          }
-        end
         let(:event_repository_opts) { { some_opt: 'some value' } }
-        let(:polling_interval) { 60 }
+        let(:error_when_in_progress) { false }
 
         subject(:service_instance_delete) do
           ServiceInstanceDelete.new(
             accepts_incomplete: true,
-            event_repository_opts: event_repository_opts
+            event_repository_opts: event_repository_opts,
+            error_when_in_progress: error_when_in_progress,
           )
         end
 
         before do
-          stub_deprovision(service_instance, accepts_incomplete: true, status: 202, body: last_operation_hash.to_json)
+          stub_deprovision(service_instance, accepts_incomplete: true, status: 202, body: {}.to_json)
         end
 
         it 'passes the accepts_incomplete flag to the client call' do
@@ -98,10 +90,9 @@ module VCAP::CloudController
           expect(a_request(:delete, broker_url)).to have_been_made
         end
 
-        it 'updates the instance with the values provided by the broker' do
+        it 'updates the instance to be in progress' do
           service_instance_delete.delete([service_instance])
           expect(service_instance.last_operation.state).to eq 'in progress'
-          expect(service_instance.last_operation.description).to eq 'description'
         end
 
         it 'enqueues a job to fetch state' do
@@ -116,7 +107,30 @@ module VCAP::CloudController
           expect(inner_job.service_instance_guid).to eq service_instance.guid
           expect(inner_job.services_event_repository_opts).to eq event_repository_opts
           expect(inner_job.request_attrs).to eq({})
-          expect(inner_job.poll_interval).to eq(polling_interval)
+          expect(inner_job.poll_interval).to eq(60)
+        end
+
+        it 'sets the fetch job to run immediately' do
+          Timecop.freeze do
+            service_instance_delete.delete([service_instance])
+
+            expect(Delayed::Job.count).to eq 1
+            job = Delayed::Job.last
+
+            poll_interval = VCAP::CloudController::Config.config[:broker_client_default_async_poll_interval_seconds].seconds
+            expect(job.run_at).to be < Time.now.utc + poll_interval
+          end
+        end
+
+        context 'and the caller wants to treat accepts_incomplete deprovisioning as a failure' do
+          let(:error_when_in_progress) { true }
+
+          it 'should return an error if there is an operation in progress' do
+            result = service_instance_delete.delete([service_instance])
+
+            expect(result.length).to be(1)
+            expect(result.first.message).to include("An operation for service instance #{service_instance.name} is in progress.")
+          end
         end
       end
 

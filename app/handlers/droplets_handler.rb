@@ -1,6 +1,6 @@
 module VCAP::CloudController
   class StagingMessage
-    attr_reader :package_guid, :buildpack_guid, :buildpack_git_url
+    attr_reader :package_guid, :buildpack_guid, :buildpack_git_url, :disk_limit, :memory_limit
     attr_accessor :error
 
     def self.create_from_http_request(package_guid, body)
@@ -41,23 +41,7 @@ module VCAP::CloudController
       @stack ||= Stack.default.name
     end
 
-    def memory_limit
-      [@memory_limit, default_memory_limit].compact.max
-    end
-
-    def disk_limit
-      [@disk_limit, default_disk_limit].compact.max
-    end
-
     private
-
-    def default_disk_limit
-      @config[:staging][:minimum_staging_disk_mb] || 4096
-    end
-
-    def default_memory_limit
-      (@config[:staging] && @config[:staging][:minimum_staging_memory_mb] || 1024)
-    end
 
     def validate_memory_limit_field
       return 'The memory_limit field must be an Integer' unless @memory_limit.is_a?(Integer) || @memory_limit.nil?
@@ -100,45 +84,6 @@ module VCAP::CloudController
       @config = config
       @stagers = stagers
       @paginator = paginator
-    end
-
-    def create(message, access_context)
-      package = PackageModel.find(guid: message.package_guid)
-      raise PackageNotFound if package.nil?
-      raise InvalidRequest.new('Cannot stage package whose state is not ready.') if package.state != PackageModel::READY_STATE
-      raise InvalidRequest.new('Cannot stage package whose type is not bits.') if package.type != PackageModel::BITS_TYPE
-
-      app_model = AppModel.find(guid: package.app_guid)
-      raise AppNotFound if app_model.nil?
-      space = Space.find(guid: app_model.space_guid)
-
-      app_env = app_model.environment_variables || {}
-      environment_variables = EnvironmentVariableGroup.staging.environment_json.merge(app_env).merge({
-        VCAP_APPLICATION: vcap_application(message, app_model, space),
-        CF_STACK: message.stack
-      })
-
-      droplet = DropletModel.new(
-        app_guid: package.app_guid,
-        buildpack_git_url: message.buildpack_git_url,
-        buildpack_guid: message.buildpack_guid,
-        package_guid: package.guid,
-        state: DropletModel::PENDING_STATE,
-        environment_variables: environment_variables
-      )
-      raise Unauthorized if access_context.cannot?(:create, droplet, space)
-
-      buildpack_key = nil
-      if message.buildpack_guid
-        buildpack = Buildpack.find(guid: message.buildpack_guid)
-        raise BuildpackNotFound if buildpack.nil?
-        buildpack_key = buildpack.key
-      end
-
-      droplet.save
-
-      @stagers.stager_for_package(package).stage_package(droplet, message.stack, message.memory_limit, message.disk_limit, buildpack_key, message.buildpack_git_url)
-      droplet
     end
 
     def show(guid, access_context)

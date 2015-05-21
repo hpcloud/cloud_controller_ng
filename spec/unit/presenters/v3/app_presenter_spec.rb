@@ -5,7 +5,9 @@ module VCAP::CloudController
   describe AppPresenter do
     describe '#present_json' do
       it 'presents the app as json' do
-        app = AppModel.make(environment_variables: { 'some' => 'stuff' }, desired_state: 'STOPPED')
+        app = AppModel.make(created_at: Time.at(1), updated_at: Time.at(2), environment_variables: { 'some' => 'stuff' }, desired_state: 'STOPPED')
+        process = App.make(space: app.space, instances: 4)
+        app.add_process(process)
 
         json_result = AppPresenter.new.present_json(app)
         result      = MultiJson.load(json_result)
@@ -14,9 +16,22 @@ module VCAP::CloudController
         expect(result['name']).to eq(app.name)
         expect(result['desired_state']).to eq(app.desired_state)
         expect(result['environment_variables']).to eq(app.environment_variables)
+        expect(result['total_desired_instances']).to eq(4)
+        expect(result['created_at']).to eq('1970-01-01T00:00:01Z')
+        expect(result['updated_at']).to eq('1970-01-01T00:00:02Z')
         expect(result['_links']).not_to include('desired_droplet')
         expect(result['_links']).to include('start')
         expect(result['_links']).to include('stop')
+        expect(result['_links']).to include('assign_current_droplet')
+      end
+
+      it 'returns 0 if there are no processes' do
+        app = AppModel.make
+
+        json_result = AppPresenter.new.present_json(app)
+        result      = MultiJson.load(json_result)
+
+        expect(result['total_desired_instances']).to eq(0)
       end
 
       it 'returns an empty hash as environment_variables if not present' do
@@ -37,7 +52,7 @@ module VCAP::CloudController
         expect(result['_links']['desired_droplet']['href']).to eq('/v3/droplets/123')
       end
 
-      it 'includes methods on the start and stop links' do
+      it 'includes start, stop, and assign_current_droplet links' do
         app = AppModel.make(environment_variables: { 'some' => 'stuff' }, desired_state: 'STOPPED')
 
         json_result = AppPresenter.new.present_json(app)
@@ -45,6 +60,7 @@ module VCAP::CloudController
 
         expect(result['_links']['start']['method']).to eq('PUT')
         expect(result['_links']['stop']['method']).to eq('PUT')
+        expect(result['_links']['assign_current_droplet']['method']).to eq('PUT')
       end
     end
 

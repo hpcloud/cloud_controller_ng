@@ -176,6 +176,24 @@ module VCAP::CloudController
       end
     end
 
+    describe 'GET /v2/spaces/:guid/user_roles' do
+      context 'for an space that does not exist' do
+        it 'returns a 404' do
+          get '/v2/spaces/foobar/user_roles', {}, admin_headers
+          expect(last_response.status).to eq(404)
+        end
+      end
+
+      context 'when the user does not have permissions to read' do
+        let(:user) { User.make }
+
+        it 'returns a 403' do
+          get "/v2/spaces/#{space_one.guid}/user_roles", {}, headers_for(user)
+          expect(last_response.status).to eq(403)
+        end
+      end
+    end
+
     describe 'GET /v2/spaces/:guid/service_instances' do
       let(:space) { Space.make }
       let(:developer) { make_developer_for_space(space) }
@@ -586,7 +604,7 @@ module VCAP::CloudController
         let!(:service_instance_guid) { service_instance.guid }
 
         before do
-          stub_deprovision(service_instance)
+          stub_deprovision(service_instance, accepts_incomplete: true)
         end
 
         it 'successfully deletes spaces with v3 app associations' do
@@ -598,7 +616,7 @@ module VCAP::CloudController
           expect(Route.find(guid: route_guid)).to be_nil
         end
 
-        it 'successfully deletes the space asynchronously when async=true' do
+        it 'successfully deletes the space in a background job when async=true' do
           delete "/v2/spaces/#{space_guid}?recursive=true&async=true", '', json_headers(admin_headers)
 
           expect(last_response).to have_status_code(202)
@@ -625,9 +643,9 @@ module VCAP::CloudController
           let!(:user_provided_service_instance) { UserProvidedServiceInstance.make(space_guid: space_guid) }
 
           before do
-            stub_deprovision(service_instance_1)
-            stub_deprovision(service_instance_2)
-            stub_deprovision(service_instance_3)
+            stub_deprovision(service_instance_1, accepts_incomplete: true)
+            stub_deprovision(service_instance_2, accepts_incomplete: true)
+            stub_deprovision(service_instance_3, accepts_incomplete: true)
           end
 
           it 'successfully deletes spaces with managed service instances' do
@@ -687,7 +705,7 @@ module VCAP::CloudController
 
           context 'when the second of three service instances fails to delete' do
             before do
-              stub_deprovision(service_instance_2, status: 500)
+              stub_deprovision(service_instance_2, status: 500, accepts_incomplete: true)
 
               instance_url = remove_basic_auth(service_instance_deprovision_url(service_instance_2))
 
@@ -710,7 +728,7 @@ The service broker returned an invalid response for the request to #{instance_ur
               end
             end
 
-            context 'asynchronous (async=true)' do
+            context 'when async=true' do
               it 'deletes the first and third instances and returns an error' do
                 delete "/v2/spaces/#{space_guid}?recursive=true&async=true", '', json_headers(admin_headers)
                 expect(last_response).to have_status_code 202
@@ -748,7 +766,7 @@ The service broker returned an invalid response for the request to #{instance_ur
               delete "/v2/spaces/#{space_guid}?recursive=true", '', json_headers(admin_headers)
               expect(last_response).to have_status_code 502
               expect(decoded_response['error_code']).to eq 'CF-SpaceDeletionFailed'
-              expect(last_response.body).to match /Another operation for this service instance is in progress/
+              expect(last_response.body).to match /An operation for service instance #{service_instance_1.name} is in progress./
             end
 
             it 'does not delete that instance' do
@@ -778,7 +796,7 @@ The service broker returned an invalid response for the request to #{instance_ur
                 get job_url, {}, json_headers(admin_headers)
                 expect(last_response).to have_status_code 200
                 expect(decoded_response['entity']['error_details']['error_code']).to eq 'CF-SpaceDeletionFailed'
-                expect(decoded_response['entity']['error_details']['description']).to match /Another operation for this service instance is in progress/
+                expect(decoded_response['entity']['error_details']['description']).to match /An operation for service instance #{service_instance_1.name} is in progress./
               end
 
               it 'does not delete that instance' do
@@ -822,7 +840,7 @@ The service broker returned an invalid response for the request to #{instance_ur
 
         it 'does not rollback any changes if recursive deletion fails halfway through' do
           service_instance_2 = ManagedServiceInstance.make(space_guid: space_guid)
-          stub_deprovision(service_instance_2, status: 500)
+          stub_deprovision(service_instance_2, status: 500, accepts_incomplete: true)
 
           delete "/v2/spaces/#{space_guid}?recursive=true", '', json_headers(admin_headers)
 

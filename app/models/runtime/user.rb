@@ -5,7 +5,7 @@ module VCAP::CloudController
     include StackatoUserCreation
 
     class InvalidOrganizationRelation < VCAP::Errors::InvalidRelation; end
-    attr_accessor :username, :organization_roles
+    attr_accessor :username, :organization_roles, :space_roles
 
     no_auto_guid
 
@@ -107,6 +107,7 @@ module VCAP::CloudController
       attrs = super
       attrs += [:username] if username
       attrs += [:organization_roles] if organization_roles
+      attrs += [:space_roles] if space_roles
       attrs
     end
 

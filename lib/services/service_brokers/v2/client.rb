@@ -16,7 +16,7 @@ module VCAP::Services::ServiceBrokers::V2
 
     def catalog
       response = @http_client.get(CATALOG_PATH)
-      @response_parser.parse(:get, CATALOG_PATH, response)
+      @response_parser.parse_catalog(CATALOG_PATH, response)
     end
 
     # The broker is expected to guarantee uniqueness of instance_id.
@@ -33,9 +33,8 @@ module VCAP::Services::ServiceBrokers::V2
       body_parameters[:parameters] = request_attrs['parameters'] if request_attrs['parameters']
       response = @http_client.put(path, body_parameters)
 
-      parsed_response = @response_parser.parse(:put, path, response)
+      parsed_response = @response_parser.parse_provision_or_bind(path, response)
       last_operation_hash = parsed_response['last_operation'] || {}
-      poll_interval_seconds = last_operation_hash['async_poll_interval_seconds'].try(:to_i) || 60
       attributes = {
         # DEPRECATED, but needed because of not null constraint
         credentials: {},
@@ -53,7 +52,7 @@ module VCAP::Services::ServiceBrokers::V2
         attributes[:last_operation][:state] = 'succeeded'
       end
 
-      [attributes, poll_interval_seconds]
+      attributes
     rescue Errors::ServiceBrokerApiTimeout, Errors::ServiceBrokerBadResponse => e
       @orphan_mitigator.cleanup_failed_provision(@attrs, instance)
       raise e
@@ -65,7 +64,7 @@ module VCAP::Services::ServiceBrokers::V2
     def fetch_service_instance_state(instance)
       path = service_instance_resource_path(instance)
       response = @http_client.get(path)
-      parsed_response = @response_parser.parse_fetch_state(:get, path, response)
+      parsed_response = @response_parser.parse_fetch_state(path, response)
       last_operation_hash = parsed_response['last_operation'] || {}
 
       if parsed_response.empty?
@@ -87,7 +86,7 @@ module VCAP::Services::ServiceBrokers::V2
       end
     end
 
-    def bind(binding)
+    def bind(binding, request_attrs: {})
       path = service_binding_resource_path(binding)
       attr = {
           service_id:  binding.service.broker_provided_id,
@@ -97,8 +96,10 @@ module VCAP::Services::ServiceBrokers::V2
         attr[:app_guid] = binding.app_guid
       end
 
+      attr[:parameters] = request_attrs['parameters'] if request_attrs['parameters']
+
       response = @http_client.put(path, attr)
-      parsed_response = @response_parser.parse(:put, path, response)
+      parsed_response = @response_parser.parse_provision_or_bind(path, response)
 
       attributes = {
         credentials: parsed_response['credentials']
@@ -121,7 +122,7 @@ module VCAP::Services::ServiceBrokers::V2
         plan_id:    binding.service_plan.broker_provided_id,
       })
 
-      @response_parser.parse(:delete, path, response)
+      @response_parser.parse_deprovision_or_unbind(path, response)
     end
 
     def deprovision(instance, accepts_incomplete: false)
@@ -134,20 +135,17 @@ module VCAP::Services::ServiceBrokers::V2
       request_params.merge!(accepts_incomplete: true) if accepts_incomplete
       response = @http_client.delete(path, request_params)
 
-      parsed_response = @response_parser.parse(:delete, path, response) || {}
+      parsed_response = @response_parser.parse_deprovision_or_unbind(path, response) || {}
       last_operation_hash = parsed_response['last_operation'] || {}
-      poll_interval_seconds = last_operation_hash['async_poll_interval_seconds'].try(:to_i)
       state = last_operation_hash['state']
 
-      attributes_to_update = {
+      {
         last_operation: {
           type: 'delete',
           description: last_operation_hash['description'] || '',
           state: state || 'succeeded'
         }
       }
-
-      [attributes_to_update, poll_interval_seconds]
     rescue VCAP::Services::ServiceBrokers::V2::Errors::ServiceBrokerConflict => e
       raise VCAP::Errors::ApiError.new_from_details('ServiceInstanceDeprovisionFailed', e.message)
     end
@@ -167,9 +165,8 @@ module VCAP::Services::ServiceBrokers::V2
       body_hash[:parameters] = parameters if parameters
       response = @http_client.patch(path, body_hash)
 
-      parsed_response = @response_parser.parse(:patch, path, response)
+      parsed_response = @response_parser.parse_update(path, response)
       last_operation_hash = parsed_response['last_operation'] || {}
-      poll_interval_seconds = last_operation_hash['async_poll_interval_seconds'].try(:to_i) || 60
       state = last_operation_hash['state'] || 'succeeded'
 
       attributes = {
@@ -186,7 +183,7 @@ module VCAP::Services::ServiceBrokers::V2
         attributes[:last_operation][:proposed_changes] = { service_plan_guid: plan.guid }
       end
 
-      return attributes, poll_interval_seconds, nil
+      return attributes, nil
     rescue Errors::ServiceBrokerBadResponse,
            Errors::ServiceBrokerApiTimeout,
            Errors::ServiceBrokerResponseMalformed,
@@ -200,7 +197,7 @@ module VCAP::Services::ServiceBrokers::V2
           description: e.message
         }
       }
-      return attributes, nil, e
+      return attributes, e
     end
 
     private

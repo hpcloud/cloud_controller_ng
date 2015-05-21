@@ -3,6 +3,7 @@ require 'awesome_print'
 require 'rspec_api_documentation/dsl'
 
 resource 'Processes (Experimental)', type: :api do
+  let(:iso8601) { /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.freeze }
   let(:user) { VCAP::CloudController::User.make }
   let(:user_header) { headers_for(user)['HTTP_AUTHORIZATION'] }
   header 'AUTHORIZATION', :user_header
@@ -47,14 +48,18 @@ resource 'Processes (Experimental)', type: :api do
         },
         'resources'  => [
           {
-            'guid'     => process1.guid,
-            'type'     => process1.type,
-            'command'  => nil,
+            'guid'       => process1.guid,
+            'type'       => process1.type,
+            'command'    => nil,
+            'created_at' => iso8601,
+            'updated_at' => nil,
           },
           {
-            'guid'     => process2.guid,
-            'type'     => process2.type,
-            'command'  => nil,
+            'guid'       => process2.guid,
+            'type'       => process2.type,
+            'command'    => nil,
+            'created_at' => iso8601,
+            'updated_at' => nil,
           }
         ]
       }
@@ -63,7 +68,7 @@ resource 'Processes (Experimental)', type: :api do
 
       parsed_response = MultiJson.load(response_body)
       expect(response_status).to eq(200)
-      expect(parsed_response).to match(expected_response)
+      expect(parsed_response).to be_a_response_like(expected_response)
     end
   end
 
@@ -79,34 +84,18 @@ resource 'Processes (Experimental)', type: :api do
 
     example 'Get a Process' do
       expected_response = {
-        'guid'     => guid,
-        'type'     => type,
-        'command'  => nil,
+        'guid'       => guid,
+        'type'       => type,
+        'command'    => nil,
+        'created_at' => iso8601,
+        'updated_at' => iso8601,
       }
 
       do_request_with_error_handling
       parsed_response = MultiJson.load(response_body)
 
       expect(response_status).to eq(200)
-      expect(parsed_response).to match(expected_response)
-    end
-  end
-
-  delete '/v3/processes/:guid' do
-    let!(:app_model) { VCAP::CloudController::AppModel.make }
-    let!(:process) { VCAP::CloudController::AppFactory.make(app_guid: app_model.guid, space_guid: app_model.space_guid) }
-    let(:guid) { process.guid }
-
-    before do
-      process.space.organization.add_user user
-      process.space.add_developer user
-    end
-
-    example 'Delete a Process' do
-      expect {
-        do_request_with_error_handling
-      }.to change { VCAP::CloudController::App.count }.by(-1)
-      expect(response_status).to eq(204)
+      expect(parsed_response).to be_a_response_like(expected_response)
     end
   end
 
@@ -149,20 +138,23 @@ resource 'Processes (Experimental)', type: :api do
     let(:raw_post) { MultiJson.dump(params, pretty: true) }
 
     example 'Updating a Process' do
-      expected_response = {
-        'guid'     => guid,
-        'type'     => type,
-        'command'  => 'X',
-      }
       expect {
         do_request_with_error_handling
       }.to change { VCAP::CloudController::Event.count }.by(1)
-      parsed_response = JSON.parse(response_body)
-
-      expect(response_status).to eq(200)
-      expect(parsed_response).to match(expected_response)
-
       process.reload
+
+      expected_response = {
+        'guid'       => guid,
+        'type'       => type,
+        'command'    => 'X',
+        'created_at' => iso8601,
+        'updated_at' => iso8601,
+      }
+
+      parsed_response = JSON.parse(response_body)
+      expect(response_status).to eq(200)
+      expect(parsed_response).to be_a_response_like(expected_response)
+
       expect(process.state).to eq(state)
       expect(process.command).to eq(command)
       expect(process.memory).to eq(memory)
@@ -172,87 +164,6 @@ resource 'Processes (Experimental)', type: :api do
       expect(process.health_check_timeout).to eq(health_check_timeout)
       expect(process.environment_json).to eq(environment_json)
       expect(process.type).to eq(type)
-    end
-  end
-
-  post '/v3/processes' do
-    let(:buildpack_model) { VCAP::CloudController::Buildpack.make(name: 'another-buildpack') }
-    let(:space) { VCAP::CloudController::Space.make }
-    let(:stack) { VCAP::CloudController::Stack.make }
-
-    before do
-      space.organization.add_user user
-      space.add_developer user
-    end
-
-    parameter :name, 'Name of process'
-    parameter :memory, 'Amount of memory (MB) allocated to each instance'
-    parameter :instances, 'Number of instances'
-    parameter :disk_quota, 'Amount of disk space (MB) allocated to each instance'
-    parameter :space_guid, 'Guid of associated Space', required: true
-    parameter :stack_guid, 'Guid of associated Stack'
-    parameter :state, 'Desired state of process'
-    parameter :command, 'Start command for process'
-    parameter :buildpack, 'Buildpack used to stage process'
-    parameter :health_check_timeout, 'Health check timeout for process'
-    parameter :docker_image, 'Name of docker image containing process'
-    parameter :environment_json, 'JSON key-value pairs for ENV variables'
-    parameter :type, 'Type of the process'
-
-    let(:name) { 'process' }
-    let(:memory) { 256 }
-    let(:instances) { 2 }
-    let(:disk_quota) { 1024 }
-    let(:space_guid) { space.guid }
-    let(:stack_guid) { stack.guid }
-    let(:state) { 'STOPPED' }
-    let(:command) { 'run me' }
-    let(:buildpack) { buildpack_model.name }
-    let(:health_check_timeout) { 70 }
-    let(:environment_json) { { foo: 'bar' } }
-    let(:type) { 'worker' }
-
-    let(:raw_post) { MultiJson.dump(params, pretty: true) }
-
-    context 'without a docker image' do
-      example 'Create a Process' do
-        expected_response = {
-          'guid'    => /^[a-z0-9\-]+$/,
-          'type'    => type,
-          'command' => 'run me',
-        }
-        expect {
-          do_request_with_error_handling
-        }.to change { VCAP::CloudController::App.count }.by(1)
-        parsed_response = JSON.parse(response_body)
-
-        expect(response_status).to eq(201)
-        expect(parsed_response).to match(expected_response)
-
-        process = VCAP::CloudController::App.find(guid: parsed_response['guid'])
-        expect(process.type).to eq(type)
-      end
-    end
-
-    context 'with a docker image' do
-      let(:buildpack) { nil }
-      let(:docker_image) { 'cloudfoundry/hello' }
-      let(:type) { 'worker' }
-
-      example 'Create a Docker Process' do
-        expected_response = {
-          'guid'    => /^[a-z0-9\-]+$/,
-          'type'    => type,
-          'command' => 'run me',
-        }
-        expect {
-          do_request_with_error_handling
-        }.to change { VCAP::CloudController::App.count }.by(1)
-        parsed_response = JSON.parse(response_body)
-
-        expect(response_status).to eq(201)
-        expect(parsed_response).to match(expected_response)
-      end
     end
   end
 end

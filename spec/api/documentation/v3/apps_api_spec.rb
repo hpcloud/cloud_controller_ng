@@ -3,6 +3,7 @@ require 'awesome_print'
 require 'rspec_api_documentation/dsl'
 
 resource 'Apps (Experimental)', type: :api do
+  let(:iso8601) { /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.freeze }
   let(:user) { VCAP::CloudController::User.make }
   let(:user_header) { headers_for(user)['HTTP_AUTHORIZATION'] }
   header 'AUTHORIZATION', :user_header
@@ -46,6 +47,8 @@ resource 'Apps (Experimental)', type: :api do
     end
 
     example 'List all Apps' do
+      do_request_with_error_handling
+
       expected_response = {
         'pagination' => {
           'total_results' => 3,
@@ -59,6 +62,9 @@ resource 'Apps (Experimental)', type: :api do
             'name'   => name3,
             'guid'   => app_model3.guid,
             'desired_state' => app_model3.desired_state,
+            'total_desired_instances' => 0,
+            'created_at' => iso8601,
+            'updated_at' => nil,
             'environment_variables' => environment_variables,
             '_links' => {
               'self'      => { 'href' => "/v3/apps/#{app_model3.guid}" },
@@ -67,12 +73,16 @@ resource 'Apps (Experimental)', type: :api do
               'space'     => { 'href' => "/v2/spaces/#{space.guid}" },
               'start'     => { 'href' => "/v3/apps/#{app_model3.guid}/start", 'method' => 'PUT' },
               'stop'      => { 'href' => "/v3/apps/#{app_model3.guid}/stop", 'method' => 'PUT' },
+              'assign_current_droplet' => { 'href' => "/v3/apps/#{app_model3.guid}/current_droplet", 'method' => 'PUT' }
             }
           },
           {
             'name'   => name2,
             'guid'   => app_model2.guid,
-            'desired_state' => app_model2.desired_state,
+            'desired_state' => app_model3.desired_state,
+            'total_desired_instances' => 0,
+            'created_at' => iso8601,
+            'updated_at' => nil,
             'environment_variables' => {},
             '_links' => {
               'self'      => { 'href' => "/v3/apps/#{app_model2.guid}" },
@@ -81,16 +91,16 @@ resource 'Apps (Experimental)', type: :api do
               'space'     => { 'href' => "/v2/spaces/#{space.guid}" },
               'start'     => { 'href' => "/v3/apps/#{app_model2.guid}/start", 'method' => 'PUT' },
               'stop'      => { 'href' => "/v3/apps/#{app_model2.guid}/stop", 'method' => 'PUT' },
+              'assign_current_droplet' => { 'href' => "/v3/apps/#{app_model2.guid}/current_droplet", 'method' => 'PUT' }
             }
           }
         ]
       }
 
-      do_request_with_error_handling
-
       parsed_response = MultiJson.load(response_body)
+
       expect(response_status).to eq(200)
-      expect(parsed_response).to match(expected_response)
+      expect(parsed_response).to be_a_response_like(expected_response)
     end
 
     context 'faceted search' do
@@ -129,6 +139,8 @@ resource 'Apps (Experimental)', type: :api do
     let(:desired_droplet_guid) { 'a-droplet-guid' }
     let(:environment_variables) { { 'darkness' => 'ugly' } }
     let(:app_model) { VCAP::CloudController::AppModel.make(name: name, desired_droplet_guid: desired_droplet_guid, environment_variables: environment_variables) }
+    let(:process1) { VCAP::CloudController::App.make(space: space, instances: 1) }
+    let(:process2) { VCAP::CloudController::App.make(space: space, instances: 2) }
     let(:guid) { app_model.guid }
     let(:space_guid) { app_model.space_guid }
     let(:space) { VCAP::CloudController::Space.find(guid: space_guid) }
@@ -137,13 +149,21 @@ resource 'Apps (Experimental)', type: :api do
     before do
       space.organization.add_user user
       space.add_developer user
+
+      app_model.add_process(process1)
+      app_model.add_process(process2)
     end
 
     example 'Get an App' do
+      do_request_with_error_handling
+
       expected_response = {
         'name'   => name,
         'guid'   => guid,
         'desired_state' => app_model.desired_state,
+        'total_desired_instances' => 3,
+        'created_at' => iso8601,
+        'updated_at' => nil,
         'environment_variables' => environment_variables,
         '_links' => {
           'self'            => { 'href' => "/v3/apps/#{guid}" },
@@ -153,14 +173,13 @@ resource 'Apps (Experimental)', type: :api do
           'desired_droplet' => { 'href' => "/v3/droplets/#{desired_droplet_guid}" },
           'start'           => { 'href' => "/v3/apps/#{guid}/start", 'method' => 'PUT' },
           'stop'           => { 'href' => "/v3/apps/#{guid}/stop", 'method' => 'PUT' },
+          'assign_current_droplet' => { 'href' => "/v3/apps/#{app_model.guid}/current_droplet", 'method' => 'PUT' }
         }
       }
 
-      do_request_with_error_handling
-
       parsed_response = MultiJson.load(response_body)
       expect(response_status).to eq(200)
-      expect(parsed_response).to match(expected_response)
+      expect(parsed_response).to be_a_response_like(expected_response)
     end
   end
 
@@ -186,11 +205,15 @@ resource 'Apps (Experimental)', type: :api do
         do_request_with_error_handling
       }.to change { VCAP::CloudController::AppModel.count }.by(1)
 
-      expected_guid     = VCAP::CloudController::AppModel.last.guid
+      created_app       = VCAP::CloudController::AppModel.last
+      expected_guid     = created_app.guid
       expected_response = {
         'name'   => name,
         'guid'   => expected_guid,
         'desired_state' => 'STOPPED',
+        'total_desired_instances' => 0,
+        'created_at' => iso8601,
+        'updated_at' => nil,
         'environment_variables' => environment_variables,
         '_links' => {
           'self'      => { 'href' => "/v3/apps/#{expected_guid}" },
@@ -199,12 +222,13 @@ resource 'Apps (Experimental)', type: :api do
           'space'     => { 'href' => "/v2/spaces/#{space_guid}" },
           'start'     => { 'href' => "/v3/apps/#{expected_guid}/start", 'method' => 'PUT' },
           'stop'      => { 'href' => "/v3/apps/#{expected_guid}/stop", 'method' => 'PUT' },
+          'assign_current_droplet' => { 'href' => "/v3/apps/#{expected_guid}/current_droplet", 'method' => 'PUT' }
         }
       }
 
       parsed_response = MultiJson.load(response_body)
       expect(response_status).to eq(201)
-      expect(parsed_response).to match(expected_response)
+      expect(parsed_response).to be_a_response_like(expected_response)
       event = VCAP::CloudController::Event.last
       expect(event.values).to include({
         type: 'audit.app.create',
@@ -231,11 +255,9 @@ resource 'Apps (Experimental)', type: :api do
     end
 
     parameter :name, 'Name of the App'
-    parameter :desired_droplet_guid, 'GUID of the Droplet to be used for the App'
     parameter :environment_variables, 'Environment variables to be used for the App when running'
 
     let(:name) { 'new_name' }
-    let(:desired_droplet_guid) { droplet.guid }
     let(:environment_variables) do
       {
         'MY_ENV_VAR' => 'foobar',
@@ -249,25 +271,29 @@ resource 'Apps (Experimental)', type: :api do
     example 'Updating an App' do
       do_request_with_error_handling
 
+      app_model.reload
       expected_response = {
         'name'   => name,
         'guid'   => app_model.guid,
         'desired_state' => app_model.desired_state,
+        'total_desired_instances' => 0,
+        'created_at' => iso8601,
+        'updated_at' => iso8601,
         'environment_variables' => environment_variables,
         '_links' => {
           'self'            => { 'href' => "/v3/apps/#{app_model.guid}" },
           'processes'       => { 'href' => "/v3/apps/#{app_model.guid}/processes" },
           'packages'        => { 'href' => "/v3/apps/#{app_model.guid}/packages" },
           'space'           => { 'href' => "/v2/spaces/#{space_guid}" },
-          'desired_droplet' => { 'href' => "/v3/droplets/#{desired_droplet_guid}" },
           'start'     => { 'href' => "/v3/apps/#{app_model.guid}/start", 'method' => 'PUT' },
           'stop'      => { 'href' => "/v3/apps/#{app_model.guid}/stop", 'method' => 'PUT' },
+          'assign_current_droplet' => { 'href' => "/v3/apps/#{app_model.guid}/current_droplet", 'method' => 'PUT' }
         }
       }
 
       parsed_response = MultiJson.load(response_body)
       expect(response_status).to eq(200)
-      expect(parsed_response).to match(expected_response)
+      expect(parsed_response).to be_a_response_like(expected_response)
       event = VCAP::CloudController::Event.last
       expect(event.values).to include({
         type: 'audit.app.update',
@@ -279,7 +305,7 @@ resource 'Apps (Experimental)', type: :api do
         space_guid: space_guid,
         organization_guid: space.organization.guid
       })
-      expect(event.metadata['updated_fields']).to include('name', 'environment_variables', 'desired_droplet_guid')
+      expect(event.metadata['updated_fields']).to include('name', 'environment_variables')
     end
   end
 
@@ -345,6 +371,9 @@ resource 'Apps (Experimental)', type: :api do
         'name'   => app_model.name,
         'guid'   => app_model.guid,
         'desired_state'   => 'STARTED',
+        'total_desired_instances' => 0,
+        'created_at' => iso8601,
+        'updated_at' => iso8601,
         'environment_variables' => {},
         '_links' => {
           'self'            => { 'href' => "/v3/apps/#{app_model.guid}" },
@@ -354,12 +383,13 @@ resource 'Apps (Experimental)', type: :api do
           'desired_droplet' => { 'href' => "/v3/droplets/#{droplet_guid}" },
           'start'           => { 'href' => "/v3/apps/#{app_model.guid}/start", 'method' => 'PUT' },
           'stop'            => { 'href' => "/v3/apps/#{app_model.guid}/stop", 'method' => 'PUT' },
+          'assign_current_droplet' => { 'href' => "/v3/apps/#{app_model.guid}/current_droplet", 'method' => 'PUT' }
         }
       }
 
       parsed_response = MultiJson.load(response_body)
       expect(response_status).to eq(200)
-      expect(parsed_response).to match(expected_response)
+      expect(parsed_response).to be_a_response_like(expected_response)
       event = VCAP::CloudController::Event.last
       expect(event.values).to include({
         type: 'audit.app.start',
@@ -401,6 +431,9 @@ resource 'Apps (Experimental)', type: :api do
         'name'   => app_model.name,
         'guid'   => app_model.guid,
         'desired_state'   => 'STOPPED',
+        'total_desired_instances' => 0,
+        'created_at' => iso8601,
+        'updated_at' => iso8601,
         'environment_variables' => {},
         '_links' => {
           'self'            => { 'href' => "/v3/apps/#{app_model.guid}" },
@@ -410,12 +443,13 @@ resource 'Apps (Experimental)', type: :api do
           'desired_droplet' => { 'href' => "/v3/droplets/#{droplet_guid}" },
           'start'           => { 'href' => "/v3/apps/#{app_model.guid}/start", 'method' => 'PUT' },
           'stop'            => { 'href' => "/v3/apps/#{app_model.guid}/stop", 'method' => 'PUT' },
+          'assign_current_droplet' => { 'href' => "/v3/apps/#{app_model.guid}/current_droplet", 'method' => 'PUT' }
         }
       }
 
       parsed_response = MultiJson.load(response_body)
       expect(response_status).to eq(200)
-      expect(parsed_response).to match(expected_response)
+      expect(parsed_response).to be_a_response_like(expected_response)
       event = VCAP::CloudController::Event.last
       expect(event.values).to include({
         type: 'audit.app.stop',
@@ -495,6 +529,67 @@ resource 'Apps (Experimental)', type: :api do
       parsed_response = MultiJson.load(response_body)
       expect(response_status).to eq(200)
       expect(parsed_response).to match(expected_response)
+    end
+  end
+
+  put '/v3/apps/:guid/current_droplet' do
+    let(:space) { VCAP::CloudController::Space.make }
+    let(:space_guid) { space.guid }
+    let(:procfile) { 'web: start the app' }
+    let(:droplet) { VCAP::CloudController::DropletModel.make(app_guid: guid, procfile: procfile) }
+    let(:app_model) { VCAP::CloudController::AppModel.make(name: 'name1', space_guid: space_guid) }
+
+    before do
+      space.organization.add_user(user)
+      space.add_developer(user)
+    end
+
+    parameter :desired_droplet_guid, 'GUID of the Droplet to be used for the App'
+
+    let(:desired_droplet_guid) { droplet.guid }
+    let(:guid) { app_model.guid }
+
+    let(:raw_post) { MultiJson.dump(params, pretty: true) }
+
+    example 'Assigning a droplet as a an Apps current droplet' do
+      do_request_with_error_handling
+
+      expected_response = {
+        'name'   => app_model.name,
+        'guid'   => app_model.guid,
+        'desired_state' => app_model.desired_state,
+        'total_desired_instances' => 1,
+        'environment_variables' => {},
+        'created_at' => iso8601,
+        'updated_at' => iso8601,
+        '_links' => {
+          'self'            => { 'href' => "/v3/apps/#{app_model.guid}" },
+          'processes'       => { 'href' => "/v3/apps/#{app_model.guid}/processes" },
+          'packages'        => { 'href' => "/v3/apps/#{app_model.guid}/packages" },
+          'space'           => { 'href' => "/v2/spaces/#{space_guid}" },
+          'desired_droplet' => { 'href' => "/v3/droplets/#{desired_droplet_guid}" },
+          'start'     => { 'href' => "/v3/apps/#{app_model.guid}/start", 'method' => 'PUT' },
+          'stop'      => { 'href' => "/v3/apps/#{app_model.guid}/stop", 'method' => 'PUT' },
+          'assign_current_droplet' => { 'href' => "/v3/apps/#{app_model.guid}/current_droplet", 'method' => 'PUT' }
+        }
+      }
+
+      parsed_response = MultiJson.load(response_body)
+      expect(response_status).to eq(200)
+      expect(parsed_response).to match(expected_response)
+      event = VCAP::CloudController::Event.where(actor: user.guid).first
+      expect(event.values).to include({
+        type: 'audit.app.update',
+        actee: app_model.guid,
+        actee_type: 'v3-app',
+        actee_name: app_model.name,
+        actor: user.guid,
+        actor_type: 'user',
+        space_guid: space_guid,
+        organization_guid: space.organization.guid
+      })
+      expect(event.metadata['updated_fields']).to include('desired_droplet_guid')
+      expect(app_model.reload.processes).not_to be_empty
     end
   end
 end

@@ -29,6 +29,8 @@ module VCAP::CloudController
     def stub_requests(broker)
       stub_request(:put, %r{#{broker_url(broker)}/v2/service_instances/#{guid_pattern}/service_bindings/#{guid_pattern}}).
           to_return(status: bind_status, body: bind_body.to_json)
+      stub_request(:delete, %r{#{broker_url(broker)}/v2/service_instances/#{guid_pattern}/service_bindings/#{guid_pattern}}).
+          to_return(status: unbind_status, body: unbind_body.to_json)
     end
 
     def bind_url_regex(opts={})
@@ -38,6 +40,24 @@ module VCAP::CloudController
       service_instance_guid = service_instance.try(:guid) || guid_pattern
       broker = opts[:service_broker] || service_instance.service_plan.service.service_broker
       %r{#{broker_url(broker)}/v2/service_instances/#{service_instance_guid}/service_bindings/#{service_binding_guid}}
+    end
+
+    describe 'Dependencies' do
+      let(:object_renderer) { double :object_renderer }
+      let(:collection_renderer) { double :collection_renderer }
+      let(:dependencies) {{
+          object_renderer: object_renderer,
+          collection_renderer: collection_renderer
+      }}
+      let(:logger) { Steno.logger('vcap_spec') }
+
+      it 'contains services_event_repository in the dependencies' do
+        expect(described_class.dependencies).to include :services_event_repository
+      end
+
+      it 'injects the services_event_repository dependency' do
+        expect { described_class.new(nil, logger, nil, {}, nil, nil, dependencies) }.to raise_error KeyError, 'key not found: :services_event_repository'
+      end
     end
 
     describe 'Permissions' do
@@ -158,6 +178,37 @@ module VCAP::CloudController
           expect(service_key.credentials).to eq(CREDENTIALS)
         end
 
+        it 'creates an audit event after a service key created' do
+          req = {
+              name: 'fake-service-key',
+              service_instance_guid: instance.guid
+          }
+
+          email = 'email@example.com'
+          post '/v2/service_keys', req.to_json, json_headers(headers_for(developer, email: email))
+
+          service_key = ServiceKey.last
+
+          event = Event.first(type: 'audit.service_key.create')
+          expect(event.actor_type).to eq('user')
+          expect(event.timestamp).to be
+          expect(event.actor).to eq(developer.guid)
+          expect(event.actor_name).to eq(email)
+          expect(event.actee).to eq(service_key.guid)
+          expect(event.actee_type).to eq('service_key')
+          expect(event.actee_name).to eq('fake-service-key')
+          expect(event.space_guid).to eq(space.guid)
+          expect(event.space_id).to eq(space.id)
+          expect(event.organization_guid).to eq(space.organization.guid)
+
+          expect(event.metadata).to include({
+                                                'request' => {
+                                                    'service_instance_guid' => req[:service_instance_guid],
+                                                    'name' => req[:name]
+                                                }
+                                            })
+        end
+
         context 'when attempting to create service key for an unbindable service' do
           before do
             service.bindable = false
@@ -215,7 +266,7 @@ module VCAP::CloudController
             it 'should show an error message for create key operation' do
               post '/v2/service_keys', req, json_headers(headers_for(developer))
               expect(last_response).to have_status_code 400
-              expect(last_response.body).to match 'ServiceInstanceOperationInProgress'
+              expect(last_response.body).to match 'AsyncServiceInstanceOperationInProgress'
             end
           end
 
@@ -341,6 +392,48 @@ module VCAP::CloudController
         get '/v2/service_keys?q=name:non-exist-key-name', {}, json_headers(headers_for(developer))
         expect(last_response.status).to eql(200)
         expect(decoded_response.fetch('total_results')).to eq(0)
+      end
+    end
+
+    describe 'DELETE', '/v2/service_keys/:service_key_guid' do
+      let(:service_key) { ServiceKey.make }
+      let(:developer) { make_developer_for_space(service_key.service_instance.space) }
+
+      before do
+        stub_requests(service_key.service_instance.service.service_broker)
+      end
+
+      it 'returns ServiceKeyNotFound error if there is no such key' do
+        delete '/v2/service_keys/non-exist-service-key', '', json_headers(headers_for(developer))
+        expect(last_response).to have_status_code 500
+        expect(decoded_response.fetch('code')).to eq(10001)
+      end
+
+      it 'deletes the service key' do
+        expect {
+          delete "/v2/service_keys/#{service_key.guid}", '', json_headers(headers_for(developer))
+        }.to change(ServiceKey, :count).by(-1)
+        expect(last_response).to have_status_code 204
+        expect(last_response.body).to be_empty
+        expect { service_key.refresh }.to raise_error Sequel::Error, 'Record not found'
+      end
+
+      it 'creates an audit event after a service key deleted' do
+        email = 'example@example.com'
+        delete "/v2/service_keys/#{service_key.guid}", '', json_headers(headers_for(developer, email: email))
+
+        event = Event.first(type: 'audit.service_key.delete')
+        expect(event.actor_type).to eq('user')
+        expect(event.timestamp).to be
+        expect(event.actor).to eq(developer.guid)
+        expect(event.actor_name).to eq(email)
+        expect(event.actee).to eq(service_key.guid)
+        expect(event.actee_type).to eq('service_key')
+        expect(event.actee_name).to eq(service_key.name)
+        expect(event.space_guid).to eq(service_key.space.guid)
+        expect(event.space_id).to eq(service_key.space.id)
+        expect(event.organization_guid).to eq(service_key.space.organization.guid)
+        expect(event.metadata).to include({ 'request' => {} })
       end
     end
   end

@@ -10,6 +10,7 @@ module VCAP::CloudController
     let(:app_model) { AppModel.make }
     let(:process) { ProcessMapper.map_model_to_domain(process_model) }
     let(:guid) { process.guid }
+    let(:membership) { double(:membership) }
     let(:req_body) { '' }
     let(:expected_response) { 'process_response_body' }
 
@@ -31,6 +32,8 @@ module VCAP::CloudController
     before do
       allow(logger).to receive(:debug)
       allow(process_presenter).to receive(:present_json).and_return(expected_response)
+      allow(membership).to receive(:has_any_roles?).and_return(true)
+      allow(processes_controller).to receive(:membership).and_return(membership)
     end
 
     describe '#list' do
@@ -84,78 +87,6 @@ module VCAP::CloudController
       it 'returns the process information' do
         _, response = processes_controller.show(guid)
         expect(response).to eq(expected_response)
-      end
-    end
-
-    describe '#create' do
-      let(:req_body) do
-        {
-          'name' => 'my-process',
-          'memory' => 256,
-          'instances' => 2,
-          'disk_quota' => 1024,
-          'space_guid' => Space.make.guid,
-          'stack_guid' => Stack.make.guid,
-          'app_guid' => app_model.guid,
-        }.to_json
-      end
-
-      context 'when the user cannot create a process because they are unauthorized' do
-        before do
-          allow(processes_handler).to receive(:create).and_raise(ProcessesHandler::Unauthorized)
-        end
-
-        it 'returns a 403 NotAuthorized error' do
-          expect {
-            processes_controller.create
-          }.to raise_error do |error|
-            expect(error.name).to eq 'NotAuthorized'
-            expect(error.response_code).to eq 403
-          end
-        end
-      end
-
-      context 'when the process cannot be created because it is invalid' do
-        before do
-          allow(processes_handler).to receive(:create).and_raise(ProcessesHandler::InvalidProcess)
-        end
-
-        it 'returns an UnprocessableEntity error' do
-          expect {
-            processes_controller.create
-          }.to raise_error do |error|
-            expect(error.name).to eq 'UnprocessableEntity'
-            expect(error.response_code).to eq 422
-          end
-        end
-      end
-
-      context 'when the request body is invalid JSON' do
-        let(:req_body) { '{ invalid_json }' }
-        it 'returns an 400 Bad Request' do
-          expect {
-            processes_controller.create
-          }.to raise_error do |error|
-            expect(error.name).to eq 'MessageParseError'
-            expect(error.response_code).to eq 400
-          end
-        end
-      end
-
-      context 'when a user can create a process' do
-        before do
-          allow(processes_handler).to receive(:create).and_return(process)
-        end
-
-        it 'returns a 201 Created response' do
-          response_code, _ = processes_controller.create
-          expect(response_code).to eq(HTTP::CREATED)
-        end
-
-        it 'returns the process information' do
-          _, response = processes_controller.create
-          expect(response).to eq(expected_response)
-        end
       end
     end
 
@@ -263,64 +194,6 @@ module VCAP::CloudController
           }.to raise_error do |error|
             expect(error.name).to eq 'MessageParseError'
             expect(error.response_code).to eq 400
-          end
-        end
-      end
-    end
-
-    describe '#delete' do
-      let(:space) { Space.make }
-      let(:user) { User.make }
-      let(:app_model) { AppModel.make(space: space) }
-      let(:process) { AppFactory.make(space: space, app: app_model) }
-
-      before do
-        # stubbing the BaseController methods for now, this should probably be
-        # injected into the packages controller
-        allow(processes_controller).to receive(:current_user).and_return(user)
-        allow(processes_controller).to receive(:check_write_permissions!)
-
-        space.organization.add_user(user)
-        space.add_developer(user)
-      end
-
-      it 'checks for write permissions' do
-        processes_controller.delete(process.guid)
-        expect(processes_controller).to have_received(:check_write_permissions!)
-      end
-
-      context 'when the process exists' do
-        context 'when a user can access a process' do
-          it 'returns a 204 NO CONTENT' do
-            response_code, response = processes_controller.delete(process.guid)
-            expect(response_code).to eq 204
-            expect(response).to be_nil
-          end
-        end
-
-        context 'when the user cannot access the process' do
-          before do
-            allow(processes_controller).to receive(:current_user).and_return(User.make)
-          end
-
-          it 'returns a 404 NotFound error' do
-            expect {
-              processes_controller.delete(process.guid)
-            }.to raise_error do |error|
-              expect(error.name).to eq 'ResourceNotFound'
-              expect(error.response_code).to eq 404
-            end
-          end
-        end
-      end
-
-      context 'when the process does not exist' do
-        it 'raises an ApiError with a 404 code' do
-          expect {
-            processes_controller.delete('bad_guid')
-          }.to raise_error do |error|
-            expect(error.name).to eq 'ResourceNotFound'
-            expect(error.response_code).to eq 404
           end
         end
       end

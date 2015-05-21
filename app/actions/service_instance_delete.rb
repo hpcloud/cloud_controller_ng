@@ -4,9 +4,10 @@ require 'actions/locks/deleter_lock'
 
 module VCAP::CloudController
   class ServiceInstanceDelete
-    def initialize(accepts_incomplete: false, event_repository_opts: {})
+    def initialize(accepts_incomplete: false, event_repository_opts: nil, error_when_in_progress: false)
       @accepts_incomplete = accepts_incomplete
       @event_repository_opts = event_repository_opts
+      @error_when_in_progress = error_when_in_progress
     end
 
     def delete(service_instance_dataset)
@@ -16,6 +17,11 @@ module VCAP::CloudController
 
         if binding_errors.empty?
           instance_errors = delete_service_instance(service_instance)
+
+          if service_instance.operation_in_progress? && @error_when_in_progress && instance_errors.empty?
+            errors_accumulator.push VCAP::Errors::ApiError.new_from_details('AsyncServiceInstanceOperationInProgress', service_instance.name)
+          end
+
           errors_accumulator.concat instance_errors
         end
       end
@@ -30,7 +36,7 @@ module VCAP::CloudController
         lock = DeleterLock.new(service_instance)
         lock.lock!
 
-        attributes_to_update, poll_interval = service_instance.client.deprovision(
+        attributes_to_update = service_instance.client.deprovision(
           service_instance,
           accepts_incomplete: @accepts_incomplete
         )
@@ -38,7 +44,7 @@ module VCAP::CloudController
         if attributes_to_update[:last_operation][:state] == 'succeeded'
           lock.unlock_and_destroy!
         else
-          lock.enqueue_unlock!(attributes_to_update, build_fetch_job(poll_interval, service_instance))
+          lock.enqueue_unlock!(attributes_to_update, build_fetch_job(service_instance))
         end
       rescue => e
         errors << e
@@ -53,14 +59,13 @@ module VCAP::CloudController
       ServiceBindingDelete.new.delete(service_instance.service_bindings_dataset)
     end
 
-    def build_fetch_job(poll_interval, service_instance)
+    def build_fetch_job(service_instance)
       VCAP::CloudController::Jobs::Services::ServiceInstanceStateFetch.new(
         'service-instance-state-fetch',
         service_instance.client.attrs,
         service_instance.guid,
         @event_repository_opts,
         {},
-        poll_interval,
       )
     end
   end

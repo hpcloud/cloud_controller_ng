@@ -44,7 +44,7 @@ module VCAP::CloudController
       to_many    :app_versions,                           exclude_in: :create
     end
 
-    query_parameters :name, :space_guid, :organization_guid, :diego, :restart_required, :state, :package_state, :sso_enabled
+    query_parameters :name, :space_guid, :organization_guid, :diego, :stack_guid, :restart_required, :state, :package_state, :sso_enabled
 
     def self.default_order_by
       :name
