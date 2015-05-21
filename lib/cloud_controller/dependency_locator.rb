@@ -182,44 +182,20 @@ module CloudController
       VCAP::Services::ServiceBrokers::ServiceManager.new(services_event_repository)
     end
 
-    def process_repository
-      ProcessRepository.new
-    end
-
     def app_repository
       AppRepository.new
-    end
-
-    def processes_handler
-      ProcessesHandler.new(process_repository, app_event_repository)
-    end
-
-    def procfile_handler
-      ProcfileHandler.new(apps_handler, processes_handler)
     end
 
     def process_presenter
       ProcessPresenter.new
     end
 
-    def apps_handler
-      AppsHandler.new(packages_handler, droplets_handler, processes_handler)
-    end
-
     def app_presenter
       AppPresenter.new
     end
 
-    def packages_handler
-      PackagesHandler.new(@config)
-    end
-
     def package_presenter
       PackagePresenter.new
-    end
-
-    def droplets_handler
-      DropletsHandler.new(@config, stagers)
     end
 
     def droplet_presenter

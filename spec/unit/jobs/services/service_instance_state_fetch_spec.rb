@@ -30,6 +30,10 @@ module VCAP::CloudController
 
         let(:name) { 'fake-name' }
 
+        let(:service_event_repository) do
+          Repositories::Services::EventRepository.new(service_event_repository_opts)
+        end
+
         let(:service_event_repository_opts) do
           {
             user_email: 'fake@mail.foo',
@@ -42,16 +46,12 @@ module VCAP::CloudController
         let(:description) { 'description' }
         let(:response) do
           {
-            dashboard_url: 'url.com/dashboard',
-            last_operation: {
-              type: 'should-not-change',
-              state: state,
-              description: description
-            },
+            type: 'should-not-change',
+            state: state,
+            description: description
           }
         end
         let(:max_duration) { 10088 }
-        let(:deprecated_attempts_remaining) { nil }
         let(:request_attrs) do
           {
             dummy_data: 'dummy_data'
@@ -63,9 +63,8 @@ module VCAP::CloudController
             name,
             client_attrs,
             service_instance.guid,
-            service_event_repository_opts,
+            service_event_repository,
             request_attrs,
-            deprecated_attempts_remaining,
           )
         end
 
@@ -99,6 +98,20 @@ module VCAP::CloudController
               expect(job.poll_interval).to eq 24.hours
             end
           end
+
+          context 'when the caller provides repository_opts instead of a repository' do
+            it 'uses the opts to construct a repository' do
+              job =  VCAP::CloudController::Jobs::Services::ServiceInstanceStateFetch.new(
+                  name,
+                  client_attrs,
+                  service_instance.guid,
+                  nil,
+                  request_attrs,
+                  service_event_repository_opts
+              )
+              expect(job.services_event_repository).to be_a Repositories::Services::EventRepository
+            end
+          end
         end
 
         describe '#perform' do
@@ -106,7 +119,7 @@ module VCAP::CloudController
             uri = URI(broker.broker_url)
             uri.user = broker.auth_username
             uri.password = broker.auth_password
-            stub_request(:get, "#{uri}/v2/service_instances/#{service_instance.guid}").to_return(
+            stub_request(:get, "#{uri}/v2/service_instances/#{service_instance.guid}/last_operation").to_return(
               status: status,
               body: response.to_json
             )
@@ -124,6 +137,18 @@ module VCAP::CloudController
               it 'saves the description in the database' do
                 run_job(job)
                 expect(service_instance.last_operation.reload.description).to eq description
+              end
+            end
+
+            context 'when the broker does not return a description' do
+              let(:response) do
+                {
+                  state: 'in progress'
+                }
+              end
+
+              it 'does not update the field' do
+                expect { run_job(job) }.not_to change { service_instance.last_operation.reload.description }.from('description goes here')
               end
             end
           end
@@ -173,7 +198,6 @@ module VCAP::CloudController
 
               db_service_instance = ManagedServiceInstance.first(guid: service_instance.guid)
               expect(db_service_instance.last_operation.state).to eq('succeeded')
-              expect(db_service_instance.dashboard_url).to eq('url.com/dashboard')
             end
 
             it 'applies the instance attributes that were proposed in the operation' do
@@ -197,16 +221,6 @@ module VCAP::CloudController
               expect(Delayed::Job.count).to eq 0
             end
 
-            context 'when no user information is provided' do
-              let(:service_event_repository_opts) { nil }
-
-              it 'should not create an audit event' do
-                run_job(job)
-
-                expect(Event.find(type: 'audit.service_instance.create')).to be_nil
-              end
-            end
-
             context 'when user information is provided' do
               context 'and the last operation type is create' do
                 it 'should create audit event' do
@@ -217,6 +231,16 @@ module VCAP::CloudController
                   expect(event.actee).to eq(service_instance.guid)
                   expect(event.metadata['request']).to eq({ 'dummy_data' => 'dummy_data' })
                 end
+              end
+            end
+
+            context 'when there is no repository' do
+              let(:service_event_repository) { nil }
+
+              it 'should not create an audit event' do
+                run_job(job)
+
+                expect(Event.find(type: 'audit.service_instance.create')).to be_nil
               end
             end
           end
@@ -306,7 +330,7 @@ module VCAP::CloudController
                 uri = URI(broker.broker_url)
                 uri.user = broker.auth_username
                 uri.password = broker.auth_password
-                stub_request(:get, "#{uri}/v2/service_instances/#{service_instance.guid}").to_raise(HTTPClient::TimeoutError.new)
+                stub_request(:get, "#{uri}/v2/service_instances/#{service_instance.guid}/last_operation").to_raise(HTTPClient::TimeoutError.new)
               end
 
               it 'should enqueue another fetch job' do

@@ -16,6 +16,7 @@ module VCAP::CloudController
       it do
         expect(described_class).to have_creatable_attributes({
           name:                   { type: 'string', required: true },
+          allow_ssh:              { type: 'bool', default: true },
           organization_guid:      { type: 'string', required: true },
           developer_guids:        { type: '[string]' },
           manager_guids:          { type: '[string]' },
@@ -31,6 +32,7 @@ module VCAP::CloudController
       it do
         expect(described_class).to have_updatable_attributes({
           name:                   { type: 'string' },
+          allow_ssh:              { type: 'bool' },
           organization_guid:      { type: 'string' },
           developer_guids:        { type: '[string]' },
           manager_guids:          { type: '[string]' },
@@ -200,7 +202,6 @@ module VCAP::CloudController
 
       context 'when filtering results' do
         it 'returns only matching results' do
-          #pending("CF-BadQueryParameter")
           user_provided_service_instance_1 = UserProvidedServiceInstance.make(space: space, name: 'provided service 1')
           UserProvidedServiceInstance.make(space: space, name: 'provided service 2')
           managed_service_instance_1 = ManagedServiceInstance.make(space: space, name: 'managed service 1')
@@ -540,7 +541,7 @@ module VCAP::CloudController
         event = Event.find(type: 'audit.space.create', actee: new_space_guid)
         expect(event).not_to be_nil
         expect(event.actor_name).to eq(SecurityContext.current_user_email)
-        expect(event.metadata['request']).to eq('organization_guid' => organization.guid, 'name' => 'space_name', 'is_default' => false)
+        expect(event.metadata['request']).to include('organization_guid' => organization.guid, 'name' => 'space_name', 'is_default' => false)
       end
 
       it 'logs audit.space.update when updating a space' do
@@ -602,6 +603,7 @@ module VCAP::CloudController
         let!(:route_guid) { Route.make(space_guid: space_guid).guid }
         let!(:service_instance) { ManagedServiceInstance.make(space_guid: space_guid) }
         let!(:service_instance_guid) { service_instance.guid }
+        let!(:user) { make_manager_for_org(org) }
 
         before do
           stub_deprovision(service_instance, accepts_incomplete: true)
@@ -632,6 +634,44 @@ module VCAP::CloudController
           expect(AppModel.find(guid: app_guid)).to be_nil
           expect(ServiceInstance.find(guid: service_instance_guid)).to be_nil
           expect(Route.find(guid: route_guid)).to be_nil
+        end
+
+        it 'records an audit event for the deletion of any nested resources' do
+          delete "/v2/spaces/#{space_guid}?recursive=true", '', headers_for(user, email: 'user@email.com')
+
+          event = Event.find(type: 'audit.app.delete-request', actee: app_guid)
+          expect(event).not_to be_nil
+          expect(event.actor).to eq user.guid
+          expect(event.actor_name).to eq 'user@email.com'
+        end
+
+        context 'when the async job times out' do
+          before do
+            fake_config = {
+              jobs: {
+                global: {
+                  timeout_in_seconds: 0.1
+                }
+              }
+            }
+            allow(VCAP::CloudController::Config).to receive(:config).and_return(fake_config)
+            stub_deprovision(service_instance, accepts_incomplete: true) do
+              sleep 0.11
+              { status: 200, body: {}.to_json }
+            end
+          end
+
+          it 'fails the job with a SpaceDeleteTimeout error' do
+            delete "/v2/spaces/#{space_guid}?recursive=true&async=true", '', json_headers(admin_headers)
+            expect(last_response).to have_status_code(202)
+            job_guid = decoded_response['metadata']['guid']
+
+            expect(Delayed::Worker.new.work_off).to eq([0, 1])
+
+            get "/v2/jobs/#{job_guid}", {}, json_headers(admin_headers)
+            expect(decoded_response['entity']['status']).to eq 'failed'
+            expect(decoded_response['entity']['error_details']['error_code']).to eq 'CF-SpaceDeleteTimeout'
+          end
         end
 
         describe 'deleting service instances' do
@@ -707,11 +747,11 @@ module VCAP::CloudController
             before do
               stub_deprovision(service_instance_2, status: 500, accepts_incomplete: true)
 
-              instance_url = remove_basic_auth(service_instance_deprovision_url(service_instance_2))
+              instance_url = remove_basic_auth(deprovision_url(service_instance_2))
 
               @expected_description = "Deletion of space #{space.name} failed because one or more resources within could not be deleted.
 
-The service broker returned an invalid response for the request to #{instance_url}. Status Code: 500 Internal Server Error, Body: {}"
+\tThe service broker returned an invalid response for the request to #{instance_url}. Status Code: 500 Internal Server Error, Body: {}"
             end
 
             context 'synchronous' do
@@ -819,37 +859,6 @@ The service broker returned an invalid response for the request to #{instance_ur
               end
             end
           end
-        end
-
-        context 'when the user does not exist when the job runs' do
-          it 'returns an UserNotFound error' do
-            user = User.make
-            org.add_user(user)
-            org.add_manager(user)
-            space.add_manager(user)
-
-            delete "/v2/spaces/#{space_guid}?recursive=true&async=true", '', json_headers(headers_for(user))
-            user.destroy
-
-            job = Delayed::Job.first
-            expect {
-              job.invoke_job
-            }.to raise_error VCAP::CloudController::DeletionError, /user could not be found/
-          end
-        end
-
-        it 'does not rollback any changes if recursive deletion fails halfway through' do
-          service_instance_2 = ManagedServiceInstance.make(space_guid: space_guid)
-          stub_deprovision(service_instance_2, status: 500, accepts_incomplete: true)
-
-          delete "/v2/spaces/#{space_guid}?recursive=true", '', json_headers(admin_headers)
-
-          expect(ServiceInstance.find(guid: service_instance_guid)).to be_nil
-          expect(ServiceInstance.find(guid: service_instance_2.guid)).not_to be_nil
-          expect(Space.find(guid: space_guid)).not_to be_nil
-
-          expect(last_response).to have_status_code 502
-          expect(decoded_response['error_code']).to eq 'CF-SpaceDeletionFailed'
         end
       end
     end

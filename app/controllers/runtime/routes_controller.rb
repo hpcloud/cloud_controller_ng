@@ -2,19 +2,20 @@ module VCAP::CloudController
   class RoutesController < RestController::ModelController
     define_attributes do
       attribute :host, String, default: ''
+      attribute :path, String, default: nil
       to_one :domain
       to_one :space
       to_many :apps
     end
 
-    query_parameters :host, :domain_guid, :organization_guid
+    query_parameters :host, :domain_guid, :organization_guid, :path
 
     def self.default_order_by
       :host
     end 
 
     def self.translate_validation_exception(e, attributes)
-      name_errors = e.errors.on([:host, :domain_id])
+      name_errors = e.errors.on([:host, :domain_id]) || e.errors.on([:host, :domain_id, :path])
       if name_errors && name_errors.include?(:unique)
         return Errors::ApiError.new_from_details('RouteHostTaken', attributes['host'])
       end
@@ -27,6 +28,11 @@ module VCAP::CloudController
       org_errors = e.errors.on(:organization)
       if org_errors && org_errors.include?(:total_routes_exceeded)
         return Errors::ApiError.new_from_details('OrgQuotaTotalRoutesExceeded')
+      end
+
+      path_errors = e.errors.on(:path)
+      if path_errors && path_errors.include?(:invalid_path)
+        return Errors::ApiError.new_from_details('PathInvalid', attributes['path'])
       end
 
       Errors::ApiError.new_from_details('RouteInvalid', e.errors.full_messages)
@@ -57,7 +63,15 @@ module VCAP::CloudController
       validate_access(:reserved, model)
       domain = Domain[guid: domain_guid]
       if domain
-        count = Route.where(domain: domain, host: host).count
+        path = params['path']
+        count = 0
+
+        if path.nil?
+          count = Route.where(domain: domain, host: host).count
+        else
+          count = Route.where(domain: domain, host: host, path: path).count
+        end
+
         return [HTTP::NO_CONTENT, nil] if count > 0
       end
       [HTTP::NOT_FOUND, nil]

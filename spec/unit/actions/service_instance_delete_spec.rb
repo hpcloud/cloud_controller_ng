@@ -54,7 +54,7 @@ module VCAP::CloudController
 
       it 'defaults accepts_incomplete to false' do
         service_instance_delete.delete([service_instance_1])
-        broker_url = service_instance_deprovision_url(service_instance_1)
+        broker_url = deprovision_url(service_instance_1)
         expect(a_request(:delete, broker_url)).to have_been_made
       end
 
@@ -69,14 +69,14 @@ module VCAP::CloudController
 
       context 'when accepts_incomplete is true' do
         let(:service_instance) { ManagedServiceInstance.make }
-        let(:event_repository_opts) { { some_opt: 'some value' } }
-        let(:error_when_in_progress) { false }
+        let(:event_repository) { Repositories::Services::EventRepository.new(user: user, user_email: user_email) }
+        let(:multipart_delete) { false }
 
         subject(:service_instance_delete) do
           ServiceInstanceDelete.new(
             accepts_incomplete: true,
-            event_repository_opts: event_repository_opts,
-            error_when_in_progress: error_when_in_progress,
+            event_repository: event_repository,
+            multipart_delete: multipart_delete,
           )
         end
 
@@ -86,7 +86,7 @@ module VCAP::CloudController
 
         it 'passes the accepts_incomplete flag to the client call' do
           service_instance_delete.delete([service_instance])
-          broker_url = service_instance_deprovision_url(service_instance, accepts_incomplete: true)
+          broker_url = deprovision_url(service_instance, accepts_incomplete: true)
           expect(a_request(:delete, broker_url)).to have_been_made
         end
 
@@ -105,7 +105,6 @@ module VCAP::CloudController
           expect(inner_job.name).to eq 'service-instance-state-fetch'
           expect(inner_job.client_attrs).to eq service_instance.client.attrs
           expect(inner_job.service_instance_guid).to eq service_instance.guid
-          expect(inner_job.services_event_repository_opts).to eq event_repository_opts
           expect(inner_job.request_attrs).to eq({})
           expect(inner_job.poll_interval).to eq(60)
         end
@@ -122,8 +121,8 @@ module VCAP::CloudController
           end
         end
 
-        context 'and the caller wants to treat accepts_incomplete deprovisioning as a failure' do
-          let(:error_when_in_progress) { true }
+        context 'and the caller wants to treat accepts_incomplete deprovisioning as a failure during a multipart deletion' do
+          let(:multipart_delete) { true }
 
           it 'should return an error if there is an operation in progress' do
             result = service_instance_delete.delete([service_instance])
@@ -152,7 +151,7 @@ module VCAP::CloudController
 
           service_binding_1.reload
 
-          expect(a_request(:delete, service_instance_unbind_url(service_binding_1))).
+          expect(a_request(:delete, unbind_url(service_binding_1))).
             to have_been_made.times(1)
           expect(service_binding_1.as_json).to eq(original_attrs)
 
@@ -177,7 +176,7 @@ module VCAP::CloudController
 
           service_instance_1.reload
 
-          expect(a_request(:delete, service_instance_deprovision_url(service_instance_1))).
+          expect(a_request(:delete, deprovision_url(service_instance_1))).
             to have_been_made.times(1)
           expect(service_instance_1.last_operation.type).to eq('delete')
           expect(service_instance_1.last_operation.state).to eq('failed')
@@ -246,8 +245,8 @@ module VCAP::CloudController
           expect(service_instance_1.exists?).to be_falsey
           expect(service_instance_2.exists?).to be_truthy
 
-          broker_url_1 = service_instance_deprovision_url(service_instance_1, accepts_incomplete: nil)
-          broker_url_2 = service_instance_deprovision_url(service_instance_2, accepts_incomplete: nil)
+          broker_url_1 = deprovision_url(service_instance_1, accepts_incomplete: nil)
+          broker_url_2 = deprovision_url(service_instance_2, accepts_incomplete: nil)
           expect(a_request(:delete, broker_url_1)).to have_been_made
           expect(a_request(:delete, broker_url_2)).not_to have_been_made
         end

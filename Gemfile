@@ -1,14 +1,14 @@
 source (ENV['RUBYGEMS_MIRROR'] or 'https://rubygems.org')
 
 # prevents hard-to-diagnose errors with bundle install
-ruby '2.1.5'
+ruby '2.1.6'
 
-gem 'activemodel', '3.2.21'
-gem 'activerecord', '3.2.21'
-gem "activesupport", '3.2.21'
+gem 'activemodel', '4.1.10'
+gem 'activerecord', '4.1.10'
+gem 'activesupport', '4.1.10'
 gem 'addressable', "2.3.6", :groups => [:default, :test]
 gem 'allowy', '0.4.0'
-gem 'arel', '3.0.3'
+gem 'arel', '5.0.0'
 gem 'ast', '2.0.0'
 #gem 'astrolabe', '1.3.0'
 gem 'atomic', '1.1.14'
@@ -16,7 +16,7 @@ gem 'axiom-types', '0.0.5'
 gem 'backports', '3.6.3'
 gem "bcrypt", '3.1.7'
 gem 'beefcake', '1.0.0'
-gem "builder", "3.0.0"
+gem "builder", "3.2.2"
 gem 'celluloid', '0.15.2'
 gem "cf-message-bus","0.3.3", :github => "cloudfoundry/cf-message-bus", :ref => "b6a82b660598c7b5b94b269f7db66ca69a221228"
 gem 'cf-registrar', "1.0.3", :github => "cloudfoundry/cf-registrar" #, :ref => "49850ee876652a59dbd2d"
@@ -53,7 +53,7 @@ gem 'grape', '0.7.0', :github => 'intridea/grape', :ref => 'df8caf7d4065a26d15db
 gem 'hashie', '2.1.1'
 gem 'http_parser.rb', '0.6.0'
 gem 'httpclient', '2.5.3.3'
-gem 'i18n', '0.6.11'
+gem 'i18n', '0.7.0'
 gem 'ice_nine', '0.10.0'
 gem 'inflecto', '0.0.2'
 gem 'ipaddress', '0.8.0'
@@ -64,8 +64,8 @@ gem 'membrane', '1.0.0'
 gem 'method_source', '0.8.2', :groups => [:operations, :development, :test]
 gem 'mime-types', '2.4.3'
 gem 'mini_portile', '0.6.0'
-gem 'msgpack', '0.5.8'
-gem 'multi_json', '1.10.1', :groups => [:default, :test]
+gem 'msgpack', '0.5.9'
+gem 'multi_json', '1.11.0', :groups => [:default, :test]
 gem 'multi_xml', '0.5.5'
 gem 'multipart-post', '2.0.0'
 gem 'mustache', '0.99.4'
@@ -77,7 +77,7 @@ gem 'newrelic_rpm', '3.7.3.204'
 gem 'nokogiri', '1.6.2.1'
 gem 'pg', '0.14.1', :groups => [:db, :default]
 gem 'posix-spawn', '0.3.8'
-gem 'pry', '0.9.12.6', :groups => [:operations, :development, :test]
+gem 'pry', '0.10', :groups => [:operations, :development, :test]
 gem 'rack', '1.5.2', :groups => [:default, :test]
 gem 'rack-accept', '0.4.5'
 gem 'rack-mount', '0.8.3'
@@ -106,7 +106,7 @@ gem 'thin', '1.6.3'
 gem 'thread_safe', '0.1.3'
 gem 'tilt', '1.4.1'
 gem 'trollop', '2.0'
-gem 'tzinfo', '0.3.35'
+gem 'tzinfo', '1.2.2'
 gem 'unf', '0.1.3'
 gem 'unf_ext', '0.0.6'
 gem 'uuidtools', '2.1.5'
@@ -133,13 +133,17 @@ group :db do
   gem 'mysql2', '0.3.13'
 end
 
+group :operations do
+  gem 'pry-byebug'
+end
+
 group :development do
   gem 'awesome_print'
 #  gem 'debugger', '1.6.6'
 #  gem 'debugger-linecache', '1.2.0'
 #  gem 'debugger-ruby_core_source', '1.3.5'
   gem 'roodi', '4.0.0'
-  gem 'columnize', '0.3.6'
+  gem 'columnize', '0.9.0'
   gem 'ruby_parser', '3.6.2'
   gem 'sexp_processor', '4.4.4'
 end

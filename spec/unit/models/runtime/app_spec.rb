@@ -421,6 +421,7 @@ module VCAP::CloudController
     describe 'Serialization' do
       it {
         is_expected.to export_attributes(
+          :enable_ssh,
           :autoscale_enabled,
           :buildpack,
           :command,
@@ -463,6 +464,7 @@ module VCAP::CloudController
 
       it {
         is_expected.to import_attributes(
+          :enable_ssh,
           :app_guid,
           :autoscale_enabled,
           :buildpack,
@@ -1012,10 +1014,13 @@ module VCAP::CloudController
       it 'stores the command in its own column, not metadata' do
         app = AppFactory.make(command: 'foobar')
         expect(app.metadata).to eq('command' => 'foobar')
+        expect(app.metadata_without_command).to_not eq('command' => 'foobar')
         app.save
         expect(app.metadata).to eq('command' => 'foobar')
+        expect(app.metadata_without_command).to_not eq('command' => 'foobar')
         app.refresh
         expect(app.metadata).to eq('command' => 'foobar')
+        expect(app.metadata_without_command).to_not eq('command' => 'foobar')
         expect(app.command).to eq('foobar')
       end
 
@@ -1527,6 +1532,12 @@ module VCAP::CloudController
             end
           end
         end
+
+        it 'should update the version when changing enable_ssh' do
+          expect {
+            app.update(enable_ssh: !app.enable_ssh)
+          }.to change { app.version }
+        end
       end
     end
 
@@ -1717,10 +1728,12 @@ module VCAP::CloudController
     end
 
     describe 'uris' do
-      it 'should return the uris on the app' do
+      it 'should return the fqdns and paths on the app' do
         app = AppFactory.make(space: space)
+        domain = PrivateDomain.make(name: 'mydomain.com', owning_organization: org)
+        route = Route.make(host: 'myhost', domain: domain, space: space, path: '/my%20path')
         app.add_route(route)
-        expect(app.uris).to eq([route.fqdn])
+        expect(app.uris).to eq(['myhost.mydomain.com/my%20path'])
       end
     end
 
@@ -1749,6 +1762,57 @@ module VCAP::CloudController
         expect {
           App.create_from_hash(name: 'awesomeApp', space_guid: space.guid)
         }.not_to change { AppUsageEvent.count }
+      end
+
+      describe 'default enable_ssh' do
+        context 'when enable_ssh is set explicitly' do
+          it 'does not overwrite it with the default' do
+            app1 = App.create_from_hash(name: 'awesome app 1', space_guid: space.guid, enable_ssh: true)
+            expect(app1.enable_ssh).to eq(true)
+
+            app2 = App.create_from_hash(name: 'awesome app 2', space_guid: space.guid, enable_ssh: false)
+            expect(app2.enable_ssh).to eq(false)
+          end
+        end
+
+        context 'when global allow_ssh config is true' do
+          before do
+            TestConfig.override({ allow_app_ssh_access: true })
+          end
+
+          context 'when space allow_ssh config is true' do
+            before do
+              space.update(allow_ssh: true)
+            end
+
+            it 'sets enable_ssh to true' do
+              app = App.create_from_hash(name: 'awesome app', space_guid: space.guid)
+              expect(app.enable_ssh).to eq(true)
+            end
+          end
+
+          context 'when space allow_ssh config is false' do
+            before do
+              space.update(allow_ssh: false)
+            end
+
+            it 'sets enable_ssh to false' do
+              app = App.create_from_hash(name: 'awesome app', space_guid: space.guid)
+              expect(app.enable_ssh).to eq(false)
+            end
+          end
+        end
+
+        context 'when global allow_ssh config is false' do
+          before do
+            TestConfig.override({ allow_app_ssh_access: false })
+          end
+
+          it 'sets enable_ssh to false' do
+            app = App.create_from_hash(name: 'awesome app', space_guid: space.guid)
+            expect(app.enable_ssh).to eq(false)
+          end
+        end
       end
 
       describe 'default_app_memory' do

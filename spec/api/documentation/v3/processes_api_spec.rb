@@ -24,10 +24,11 @@ resource 'Processes (Experimental)', type: :api do
     let(:name1) { 'my_process1' }
     let(:name2) { 'my_process2' }
     let(:name3) { 'my_process3' }
-    let!(:process1) { VCAP::CloudController::App.make(name: name1, space: space) }
-    let!(:process2) { VCAP::CloudController::App.make(name: name2, space: space) }
-    let!(:process3) { VCAP::CloudController::App.make(name: name3, space: space) }
-    let!(:process4) { VCAP::CloudController::App.make(space: VCAP::CloudController::Space.make) }
+    let(:app_model) { VCAP::CloudController::AppModel.make(space_guid: space.guid) }
+    let!(:process1) { VCAP::CloudController::AppFactory.make(name: name1, space: space, app_guid: app_model.guid) }
+    let!(:process2) { VCAP::CloudController::AppFactory.make(name: name2, space: space) }
+    let!(:process3) { VCAP::CloudController::AppFactory.make(name: name3, space: space) }
+    let!(:process4) { VCAP::CloudController::AppFactory.make(space: VCAP::CloudController::Space.make) }
     let(:space) { VCAP::CloudController::Space.make }
     let(:page) { 1 }
     let(:per_page) { 2 }
@@ -51,15 +52,27 @@ resource 'Processes (Experimental)', type: :api do
             'guid'       => process1.guid,
             'type'       => process1.type,
             'command'    => nil,
+            'instances'  => 1,
             'created_at' => iso8601,
-            'updated_at' => nil,
+            'updated_at' => iso8601,
+            '_links'     => {
+              'self'     => { 'href' => "/v3/processes/#{process1.guid}" },
+              'app'      => { 'href' => "/v3/apps/#{app_model.guid}" },
+              'space'    => { 'href' => "/v2/spaces/#{process1.space_guid}" },
+            },
           },
           {
             'guid'       => process2.guid,
             'type'       => process2.type,
             'command'    => nil,
+            'instances'  => 1,
             'created_at' => iso8601,
-            'updated_at' => nil,
+            'updated_at' => iso8601,
+            '_links'     => {
+              'self'     => { 'href' => "/v3/processes/#{process2.guid}" },
+              'app'      => { 'href' => "/v3/apps/#{process2.app_guid}" },
+              'space'    => { 'href' => "/v2/spaces/#{process2.space_guid}" },
+            },
           }
         ]
       }
@@ -87,8 +100,14 @@ resource 'Processes (Experimental)', type: :api do
         'guid'       => guid,
         'type'       => type,
         'command'    => nil,
+        'instances'  => 1,
         'created_at' => iso8601,
         'updated_at' => iso8601,
+        '_links'     => {
+          'self'     => { 'href' => "/v3/processes/#{process.guid}" },
+          'app'      => { 'href' => "/v3/apps/#{process.app_guid}" },
+          'space'    => { 'href' => "/v2/spaces/#{process.space_guid}" },
+        },
       }
 
       do_request_with_error_handling
@@ -100,7 +119,6 @@ resource 'Processes (Experimental)', type: :api do
   end
 
   patch '/v3/processes/:guid' do
-    let(:buildpack_model) { VCAP::CloudController::Buildpack.make(name: 'another-buildpack') }
     let(:process) { VCAP::CloudController::AppFactory.make }
 
     before do
@@ -108,30 +126,9 @@ resource 'Processes (Experimental)', type: :api do
       process.space.add_developer user
     end
 
-    parameter :memory, 'Amount of memory (MB) allocated to each instance'
-    parameter :instances, 'Number of instances'
-    parameter :disk_quota, 'Amount of disk space (MB) allocated to each instance'
-    parameter :space_guid, 'Guid of associated Space'
-    parameter :stack_guid, 'Guid of associated Stack'
-    parameter :state, 'Desired state of process'
     parameter :command, 'Start command for process'
-    parameter :buildpack, 'Buildpack used to stage process'
-    parameter :health_check_timeout, 'Health check timeout for process'
-    parameter :docker_image, 'Name of docker image containing process'
-    parameter :environment_json, 'JSON key-value pairs for ENV variables'
-    parameter :type, 'Type of the process'
 
-    let(:memory) { 2555 }
-    let(:instances) { 2 }
-    let(:disk_quota) { 2048 }
-    let(:space_guid) { process.space.guid }
-    let(:stack_guid) { process.stack.guid }
     let(:command) { 'X' }
-    let(:state) { 'STARTED' }
-    let(:buildpack) { buildpack_model.name }
-    let(:health_check_timeout) { 70 }
-    let(:environment_json) { { 'foo' => 'bar' } }
-    let(:type) { 'worker' }
 
     let(:guid) { process.guid }
 
@@ -145,25 +142,64 @@ resource 'Processes (Experimental)', type: :api do
 
       expected_response = {
         'guid'       => guid,
-        'type'       => type,
+        'type'       => process.type,
         'command'    => 'X',
+        'instances'  => process.instances,
         'created_at' => iso8601,
         'updated_at' => iso8601,
+        '_links'     => {
+          'self'     => { 'href' => "/v3/processes/#{process.guid}" },
+          'app'      => { 'href' => "/v3/apps/#{process.app_guid}" },
+          'space'    => { 'href' => "/v2/spaces/#{process.space_guid}" },
+        },
       }
 
       parsed_response = JSON.parse(response_body)
       expect(response_status).to eq(200)
       expect(parsed_response).to be_a_response_like(expected_response)
+    end
+  end
 
-      expect(process.state).to eq(state)
-      expect(process.command).to eq(command)
-      expect(process.memory).to eq(memory)
-      expect(process.instances).to eq(instances)
-      expect(process.disk_quota).to eq(disk_quota)
-      expect(process.buildpack).to eq(buildpack_model)
-      expect(process.health_check_timeout).to eq(health_check_timeout)
-      expect(process.environment_json).to eq(environment_json)
-      expect(process.type).to eq(type)
+  put '/v3/processes/:guid/scale' do
+    parameter :instances, 'Number of instances'
+
+    let(:instances) { 3 }
+    let(:guid) { process.guid }
+    let(:raw_post) { MultiJson.dump(params, pretty: true) }
+
+    let(:process) { VCAP::CloudController::AppFactory.make }
+
+    before do
+      app = VCAP::CloudController::AppModel.make
+      process.app_guid = app.guid
+      process.save
+      process.space.organization.add_user user
+      process.space.add_developer user
+    end
+
+    example 'Scaling a Process' do
+      expect {
+        do_request_with_error_handling
+      }.to change { VCAP::CloudController::Event.count }.by(1)
+      process.reload
+
+      expected_response = {
+        'guid'       => process.guid,
+        'type'       => process.type,
+        'command'    => process.command,
+        'instances'  => instances,
+        'created_at' => iso8601,
+        'updated_at' => iso8601,
+        '_links'     => {
+          'self'     => { 'href' => "/v3/processes/#{process.guid}" },
+          'app'      => { 'href' => "/v3/apps/#{process.app_guid}" },
+          'space'    => { 'href' => "/v2/spaces/#{process.space_guid}" },
+        },
+      }
+
+      parsed_response = JSON.parse(response_body)
+      expect(response_status).to eq(200)
+      expect(parsed_response).to be_a_response_like(expected_response)
     end
   end
 end

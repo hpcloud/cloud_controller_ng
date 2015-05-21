@@ -27,8 +27,6 @@ module VCAP::CloudController
       end
     end
 
-    CREDENTIALS = { 'foo' => 'bar' }
-
     def fake_app_staging(app)
       app.package_hash = 'abc'
       app.droplet_hash = 'def'
@@ -38,9 +36,12 @@ module VCAP::CloudController
 
     let(:guid_pattern) { '[[:alnum:]-]+' }
     let(:bind_status) { 200 }
-    let(:bind_body) { { credentials: CREDENTIALS } }
+    let(:bind_body) { { credentials: credentials } }
     let(:unbind_status) { 200 }
     let(:unbind_body) { {} }
+    let(:credentials) do
+      { 'foo' => 'bar' }
+    end
 
     def broker_url(broker)
       base_broker_uri = URI.parse(broker.broker_url)
@@ -210,7 +211,7 @@ module VCAP::CloudController
           expect(last_response).to have_status_code(201)
 
           binding = ServiceBinding.last
-          expect(binding.credentials).to eq(CREDENTIALS)
+          expect(binding.credentials).to eq(credentials)
         end
 
         it 'creates an audit event upon binding' do
@@ -237,51 +238,6 @@ module VCAP::CloudController
               'app_guid' => req[:app_guid]
             }
           })
-        end
-
-        describe 'orphan mitigation' do
-          context 'when saving to the DB fails' do
-            it 'unbinds the service instance' do
-              req = MultiJson.dump(
-                app_guid: app_obj.guid,
-                service_instance_guid: instance.guid
-              )
-
-              allow_any_instance_of(ServiceBinding).to receive(:save).and_raise
-
-              post '/v2/service_bindings', req, json_headers(headers_for(developer))
-              expect(a_request(:put, bind_url_regex(service_instance: instance))).to have_been_made.times(1)
-              expect(a_request(:delete, bind_url_regex(service_instance: instance))).to have_been_made.times(1)
-
-              orphan_mitigating_job = Delayed::Job.first
-              expect(orphan_mitigating_job).to be_nil
-            end
-          end
-
-          context 'when the broker returns an error' do
-            let(:bind_status) { 500 }
-            let(:bind_body) { {} }
-
-            it 'enqueues a ServiceInstanceUnbind job' do
-              req = MultiJson.dump(
-                app_guid: app_obj.guid,
-                service_instance_guid: instance.guid
-              )
-
-              post '/v2/service_bindings', req, json_headers(headers_for(developer))
-              expect(last_response).to have_status_code 502
-
-              expect(ServiceBinding.count).to eq 0
-
-              expect(Delayed::Job.count).to eq 1
-
-              orphan_mitigating_job = Delayed::Job.first
-              expect(orphan_mitigating_job).not_to be_nil
-              expect(orphan_mitigating_job).to be_a_fully_wrapped_job_of Jobs::Services::ServiceInstanceUnbind
-
-              expect(a_request(:delete, bind_url_regex(service_instance: instance))).to_not have_been_made
-            end
-          end
         end
 
         context 'when the client provides arbitrary parameters' do
@@ -362,23 +318,6 @@ module VCAP::CloudController
               expect(last_response.status).to eq(404)
             end
           end
-
-          context 'because the service instance is destroyed after controller validation and before binding save' do
-            let(:req) do
-              {
-                app_guid: app_obj.guid,
-                service_instance_guid: 'THISISWRONG'
-              }.to_json
-            end
-
-            it 'returns CF-ServiceInstanceNotFound error' do
-              post '/v2/service_bindings', req, json_headers(headers_for(developer))
-
-              expect(last_response).to have_status_code(404)
-              hash_body = JSON.parse(last_response.body)
-              expect(hash_body['error_code']).to eq('CF-ServiceInstanceNotFound')
-            end
-          end
         end
 
         context 'when the instance operation is in progress' do
@@ -416,7 +355,7 @@ module VCAP::CloudController
 
           it 'should show an error message for create bind operation' do
             post '/v2/service_bindings', request_body, json_headers(headers_for(developer))
-            expect(last_response).to have_status_code 400
+            expect(last_response).to have_status_code 409
             expect(last_response.body).to match 'AsyncServiceInstanceOperationInProgress'
           end
         end
@@ -532,7 +471,7 @@ module VCAP::CloudController
             {
                'service_id' => Sham.guid,
                'configuration' => 'CONFIGURATION',
-               'credentials' => CREDENTIALS,
+               'credentials' => credentials,
              }
           )
           allow(VCAP::Services::ServiceBrokers::V1::HttpClient).to receive(:new).and_return(fake_client)
@@ -551,7 +490,7 @@ module VCAP::CloudController
           expect(last_response).to have_status_code(201)
 
           binding = ServiceBinding.last
-          expect(binding.credentials).to eq(CREDENTIALS)
+          expect(binding.credentials).to eq(credentials)
         end
 
         context 'and the client provides arbitrary params' do
@@ -625,9 +564,9 @@ module VCAP::CloudController
       end
 
       it 'disallows other operations on the service instance while unbinding is in progress' do
-        stub_request(:delete, service_instance_unbind_url(service_binding)).to_return do |_|
+        stub_request(:delete, unbind_url(service_binding)).to_return do |_|
           put "/v2/service_instances/#{service_binding.service_instance.guid}", { plan_id: 34 }.to_json, admin_headers
-          expect(last_response).to have_status_code 400
+          expect(last_response).to have_status_code 409
           expect(last_response.body).to match /AsyncServiceInstanceOperationInProgress/
 
           { status: 200, body: {}.to_json }
@@ -702,9 +641,9 @@ module VCAP::CloudController
         end
 
         it 'disallows other operations on the service instance while unbinding is in progress' do
-          stub_request(:delete, service_instance_unbind_url(service_binding)).to_return do |_|
+          stub_request(:delete, unbind_url(service_binding)).to_return do |_|
             put "/v2/service_instances/#{service_binding.service_instance.guid}", { plan_id: 34 }.to_json, admin_headers
-            expect(last_response).to have_status_code 400
+            expect(last_response).to have_status_code 409
             expect(last_response.body).to match /AsyncServiceInstanceOperationInProgress/
 
             { status: 200, body: {}.to_json }
@@ -727,7 +666,7 @@ module VCAP::CloudController
 
         it 'should show an error message for unbind operation' do
           delete "/v2/service_bindings/#{service_binding.guid}", '', json_headers(headers_for(developer))
-          expect(last_response).to have_status_code 400
+          expect(last_response).to have_status_code 409
           expect(last_response.body).to match 'AsyncServiceInstanceOperationInProgress'
           expect(ServiceBinding.find(guid: service_binding.guid)).not_to be_nil
         end

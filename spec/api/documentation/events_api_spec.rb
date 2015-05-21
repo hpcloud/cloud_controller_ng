@@ -5,9 +5,13 @@ require 'cgi'
 resource 'Events', type: [:api, :legacy_api] do
   DOCUMENTED_EVENT_TYPES = %w(
     app.crash
+    audit.app.start
+    audit.app.stop
     audit.app.update
     audit.app.create
     audit.app.delete-request
+    audit.app.ssh-authorized
+    audit.app.ssh-unauthorized
     audit.space.create
     audit.space.update
     audit.space.delete-request
@@ -66,7 +70,7 @@ resource 'Events', type: [:api, :legacy_api] do
 
     let(:test_app) { VCAP::CloudController::App.make }
     let(:test_user) { VCAP::CloudController::User.make }
-    let(:test_user_email) { 'user@email.com' }
+    let(:test_user_email) { 'user@example.com' }
     let(:test_space) { VCAP::CloudController::Space.make }
     let(:test_organization) { VCAP::CloudController::Organization.make }
 
@@ -119,7 +123,7 @@ resource 'Events', type: [:api, :legacy_api] do
     end
 
     example 'List App Create Events' do
-      app_event_repository.record_app_create(test_app, test_app.space, test_user, test_user_email, app_request)
+      app_event_repository.record_app_create(test_app, test_app.space, test_user.guid, test_user_email, app_request)
 
       client.get '/v2/events?q=type:audit.app.create', {}, headers
       expect(status).to eq(200)
@@ -132,6 +136,38 @@ resource 'Events', type: [:api, :legacy_api] do
                                actee_name: test_app.name,
                                space_guid: test_app.space.guid,
                                metadata: { 'request' => expected_app_request }
+    end
+
+    example 'List App Start Events' do
+      app_event_repository.record_app_start(test_app, test_user.guid, test_user_email)
+
+      client.get '/v2/events?q=type:audit.app.start', {}, headers
+      expect(status).to eq(200)
+      standard_entity_response parsed_response['resources'][0], :event,
+                               actor_type: 'user',
+                               actor: test_user.guid,
+                               actor_name: test_user_email,
+                               actee_type: 'app',
+                               actee: test_app.guid,
+                               actee_name: test_app.name,
+                               space_guid: test_app.space.guid,
+                               metadata: {}
+    end
+
+    example 'List App Stop Events' do
+      app_event_repository.record_app_stop(test_app, test_user.guid, test_user_email)
+
+      client.get '/v2/events?q=type:audit.app.stop', {}, headers
+      expect(status).to eq(200)
+      standard_entity_response parsed_response['resources'][0], :event,
+                              actor_type: 'user',
+                              actor: test_user.guid,
+                              actor_name: test_user_email,
+                              actee_type: 'app',
+                              actee: test_app.guid,
+                              actee_name: test_app.name,
+                              space_guid: test_app.space.guid,
+                              metadata: {}
     end
 
     example 'List App Exited Events' do
@@ -151,7 +187,7 @@ resource 'Events', type: [:api, :legacy_api] do
     end
 
     example 'List App Update Events' do
-      app_event_repository.record_app_update(test_app, test_app.space, test_user, test_user_email, app_request)
+      app_event_repository.record_app_update(test_app, test_app.space, test_user.guid, test_user_email, app_request)
 
       client.get '/v2/events?q=type:audit.app.update', {}, headers
       expect(status).to eq(200)
@@ -169,7 +205,7 @@ resource 'Events', type: [:api, :legacy_api] do
     end
 
     example 'List App Delete Events' do
-      app_event_repository.record_app_delete_request(test_app, test_app.space, test_user, test_user_email, false)
+      app_event_repository.record_app_delete_request(test_app, test_app.space, test_user.guid, test_user_email, false)
 
       client.get '/v2/events?q=type:audit.app.delete-request', {}, headers
       expect(status).to eq(200)
@@ -185,9 +221,9 @@ resource 'Events', type: [:api, :legacy_api] do
     end
 
     example 'List events associated with an App since January 1, 2014' do
-      app_event_repository.record_app_create(test_app, test_app.space, test_user, test_user_email, app_request)
-      app_event_repository.record_app_update(test_app, test_app.space, test_user, test_user_email, app_request)
-      app_event_repository.record_app_delete_request(test_app, test_app.space, test_user, test_user_email, false)
+      app_event_repository.record_app_create(test_app, test_app.space, test_user.guid, test_user_email, app_request)
+      app_event_repository.record_app_update(test_app, test_app.space, test_user.guid, test_user_email, app_request)
+      app_event_repository.record_app_delete_request(test_app, test_app.space, test_user.guid, test_user_email, false)
 
       client.get "/v2/events?q=actee:#{test_app.guid}&q=#{CGI.escape('timestamp>2014-01-01 00:00:00-04:00')}", {}, headers
       expect(status).to eq(200)

@@ -19,9 +19,7 @@ module VCAP::Services::ServiceBrokers::V2
       @response_parser.parse_catalog(CATALOG_PATH, response)
     end
 
-    # The broker is expected to guarantee uniqueness of instance_id.
-    # raises ServiceBrokerConflict if the id is already in use
-    def provision(instance, request_attrs: {}, accepts_incomplete: false)
+    def provision(instance, arbitrary_parameters: {}, accepts_incomplete: false)
       path = service_instance_resource_path(instance, accepts_incomplete: accepts_incomplete)
 
       body_parameters = {
@@ -30,7 +28,8 @@ module VCAP::Services::ServiceBrokers::V2
         organization_guid: instance.organization.guid,
         space_guid: instance.space.guid,
       }
-      body_parameters[:parameters] = request_attrs['parameters'] if request_attrs['parameters']
+
+      body_parameters[:parameters] = arbitrary_parameters if arbitrary_parameters.present?
       response = @http_client.put(path, body_parameters)
 
       parsed_response = @response_parser.parse_provision_or_bind(path, response)
@@ -62,31 +61,25 @@ module VCAP::Services::ServiceBrokers::V2
     end
 
     def fetch_service_instance_state(instance)
-      path = service_instance_resource_path(instance)
+      path = service_instance_last_operation_path(instance)
       response = @http_client.get(path)
       parsed_response = @response_parser.parse_fetch_state(path, response)
-      last_operation_hash = parsed_response['last_operation'] || {}
+      last_operation_hash = parsed_response.delete('last_operation') || {}
 
-      if parsed_response.empty?
-        state = (instance.last_operation.type == 'delete' ? 'succeeded' : 'failed')
-        {
-          last_operation: {
-            state: state,
-            description: ''
+      state = extract_state(instance, last_operation_hash)
+
+      result = {
+        last_operation:
+          {
+            state: state
           }
-        }
-      else
-        {
-          dashboard_url:  parsed_response['dashboard_url'],
-          last_operation: {
-            state:        last_operation_hash['state'],
-            description:  last_operation_hash['description'],
-          }
-        }
-      end
+      }
+
+      result[:last_operation][:description] = last_operation_hash['description'] if last_operation_hash['description']
+      result.merge(parsed_response.symbolize_keys)
     end
 
-    def bind(binding, request_attrs: {})
+    def bind(binding, arbitrary_parameters: {})
       path = service_binding_resource_path(binding)
       attr = {
           service_id:  binding.service.broker_provided_id,
@@ -96,7 +89,7 @@ module VCAP::Services::ServiceBrokers::V2
         attr[:app_guid] = binding.app_guid
       end
 
-      attr[:parameters] = request_attrs['parameters'] if request_attrs['parameters']
+      attr[:parameters] = arbitrary_parameters if arbitrary_parameters.present?
 
       response = @http_client.put(path, attr)
       parsed_response = @response_parser.parse_provision_or_bind(path, response)
@@ -150,7 +143,7 @@ module VCAP::Services::ServiceBrokers::V2
       raise VCAP::Errors::ApiError.new_from_details('ServiceInstanceDeprovisionFailed', e.message)
     end
 
-    def update_service_plan(instance, plan, accepts_incomplete: false, parameters: nil)
+    def update_service_plan(instance, plan, accepts_incomplete: false, arbitrary_parameters: nil)
       path = service_instance_resource_path(instance, accepts_incomplete: accepts_incomplete)
 
       body_hash = {
@@ -162,7 +155,7 @@ module VCAP::Services::ServiceBrokers::V2
           space_id: instance.space.guid
         }
       }
-      body_hash[:parameters] = parameters if parameters
+      body_hash[:parameters] = arbitrary_parameters if arbitrary_parameters
       response = @http_client.patch(path, body_hash)
 
       parsed_response = @response_parser.parse_update(path, response)
@@ -201,6 +194,20 @@ module VCAP::Services::ServiceBrokers::V2
     end
 
     private
+
+    def extract_state(instance, last_operation_hash)
+      return last_operation_hash['state'] unless last_operation_hash.empty?
+
+      if instance.last_operation.type == 'delete'
+        'succeeded'
+      else
+        'failed'
+      end
+    end
+
+    def service_instance_last_operation_path(instance)
+      "#{service_instance_resource_path(instance)}/last_operation"
+    end
 
     def service_binding_resource_path(binding)
       "/v2/service_instances/#{binding.service_instance.guid}/service_bindings/#{binding.guid}"

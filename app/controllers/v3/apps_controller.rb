@@ -3,6 +3,7 @@ require 'cloud_controller/paging/pagination_options'
 require 'queries/app_delete_fetcher'
 require 'queries/app_fetcher'
 require 'queries/app_list_fetcher'
+require 'queries/process_list_fetcher'
 require 'actions/app_delete'
 require 'actions/app_update'
 require 'actions/app_start'
@@ -10,6 +11,7 @@ require 'actions/app_stop'
 require 'actions/app_create'
 require 'queries/assign_current_droplet_fetcher'
 require 'actions/set_current_droplet'
+require 'messages/app_create_message'
 
 module VCAP::CloudController
   class AppsV3Controller < RestController::BaseController
@@ -20,7 +22,7 @@ module VCAP::CloudController
     end
 
     def inject_dependencies(dependencies)
-      @app_presenter     = dependencies[:app_presenter]
+      @app_presenter = dependencies[:app_presenter]
     end
 
     get '/v3/apps', :list
@@ -31,7 +33,6 @@ module VCAP::CloudController
       pagination_options = PaginationOptions.from_params(params)
       facets = params.slice('guids', 'space_guids', 'organization_guids', 'names')
 
-      paginated_apps = []
       if membership.admin?
         paginated_apps = AppListFetcher.new.fetch_all(pagination_options, facets)
       else
@@ -58,8 +59,10 @@ module VCAP::CloudController
     post '/v3/apps', :create
     def create
       check_write_permissions!
-      message = AppCreateMessage.create_from_http_request(body)
-      bad_request!(message.error) if message.error
+
+      request = parse_and_validate_json(body)
+      message = AppCreateMessage.create_from_http_request(request)
+      unprocessable!(message.errors.full_messages) unless message.valid?
 
       space_not_found! unless membership.has_any_roles?([Membership::SPACE_DEVELOPER], message.space_guid)
 
@@ -99,7 +102,7 @@ module VCAP::CloudController
       app_not_found! if app.nil? || !can_read?(space.guid, org.guid)
       unauthorized! unless can_delete?(space.guid)
 
-      AppDelete.new(current_user, current_user_email).delete(app)
+      AppDelete.new(current_user.guid, current_user_email).delete(app)
 
       [HTTP::NO_CONTENT]
     end
@@ -218,14 +221,6 @@ module VCAP::CloudController
       can_update?(space_guid)
     end
 
-    def parse_and_validate_json(body)
-      parsed = body && MultiJson.load(body)
-      raise MultiJson::ParseError.new('invalid request body') unless parsed.is_a?(Hash)
-      parsed
-    rescue MultiJson::ParseError => e
-      bad_request!(e.message)
-    end
-
     def validate_allowed_params(params)
       schema = {
         'names' => ->(v) { v.is_a? Array },
@@ -239,7 +234,7 @@ module VCAP::CloudController
       }
       params.each do |key, value|
         validator = schema[key]
-        raise InvalidParam.new("Unknow query param #{key}") if validator.nil?
+        raise InvalidParam.new("Unknown query param #{key}") if validator.nil?
         raise InvalidParam.new("Invalid type for param #{key}") if !validator.call(value)
       end
     end
@@ -260,20 +255,12 @@ module VCAP::CloudController
       raise VCAP::Errors::ApiError.new_from_details('ResourceNotFound', 'App not found')
     end
 
-    def bad_request!(message)
-      raise VCAP::Errors::ApiError.new_from_details('MessageParseError', message)
-    end
-
     def unauthorized!
       raise VCAP::Errors::ApiError.new_from_details('NotAuthorized')
     end
 
     def unprocessable!(message)
       raise VCAP::Errors::ApiError.new_from_details('UnprocessableEntity', message)
-    end
-
-    def invalid_param!(message)
-      raise VCAP::Errors::ApiError.new_from_details('BadQueryParameter', message)
     end
   end
 end

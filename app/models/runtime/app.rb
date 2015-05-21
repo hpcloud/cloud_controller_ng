@@ -50,9 +50,9 @@ module VCAP::CloudController
                       :package_state, :package_hash, :health_check_type, :health_check_timeout,
                       :system_env_json, :distribution_zone,
                       :description, :sso_enabled, :restart_required, :autoscale_enabled,
-		      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-		      :droplet_count, :staging_failed_reason, :diego,
-		      :docker_image, :package_updated_at, :detected_start_command
+                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+                      :droplet_count, :staging_failed_reason, :diego,
+                      :docker_image, :package_updated_at, :detected_start_command, :enable_ssh
 
     import_attributes :name, :production, :space_guid, :stack_guid, :buildpack,
                       :detected_buildpack, :environment_json, :memory, :instances, :disk_quota,
@@ -60,9 +60,9 @@ module VCAP::CloudController
                       :service_binding_guids, :route_guids,
                       :health_check_timeout,
                       :health_check_type, :distribution_zone,
-		      :description, :sso_enabled, :autoscale_enabled,
-		      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-		      :diego, :docker_image, :app_guid
+                      :description, :sso_enabled, :autoscale_enabled,
+                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+                      :diego, :docker_image, :app_guid, :enable_ssh
 
     strip_attributes :name
 
@@ -111,7 +111,8 @@ module VCAP::CloudController
         InstancesPolicy.new(self),
         HealthCheckPolicy.new(self, health_check_timeout),
         CustomBuildpackPolicy.new(self, custom_buildpacks_enabled?),
-        DockerPolicy.new(self)
+        DockerPolicy.new(self),
+        EnableSshPolicy.new(self)
       ]
     end
 
@@ -159,6 +160,7 @@ module VCAP::CloudController
       self.stack ||= Stack.default
       self.memory ||= Config.config[:default_app_memory]
       self.disk_quota ||= Config.config[:default_app_disk_in_mb]
+      self.enable_ssh = Config.config[:allow_app_ssh_access] && space.allow_ssh if enable_ssh.nil?
 
       if Config.config[:instance_file_descriptor_limit]
         self.file_descriptors ||= Config.config[:instance_file_descriptor_limit]
@@ -281,11 +283,16 @@ module VCAP::CloudController
       #
       # * transitioning to STARTED
       # * memory is changed
-      # * routes are changed
+      # * health check type is changed
+      # * enable_ssh is changed
       #
       # this is to indicate that the running state of an application has changed,
       # and that the system should converge on this new version.
-      (column_changed?(:state) || column_changed?(:memory) || column_changed?(:health_check_type) || (column_changed?(:droplet_hash) && column_change(:droplet_hash)[0])) && started?
+      (column_changed?(:state) ||
+       column_changed?(:memory) ||
+       column_changed?(:health_check_type) ||
+       column_changed?(:enable_ssh) ||
+       (column_changed?(:droplet_hash) && column_change(:droplet_hash)[0])) && started?
     end
 
     def set_new_version
@@ -386,8 +393,7 @@ module VCAP::CloudController
 
     def metadata_with_command
       result = metadata_without_command || self.metadata = {}
-      result.merge!('command' => command) if command
-      result
+      command ? result.merge('command' => command) : result
     end
     alias_method_chain :metadata, :command
 
@@ -628,7 +634,9 @@ module VCAP::CloudController
     end
 
     def uris
-      routes.map(&:fqdn)
+      routes.map do |r|
+        "#{r.fqdn}#{r.path}"
+      end
     end
 
     def mark_as_staged
@@ -759,16 +767,26 @@ module VCAP::CloudController
       super(opts)
     end
 
+    def is_v3?
+      !is_v2?
+    end
+
+    def is_v2?
+      app.nil?
+    end
+
     def handle_add_route(route)
       mark_routes_changed(route)
-      app_event_repository = Repositories::Runtime::AppEventRepository.new
-      app_event_repository.record_map_route(self, route, SecurityContext.current_user, SecurityContext.current_user_email)
+      if is_v2?
+        Repositories::Runtime::AppEventRepository.new.record_map_route(self, route, SecurityContext.current_user.try(:guid), SecurityContext.current_user_email)
+      end
     end
 
     def handle_remove_route(route)
       mark_routes_changed(route)
-      app_event_repository = Repositories::Runtime::AppEventRepository.new
-      app_event_repository.record_unmap_route(self, route, SecurityContext.current_user, SecurityContext.current_user_email)
+      if is_v2?
+        Repositories::Runtime::AppEventRepository.new.record_unmap_route(self, route, SecurityContext.current_user.try(:guid), SecurityContext.current_user_email)
+      end
     end
 
     private

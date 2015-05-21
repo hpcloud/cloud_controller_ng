@@ -1,5 +1,7 @@
---color
---order defined
+--backtrace
+--colour
+--profile
+--order rand
 
 config.backtrace_exclusion_patterns = [
 %r{/home/\w+/\.rvm/gems/ruby-[.\d\w]+/gems/rspec},

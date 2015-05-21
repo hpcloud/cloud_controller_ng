@@ -1,13 +1,12 @@
 require 'actions/service_binding_delete'
-require 'actions/deletion_errors'
 require 'actions/locks/deleter_lock'
 
 module VCAP::CloudController
   class ServiceInstanceDelete
-    def initialize(accepts_incomplete: false, event_repository_opts: nil, error_when_in_progress: false)
+    def initialize(accepts_incomplete: false, event_repository: nil, multipart_delete: false)
       @accepts_incomplete = accepts_incomplete
-      @event_repository_opts = event_repository_opts
-      @error_when_in_progress = error_when_in_progress
+      @event_repository = event_repository
+      @multipart_delete = multipart_delete
     end
 
     def delete(service_instance_dataset)
@@ -15,10 +14,13 @@ module VCAP::CloudController
         binding_errors = delete_service_bindings(service_instance)
         errors_accumulator.concat binding_errors
 
-        if binding_errors.empty?
+        key_errors = delete_service_keys(service_instance)
+        errors_accumulator.concat key_errors
+
+        if binding_errors.empty? && key_errors.empty?
           instance_errors = delete_service_instance(service_instance)
 
-          if service_instance.operation_in_progress? && @error_when_in_progress && instance_errors.empty?
+          if service_instance.operation_in_progress? && @multipart_delete && instance_errors.empty?
             errors_accumulator.push VCAP::Errors::ApiError.new_from_details('AsyncServiceInstanceOperationInProgress', service_instance.name)
           end
 
@@ -59,12 +61,16 @@ module VCAP::CloudController
       ServiceBindingDelete.new.delete(service_instance.service_bindings_dataset)
     end
 
+    def delete_service_keys(service_instance)
+      ServiceKeyDelete.new.delete(service_instance.service_keys_dataset)
+    end
+
     def build_fetch_job(service_instance)
       VCAP::CloudController::Jobs::Services::ServiceInstanceStateFetch.new(
         'service-instance-state-fetch',
         service_instance.client.attrs,
         service_instance.guid,
-        @event_repository_opts,
+        @event_repository,
         {},
       )
     end

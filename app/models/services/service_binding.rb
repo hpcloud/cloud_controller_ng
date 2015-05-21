@@ -64,21 +64,6 @@ module VCAP::CloudController
       super(opts)
     end
 
-    def bind!
-      begin
-        client.bind(self)
-      rescue Errno::ECONNREFUSED
-        raise VCAP::Errors::ApiError.new_from_details("ServiceInstanceInvalid",
-                                          bind_failure_suggestion($!.message))
-      end
-      begin
-        save
-      rescue => e
-        safe_unbind
-        raise e
-      end
-    end
-
     def in_suspended_org?
       app.in_suspended_org?
     end

@@ -1,9 +1,11 @@
 require 'spec_helper'
+require 'messages/app_create_message'
 
 module VCAP::CloudController
   describe AppCreate do
     let(:user) { double(:user, guid: 'single') }
-    subject(:app_create) { AppCreate.new(user, 'quotes') }
+    let(:user_email) { 'user-email' }
+    subject(:app_create) { AppCreate.new(user, user_email) }
 
     describe '#create' do
       let(:space) { Space.make }
@@ -11,7 +13,7 @@ module VCAP::CloudController
       let(:environment_variables) { { 'BAKED' => 'POTATO' } }
 
       it 'create an app' do
-        message = AppCreateMessage.new('name' => 'my-app', 'space_guid' => space_guid, 'environment_variables' => environment_variables)
+        message = AppCreateMessage.new(name: 'my-app', space_guid: space_guid, environment_variables: environment_variables)
         app = app_create.create(message)
         expect(app.name).to eq('my-app')
         expect(app.space).to eq(space)
@@ -26,14 +28,16 @@ module VCAP::CloudController
       end
 
       it 'creates an audit event' do
-        message = AppCreateMessage.new('name' => 'my-app', 'space_guid' => space_guid, 'environment_variables' => environment_variables)
-        app = app_create.create(message)
-        event = Event.last
-        expect(event.type).to eq('audit.app.create')
-        expect(event.actor).to eq('single')
-        expect(event.actor_name).to eq('quotes')
-        expect(event.actee_type).to eq('v3-app')
-        expect(event.actee).to eq(app.guid)
+        message = AppCreateMessage.new(name: 'my-app', space_guid: space_guid, environment_variables: environment_variables)
+        expect_any_instance_of(Repositories::Runtime::AppEventRepository).to receive(:record_app_create).with(
+            instance_of(AppModel),
+            space,
+            user.guid,
+            user_email,
+            message.as_json
+          )
+
+        app_create.create(message)
       end
     end
   end

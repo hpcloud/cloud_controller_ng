@@ -27,9 +27,10 @@ module VCAP::CloudController
           expect(SecurityContext.token).to be_nil
         end
 
-        it 'sets the security context token' do
+        it 'sets the security context token and the raw token' do
           configurer.configure(auth_token)
           expect(SecurityContext.token).to eq(token_information)
+          expect(SecurityContext.auth_token).to eq(auth_token)
         end
 
         context 'when a user_id is present' do
@@ -96,7 +97,8 @@ module VCAP::CloudController
           it 'sets the SecurityContext user and token to error values' do
             expect { configurer.configure(auth_token) }.not_to raise_error
             expect(SecurityContext.current_user).to be_nil
-            expect(SecurityContext.token).to eq :invalid_token
+            expect(SecurityContext.token).to eq(:invalid_token)
+            expect(SecurityContext.auth_token).to eq(auth_token)
           end
         end
 
@@ -110,6 +112,7 @@ module VCAP::CloudController
             expect { configurer.configure(auth_token) }.not_to raise_error
             expect(SecurityContext.current_user).to be_nil
             expect(SecurityContext.token).to be_nil
+            expect(SecurityContext.auth_token).to eq(auth_token)
           end
         end
       end

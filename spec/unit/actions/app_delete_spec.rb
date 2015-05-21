@@ -3,7 +3,7 @@ require 'actions/app_delete'
 
 module VCAP::CloudController
   describe AppDelete do
-    subject(:app_delete) { AppDelete.new(user, user_email) }
+    subject(:app_delete) { AppDelete.new(user.guid, user_email) }
 
     describe '#delete' do
       let!(:app_model) { AppModel.make }
@@ -20,13 +20,14 @@ module VCAP::CloudController
         end
 
         it 'creates an audit event' do
+          expect_any_instance_of(Repositories::Runtime::AppEventRepository).to receive(:record_app_delete_request).with(
+            app_model,
+            app_model.space,
+            user.guid,
+            user_email
+          )
+
           app_delete.delete(app_dataset)
-          event = Event.last
-          expect(event.type).to eq('audit.app.delete')
-          expect(event.actor).to eq(user.guid)
-          expect(event.actor_name).to eq(user_email)
-          expect(event.actee_type).to eq('v3-app')
-          expect(event.actee).to eq(app_model.guid)
         end
 
         context 'when the app has associated routes' do

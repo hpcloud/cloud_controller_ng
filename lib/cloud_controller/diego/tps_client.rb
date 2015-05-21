@@ -8,43 +8,13 @@ module VCAP::CloudController
       end
 
       def lrp_instances(app)
-        if @url.nil?
-          raise Errors::InstancesUnavailable.new('invalid config')
-        end
-
         guid = ProcessGuid.from_app(app)
+        fetch_lrp_status(guid)
+      end
 
-        path = "#{@tps_url}/lrps/#{guid}"
-        logger.info('lrp.instances', process_guid: guid)
-
-        begin
-          tries ||= 3
-          response = http_client.get(path)
-        rescue Errno::ECONNREFUSED => e
-          retry unless (tries -= 1).zero?
-          raise Errors::InstancesUnavailable.new(e)
-        end
-
-        raise Errors::InstancesUnavailable.new("response code: #{response.code}") unless response.code == '200'
-
-        logger.info('lrp.instances.response', process_guid: guid, response_code: response.code)
-
-        result = []
-
-        tps_instances = JSON.parse(response.body)
-        tps_instances.each do |instance|
-          info = {
-            process_guid: instance['process_guid'],
-            instance_guid: instance['instance_guid'],
-            index: instance['index'],
-            state: instance['state'].upcase,
-            since: instance['since_in_ns'].to_i / 1_000_000_000,
-          }
-          info[:details] = instance['details'] if instance['details']
-          result << info
-        end
-
-        result
+      def lrp_instances_stats(app)
+        guid = ProcessGuid.from_app(app)
+        fetch_lrp_stats(guid)
       end
 
       private
@@ -54,6 +24,78 @@ module VCAP::CloudController
         http_client.read_timeout = 10
         http_client.open_timeout = 10
         http_client
+      end
+
+      def fetch_lrp_status(guid)
+        logger.info('lrp.instances.status', process_guid: guid)
+
+        path = "/v1/actual_lrps/#{guid}"
+        tps_instances = fetch_from_tps(path, {})
+
+        result = []
+
+        tps_instances.each do |instance|
+          info = build_cc_instance(instance)
+          result << info
+        end
+
+        result
+      end
+
+      def fetch_lrp_stats(guid)
+        logger.info('lrp.instances.stats', process_guid: guid)
+
+        path = "/v1/actual_lrps/#{guid}/stats"
+        headers = { 'Authorization' => VCAP::CloudController::SecurityContext.auth_token }
+        tps_instances = fetch_from_tps(path, headers)
+
+        result = []
+
+        tps_instances.each do |instance|
+          info = build_cc_instance(instance)
+          info[:stats] = instance['stats'] || {}
+          result << info
+        end
+
+        result
+      end
+
+      def fetch_from_tps(path, headers)
+        if @url.nil?
+          raise Errors::InstancesUnavailable.new('TPS URL not configured')
+        end
+
+        response = nil
+        tries = 3
+
+        begin
+          response = http_client.get2(path, headers)
+        rescue Errno::ECONNREFUSED => e
+          tries -= 1
+          retry unless tries == 0
+          raise Errors::InstancesUnavailable.new(e)
+        end
+
+        if response.code != '200'
+          err_msg = "response code: #{response.code}, response body: #{response.body}"
+          raise Errors::InstancesUnavailable.new(err_msg)
+        end
+
+        JSON.parse(response.body)
+      rescue JSON::JSONError => e
+        raise Errors::InstancesUnavailable.new(e)
+      end
+
+      def build_cc_instance(instance)
+        info = {
+          process_guid: instance['process_guid'],
+          instance_guid: instance['instance_guid'],
+          index: instance['index'],
+          state: instance['state'].upcase,
+          since: instance['since_in_ns'].to_i / 1_000_000_000,
+        }
+        info[:details] = instance['details'] if instance['details']
+        info
       end
 
       def logger

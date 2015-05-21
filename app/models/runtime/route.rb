@@ -3,6 +3,8 @@ require 'uri'
 
 module VCAP::CloudController
   class Route < Sequel::Model
+    ROUTE_REGEX = /\A#{URI.regexp}\Z/.freeze
+
     class InvalidDomainRelation < VCAP::Errors::InvalidRelation; end
     class InvalidAppRelation < VCAP::Errors::InvalidRelation; end
     class InvalidOrganizationRelation < VCAP::Errors::InvalidRelation; end
@@ -19,8 +21,8 @@ module VCAP::CloudController
 
     add_association_dependencies apps: :nullify
 
-    export_attributes :host, :domain_guid, :space_guid
-    import_attributes :host, :domain_guid, :space_guid, :app_guids
+    export_attributes :host, :domain_guid, :space_guid, :path
+    import_attributes :host, :domain_guid, :space_guid, :app_guids, :path
 
     def before_destroy
       super
@@ -42,6 +44,11 @@ module VCAP::CloudController
       }
     end
 
+    alias_method :old_path, :path
+    def path
+      old_path.nil? ? '' : old_path
+    end
+
     def organization
       space.organization if space
     end
@@ -53,7 +60,9 @@ module VCAP::CloudController
       errors.add(:host, :presence) if host.nil?
 
       validates_format /^([\w\-]+|\*)$/, :host if host && !host.empty?
-      validates_unique [:host, :domain_id]
+
+      validates_unique [:host, :domain_id, :path]
+      validate_path
 
       main_domain = Kato::Config.get("cluster", "endpoint").gsub(/^api\./, '')
       builtin_routes = ["www", "api", "login", "ports", "aok", "logs"]
@@ -83,6 +92,14 @@ module VCAP::CloudController
 
       validate_total_routes
       errors.add(:host, :domain_conflict) if domains_match?
+    end
+
+    def validate_path
+      return if path == ''
+
+      if !ROUTE_REGEX.match("pathcheck://#{host}#{path}") || path == '/' || path[0] != '/' || path =~ /\?/
+        errors.add(:path, :invalid_path)
+      end
     end
 
     def domains_match?

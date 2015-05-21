@@ -6,9 +6,10 @@ module VCAP::CloudController
       Thread.current[:vcap_roles] = VCAP::CloudController::Roles.new(nil)
     end
 
-    def self.set(user, token=nil)
+    def self.set(user, token=nil, auth_token=nil)
       Thread.current[:vcap_user] = user
       Thread.current[:vcap_token] = token
+      Thread.current[:vcap_auth_token] = auth_token
       Thread.current[:vcap_roles] = VCAP::CloudController::Roles.new(token)
     end
 
@@ -26,6 +27,10 @@ module VCAP::CloudController
 
     def self.token
       Thread.current[:vcap_token]
+    end
+
+    def self.auth_token
+      Thread.current[:vcap_auth_token]
     end
 
     def self.missing_token?

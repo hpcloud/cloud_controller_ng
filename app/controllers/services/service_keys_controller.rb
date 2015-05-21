@@ -5,10 +5,17 @@ module VCAP::CloudController
     define_attributes do
       to_one :service_instance
       attribute :name, String
+      attribute :parameters, Hash, default: nil
     end
 
     get path,      :enumerate
+    get path_guid, :read
+
     query_parameters :name, :service_instance_guid
+
+    def self.not_found_exception(guid)
+      Errors::ApiError.new_from_details('ServiceKeyNotFound', guid)
+    end
 
     def self.dependencies
       [:services_event_repository]
@@ -36,7 +43,7 @@ module VCAP::CloudController
     rescue ServiceKeyManager::ServiceInstanceNotFound
       raise VCAP::Errors::ApiError.new_from_details('ServiceInstanceNotFound', @request_attrs['service_instance_guid'])
     rescue ServiceKeyManager::ServiceInstanceNotBindable
-      raise VCAP::Errors::ApiError.new_from_details('UnbindableService')
+      raise VCAP::Errors::ApiError.new_from_details('ServiceKeyNotSupported')
     end
 
     delete path_guid, :delete

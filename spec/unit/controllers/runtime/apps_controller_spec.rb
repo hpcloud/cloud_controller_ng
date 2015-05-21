@@ -40,6 +40,7 @@ module VCAP::CloudController
       it do
         expect(described_class).to have_creatable_attributes(
           {
+            enable_ssh:           { type: 'bool', default: false },
             buildpack:            { type: 'string' },
             command:              { type: 'string' },
             console:              { type: 'bool', default: false },
@@ -73,6 +74,7 @@ module VCAP::CloudController
       it do
         expect(described_class).to have_updatable_attributes(
           {
+            enable_ssh:            { type: 'bool' },
             buildpack:             { type: 'string' },
             command:               { type: 'string' },
             console:               { type: 'bool' },
@@ -154,7 +156,7 @@ module VCAP::CloudController
           post '/v2/apps', MultiJson.dump(initial_hash), json_headers(admin_headers)
 
           app = App.last
-          expect(app_event_repository).to have_received(:record_app_create).with(app, app.space, admin_user, SecurityContext.current_user_email, expected_attrs)
+          expect(app_event_repository).to have_received(:record_app_create).with(app, app.space, admin_user.guid, SecurityContext.current_user_email, expected_attrs)
         end
       end
 
@@ -166,6 +168,88 @@ module VCAP::CloudController
         it 'does not allow user to create new app (spot check)' do
           post '/v2/apps', MultiJson.dump(initial_hash), json_headers(headers_for(make_developer_for_space(space)))
           expect(last_response.status).to eq(403)
+        end
+      end
+
+      context 'when allow_ssh is enabled globally' do
+        before do
+          allow(VCAP::CloudController::Config.config).to receive(:[]).with(anything).and_call_original
+          allow(VCAP::CloudController::Config.config).to receive(:[]).with(:allow_app_ssh_access).and_return true
+        end
+
+        context 'when allow_ssh is enabled on the space' do
+          before do
+            space.allow_ssh = true
+            space.save
+          end
+
+          it 'allows enable_ssh to be set to true' do
+            post '/v2/apps', MultiJson.dump(initial_hash.merge(enable_ssh: true)), json_headers(admin_headers)
+            expect(last_response.status).to eq(201)
+          end
+
+          it 'allows enable_ssh to be set to false' do
+            post '/v2/apps', MultiJson.dump(initial_hash.merge(enable_ssh: false)), json_headers(admin_headers)
+            expect(last_response.status).to eq(201)
+          end
+        end
+
+        context 'when allow_ssh is disabled on the space' do
+          before do
+            space.allow_ssh = false
+            space.save
+          end
+
+          it 'errors when attempting to set enable_ssh to true' do
+            post '/v2/apps', MultiJson.dump(initial_hash.merge(enable_ssh: true)), json_headers(admin_headers)
+            expect(last_response.status).to eq(400)
+          end
+
+          it 'allows enable_ssh to be set to false' do
+            post '/v2/apps', MultiJson.dump(initial_hash.merge(enable_ssh: false)), json_headers(admin_headers)
+            expect(last_response.status).to eq(201)
+          end
+        end
+      end
+
+      context 'when allow_ssh is disabled globally' do
+        before do
+          allow(VCAP::CloudController::Config.config).to receive(:[]).with(anything).and_call_original
+          allow(VCAP::CloudController::Config.config).to receive(:[]).with(:allow_app_ssh_access).and_return false
+        end
+
+        context 'when allow_ssh is enabled on the space' do
+          before do
+            space.allow_ssh = true
+            space.save
+          end
+
+          it 'errors when attempting to set enable_ssh to true' do
+            post '/v2/apps', MultiJson.dump(initial_hash.merge(enable_ssh: true)), json_headers(admin_headers)
+            expect(last_response.status).to eq(400)
+          end
+
+          it 'allows enable_ssh to be set to false' do
+            post '/v2/apps', MultiJson.dump(initial_hash.merge(enable_ssh: false)), json_headers(admin_headers)
+            expect(last_response.status).to eq(201)
+          end
+        end
+
+        context 'when allow_ssh is disabled on the space' do
+          before do
+            space.allow_ssh = false
+            space.save
+          end
+
+          it 'errors when attempting to set enable_ssh to true' do
+            post '/v2/apps', MultiJson.dump(initial_hash.merge(enable_ssh: true)), json_headers(admin_headers)
+            expect(last_response.status).to eq(400)
+          end
+
+          it 'allows enable_ssh to be set to false' do
+            post '/v2/apps', MultiJson.dump(initial_hash.merge(enable_ssh: false)), json_headers(admin_headers)
+            expect(last_response.status).to eq(201)
+          end
         end
       end
     end
@@ -203,6 +287,88 @@ module VCAP::CloudController
         end
       end
 
+      context 'when allow_ssh is enabled globally' do
+        before do
+          allow(VCAP::CloudController::Config.config).to receive(:[]).with(anything).and_call_original
+          allow(VCAP::CloudController::Config.config).to receive(:[]).with(:allow_app_ssh_access).and_return true
+        end
+
+        context 'when allow_ssh is enabled on the space' do
+          before do
+            app_obj.space.allow_ssh = true
+            app_obj.space.save
+          end
+
+          it 'allows enable_ssh to be set to true' do
+            put "/v2/apps/#{app_obj.guid}", '{ "allow_ssh": true }', json_headers(headers_for(make_developer_for_space(app_obj.space)))
+            expect(last_response.status).to eq(201)
+          end
+
+          it 'allows enable_ssh to be set to false' do
+            put "/v2/apps/#{app_obj.guid}", '{ "enable_ssh": false }', json_headers(headers_for(make_developer_for_space(app_obj.space)))
+            expect(last_response.status).to eq(201)
+          end
+        end
+
+        context 'when allow_ssh is disabled on the space' do
+          before do
+            app_obj.space.allow_ssh = false
+            app_obj.space.save
+          end
+
+          it 'errors when attempting to set allow_ssh to true' do
+            put "/v2/apps/#{app_obj.guid}", '{ "enable_ssh": true }', json_headers(headers_for(make_developer_for_space(app_obj.space)))
+            expect(last_response.status).to eq(400)
+          end
+
+          it 'allows allow_ssh to be set to false' do
+            put "/v2/apps/#{app_obj.guid}", '{ "enable_ssh": false }', json_headers(headers_for(make_developer_for_space(app_obj.space)))
+            expect(last_response.status).to eq(201)
+          end
+        end
+      end
+
+      context 'when allow_ssh is disabled globally' do
+        before do
+          allow(VCAP::CloudController::Config.config).to receive(:[]).with(anything).and_call_original
+          allow(VCAP::CloudController::Config.config).to receive(:[]).with(:allow_app_ssh_access).and_return false
+        end
+
+        context 'when allow_ssh is enabled on the space' do
+          before do
+            app_obj.space.allow_ssh = true
+            app_obj.space.save
+          end
+
+          it 'errors when attempting to set enable_ssh to true' do
+            put "/v2/apps/#{app_obj.guid}", '{ "enable_ssh": true }', json_headers(headers_for(make_developer_for_space(app_obj.space)))
+            expect(last_response.status).to eq(400)
+          end
+
+          it 'allows enable_ssh to be set to false' do
+            put "/v2/apps/#{app_obj.guid}", '{ "enable_ssh": false }', json_headers(headers_for(make_developer_for_space(app_obj.space)))
+            expect(last_response.status).to eq(201)
+          end
+        end
+
+        context 'when allow_ssh is disabled on the space' do
+          before do
+            app_obj.space.allow_ssh = false
+            app_obj.space.save
+          end
+
+          it 'errors when attempting to set enable_ssh to true' do
+            put "/v2/apps/#{app_obj.guid}", '{ "enable_ssh": true }', json_headers(headers_for(make_developer_for_space(app_obj.space)))
+            expect(last_response.status).to eq(400)
+          end
+
+          it 'allows enable_ssh to be set to false' do
+            put "/v2/apps/#{app_obj.guid}", '{ "enable_ssh": false }', json_headers(headers_for(make_developer_for_space(app_obj.space)))
+            expect(last_response.status).to eq(201)
+          end
+        end
+      end
+
       describe 'events' do
         let(:update_hash) { { instances: 2, foo: 'foo_value' } }
 
@@ -210,10 +376,10 @@ module VCAP::CloudController
           it 'records app update with whitelisted attributes' do
             allow(app_event_repository).to receive(:record_app_update).and_call_original
 
-            expect(app_event_repository).to receive(:record_app_update) do |recorded_app, recorded_space, user, user_name, attributes|
+            expect(app_event_repository).to receive(:record_app_update) do |recorded_app, recorded_space, user_guid, user_name, attributes|
               expect(recorded_app.guid).to eq(app_obj.guid)
               expect(recorded_app.instances).to eq(2)
-              expect(user).to eq(admin_user)
+              expect(user_guid).to eq(admin_user.guid)
               expect(user_name).to eq(SecurityContext.current_user_email)
               expect(attributes).to eq({ 'instances' => 2 })
             end
@@ -291,7 +457,7 @@ module VCAP::CloudController
 
           delete_app
 
-          expect(app_event_repository).to have_received(:record_app_delete_request).with(app_obj, app_obj.space, admin_user, SecurityContext.current_user_email, false)
+          expect(app_event_repository).to have_received(:record_app_delete_request).with(app_obj, app_obj.space, admin_user.guid, SecurityContext.current_user_email, false)
         end
 
         it 'records the recursive query parameter when recursive'  do
@@ -299,7 +465,7 @@ module VCAP::CloudController
 
           delete "/v2/apps/#{app_obj.guid}?recursive=true", {}, json_headers(admin_headers)
 
-          expect(app_event_repository).to have_received(:record_app_delete_request).with(app_obj, app_obj.space, admin_user, SecurityContext.current_user_email, true)
+          expect(app_event_repository).to have_received(:record_app_delete_request).with(app_obj, app_obj.space, admin_user.guid, SecurityContext.current_user_email, true)
         end
 
         it 'does not record when the destroy fails' do

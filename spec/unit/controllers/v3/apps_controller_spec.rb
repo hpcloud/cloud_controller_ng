@@ -6,9 +6,6 @@ module VCAP::CloudController
     let(:user) { User.make }
     let(:req_body) { '' }
     let(:params) { {} }
-    let(:package_handler) { double(:package_handler) }
-    let(:package_presenter) { double(:package_presenter) }
-    let(:apps_handler) { double(:apps_handler) }
     let(:app_model) { nil }
     let(:app_presenter) { double(:app_presenter) }
     let(:membership) { double(:membership) }
@@ -21,10 +18,7 @@ module VCAP::CloudController
         req_body,
         nil,
         {
-          apps_handler:      apps_handler,
           app_presenter:     app_presenter,
-          packages_handler:  package_handler,
-          package_presenter: package_presenter
         },
       )
     end
@@ -35,7 +29,6 @@ module VCAP::CloudController
       allow(apps_controller).to receive(:membership).and_return(membership)
       allow(apps_controller).to receive(:current_user).and_return(User.make)
       allow(membership).to receive(:has_any_roles?).and_return(true)
-      allow(apps_handler).to receive(:show).and_return(app_model)
       allow(app_presenter).to receive(:present_json).and_return(app_response)
     end
 
@@ -72,7 +65,7 @@ module VCAP::CloudController
       end
 
       context 'query params' do
-        context('invalid param format') do
+        context 'invalid param format' do
           let(:names) { 'foo' }
           let(:params) { { 'names' => names } }
 
@@ -87,7 +80,7 @@ module VCAP::CloudController
           end
         end
 
-        context 'unknow query param' do
+        context 'unknown query param' do
           let(:bad_param) { 'foo' }
           let(:params) { { 'bad_param' => bad_param } }
 
@@ -97,7 +90,7 @@ module VCAP::CloudController
             }.to raise_error do |error|
               expect(error.name).to eq 'BadQueryParameter'
               expect(error.response_code).to eq 400
-              expect(error.message).to match('Unknow query param')
+              expect(error.message).to match('Unknown query param')
             end
           end
         end
@@ -125,12 +118,6 @@ module VCAP::CloudController
 
       before do
         allow(apps_controller).to receive(:check_read_permissions!)
-      end
-
-      it 'checks for read permissions' do
-        apps_controller.show(guid)
-
-        expect(apps_controller).to have_received(:check_read_permissions!)
       end
 
       it 'returns a 200' do
@@ -236,6 +223,19 @@ module VCAP::CloudController
           }.to raise_error do |error|
             expect(error.name).to eq 'MessageParseError'
             expect(error.response_code).to eq 400
+          end
+        end
+      end
+
+      context 'when the request has invalid data' do
+        let(:req_body) { '{ "name": false }' }
+
+        it 'returns an UnprocessableEntity error' do
+          expect {
+            apps_controller.create
+          }.to raise_error do |error|
+            expect(error.name).to eq 'UnprocessableEntity'
+            expect(error.response_code).to eq(422)
           end
         end
       end

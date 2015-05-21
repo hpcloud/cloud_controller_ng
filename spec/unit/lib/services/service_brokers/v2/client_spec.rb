@@ -165,14 +165,12 @@ module VCAP::Services::ServiceBrokers::V2
       end
 
       it 'passes arbitrary params in the broker request' do
-        request_attrs = {
-          'parameters' => {
+        arbitrary_parameters = {
             'some_param' => 'some-value'
-          }
         }
 
-        client.provision(instance, request_attrs: request_attrs)
-        expect(http_client).to have_received(:put).with(path, hash_including(parameters: request_attrs['parameters']))
+        client.provision(instance, arbitrary_parameters: arbitrary_parameters)
+        expect(http_client).to have_received(:put).with(path, hash_including(parameters: arbitrary_parameters))
       end
 
       context 'when the broker returns 204 (No Content)' do
@@ -313,11 +311,8 @@ module VCAP::Services::ServiceBrokers::V2
 
       let(:response_data) do
         {
-          'dashboard_url' => 'bar',
-          'last_operation' => {
-            'state' => 'succeeded',
-            'description' => '100% created'
-          }
+          'state' => 'succeeded',
+          'description' => '100% created'
         }
       end
 
@@ -338,14 +333,29 @@ module VCAP::Services::ServiceBrokers::V2
         client.fetch_service_instance_state(instance)
 
         expect(http_client).to have_received(:get).
-          with("/v2/service_instances/#{instance.guid}")
+          with("/v2/service_instances/#{instance.guid}/last_operation")
       end
 
       it 'returns the attributes to update the service instance model' do
         attrs = client.fetch_service_instance_state(instance)
-        expected_attrs = response_data.symbolize_keys
-        expected_attrs[:last_operation] = response_data['last_operation'].symbolize_keys
+        expected_attrs = { last_operation: response_data.symbolize_keys }
         expect(attrs).to eq(expected_attrs)
+      end
+
+      context 'when the broker provides other fields' do
+        let(:response_data) do
+          {
+            'state' => 'succeeded',
+            'description' => '100% created',
+            'foo' => 'bar'
+          }
+        end
+
+        it 'passes through the extra fields' do
+          attrs = client.fetch_service_instance_state(instance)
+          expect(attrs[:foo]).to eq 'bar'
+          expect(attrs[:last_operation]).to eq({ state: 'succeeded', description: '100% created' })
+        end
       end
 
       context 'when the broker returns 410' do
@@ -368,8 +378,7 @@ module VCAP::Services::ServiceBrokers::V2
             attrs = client.fetch_service_instance_state(instance)
             expect(attrs).to include(
               last_operation: {
-                state: 'succeeded',
-                description: ''
+                state: 'succeeded'
               }
             )
           end
@@ -388,11 +397,23 @@ module VCAP::Services::ServiceBrokers::V2
             attrs = client.fetch_service_instance_state(instance)
             expect(attrs).to include(
               last_operation: {
-                state: 'failed',
-                description: ''
+                state: 'failed'
               }
             )
           end
+        end
+      end
+
+      context 'when the broker does not provide a description' do
+        let(:response_data) do
+          {
+            'state' => 'succeeded'
+          }
+        end
+
+        it 'does not return a description field' do
+          attrs = client.fetch_service_instance_state(instance)
+          expect(attrs).to eq({ last_operation: { state: 'succeeded' } })
         end
       end
     end
@@ -455,7 +476,7 @@ module VCAP::Services::ServiceBrokers::V2
 
       context 'when the caller passes arbitrary parameters' do
         it 'includes the parameters in the request to the broker' do
-          client.update_service_plan(instance, new_plan, parameters: { myParam: 'some-value' })
+          client.update_service_plan(instance, new_plan, arbitrary_parameters: { myParam: 'some-value' })
 
           expect(http_client).to have_received(:patch).with(
             anything,
@@ -714,14 +735,14 @@ module VCAP::Services::ServiceBrokers::V2
 
       context 'when the caller provides an arbitrary parameters in an optional request_attrs hash' do
         it 'make a put request with correct message and arbitrary parameters' do
-          request_attrs = { 'parameters' => { 'name' => 'value' } }
-          client.bind(binding, request_attrs: request_attrs)
+          arbitrary_parameters = { 'name' => 'value' }
+          client.bind(binding, arbitrary_parameters: arbitrary_parameters)
           expect(http_client).to have_received(:put).
             with(anything,
                  plan_id:    binding.service_plan.broker_provided_id,
                  service_id: binding.service.broker_provided_id,
                  app_guid:   binding.app_guid,
-                 parameters: request_attrs['parameters']
+                 parameters: arbitrary_parameters
             )
         end
       end
