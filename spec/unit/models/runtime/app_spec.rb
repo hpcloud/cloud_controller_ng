@@ -1767,10 +1767,10 @@ module VCAP::CloudController
       describe 'default enable_ssh' do
         context 'when enable_ssh is set explicitly' do
           it 'does not overwrite it with the default' do
-            app1 = App.create_from_hash(name: 'awesome app 1', space_guid: space.guid, enable_ssh: true)
+            app1 = App.create_from_hash(name: 'awesomeApp1', space_guid: space.guid, enable_ssh: true)
             expect(app1.enable_ssh).to eq(true)
 
-            app2 = App.create_from_hash(name: 'awesome app 2', space_guid: space.guid, enable_ssh: false)
+            app2 = App.create_from_hash(name: 'awesomeApp2', space_guid: space.guid, enable_ssh: false)
             expect(app2.enable_ssh).to eq(false)
           end
         end
@@ -1786,7 +1786,7 @@ module VCAP::CloudController
             end
 
             it 'sets enable_ssh to true' do
-              app = App.create_from_hash(name: 'awesome app', space_guid: space.guid)
+              app = App.create_from_hash(name: 'awesomeApp', space_guid: space.guid)
               expect(app.enable_ssh).to eq(true)
             end
           end
@@ -1797,7 +1797,7 @@ module VCAP::CloudController
             end
 
             it 'sets enable_ssh to false' do
-              app = App.create_from_hash(name: 'awesome app', space_guid: space.guid)
+              app = App.create_from_hash(name: 'awesomeApp', space_guid: space.guid)
               expect(app.enable_ssh).to eq(false)
             end
           end
@@ -1809,7 +1809,7 @@ module VCAP::CloudController
           end
 
           it 'sets enable_ssh to false' do
-            app = App.create_from_hash(name: 'awesome app', space_guid: space.guid)
+            app = App.create_from_hash(name: 'awesomeApp', space_guid: space.guid)
             expect(app.enable_ssh).to eq(false)
           end
         end
