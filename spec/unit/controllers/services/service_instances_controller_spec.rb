@@ -65,8 +65,6 @@ module VCAP::CloudController
       end
 
       describe 'App Space Level Permissions' do
-        user_sees_empty_enumerate('SpaceManager', :@space_a_manager, :@space_b_manager)
-
         describe 'Developer' do
           let(:member_a) { @space_a_developer }
           let(:member_b) { @space_b_developer }
@@ -180,6 +178,16 @@ module VCAP::CloudController
                            path: '/v2/service_instances',
                            enumerate: 1
         end
+
+        describe 'SpaceManager' do
+          let(:member_a) { @space_a_manager }
+          let(:member_b) { @space_b_manager }
+
+          include_examples 'permission enumeration', 'SpaceManager',
+            name: 'managed service instance',
+            path: '/v2/service_instances',
+            enumerate: 1
+        end
       end
     end
 
@@ -223,6 +231,7 @@ module VCAP::CloudController
           instance = create_managed_service_instance(accepts_incomplete: 'false')
 
           expect(last_response).to have_status_code(201)
+          expect(last_response.headers['Location']).to eq "/v2/service_instances/#{instance.guid}"
 
           expect(instance.credentials).to eq({})
           expect(instance.dashboard_url).to eq('the dashboard_url')
@@ -433,6 +442,49 @@ module VCAP::CloudController
                   'space_guid' => instance.space_guid,
                 }
               })
+            end
+          end
+
+          context 'and the worker never gets a success response during polling' do
+            let!(:now) { Time.now }
+            let(:max_poll_duration) { VCAP::CloudController::Config.config[:broker_client_max_async_poll_duration_minutes] }
+            let(:before_poll_timeout) { now + (max_poll_duration / 2).minutes  }
+            let(:after_poll_timeout) { now + max_poll_duration.minutes + 1.minutes }
+
+            before do
+              stub_request(:get, service_broker_url_regex).
+                with(headers: { 'Accept' => 'application/json' }).
+                to_return(status: 200, body: {
+                    state: 'in progress',
+                    description: 'new description'
+                  }.to_json)
+            end
+
+            it 'does not enqueue additional delay_jobs after broker_client_max_async_poll_duration_minutes' do
+              service_instance_guid = nil
+              Timecop.freeze now do
+                create_managed_service_instance
+                service_instance_guid = decoded_response['metadata']['guid']
+              end
+
+              Timecop.travel(before_poll_timeout) do
+                successes, failures = Delayed::Worker.new.work_off
+                expect(successes).to eq 1
+                expect(failures).to eq 0
+                expect(Delayed::Job.count).to eq 1
+              end
+
+              Timecop.travel(after_poll_timeout) do
+                successes, failures = Delayed::Worker.new.work_off
+                expect(successes).to eq 1
+                expect(failures).to eq 0
+                expect(Delayed::Job.count).to eq 0
+              end
+
+              get "/v2/service_instances/#{service_instance_guid}", {}, admin_headers
+              expect(last_response).to have_status_code 200
+              expect(decoded_response['entity']['last_operation']['state']).to eq 'failed'
+              expect(decoded_response['entity']['last_operation']['description']).to match /Service Broker failed to provision within the required time/
             end
           end
         end
@@ -792,6 +844,11 @@ module VCAP::CloudController
           expect(last_response).to have_status_code 201
         end
 
+        it 'does not set a Location header' do
+          put "/v2/service_instances/#{service_instance.guid}", body, headers_for(admin_user, email: 'admin@example.com')
+          expect(last_response.headers['Location']).to be_nil
+        end
+
         context 'when the request has arbitrary parameters' do
           let(:body) do
             {
@@ -819,6 +876,24 @@ module VCAP::CloudController
               expect(a_request(:put, service_broker_url_regex).
                        with(body: hash_including(parameters: parameters))).
                 to have_been_made.times(0)
+            end
+          end
+
+          context 'when only arbitrary parameters are passed' do
+            let(:body) do
+              {
+                parameters: parameters
+              }.to_json
+            end
+
+            let(:parameters) do
+              { myParam: 'some-value' }
+            end
+
+            it 'should pass along the parameters to the service broker' do
+              put "/v2/service_instances/#{service_instance.guid}", body, headers_for(admin_user, email: 'admin@example.com')
+              expect(last_response).to have_status_code(201)
+              expect(a_request(:patch, service_broker_url_regex).with(body: hash_including(parameters: parameters))).to have_been_made.times(1)
             end
           end
         end
@@ -1074,6 +1149,11 @@ module VCAP::CloudController
           it 'returns a 202' do
             put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
             expect(last_response).to have_status_code 202
+          end
+
+          it 'sets the Location header' do
+            put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
+            expect(last_response.headers['Location']).to eq("/v2/service_instances/#{service_instance.guid}")
           end
 
           it 'immediately enqueues a job to fetch the state' do
@@ -1459,6 +1539,7 @@ module VCAP::CloudController
             delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
           }.to change(ServiceInstance, :count).by(-1)
           expect(last_response.status).to eq(204)
+          expect(last_response.headers['Location']).to be_nil
           expect(ServiceInstance.find(guid: service_instance.guid)).to be_nil
         end
 
@@ -1624,6 +1705,7 @@ module VCAP::CloudController
               delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
 
               expect(last_response).to have_status_code 202
+              expect(last_response.headers['Location']).to eq "/v2/service_instances/#{service_instance.guid}"
               expect(service_instance.last_operation.state).to eq 'in progress'
 
               expect(ManagedServiceInstance.last.last_operation.type).to eq('delete')
@@ -1775,6 +1857,7 @@ module VCAP::CloudController
             require 'support/stackato_yaml_override'
             delete "/v2/service_instances/#{service_instance.guid}?async=true", {}, admin_headers
             expect(last_response).to have_status_code 202
+            expect(last_response.headers['Location']).to eq "/v2/jobs/#{decoded_response['entity']['guid']}"
             expect(decoded_response['entity']['guid']).to be
             expect(decoded_response['entity']['status']).to eq 'queued'
 

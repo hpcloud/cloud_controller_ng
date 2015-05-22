@@ -143,6 +143,7 @@ group :development do
 #  gem 'debugger-linecache', '1.2.0'
 #  gem 'debugger-ruby_core_source', '1.3.5'
   gem 'roodi', '4.0.0'
+  gem 'byebug'
   gem 'columnize', '0.9.0'
   gem 'ruby_parser', '3.6.2'
   gem 'sexp_processor', '4.4.4'

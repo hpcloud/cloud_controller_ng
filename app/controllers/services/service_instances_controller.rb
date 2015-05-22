@@ -56,18 +56,6 @@ module VCAP::CloudController
       Errors::ApiError.new_from_details('ServiceInstanceInvalid', e.errors.full_messages)
     end
 
-    def self.not_found_exception(guid)
-      Errors::ApiError.new_from_details('ServiceInstanceNotFound', guid)
-    end
-
-    def self.url_for_guid(guid)
-      if ServiceInstance.find(guid: guid).instance_of? UserProvidedServiceInstance
-        "#{ROUTE_PREFIX}/user_provided_service_instances/#{guid}"
-      else
-        super
-      end
-    end
-
     def self.dependencies
       [:services_event_repository]
     end
@@ -117,11 +105,65 @@ module VCAP::CloudController
       update = ServiceInstanceUpdate.new(accepts_incomplete: accepts_incomplete, services_event_repository: @services_event_repository)
       update.update_service_instance(service_instance, request_attrs)
 
+      status_code = status_from_operation_state(service_instance)
+      if status_code == HTTP::ACCEPTED
+        headers = { 'Location' => "#{self.class.path}/#{service_instance.guid}" }
+      end
+
       [
-        status_from_operation_state(service_instance),
-        {},
+        status_code,
+        headers,
         object_renderer.render_json(self.class, service_instance, @opts)
       ]
+    end
+
+    def read(guid)
+      logger.debug 'cc.read', model: :ServiceInstance, guid: guid
+
+      service_instance = find_guid_and_validate_access(:read, guid, ServiceInstance)
+      object_renderer.render_json(self.class, service_instance, @opts)
+    end
+
+    def delete(guid)
+      accepts_incomplete = convert_flag_to_bool(params['accepts_incomplete'])
+      async = convert_flag_to_bool(params['async'])
+
+      service_instance = find_guid(guid, ServiceInstance)
+
+      validate_access(:delete, service_instance)
+      association_not_empty!(:service_bindings) if has_bindings?(service_instance) && !recursive?
+      association_not_empty!(:service_keys) if has_keys?(service_instance) && !recursive?
+
+      deprovisioner = ServiceInstanceDeprovisioner.new(@services_event_repository, self, logger)
+      delete_job = deprovisioner.deprovision_service_instance(service_instance, accepts_incomplete, async)
+
+      if delete_job
+        [
+          HTTP::ACCEPTED,
+          { 'Location' => "/v2/jobs/#{delete_job.guid}" },
+          JobPresenter.new(delete_job).to_json
+        ]
+      elsif service_instance.exists?
+        [
+          HTTP::ACCEPTED,
+          { 'Location' => "#{self.class.path}/#{service_instance.guid}" },
+          object_renderer.render_json(self.class, service_instance.refresh, @opts)
+        ]
+      else
+        [HTTP::NO_CONTENT, nil]
+      end
+    end
+
+    get '/v2/service_instances/:guid/permissions', :permissions
+    def permissions(guid)
+      find_guid_and_validate_access(:read_permissions, guid, ServiceInstance)
+      [HTTP::OK, {}, JSON.generate({ manage: true })]
+    rescue Errors::ApiError => e
+      if e.name == 'NotAuthorized'
+        [HTTP::OK, {}, JSON.generate({ manage: false })]
+      else
+        raise e
+      end
     end
 
     class BulkUpdateMessage < VCAP::RestAPI::Message
@@ -156,45 +198,8 @@ module VCAP::CloudController
       end
     end
 
-    def read(guid)
-      logger.debug 'cc.read', model: :ServiceInstance, guid: guid
-
-      service_instance = find_guid_and_validate_access(:read, guid, ServiceInstance)
-      object_renderer.render_json(self.class, service_instance, @opts)
-    end
-
-    get '/v2/service_instances/:guid/permissions', :permissions
-    def permissions(guid)
-      find_guid_and_validate_access(:read_permissions, guid, ServiceInstance)
-      [HTTP::OK, {}, JSON.generate({ manage: true })]
-    rescue Errors::ApiError => e
-      if e.name == 'NotAuthorized'
-        [HTTP::OK, {}, JSON.generate({ manage: false })]
-      else
-        raise e
-      end
-    end
-
-    def delete(guid)
-      accepts_incomplete = convert_flag_to_bool(params['accepts_incomplete'])
-      async = convert_flag_to_bool(params['async'])
-
-      service_instance = find_guid(guid, ServiceInstance)
-
-      validate_access(:delete, service_instance)
-      association_not_empty!(:service_bindings) if has_bindings?(service_instance) && !recursive?
-      association_not_empty!(:service_keys) if has_keys?(service_instance) && !recursive?
-
-      deprovisioner = ServiceInstanceDeprovisioner.new(@services_event_repository, self, logger)
-      delete_job = deprovisioner.deprovision_service_instance(service_instance, accepts_incomplete, async)
-
-      if delete_job
-        [HTTP::ACCEPTED, JobPresenter.new(delete_job).to_json]
-      elsif service_instance.exists?
-        [HTTP::ACCEPTED, {}, object_renderer.render_json(self.class, service_instance.refresh, @opts)]
-      else
-        [HTTP::NO_CONTENT, nil]
-      end
+    def self.not_found_exception(guid)
+      Errors::ApiError.new_from_details('ServiceInstanceNotFound', guid)
     end
 
     def get_filtered_dataset_for_enumeration(model, ds, qp, opts)

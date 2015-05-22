@@ -51,7 +51,7 @@ module VCAP::CloudController
             description: description
           }
         end
-        let(:max_duration) { 10088 }
+        let(:max_duration) { 10080 }
         let(:request_attrs) do
           {
             dummy_data: 'dummy_data'
@@ -75,19 +75,19 @@ module VCAP::CloudController
 
         describe '#initialize' do
           let(:default_polling_interval) { 120 }
-          let(:default_max_poll_attempts) { 10080 }
+          let(:max_duration) { 10080 }
 
           before do
             allow(VCAP::CloudController::Config).to receive(:config).and_return({
               broker_client_default_async_poll_interval_seconds: default_polling_interval,
-              broker_client_max_async_poll_duration_minutes: default_max_poll_attempts,
+              broker_client_max_async_poll_duration_minutes: max_duration,
             })
           end
 
           context 'when the caller does not provide the maximum number of attempts' do
             it 'should the default configuration value' do
               Timecop.freeze(Time.now)
-              expect(job.end_timestamp).to eq(Time.now + default_max_poll_attempts.minutes)
+              expect(job.end_timestamp).to eq(Time.now + max_duration.minutes)
             end
           end
 
@@ -107,6 +107,7 @@ module VCAP::CloudController
                   service_instance.guid,
                   nil,
                   request_attrs,
+                  nil,
                   service_event_repository_opts
               )
               expect(job.services_event_repository).to be_a Repositories::Services::EventRepository
@@ -390,10 +391,6 @@ module VCAP::CloudController
           context 'when the job was migrated before the addition of end_timestamp' do
             let(:state) { 'in progress' }
 
-            before do
-              job.instance_variable_set(:@end_timestamp, nil) # terrible
-            end
-
             it 'should compute the end_timestamp based on the current time' do
               Timecop.freeze(Time.now)
 
@@ -417,11 +414,78 @@ module VCAP::CloudController
               expect(Delayed::Job.first).to be_a_fully_wrapped_job_of(ServiceInstanceStateFetch)
             end
           end
+
+          context 'when the poll_interval is changed after the job was created' do
+            let(:default_polling_interval) { VCAP::CloudController::Config.config[:broker_client_default_async_poll_interval_seconds] }
+            let(:new_polling_interval) { default_polling_interval * 2 }
+            let(:state) { 'in progress' }
+
+            before do
+              expect(job.poll_interval).to eq(default_polling_interval)
+              expect(default_polling_interval).not_to eq(new_polling_interval)
+              updated_config = VCAP::CloudController::Config.config.merge(
+                {
+                  broker_client_default_async_poll_interval_seconds: new_polling_interval
+                })
+              allow(VCAP::CloudController::Config).to receive(:config).and_return(updated_config)
+            end
+
+            it 'updates the poll interval after the next run' do
+              Timecop.freeze(Time.now)
+              first_run_time = Time.now
+
+              Jobs::Enqueuer.new(job, { queue: 'cc-generic', run_at: first_run_time }).enqueue
+              expect(Delayed::Worker.new.work_off).to eq([1, 0])
+              expect(Delayed::Job.count).to eq(1)
+
+              old_next_run_time = first_run_time + default_polling_interval.seconds + 1.second
+              Timecop.travel(old_next_run_time) do
+                expect(Delayed::Worker.new.work_off).to eq([0, 0])
+              end
+
+              new_next_run_time = first_run_time + new_polling_interval.seconds + 1.second
+              Timecop.travel(new_next_run_time) do
+                expect(Delayed::Worker.new.work_off).to eq([1, 0])
+              end
+            end
+          end
         end
 
         describe '#job_name_in_configuration' do
           it 'returns the name of the job' do
             expect(job.job_name_in_configuration).to eq(:service_instance_state_fetch)
+          end
+        end
+
+        describe '#end_timestamp' do
+          let(:max_poll_duration) { VCAP::CloudController::Config.config[:broker_client_max_async_poll_duration_minutes] }
+
+          context 'when the job is new' do
+            it 'adds the broker_client_max_async_poll_duration_minutes to the current time' do
+              now = Time.now
+              expected_end_timestamp = now + max_poll_duration.minutes
+              Timecop.freeze now do
+                expect(job.end_timestamp).to be_within(0.01).of(expected_end_timestamp)
+              end
+            end
+          end
+
+          context 'when the job is fetched from the database' do
+            it 'returns the previously computed and persisted end_timestamp' do
+              now = Time.now
+              expected_end_timestamp = now + max_poll_duration.minutes
+
+              job_id = nil
+              Timecop.freeze now do
+                enqueued_job = Jobs::Enqueuer.new(job, queue: 'cc-generic', run_at: Time.now).enqueue
+                job_id = enqueued_job.id
+              end
+
+              Timecop.freeze(now + 1.day) do
+                rehydrated_job = Delayed::Job.first(id: job_id).payload_object.handler.handler.handler
+                expect(rehydrated_job.end_timestamp).to be_within(0.01).of(expected_end_timestamp)
+              end
+            end
           end
         end
       end

@@ -15,9 +15,14 @@ module VCAP::CloudController
     end 
 
     def self.translate_validation_exception(e, attributes)
-      name_errors = e.errors.on([:host, :domain_id]) || e.errors.on([:host, :domain_id, :path])
+      name_errors = e.errors.on([:host, :domain_id])
       if name_errors && name_errors.include?(:unique)
         return Errors::ApiError.new_from_details('RouteHostTaken', attributes['host'])
+      end
+
+      path_errors = e.errors.on([:host, :domain_id, :path])
+      if path_errors && path_errors.include?(:unique)
+        return Errors::ApiError.new_from_details('RoutePathTaken', attributes['path'])
       end
 
       space_errors = e.errors.on(:space)
@@ -30,9 +35,9 @@ module VCAP::CloudController
         return Errors::ApiError.new_from_details('OrgQuotaTotalRoutesExceeded')
       end
 
-      path_errors = e.errors.on(:path)
-      if path_errors && path_errors.include?(:invalid_path)
-        return Errors::ApiError.new_from_details('PathInvalid', attributes['path'])
+      path_error = e.errors.on(:path)
+      if path_error
+        return path_errors(path_error, attributes)
       end
 
       Errors::ApiError.new_from_details('RouteInvalid', e.errors.full_messages)
@@ -79,5 +84,19 @@ module VCAP::CloudController
 
     define_messages
     define_routes
+  end
+
+  private
+
+  def path_errors(path_error, attributes)
+    if path_error.include?(:single_slash)
+      return Errors::ApiError.new_from_details('PathInvalid', 'the path cannot be a single slash')
+    elsif path_error.include?(:missing_beginning_slash)
+      return Errors::ApiError.new_from_details('PathInvalid', 'the path must start with a "/"')
+    elsif path_error.include?(:path_contains_question)
+      return Errors::ApiError.new_from_details('PathInvalid', 'illegal "?" character')
+    elsif path_error.include?(:invalid_path)
+      return Errors::ApiError.new_from_details('PathInvalid', attributes['path'])
+    end
   end
 end

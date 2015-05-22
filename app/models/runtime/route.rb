@@ -21,8 +21,8 @@ module VCAP::CloudController
 
     add_association_dependencies apps: :nullify
 
-    export_attributes :host, :domain_guid, :space_guid, :path
-    import_attributes :host, :domain_guid, :space_guid, :app_guids, :path
+    export_attributes :host, :path, :domain_guid, :space_guid
+    import_attributes :host, :path, :domain_guid, :space_guid, :app_guids
 
     def before_destroy
       super
@@ -61,7 +61,11 @@ module VCAP::CloudController
 
       validates_format /^([\w\-]+|\*)$/, :host if host && !host.empty?
 
-      validates_unique [:host, :domain_id, :path]
+      validates_unique [:host, :domain_id] do |ds|
+        ds.where(path: '')
+      end
+      validates_unique [:host, :domain_id, :path] unless path.empty?
+
       validate_path
 
       main_domain = Kato::Config.get("cluster", "endpoint").gsub(/^api\./, '')
@@ -97,8 +101,20 @@ module VCAP::CloudController
     def validate_path
       return if path == ''
 
-      if !ROUTE_REGEX.match("pathcheck://#{host}#{path}") || path == '/' || path[0] != '/' || path =~ /\?/
+      if !ROUTE_REGEX.match("pathcheck://#{host}#{path}")
         errors.add(:path, :invalid_path)
+      end
+
+      if path == '/'
+        errors.add(:path, :single_slash)
+      end
+
+      if path[0] != '/'
+        errors.add(:path, :missing_beginning_slash)
+      end
+
+      if path =~ /\?/
+        errors.add(:path, :path_contains_question)
       end
     end
 
