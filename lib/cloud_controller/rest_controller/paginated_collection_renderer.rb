@@ -127,8 +127,18 @@ module VCAP::CloudController::RestController
 
       params['q'] = opts[:q] if opts[:q]
       params['orphan-relations'] = opts[:orphan_relations] if opts[:orphan_relations]
-      params['exclude-relations'] = opts[:exclude_relations] if opts[:exclude_relations]
-      params['include-relations'] = opts[:include_relations] if opts[:include_relations]
+      # If the options were run through CommonParams.parse then the exclude/include_relations
+      # will come through as an array.
+      if opts[:exclude_relations]
+        params[:exclude_relations] = opts[:exclude_relations].is_a?(Array) ?
+                                     opts[:exclude_relations].join(',') :
+                                     opts[:exclude_relations]
+      end
+      if opts[:include_relations]
+        params[:include_relations] = opts[:include_relations].is_a?(Array) ?
+                                     opts[:include_relations].join(',') :
+                                     opts[:include_relations]
+      end
 
       controller.preserve_query_parameters.each do |preseved_param|
         params[preseved_param] = request_params[preseved_param] if request_params[preseved_param]
