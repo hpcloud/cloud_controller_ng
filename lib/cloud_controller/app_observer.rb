@@ -35,7 +35,7 @@ module VCAP::CloudController
           @runners.react_to_version_change(app)
         elsif (changes.has_key?(:package_hash) &&
                changes[:package_hash][0] &&
-               changes[:package_state] = ["STAGED", "PENDING"])
+               changes[:package_state] == ["STAGED", "PENDING"])
           @runners.react_to_droplet_hash_change(app)
         elsif (changes.keys & [:min_instances, :max_instances,
                               :min_cpu_threshold, :max_cpu_threshold,
