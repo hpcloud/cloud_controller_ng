@@ -13,9 +13,12 @@ module VCAP::CloudController
     end
 
     describe 'POST /v2/appstore' do
-        let(:space) { Space.make }
-        let(:req_body) {
-          { space_guid: space.guid, app_name: "testapp" }}
+      let(:space) { Space.make }
+      let(:req_body) {
+        { space_guid: space.guid,
+          app_name: "testapp",
+        }
+      }
 
       context 'regular' do
 
