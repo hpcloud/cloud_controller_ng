@@ -285,6 +285,10 @@ module VCAP::CloudController
       #
       # this is to indicate that the running state of an application has changed,
       # and that the system should converge on this new version.
+      if docker_image && column_changed?(:package_updated_at)
+        return true
+      end
+
       (column_changed?(:state) || column_changed?(:memory) || column_changed?(:health_check_type) || (column_changed?(:droplet_hash) && column_change(:droplet_hash)[0])) && started?
     end
 
