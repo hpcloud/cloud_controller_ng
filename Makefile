@@ -63,6 +63,10 @@ VM ?= $(VMNAME).local
 rsync: vmname
 	rsync -avzL ./ stackato@$(VM):/s/code/cloud_controller_ng/ $(RSYNC_EXCLUDE)
 
+rsync-core: vmname
+	rsync -avzL ./lib/ stackato@$(VM):/s/code/cloud_controller_ng/lib/
+	rsync -avzL ./app/ stackato@$(VM):/s/code/cloud_controller_ng/app/
+
 start stop restart: vmname
 	ssh stackato@$(VM) sup $@ cloud_controller_ng
 
