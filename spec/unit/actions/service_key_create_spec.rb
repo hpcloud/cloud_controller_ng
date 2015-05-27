@@ -1,5 +1,5 @@
 require 'spec_helper'
-require 'actions/service_key_create'
+require 'actions/services/service_key_create'
 
 module VCAP::CloudController
   describe ServiceKeyCreate do
@@ -12,6 +12,18 @@ module VCAP::CloudController
         {
             'service_instance_guid' => service_instance.guid,
         }
+      end
+
+      before do
+        allow(logger).to receive :error
+        allow(logger).to receive :info
+      end
+
+      it 'fails if the instance has another operation in progress' do
+        service_instance.service_instance_operation = ServiceInstanceOperation.make state: 'in progress'
+        service_key_create = ServiceKeyCreate.new(logger)
+        _, errors = service_key_create.create(service_instance, key_attrs, {})
+        expect(errors.first).to be_instance_of Errors::ApiError
       end
 
       describe 'orphan mitigation situations' do
@@ -34,8 +46,6 @@ module VCAP::CloudController
 
             allow_any_instance_of(ServiceKey).to receive(:save).and_raise
 
-            allow(logger).to receive :error
-
             ServiceKeyCreate.new(logger).create(service_instance, key_attrs, {})
           end
 
@@ -56,7 +66,8 @@ module VCAP::CloudController
             end
 
             it 'logs that the unbind failed' do
-              expect(logger).to have_received(:error).with /Unable to delete orphaned key/
+              expect(logger).to have_received(:error).with /Failed to save/
+              expect(logger).to have_received(:error).with /Unable to delete orphaned service key/
             end
           end
         end

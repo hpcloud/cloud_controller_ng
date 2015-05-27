@@ -56,6 +56,9 @@ info:
   description: "ActiveState Stackato"
   api_version: "2.0.0"
 
+  app_ssh_endpoint: "ssh.system.domain.example.com:2222"
+  app_ssh_host_key_fingerprint: "47:0d:d1:c8:c3:3d:0a:36:d1:49:2f:f2:90:27:31:d0"
+
 nginx:
   use_nginx: false
   instance_socket: "/var/stackato/sys/run/cloud_controller_ng/cloud_controller.sock"

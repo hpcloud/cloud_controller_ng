@@ -32,7 +32,7 @@ module VCAP::Services::ServiceBrokers::V2
       body_parameters[:parameters] = arbitrary_parameters if arbitrary_parameters.present?
       response = @http_client.put(path, body_parameters)
 
-      parsed_response = @response_parser.parse_provision_or_bind(path, response)
+      parsed_response = @response_parser.parse_provision(path, response)
       last_operation_hash = parsed_response['last_operation'] || {}
       attributes = {
         # DEPRECATED, but needed because of not null constraint
@@ -89,10 +89,10 @@ module VCAP::Services::ServiceBrokers::V2
       attr[:parameters] = arbitrary_parameters if arbitrary_parameters.present?
 
       response = @http_client.put(path, attr)
-      parsed_response = @response_parser.parse_provision_or_bind(path, response)
+      parsed_response = @response_parser.parse_bind(path, response, service_guid: key.service.guid)
 
       attributes = {
-          credentials: parsed_response['credentials']
+        credentials: parsed_response['credentials']
       }
 
       attributes
@@ -112,7 +112,7 @@ module VCAP::Services::ServiceBrokers::V2
       attr[:parameters] = arbitrary_parameters if arbitrary_parameters.present?
 
       response = @http_client.put(path, attr)
-      parsed_response = @response_parser.parse_provision_or_bind(path, response)
+      parsed_response = @response_parser.parse_bind(path, response, service_guid: binding.service.guid)
 
       attributes = {
         credentials: parsed_response['credentials']
@@ -122,7 +122,9 @@ module VCAP::Services::ServiceBrokers::V2
       end
 
       attributes
-    rescue Errors::ServiceBrokerApiTimeout, Errors::ServiceBrokerBadResponse => e
+    rescue Errors::ServiceBrokerApiTimeout,
+           Errors::ServiceBrokerBadResponse,
+           Errors::ServiceBrokerInvalidSyslogDrainUrl => e
       @orphan_mitigator.cleanup_failed_bind(@attrs, binding)
       raise e
     end
@@ -135,7 +137,7 @@ module VCAP::Services::ServiceBrokers::V2
         plan_id:    binding.service_plan.broker_provided_id,
       })
 
-      @response_parser.parse_deprovision_or_unbind(path, response)
+      @response_parser.parse_unbind(path, response)
     end
 
     def deprovision(instance, accepts_incomplete: false)
@@ -148,7 +150,7 @@ module VCAP::Services::ServiceBrokers::V2
       request_params.merge!(accepts_incomplete: true) if accepts_incomplete
       response = @http_client.delete(path, request_params)
 
-      parsed_response = @response_parser.parse_deprovision_or_unbind(path, response) || {}
+      parsed_response = @response_parser.parse_deprovision(path, response) || {}
       last_operation_hash = parsed_response['last_operation'] || {}
       state = last_operation_hash['state']
 

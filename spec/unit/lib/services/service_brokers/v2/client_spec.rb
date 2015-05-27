@@ -141,7 +141,7 @@ module VCAP::Services::ServiceBrokers::V2
       it 'returns the attributes to update on a service instance' do
         attributes, _ = client.provision(instance)
         # ensure updating attributes and saving to service instance works
-        instance.save_with_operation(attributes)
+        instance.save_and_update_operation(attributes)
 
         expect(instance.dashboard_url).to eq('foo')
       end
@@ -243,7 +243,7 @@ module VCAP::Services::ServiceBrokers::V2
           let(:response_parser) { instance_double(ResponseParser) }
 
           before do
-            allow(response_parser).to receive(:parse_provision_or_bind).and_raise(error)
+            allow(response_parser).to receive(:parse_provision).and_raise(error)
             allow(VCAP::Services::ServiceBrokers::V2::ResponseParser).to receive(:new).and_return(response_parser)
           end
 
@@ -323,7 +323,7 @@ module VCAP::Services::ServiceBrokers::V2
       let(:message) { 'OK' }
 
       before do
-        instance.save_with_operation(
+        instance.save_with_new_operation(
           last_operation: { type: 'create' }
         )
         allow(http_client).to receive(:get).and_return(response)
@@ -367,7 +367,7 @@ module VCAP::Services::ServiceBrokers::V2
 
         context 'when the last operation type is `delete`' do
           before do
-            instance.save_with_operation(
+            instance.save_with_new_operation(
               last_operation: {
                 type: 'delete',
               }
@@ -386,7 +386,7 @@ module VCAP::Services::ServiceBrokers::V2
 
         context 'with any other operation type' do
           before do
-            instance.save_with_operation(
+            instance.save_with_new_operation(
               last_operation: {
                 type: 'update'
               }
@@ -751,7 +751,7 @@ module VCAP::Services::ServiceBrokers::V2
           let(:response_parser) { instance_double(ResponseParser) }
 
           before do
-            allow(response_parser).to receive(:parse_provision_or_bind).and_raise(error)
+            allow(response_parser).to receive(:parse_bind).and_raise(error)
             allow(VCAP::Services::ServiceBrokers::V2::ResponseParser).to receive(:new).and_return(response_parser)
           end
 
@@ -808,7 +808,6 @@ module VCAP::Services::ServiceBrokers::V2
       let(:message) { 'Created' }
 
       before do
-        instance.service_plan.service.update_from_hash(requires: ['syslog_drain'])
         allow(http_client).to receive(:put).and_return(response)
       end
 
@@ -857,6 +856,10 @@ module VCAP::Services::ServiceBrokers::V2
       end
 
       context 'with a syslog drain url' do
+        before do
+          instance.service_plan.service.update_from_hash(requires: ['syslog_drain'])
+        end
+
         let(:response_data) do
           {
             'credentials' => {},
@@ -871,6 +874,20 @@ module VCAP::Services::ServiceBrokers::V2
           binding.save
 
           expect(binding.syslog_drain_url).to eq('syslog://example.com:514')
+        end
+
+        context 'and the service does not require syslog_drain' do
+          before do
+            instance.service_plan.service.update_from_hash(requires: [])
+          end
+
+          it 'raises an error and initiates orphan mitigation' do
+            expect {
+              client.bind(binding)
+            }.to raise_error(Errors::ServiceBrokerInvalidSyslogDrainUrl)
+
+            expect(orphan_mitigator).to have_received(:cleanup_failed_bind).with(client_attrs, binding)
+          end
         end
       end
 
@@ -922,7 +939,7 @@ module VCAP::Services::ServiceBrokers::V2
           let(:response_parser) { instance_double(ResponseParser) }
 
           before do
-            allow(response_parser).to receive(:parse_provision_or_bind).and_raise(error)
+            allow(response_parser).to receive(:parse_bind).and_raise(error)
             allow(VCAP::Services::ServiceBrokers::V2::ResponseParser).to receive(:new).and_return(response_parser)
           end
 

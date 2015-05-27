@@ -5,10 +5,10 @@ module VCAP::CloudController
     describe 'Attributes' do
       it do
         expect(described_class).to have_creatable_attributes({
-                                                                 name: { type: 'string', required: true },
-                                                                 service_instance_guid: { type: 'string', required: true },
-                                                                 parameters: { type: 'hash', required: false }
-                                                             })
+           name: { type: 'string', required: true },
+           service_instance_guid: { type: 'string', required: true },
+           parameters: { type: 'hash', required: false }
+         })
       end
     end
 
@@ -248,7 +248,7 @@ module VCAP::CloudController
 
           context 'when the instance operation is in progress' do
             before do
-              instance.save_with_operation(
+              instance.save_with_new_operation(
                   last_operation: {
                       type: 'delete',
                       state: 'in progress',
@@ -376,7 +376,7 @@ module VCAP::CloudController
         end
       end
 
-      context 'when the instance is for a v1 service' do
+      context 'for a v1 service instance' do
         let(:instance) { ManagedServiceInstance.make(:v1) }
 
         it 'returns an error to the user' do
@@ -386,6 +386,16 @@ module VCAP::CloudController
               'Service keys are not supported for this service. The service broker ' \
               'implements the v1 Service Broker API which has been deprecated. To ' \
               'generate credentials, try binding an application to the service instance.')
+        end
+      end
+
+      context 'for a user-provided service instance' do
+        let(:instance) { UserProvidedServiceInstance.make }
+
+        it 'returns an error to the user' do
+          post '/v2/service_keys', req, headers_for(developer)
+          expect(last_response).to have_status_code 400
+          expect(decoded_response['description']).to eq('Service keys are not supported for user-provided service instances.')
         end
       end
     end

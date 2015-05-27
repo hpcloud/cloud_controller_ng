@@ -4,7 +4,7 @@ require 'cloud_controller/undo_app_changes'
 require 'cloud_controller/errors/application_missing'
 require 'cloud_controller/errors/invalid_route_relation'
 require 'repositories/runtime/app_usage_event_repository'
-require 'actions/service_binding_delete'
+require 'actions/services/service_binding_delete'
 require 'presenters/message_bus/service_binding_presenter'
 require 'digest/sha1'
 
@@ -599,14 +599,15 @@ module VCAP::CloudController
     end
 
     def self.user_visibility_filter(user)
-      Sequel.or([
-        [:space, user.spaces_dataset],
-        [:space, user.managed_spaces_dataset],
-        [:space, user.audited_spaces_dataset],
-        [:apps__space_id, user.managed_organizations_dataset.join(
-          :spaces, spaces__organization_id: :organizations__id
-        ).select(:spaces__id)]
-      ])
+      {
+        space_id: Space.dataset.join_table(:inner, :spaces_developers, space_id: :id, user_id: user.id).select(:spaces__id).union(
+            Space.dataset.join_table(:inner, :spaces_managers, space_id: :id, user_id: user.id).select(:spaces__id)
+          ).union(
+              Space.dataset.join_table(:inner, :spaces_auditors, space_id: :id, user_id: user.id).select(:spaces__id)
+          ).union(
+                Space.dataset.join_table(:inner, :organizations_managers, organization_id: :organization_id, user_id: user.id).select(:spaces__id)
+          ).select(:id)
+      }
     end
 
     def needs_staging?

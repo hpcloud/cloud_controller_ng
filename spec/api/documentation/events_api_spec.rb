@@ -55,7 +55,7 @@ resource 'Events', type: [:api, :legacy_api] do
   field :actor_type, 'The actor type.', required: false, readonly: true, example_values: %w(user app)
   field :actor_name, 'The name of the actor.', required: false, readonly: true
   field :actee, 'The GUID of the actee.', required: false, readonly: true
-  field :actee_type, 'The actee type.', required: false, readonly: true, example_values: %w(space app)
+  field :actee_type, 'The actee type.', required: false, readonly: true, example_values: %w(space app v3-app)
   field :actee_name, 'The name of the actee.', required: false, readonly: true
   field :timestamp, 'The event creation time.', required: false, readonly: true
   field :metadata, 'The additional information about event.', required: false, readonly: true, default: {}
@@ -219,6 +219,38 @@ resource 'Events', type: [:api, :legacy_api] do
                                actee_name: test_app.name,
                                space_guid: test_app.space.guid,
                                metadata: { 'request' => { 'recursive' => false } }
+    end
+
+    example 'List App SSH Authorized Events' do
+      app_event_repository.record_app_ssh_authorized(test_app, test_user.guid, test_user_email)
+
+      client.get '/v2/events?q=type:audit.app.ssh-authorized', {}, headers
+      expect(status).to eq(200)
+      standard_entity_response parsed_response['resources'][0], :event,
+                               actor_type: 'user',
+                               actor: test_user.guid,
+                               actor_name: test_user_email,
+                               actee_type: 'app',
+                               actee: test_app.guid,
+                               actee_name: test_app.name,
+                               space_guid: test_app.space.guid,
+                               metadata: {}
+    end
+
+    example 'List App SSH Unauthorized Events' do
+      app_event_repository.record_app_ssh_unauthorized(test_app, test_user.guid, test_user_email)
+
+      client.get '/v2/events?q=type:audit.app.ssh-unauthorized', {}, headers
+      expect(status).to eq(200)
+      standard_entity_response parsed_response['resources'][0], :event,
+                               actor_type: 'user',
+                               actor: test_user.guid,
+                               actor_name: test_user_email,
+                               actee_type: 'app',
+                               actee: test_app.guid,
+                               actee_name: test_app.name,
+                               space_guid: test_app.space.guid,
+                               metadata: {}
     end
 
     example 'List events associated with an App since January 1, 2014' do

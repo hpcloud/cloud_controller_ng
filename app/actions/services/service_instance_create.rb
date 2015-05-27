@@ -1,4 +1,4 @@
-require 'actions/synchronous_orphan_mitigate'
+require 'actions/services/synchronous_orphan_mitigate'
 
 module VCAP::CloudController
   class ServiceInstanceCreate
@@ -19,8 +19,9 @@ module VCAP::CloudController
       )
 
       begin
-        service_instance.save_with_operation(attributes_to_update)
+        service_instance.save_with_new_operation(attributes_to_update)
       rescue => e
+        @logger.error "Failed to save while creating service instance #{service_instance.guid} with exception: #{e}."
         orphan_mitigator = SynchronousOrphanMitigate.new(@logger)
         orphan_mitigator.attempt_deprovision_instance(service_instance)
         raise e

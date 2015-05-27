@@ -190,6 +190,22 @@ module VCAP::CloudController
             expect(last_response).to have_status_code 201
           end
         end
+
+        context 'when the service instance has a syslog_drain_url' do
+          before do
+            service_instance.syslog_drain_url = 'syslog.com/drain'
+            service_instance.save
+          end
+
+          it 'creates a service binding with the provided binding options' do
+            binding_options = Sham.binding_options
+            body =  params.merge('binding_options' => binding_options).to_json
+            post '/v2/service_bindings', body, headers_for(developer)
+
+            expect(last_response).to have_status_code(201)
+            expect(ServiceBinding.last.binding_options).to eq(binding_options)
+          end
+        end
       end
 
       context 'for managed instances' do
@@ -329,7 +345,7 @@ module VCAP::CloudController
           end
 
           before do
-            instance.save_with_operation(
+            instance.save_with_new_operation(
               last_operation: {
                 type: 'delete',
                 state: 'in progress',
@@ -461,19 +477,40 @@ module VCAP::CloudController
               end
             end
           end
+
+          context 'when the broker returns a syslog_drain_url and the service does not require one' do
+            let(:bind_body) { { 'syslog_drain_url' => 'http://syslog.com/drain' } }
+
+            it 'returns ServiceBrokerInvalidSyslogDrainUrl error to the user' do
+              make_request
+              expect(last_response).to have_status_code 502
+              expect(decoded_response['error_code']).to eq 'CF-ServiceBrokerInvalidSyslogDrainUrl'
+            end
+
+            it 'triggers orphan mitigation' do
+              make_request
+              expect(last_response).to have_status_code 502
+
+              orphan_mitigation_job = Delayed::Job.first
+              expect(orphan_mitigation_job).not_to be_nil
+              expect(orphan_mitigation_job).to be_a_fully_wrapped_job_of Jobs::Services::DeleteOrphanedBinding
+            end
+          end
         end
       end
 
       context 'for v1 service instances' do
         let(:fake_client) { double(:v1_client) }
+        let(:fake_bind_response) do
+          {
+            'service_id' => Sham.guid,
+            'configuration' => 'CONFIGURATION',
+            'credentials' => credentials,
+          }
+        end
+
         before do
-          allow(fake_client).to receive(:bind).and_return(
-            {
-               'service_id' => Sham.guid,
-               'configuration' => 'CONFIGURATION',
-               'credentials' => credentials,
-             }
-          )
+          allow(fake_client).to receive(:bind).and_return(fake_bind_response)
           allow(VCAP::Services::ServiceBrokers::V1::HttpClient).to receive(:new).and_return(fake_client)
         end
 
@@ -563,19 +600,6 @@ module VCAP::CloudController
         })
       end
 
-      it 'disallows other operations on the service instance while unbinding is in progress' do
-        stub_request(:delete, unbind_url(service_binding)).to_return do |_|
-          put "/v2/service_instances/#{service_binding.service_instance.guid}", { plan_id: 34 }.to_json, admin_headers
-          expect(last_response).to have_status_code 409
-          expect(last_response.body).to match /AsyncServiceInstanceOperationInProgress/
-
-          { status: 200, body: {}.to_json }
-        end
-
-        delete "/v2/service_bindings/#{service_binding.guid}", '', admin_headers
-        expect(last_response).to have_status_code 204
-      end
-
       describe 'locking the service instance of the binding' do
         context 'when the instance does not have a last_operation' do
           before do
@@ -638,20 +662,6 @@ module VCAP::CloudController
           expect(last_response.status).to eq 202
           expect(decoded_response['entity']['guid']).to be
           expect(decoded_response['entity']['status']).to eq 'queued'
-        end
-
-        it 'disallows other operations on the service instance while unbinding is in progress' do
-          stub_request(:delete, unbind_url(service_binding)).to_return do |_|
-            put "/v2/service_instances/#{service_binding.service_instance.guid}", { plan_id: 34 }.to_json, admin_headers
-            expect(last_response).to have_status_code 409
-            expect(last_response.body).to match /AsyncServiceInstanceOperationInProgress/
-
-            { status: 200, body: {}.to_json }
-          end
-
-          delete "/v2/service_bindings/#{service_binding.guid}?async=true", '', admin_headers
-          expect(last_response).to have_status_code 202
-          expect(Delayed::Worker.new.work_off).to eq([1, 0])
         end
       end
 

@@ -1,5 +1,9 @@
+require 'actions/services/locks/lock_check'
+
 module VCAP::CloudController
   class UpdaterLock
+    include VCAP::CloudController::LockCheck
+
     attr_reader :service_instance
 
     def initialize(service_instance, type='update')
@@ -12,11 +16,9 @@ module VCAP::CloudController
         service_instance.lock!
         service_instance.last_operation.lock! if service_instance.last_operation
 
-        if service_instance.operation_in_progress?
-          raise Errors::ApiError.new_from_details('AsyncServiceInstanceOperationInProgress', service_instance.name)
-        end
+        raise_if_locked(service_instance)
 
-        service_instance.save_with_operation(
+        service_instance.save_with_new_operation(
           last_operation: {
             type: @type,
             state: 'in progress'
@@ -26,7 +28,7 @@ module VCAP::CloudController
     end
 
     def unlock_and_fail!
-      service_instance.save_with_operation(
+      service_instance.save_and_update_operation(
         last_operation: {
           type: @type,
           state: 'failed'
@@ -35,11 +37,11 @@ module VCAP::CloudController
     end
 
     def synchronous_unlock!(attributes_to_update)
-      service_instance.save_with_operation(attributes_to_update)
+      service_instance.save_and_update_operation(attributes_to_update)
     end
 
     def enqueue_unlock!(attributes_to_update, job)
-      service_instance.save_with_operation(attributes_to_update)
+      service_instance.save_and_update_operation(attributes_to_update)
       enqueuer = Jobs::Enqueuer.new(job, queue: 'cc-generic')
       enqueuer.enqueue
     end
