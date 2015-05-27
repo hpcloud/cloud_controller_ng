@@ -67,11 +67,7 @@ module VCAP::CloudController
     attr_reader :config, :message_bus
 
     def hm_request(cmd, args = {}, opts = {})
-      subject = "healthmanager.#{cmd}"
-      msg = "sending subject: '#{subject}' with args: '#{args}'"
-      msg << " and opts: '#{opts}'"
-      logger.debug msg
-      message_bus.synchronous_request(subject, args, opts)
+      message_bus.synchronous_request("healthmanager.#{cmd}", args, opts)
     end
 
     def logger
