@@ -39,25 +39,13 @@ class Blobstore
   end
 
   def cp_to_blobstore(source_path, destination_key)
-    #start = Time.now
-    #logger.info("blobstore.cp-start", destination_key: destination_key, source_path: source_path, bucket: @directory_key)
-    #size = -1
-
     File.open(source_path) do |file|
-      #size = file.size
       files.create(
         :key => partitioned_key(destination_key),
         :body => file,
         :public => local?,
       )
     end
-
-    #duration = Time.now - start
-    #logger.info("blobstore.cp-finish",
-    #            destination_key: destination_key,
-    #            duration_seconds: duration,
-    #            size: size,
-    #)
   end
 
   def delete(key)

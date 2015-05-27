@@ -50,9 +50,7 @@ module CloudController
 
       def cp_to_blobstore(source_path, destination_key, retries=2)
         start = Time.now.utc
-        #logger.info('blobstore.cp-start', destination_key: destination_key, source_path: source_path, bucket: @directory_key)
         size = -1
-        #log_entry = 'blobstore.cp-skip'
 
         File.open(source_path) do |file|
           size = file.size
@@ -79,16 +77,7 @@ module CloudController
             retry unless retries < 0
             raise e
           end
-
-          #log_entry = 'blobstore.cp-finish'
         end
-
-        #duration = Time.now.utc - start
-        #logger.info(log_entry,
-        #            destination_key: destination_key,
-        #            duration_seconds: duration,
-        #            size: size,
-        #           )
       end
 
       def cp_file_between_keys(source_key, destination_key)
