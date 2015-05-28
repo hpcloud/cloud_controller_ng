@@ -22,11 +22,12 @@ module VCAP::CloudController
       let(:memory_limit) { 1234 }
       let(:disk_limit) { 321 }
       let(:buildpack_key) { 'buildpack_key' }
+      let(:environment_variables) { { KEY: 'value' } }
       let(:buildpack_git_url) { 'http://git.url' }
       subject(:staging_message) do
         Dea::PackageDEAStagingMessage.new(
           package, droplet_guid, log_id, stack, memory_limit, disk_limit,
-          buildpack_key, buildpack_git_url, config_hash, blobstore_url_generator, docker_registry)
+          buildpack_key, buildpack_git_url, config_hash, environment_variables, blobstore_url_generator, docker_registry)
       end
 
       its(:stack) { should eq('trusty32') }
@@ -39,14 +40,16 @@ module VCAP::CloudController
 
       describe '#staging_request' do
         it 'includes app guid, task id, download/upload uris, buildpack_key, stack' do
+          app_guid = package.app_guid
           allow(blobstore_url_generator).to receive(:package_download_url).with(package).and_return('http://www.package.uri')
           allow(blobstore_url_generator).to receive(:package_droplet_upload_url).with(droplet_guid).and_return('http://www.droplet.upload.uri')
-          allow(blobstore_url_generator).to receive(:package_buildpack_cache_upload_url).with(package).and_return('http://www.bpupload.uri')
-          allow(blobstore_url_generator).to receive(:package_buildpack_cache_download_url).with(package).and_return('http://www.bpdownload.uri')
+          allow(blobstore_url_generator).to receive(:v3_app_buildpack_cache_upload_url).with(app_guid, stack).and_return('http://www.bpupload.uri')
+          allow(blobstore_url_generator).to receive(:v3_app_buildpack_cache_download_url).with(app_guid, stack).and_return('http://www.bpdownload.uri')
           request = staging_message.staging_request
 
           expect(request[:app_id]).to eq(log_id)
           expect(request[:task_id]).to eq(droplet_guid)
+          expect(request[:properties][:environment]).to eq(['KEY=value'])
           expect(request[:download_uri]).to eq('http://www.package.uri')
           expect(request[:upload_uri]).to eq('http://www.droplet.upload.uri')
           expect(request[:buildpack_cache_download_uri]).to eq('http://www.bpdownload.uri')
@@ -64,6 +67,22 @@ module VCAP::CloudController
             { 'protocol' => 'udp', 'ports' => '8080-9090', 'destination' => '198.41.191.47/1' },
             { 'protocol' => 'tcp', 'ports' => '8080-9090', 'destination' => '198.41.191.48/1' }
           ])
+        end
+
+        describe 'environment variables' do
+          it 'includes app environment variables' do
+            request = staging_message.staging_request
+            expect(request[:properties][:environment]).to include('KEY=value')
+          end
+
+          it 'prefers app environment variables when they conflict with staging group variables' do
+            group = EnvironmentVariableGroup.staging
+            group.environment_json = { 'KEY' => 'staging_value' }
+            group.save
+
+            request = staging_message.staging_request
+            expect(request[:properties][:environment]).to include('KEY=value')
+          end
         end
 
         describe 'the list of admin buildpacks' do

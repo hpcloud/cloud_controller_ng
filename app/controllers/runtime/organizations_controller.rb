@@ -1,7 +1,18 @@
 require 'actions/organization_delete'
+require 'queries/organization_user_roles_fetcher'
 
 module VCAP::CloudController
   class OrganizationsController < RestController::ModelController
+    def self.dependencies
+      [:username_and_roles_populating_collection_renderer, :quota_usage_populating_renderer]
+    end
+
+    def inject_dependencies(dependencies)
+      super
+      @user_roles_collection_renderer = dependencies.fetch(:username_and_roles_populating_collection_renderer)
+      @quota_usage_renderer = dependencies.fetch(:quota_usage_populating_renderer)
+    end
+
     define_attributes do
       attribute :name,            String
       attribute :billing_enabled, Message::Boolean, default: false
@@ -42,6 +53,43 @@ module VCAP::CloudController
       else
         Errors::ApiError.new_from_details('OrganizationInvalid', e.errors.full_messages)
       end
+    end
+
+    get '/v2/organizations/:guid/user_roles', :enumerate_user_roles
+    def enumerate_user_roles(guid)
+      logger.debug('cc.enumerate.related', guid: guid, association: 'user_roles')
+
+      org = find_guid_and_validate_access(:read, guid)
+
+      associated_controller = UsersController
+      associated_path = "#{self.class.url_for_guid(guid)}/user_roles"
+      opts = @opts.merge(transform_opts: { organization_id: org.id })
+
+      @user_roles_collection_renderer.render_json(
+        associated_controller,
+        OrganizationUserRolesFetcher.new.fetch(org),
+        associated_path,
+        opts,
+        {},
+      )
+    end
+
+    get '/v2/organizations/:guid/quota_usage', :enumerate_quota_usage
+    def enumerate_quota_usage(guid)
+      logger.debug('cc.enumerate.related', guid: guid, association: 'quota_usage')
+
+      org = find_guid_and_validate_access(:read, guid)
+
+      associated_controller, associated_model = QuotaDefinitionsController, QuotaDefinition
+      ds = find_guid_and_validate_access(:read, org.quota_definition.guid, associated_model)
+
+      opts = @opts.merge(transform_opts: { organization_id: org.id })
+
+      @quota_usage_renderer.render_json(
+        associated_controller,
+        ds,
+        opts,
+      )
     end
 
     get '/v2/organizations/:guid/services', :enumerate_services
@@ -90,7 +138,7 @@ module VCAP::CloudController
         raise VCAP::Errors::ApiError.new_from_details('AssociationNotEmpty', 'spaces', Organization.table_name)
       end
 
-      delete_action = OrganizationDelete.new(SpaceDelete.new(current_user.id, current_user_email))
+      delete_action = OrganizationDelete.new(SpaceDelete.new(current_user.guid, current_user_email))
       deletion_job = VCAP::CloudController::Jobs::DeleteActionJob.new(Organization, guid, delete_action)
       enqueue_deletion_job(deletion_job)
     end

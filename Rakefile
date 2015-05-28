@@ -19,4 +19,11 @@ Dir['lib/tasks/**/*.rake'].each do |tasks|
   load tasks
 end
 
-task default: [:rubocop, :spec]
+task default: [:rubocop_autocorrect, :spec]
+
+task :rubocop_autocorrect do
+  require 'rubocop'
+  cli = RuboCop::CLI.new
+  exit_code = cli.run(%w(--auto-correct))
+  exit(exit_code) if exit_code != 0
+end

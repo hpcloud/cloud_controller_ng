@@ -4,7 +4,7 @@ require 'cloud_controller/undo_app_changes'
 require 'cloud_controller/errors/application_missing'
 require 'cloud_controller/errors/invalid_route_relation'
 require 'repositories/runtime/app_usage_event_repository'
-require 'actions/service_binding_delete'
+require 'actions/services/service_binding_delete'
 require 'presenters/message_bus/service_binding_presenter'
 require 'digest/sha1'
 
@@ -30,7 +30,7 @@ module VCAP::CloudController
     one_to_many :app_versions
     one_to_many :service_bindings
     one_to_many :events, class: VCAP::CloudController::AppEvent
-    one_to_one :app, class: 'VCAP::CloudController::AppModel', key: :guid, primary_key: :app_guid
+    many_to_one :app, class: 'VCAP::CloudController::AppModel', key: :app_guid, primary_key: :guid, without_guid_generation: true
     many_to_one :admin_buildpack, class: VCAP::CloudController::Buildpack
     many_to_one :space, after_set: :validate_space
     many_to_one :stack
@@ -50,9 +50,9 @@ module VCAP::CloudController
                       :package_state, :package_hash, :health_check_type, :health_check_timeout,
                       :system_env_json, :distribution_zone,
                       :description, :sso_enabled, :restart_required, :autoscale_enabled,
-		      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-		      :droplet_count, :staging_failed_reason, :diego,
-		      :docker_image, :package_updated_at, :detected_start_command
+                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+                      :droplet_count, :staging_failed_reason, :diego,
+                      :docker_image, :package_updated_at, :detected_start_command, :enable_ssh
 
     import_attributes :name, :production, :space_guid, :stack_guid, :buildpack,
                       :detected_buildpack, :environment_json, :memory, :instances, :disk_quota,
@@ -60,9 +60,9 @@ module VCAP::CloudController
                       :service_binding_guids, :route_guids,
                       :health_check_timeout,
                       :health_check_type, :distribution_zone,
-		      :description, :sso_enabled, :autoscale_enabled,
-		      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
-		      :diego, :docker_image, :app_guid
+                      :description, :sso_enabled, :autoscale_enabled,
+                      :min_cpu_threshold, :max_cpu_threshold, :min_instances, :max_instances,
+                      :diego, :docker_image, :app_guid, :enable_ssh
 
     strip_attributes :name
 
@@ -111,7 +111,8 @@ module VCAP::CloudController
         InstancesPolicy.new(self),
         HealthCheckPolicy.new(self, health_check_timeout),
         CustomBuildpackPolicy.new(self, custom_buildpacks_enabled?),
-        DockerPolicy.new(self)
+        DockerPolicy.new(self),
+        EnableSshPolicy.new(self)
       ]
     end
 
@@ -159,6 +160,7 @@ module VCAP::CloudController
       self.stack ||= Stack.default
       self.memory ||= Config.config[:default_app_memory]
       self.disk_quota ||= Config.config[:default_app_disk_in_mb]
+      self.enable_ssh = Config.config[:allow_app_ssh_access] && space.allow_ssh if enable_ssh.nil?
 
       if Config.config[:instance_file_descriptor_limit]
         self.file_descriptors ||= Config.config[:instance_file_descriptor_limit]
@@ -281,11 +283,16 @@ module VCAP::CloudController
       #
       # * transitioning to STARTED
       # * memory is changed
-      # * routes are changed
+      # * health check type is changed
+      # * enable_ssh is changed
       #
       # this is to indicate that the running state of an application has changed,
       # and that the system should converge on this new version.
-      (column_changed?(:state) || column_changed?(:memory) || column_changed?(:health_check_type) || (column_changed?(:droplet_hash) && column_change(:droplet_hash)[0])) && started?
+      (column_changed?(:state) ||
+       column_changed?(:memory) ||
+       column_changed?(:health_check_type) ||
+       column_changed?(:enable_ssh) ||
+       (column_changed?(:droplet_hash) && column_change(:droplet_hash)[0])) && started?
     end
 
     def set_new_version
@@ -386,8 +393,7 @@ module VCAP::CloudController
 
     def metadata_with_command
       result = metadata_without_command || self.metadata = {}
-      result.merge!('command' => command) if command
-      result
+      command ? result.merge('command' => command) : result
     end
     alias_method_chain :metadata, :command
 
@@ -448,6 +454,7 @@ module VCAP::CloudController
     end
 
     def vcap_application
+      app_name = app.nil? ? name : app.name
       {
         limits: {
           mem: memory,
@@ -455,7 +462,7 @@ module VCAP::CloudController
           fds: file_descriptors
         },
         application_version: version,
-        application_name: name,
+        application_name: app_name,
         application_uris: uris,
         version: version,
         name: name,
@@ -592,14 +599,15 @@ module VCAP::CloudController
     end
 
     def self.user_visibility_filter(user)
-      Sequel.or([
-        [:space, user.spaces_dataset],
-        [:space, user.managed_spaces_dataset],
-        [:space, user.audited_spaces_dataset],
-        [:apps__space_id, user.managed_organizations_dataset.join(
-          :spaces, spaces__organization_id: :organizations__id
-        ).select(:spaces__id)]
-      ])
+      {
+        space_id: Space.dataset.join_table(:inner, :spaces_developers, space_id: :id, user_id: user.id).select(:spaces__id).union(
+            Space.dataset.join_table(:inner, :spaces_managers, space_id: :id, user_id: user.id).select(:spaces__id)
+          ).union(
+              Space.dataset.join_table(:inner, :spaces_auditors, space_id: :id, user_id: user.id).select(:spaces__id)
+          ).union(
+                Space.dataset.join_table(:inner, :organizations_managers, organization_id: :organization_id, user_id: user.id).select(:spaces__id)
+          ).select(:id)
+      }
     end
 
     def needs_staging?
@@ -627,7 +635,9 @@ module VCAP::CloudController
     end
 
     def uris
-      routes.map(&:fqdn)
+      routes.map do |r|
+        "#{r.fqdn}#{r.path}"
+      end
     end
 
     def mark_as_staged
@@ -641,6 +651,7 @@ module VCAP::CloudController
       self.package_state = 'FAILED'
       self.staging_failed_reason = reason
       self.package_pending_since = nil
+      self.state = 'STOPPED' if diego?
       save
     end
 
@@ -741,7 +752,7 @@ module VCAP::CloudController
       begin
         AppObserver.updated(self)
       rescue Errors::ApiError => e
-        UndoAppChanges.new(self).undo(previous_changes)
+        UndoAppChanges.new(self).undo(previous_changes) unless diego?
         raise e
       end
     end
@@ -757,16 +768,26 @@ module VCAP::CloudController
       super(opts)
     end
 
+    def is_v3?
+      !is_v2?
+    end
+
+    def is_v2?
+      app.nil?
+    end
+
     def handle_add_route(route)
       mark_routes_changed(route)
-      app_event_repository = Repositories::Runtime::AppEventRepository.new
-      app_event_repository.record_map_route(self, route, SecurityContext.current_user, SecurityContext.current_user_email)
+      if is_v2?
+        Repositories::Runtime::AppEventRepository.new.record_map_route(self, route, SecurityContext.current_user.try(:guid), SecurityContext.current_user_email)
+      end
     end
 
     def handle_remove_route(route)
       mark_routes_changed(route)
-      app_event_repository = Repositories::Runtime::AppEventRepository.new
-      app_event_repository.record_unmap_route(self, route, SecurityContext.current_user, SecurityContext.current_user_email)
+      if is_v2?
+        Repositories::Runtime::AppEventRepository.new.record_unmap_route(self, route, SecurityContext.current_user.try(:guid), SecurityContext.current_user_email)
+      end
     end
 
     private

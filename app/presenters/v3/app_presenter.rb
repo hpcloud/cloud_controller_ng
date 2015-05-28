@@ -26,10 +26,14 @@ module VCAP::CloudController
 
     def app_hash(app)
       {
-        guid:            app.guid,
-        name:            app.name,
-        desired_state:   app.desired_state,
-        _links:          build_links(app),
+        guid:                    app.guid,
+        name:                    app.name,
+        desired_state:           app.desired_state,
+        total_desired_instances: app.processes.map(&:instances).reduce(:+) || 0,
+        created_at:              app.created_at,
+        updated_at:              app.updated_at,
+        environment_variables:   app.environment_variables || {},
+        _links:                  build_links(app)
       }
     end
 
@@ -42,11 +46,14 @@ module VCAP::CloudController
       end
 
       links = {
-        self:            { href: "/v3/apps/#{app.guid}" },
-        processes:       { href: "/v3/apps/#{app.guid}/processes" },
-        packages:        { href: "/v3/apps/#{app.guid}/packages" },
-        space:           { href: "/v2/spaces/#{app.space_guid}" },
-        desired_droplet: desired_droplet_link,
+        self:                   { href: "/v3/apps/#{app.guid}" },
+        processes:              { href: "/v3/apps/#{app.guid}/processes" },
+        packages:               { href: "/v3/apps/#{app.guid}/packages" },
+        space:                  { href: "/v2/spaces/#{app.space_guid}" },
+        desired_droplet:        desired_droplet_link,
+        start:                  { href: "/v3/apps/#{app.guid}/start", method: 'PUT' },
+        stop:                   { href: "/v3/apps/#{app.guid}/stop", method: 'PUT' },
+        assign_current_droplet: { href: "/v3/apps/#{app.guid}/current_droplet", method: 'PUT' },
       }
 
       links.delete_if { |_, v| v.nil? }

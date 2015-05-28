@@ -3,6 +3,8 @@ require 'uri'
 
 module VCAP::CloudController
   class Route < Sequel::Model
+    ROUTE_REGEX = /\A#{URI.regexp}\Z/.freeze
+
     class InvalidDomainRelation < VCAP::Errors::InvalidRelation; end
     class InvalidAppRelation < VCAP::Errors::InvalidRelation; end
     class InvalidOrganizationRelation < VCAP::Errors::InvalidRelation; end
@@ -19,8 +21,8 @@ module VCAP::CloudController
 
     add_association_dependencies apps: :nullify
 
-    export_attributes :host, :domain_guid, :space_guid
-    import_attributes :host, :domain_guid, :space_guid, :app_guids
+    export_attributes :host, :path, :domain_guid, :space_guid
+    import_attributes :host, :path, :domain_guid, :space_guid, :app_guids
 
     def before_destroy
       super
@@ -42,6 +44,11 @@ module VCAP::CloudController
       }
     end
 
+    alias_method :old_path, :path
+    def path
+      old_path.nil? ? '' : old_path
+    end
+
     def organization
       space.organization if space
     end
@@ -53,7 +60,16 @@ module VCAP::CloudController
       errors.add(:host, :presence) if host.nil?
 
       validates_format /^([\w\-]+|\*)$/, :host if host && !host.empty?
-      validates_unique [:host, :domain_id]
+
+      if path.empty?
+        validates_unique [:host, :domain_id]  do |ds|
+          ds.where(path: '')
+        end
+      else
+        validates_unique [:host, :domain_id, :path]
+      end
+
+      validate_path
 
       main_domain = Kato::Config.get("cluster", "endpoint").gsub(/^api\./, '')
       builtin_routes = ["www", "api", "login", "ports", "aok", "logs"]
@@ -85,6 +101,26 @@ module VCAP::CloudController
       errors.add(:host, :domain_conflict) if domains_match?
     end
 
+    def validate_path
+      return if path == ''
+
+      if !ROUTE_REGEX.match("pathcheck://#{host}#{path}")
+        errors.add(:path, :invalid_path)
+      end
+
+      if path == '/'
+        errors.add(:path, :single_slash)
+      end
+
+      if path[0] != '/'
+        errors.add(:path, :missing_beginning_slash)
+      end
+
+      if path =~ /\?/
+        errors.add(:path, :path_contains_question)
+      end
+    end
+
     def domains_match?
       return false if domain.nil? || host.nil? || host.empty?
       !Domain.find(name: fqdn).nil?
@@ -110,19 +146,17 @@ module VCAP::CloudController
     end
 
     def self.user_visibility_filter(user)
-      orgs = Organization.filter(Sequel.or(
-        managers: [user],
-        auditors: [user],
-      ))
-
-      spaces = Space.filter(Sequel.or(
-        developers:   [user],
-        auditors:     [user],
-        managers:     [user],
-        organization: orgs,
-      ))
-
-      { space: spaces }
+      {
+        space_id: Space.dataset.join_table(:inner, :spaces_developers, space_id: :id, user_id: user.id).select(:spaces__id).union(
+            Space.dataset.join_table(:inner, :spaces_managers, space_id: :id, user_id: user.id).select(:spaces__id)
+          ).union(
+            Space.dataset.join_table(:inner, :spaces_auditors, space_id: :id, user_id: user.id).select(:spaces__id)
+          ).union(
+            Space.dataset.join_table(:inner, :organizations_managers, organization_id: :organization_id, user_id: user.id).select(:spaces__id)
+          ).union(
+            Space.dataset.join_table(:inner, :organizations_auditors, organization_id: :organization_id, user_id: user.id).select(:spaces__id)
+          ).select(:id)
+      }
     end
 
     def register_oauth_client

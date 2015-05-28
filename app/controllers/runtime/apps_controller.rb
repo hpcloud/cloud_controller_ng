@@ -5,6 +5,7 @@ module VCAP::CloudController
     end
 
     define_attributes do
+      attribute :enable_ssh,             Message::Boolean, default: nil
       attribute :buildpack,              String,           default: nil
       attribute :command,                String,           default: nil
       attribute :console,                Message::Boolean, default: false
@@ -44,7 +45,7 @@ module VCAP::CloudController
       to_many    :app_versions,                           exclude_in: :create
     end
 
-    query_parameters :name, :space_guid, :organization_guid, :diego, :restart_required, :state, :package_state, :sso_enabled
+    query_parameters :name, :space_guid, :organization_guid, :diego, :stack_guid, :restart_required, :state, :package_state, :sso_enabled
 
     def self.default_order_by
       :name
@@ -123,7 +124,7 @@ module VCAP::CloudController
       @app_event_repository.record_app_delete_request(
           app,
           app.space,
-          SecurityContext.current_user,
+          SecurityContext.current_user.guid,
           SecurityContext.current_user_email,
           recursive?)
 
@@ -176,7 +177,7 @@ module VCAP::CloudController
       record_app_create_value = @app_event_repository.record_app_create(
           app,
           app.space,
-          SecurityContext.current_user,
+          SecurityContext.current_user.guid,
           SecurityContext.current_user_email,
           request_attrs)
       record_app_create_value if request_attrs
@@ -202,7 +203,7 @@ module VCAP::CloudController
         Dea::Client.update_uris(app)
       end
 
-      @app_event_repository.record_app_update(app, app.space, SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
+      @app_event_repository.record_app_update(app, app.space, SecurityContext.current_user.guid, SecurityContext.current_user_email, request_attrs)
       update_health_manager_for_autoscaling(app)
 
       event = {

@@ -24,11 +24,24 @@ module VCAP::CloudController
 
     private
 
+    def build_links(process)
+      {
+        self:  { href: "/v3/processes/#{process.guid}" },
+        scale: { href: "/v3/processes/#{process.guid}/scale", 'method' => 'PUT', },
+        app:   { href: "/v3/apps/#{process.app_guid}" },
+        space: { href: "/v2/spaces/#{process.space_guid}" },
+      }
+    end
+
     def process_hash(process)
       {
         guid: process.guid,
         type: process.type,
         command: process.command,
+        instances: process.instances,
+        created_at: process.created_at,
+        updated_at: process.updated_at,
+        _links: build_links(process),
       }
     end
   end

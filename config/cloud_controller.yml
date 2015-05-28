@@ -46,7 +46,7 @@ default_app_disk_in_mb: 1024
 maximum_app_disk_in_mb: 2048
 
 broker_client_default_async_poll_interval_seconds: 60
-broker_client_max_async_poll_attempts: 25
+broker_client_max_async_poll_duration_minutes: 10080
 
 info:
   name: "stackato"
@@ -55,6 +55,9 @@ info:
   support_address: "stackato-support@activestate.com"
   description: "ActiveState Stackato"
   api_version: "2.0.0"
+
+  app_ssh_endpoint: "ssh.system.domain.example.com:2222"
+  app_ssh_host_key_fingerprint: "47:0d:d1:c8:c3:3d:0a:36:d1:49:2f:f2:90:27:31:d0"
 
 nginx:
   use_nginx: false
@@ -254,7 +257,10 @@ cloud_controller_username_lookup_client_secret: 'username_lookup_secret'
 
 users_can_select_backend: true
 diego_docker: false
-diego_tps_url: http://tps.service.dc1.consul:1518
+allow_app_ssh_access: true
+diego_nsync_url: http://nsync.service.consul:8787
+diego_stager_url: http://stager.service.consul:8888
+diego_tps_url: http://tps.service.consul:1518
 
 max_inline_relationships: 500
 renderer:

@@ -179,8 +179,10 @@ describe CloudController::DependencyLocator do
   end
 
   describe '#blobstore_url_generator' do
+    let(:internal_service_hostname) { 'internal.service.hostname' }
     let(:my_config) do
       {
+        internal_service_hostname: internal_service_hostname,
         external_host: 'external.host',
         external_port: 8282,
         staging: {
@@ -196,21 +198,87 @@ describe CloudController::DependencyLocator do
       TestConfig.override(my_config)
     end
 
-    it 'creates blobstore_url_generator with the host, port, and blobstores' do
-      connection_options = {
-        blobstore_host: 'external.host',
-        blobstore_port: 8282,
-        user: 'username',
-        password: 'password'
-      }
-      expect(CloudController::Blobstore::UrlGenerator).to receive(:new).
-        with(hash_including(connection_options),
-             instance_of(CloudController::Blobstore::Client),
-             instance_of(CloudController::Blobstore::Client),
-             instance_of(CloudController::Blobstore::Client),
-             instance_of(CloudController::Blobstore::Client)
-      )
-      locator.blobstore_url_generator
+    context 'when called without an argument' do
+      it 'creates blobstore_url_generator with the external host, port, and blobstores' do
+        connection_options = {
+          blobstore_host: 'external.host',
+          blobstore_port: 8282,
+          user: 'username',
+          password: 'password'
+        }
+        expect(CloudController::Blobstore::UrlGenerator).to receive(:new).
+            with(hash_including(connection_options),
+              instance_of(CloudController::Blobstore::Client),
+              instance_of(CloudController::Blobstore::Client),
+              instance_of(CloudController::Blobstore::Client),
+              instance_of(CloudController::Blobstore::Client)
+            )
+        locator.blobstore_url_generator
+      end
+    end
+
+    context 'when the internal_service_hostname is nil' do
+      let(:internal_service_hostname) { nil }
+
+      it 'creates blobstore_url_generator with the external host, port, and blobstores' do
+        connection_options = {
+          blobstore_host: 'external.host',
+          blobstore_port: 8282,
+          user: 'username',
+          password: 'password'
+        }
+        expect(CloudController::Blobstore::UrlGenerator).to receive(:new).
+            with(hash_including(connection_options),
+              instance_of(CloudController::Blobstore::Client),
+              instance_of(CloudController::Blobstore::Client),
+              instance_of(CloudController::Blobstore::Client),
+              instance_of(CloudController::Blobstore::Client)
+            ).twice
+        locator.blobstore_url_generator(true)
+        locator.blobstore_url_generator(false)
+      end
+    end
+
+    context 'when the internal_service_hostname is not nil' do
+      let(:internal_service_hostname) { 'internal.service.hostname' }
+
+      context 'and use_service_dns is true' do
+        it 'creates blobstore_url_generator with the internal service hostname, port, and blobstores' do
+          connection_options = {
+            blobstore_host: 'internal.service.hostname',
+            blobstore_port: 8282,
+            user: 'username',
+            password: 'password'
+          }
+          expect(CloudController::Blobstore::UrlGenerator).to receive(:new).
+              with(hash_including(connection_options),
+                instance_of(CloudController::Blobstore::Client),
+                instance_of(CloudController::Blobstore::Client),
+                instance_of(CloudController::Blobstore::Client),
+                instance_of(CloudController::Blobstore::Client)
+              )
+          locator.blobstore_url_generator(true)
+        end
+      end
+
+      context 'and use_service_dns is false' do
+        it 'creates blobstore_url_generator with the external host, port, and blobstores' do
+          connection_options = {
+            blobstore_host: 'external.host',
+            blobstore_port: 8282,
+            user: 'username',
+            password: 'password'
+          }
+          expect(CloudController::Blobstore::UrlGenerator).to receive(:new).
+              with(hash_including(connection_options),
+                instance_of(CloudController::Blobstore::Client),
+                instance_of(CloudController::Blobstore::Client),
+                instance_of(CloudController::Blobstore::Client),
+                instance_of(CloudController::Blobstore::Client)
+              )
+          locator.blobstore_url_generator(false)
+        end
+      end
     end
   end
 
@@ -240,12 +308,6 @@ describe CloudController::DependencyLocator do
     subject { locator.space_event_repository }
 
     it { is_expected.to be_a(VCAP::CloudController::Repositories::Runtime::SpaceEventRepository) }
-  end
-
-  describe '#process_repository' do
-    subject { locator.process_repository }
-
-    it { is_expected.to be_a(VCAP::CloudController::ProcessRepository) }
   end
 
   describe '#object_renderer' do
@@ -349,6 +411,36 @@ describe CloudController::DependencyLocator do
     end
   end
 
+  describe '#quota_usage_populating_renderer' do
+    it 'returns collection renderer with a QuotaUsagePopulator transformer' do
+      renderer = locator.quota_usage_populating_renderer
+      expect(renderer.transformer).to be_a(VCAP::CloudController::QuotaUsagePopulator)
+    end
+
+    it 'returns object renderer' do
+      expect(locator.quota_usage_populating_renderer).to be_an_instance_of(VCAP::CloudController::RestController::ObjectRenderer)
+    end
+
+    it 'returns object renderer configured via config' do
+      eager_loader = instance_of(VCAP::CloudController::RestController::SecureEagerLoader)
+      serializer = instance_of(VCAP::CloudController::RestController::PreloadedObjectSerializer)
+      opt = {
+        max_inline_relations_depth: 100_002,
+      }
+
+      TestConfig.override(renderer: opt)
+
+      expect(VCAP::CloudController::RestController::ObjectRenderer).
+        to receive(:new).
+        with(eager_loader, serializer, an_instance_of(Hash)) do |loader, ser, opts|
+          expect(opts[:max_inline_relations_depth]).to eql(100_002)
+          expect(opts[:transformer]).to be_an_instance_of(VCAP::CloudController::QuotaUsagePopulator)
+        end
+
+      locator.quota_usage_populating_renderer
+    end
+  end
+
   describe '#username_lookup_uaa_client' do
     it 'returns a uaa client with credentials for lookuping up usernames' do
       uaa_client = locator.username_lookup_uaa_client
@@ -392,9 +484,21 @@ describe CloudController::DependencyLocator do
     end
   end
 
-  describe '#diego_client' do
-    it 'returns the diego client' do
-      expect(locator.diego_client).to be_an_instance_of(VCAP::CloudController::Diego::Client)
+  describe '#nsync_client' do
+    it 'returns the diego nsync listener client' do
+      expect(locator.nsync_client).to be_an_instance_of(VCAP::CloudController::Diego::NsyncClient)
+    end
+  end
+
+  describe '#stager_client' do
+    it 'returns the diego stager client' do
+      expect(locator.stager_client).to be_an_instance_of(VCAP::CloudController::Diego::StagerClient)
+    end
+  end
+
+  describe '#tps_client' do
+    it 'returns the diego tps client' do
+      expect(locator.tps_client).to be_an_instance_of(VCAP::CloudController::Diego::TPSClient)
     end
   end
 

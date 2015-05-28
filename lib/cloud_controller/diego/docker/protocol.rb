@@ -1,5 +1,7 @@
 require 'cloud_controller/diego/environment'
 require 'cloud_controller/diego/process_guid'
+require 'cloud_controller/diego/staging_request'
+require 'cloud_controller/diego/docker/lifecycle_data'
 
 module VCAP::CloudController
   module Diego
@@ -10,32 +12,35 @@ module VCAP::CloudController
         end
 
         def stage_app_request(app, staging_config)
-          ['diego.docker.staging.start', stage_app_message(app, staging_config).to_json]
+          stage_app_message(app, staging_config).to_json
         end
 
         def stage_app_message(app, staging_config)
-          {
-            'app_id' => app.guid,
-            'task_id' => app.staging_task_id,
-            'memory_mb' => [app.memory, staging_config[:minimum_staging_memory_mb]].max,
-            'disk_mb' => [app.disk_quota, staging_config[:minimum_staging_disk_mb]].max,
-            'file_descriptors' => [app.file_descriptors, staging_config[:minimum_staging_file_descriptor_limit]].max,
-            'stack' => app.stack.name,
-            'docker_image' => app.docker_image,
-            'egress_rules' => @common_protocol.staging_egress_rules,
-            'timeout' => staging_config[:timeout_in_seconds],
-          }
+          lifecycle_data = LifecycleData.new
+          lifecycle_data.docker_image = app.docker_image
+
+          staging_request = StagingRequest.new
+          staging_request.app_id = app.guid
+          staging_request.log_guid = app.guid
+          staging_request.environment = Environment.new(app).as_json
+          staging_request.memory_mb = [app.memory, staging_config[:minimum_staging_memory_mb]].max
+          staging_request.disk_mb = [app.disk_quota, staging_config[:minimum_staging_disk_mb]].max
+          staging_request.file_descriptors = [app.file_descriptors, staging_config[:minimum_staging_file_descriptor_limit]].max
+          staging_request.egress_rules = @common_protocol.staging_egress_rules
+          staging_request.timeout = staging_config[:timeout_in_seconds]
+          staging_request.lifecycle = 'docker'
+          staging_request.lifecycle_data = lifecycle_data.message
+
+          staging_request.message
         end
 
         def desire_app_request(app, default_health_check_timeout)
-          ['diego.docker.desire.app', desire_app_message(app, default_health_check_timeout).to_json]
-        end
-
-        def stop_staging_app_request(app, task_id)
-          ['diego.docker.staging.stop', stop_staging_message(app, task_id).to_json]
+          desire_app_message(app, default_health_check_timeout).to_json
         end
 
         def desire_app_message(app, default_health_check_timeout)
+          cached_docker_image = app.current_droplet.cached_docker_image if app.current_droplet
+
           {
             'process_guid' => ProcessGuid.from_app(app),
             'memory_mb' => app.memory,
@@ -48,23 +53,13 @@ module VCAP::CloudController
             'num_instances' => app.desired_instances,
             'routes' => app.uris,
             'log_guid' => app.guid,
-            'docker_image' => app.docker_image,
+            'docker_image' => cached_docker_image || app.docker_image,
             'health_check_type' => app.health_check_type,
             'health_check_timeout_in_seconds' => app.health_check_timeout || default_health_check_timeout,
             'egress_rules' => @common_protocol.running_egress_rules(app),
-            'etag' => app.updated_at.to_f.to_s
+            'etag' => app.updated_at.to_f.to_s,
+            'allow_ssh' => app.enable_ssh,
           }
-        end
-
-        def stop_staging_message(app, task_id)
-          {
-            'app_id' => app.guid,
-            'task_id' => task_id,
-          }
-        end
-
-        def stop_index_request(app, index)
-          @common_protocol.stop_index_request(app, index)
         end
       end
     end

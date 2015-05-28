@@ -3,20 +3,33 @@ module VCAP::CloudController
     class DropletNotFound < StandardError; end
     class InvalidApp < StandardError; end
 
-    def self.update(app, message)
+    def initialize(user, user_email)
+      @user = user
+      @user_email = user_email
+      @logger = Steno.logger('cc.action.app_update')
+    end
+
+    def update(app, message)
       app.db.transaction do
         app.lock!
 
-        app.name = message['name'] unless message['name'].nil?
+        if message['name']
+          app.name = message['name']
+        end
 
-        if message['desired_droplet_guid']
-          droplet = DropletModel.find(guid: message['desired_droplet_guid'])
-          raise DropletNotFound if droplet.nil?
-          raise DropletNotFound if droplet.app_guid != app.guid
-          app.desired_droplet_guid = message['desired_droplet_guid']
+        if message['environment_variables']
+          app.environment_variables = message['environment_variables']
         end
 
         app.save
+
+        Repositories::Runtime::AppEventRepository.new.record_app_update(
+          app,
+          app.space,
+          @user.guid,
+          @user_email,
+          message
+        )
       end
 
       app

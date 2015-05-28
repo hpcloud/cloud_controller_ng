@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'cloud_controller/diego/staging_guid'
 
 module VCAP::CloudController
   describe Diego::Traditional::StagingCompletionHandler do
@@ -6,28 +7,27 @@ module VCAP::CloudController
     let(:staged_app) { App.make(instances: 3, staging_task_id: 'the-staging-task-id', diego: diego) }
     let(:logger) { instance_double(Steno::Logger, info: nil, error: nil, warn: nil) }
     let(:app_id) { staged_app.guid }
+    let(:staging_guid) { Diego::StagingGuid.from_app(staged_app) }
     let(:buildpack) { Buildpack.make }
 
     let(:success_response) do
       {
-        'app_id' => app_id,
-        'task_id' => staged_app.staging_task_id,
-        'detected_buildpack' => 'INTERCAL',
-        'buildpack_key' => buildpack.key,
-        'execution_metadata' => '{command: [' ']}',
-        'detected_start_command' => { 'web' => '' },
+        execution_metadata: '{command: [' ']}',
+        detected_start_command: { web: '' },
+        lifecycle_data: {
+          buildpack_key: buildpack.key,
+          detected_buildpack: 'INTERCAL',
+        }
       }
     end
 
     let(:malformed_success_response) do
-      success_response.except('detected_buildpack')
+      success_response.except(:detected_start_command)
     end
 
     let(:fail_response) do
       {
-        'app_id' => app_id,
-        'task_id' => staged_app.staging_task_id,
-        'error' => { 'id' => 'NoCompatibleCell', 'message' => 'Found no compatible cell' }
+        error: { id: 'NoCompatibleCell', message: 'Found no compatible cell' }
       }
     end
 
@@ -51,7 +51,7 @@ module VCAP::CloudController
     end
 
     def handle_staging_result(response)
-      subject.staging_complete(response)
+      subject.staging_complete(staging_guid, response)
     end
 
     describe 'success cases' do
@@ -63,8 +63,8 @@ module VCAP::CloudController
 
       context 'when staging metadata is returned' do
         before do
-          success_response['execution_metadata'] = 'some-metadata'
-          success_response['detected_start_command']['web'] = 'some-command'
+          success_response[:execution_metadata] = 'some-metadata'
+          success_response[:detected_start_command][:web] = 'some-command'
         end
 
         it 'updates the droplet with the returned start command' do
@@ -144,8 +144,8 @@ module VCAP::CloudController
         end
       end
 
-      context 'when staging references an unknown app' do
-        let(:app_id) { 'ooh ooh ah ah' }
+      context 'when staging with an unknown staging guid' do
+        let(:staging_guid) { Diego::StagingGuid.from('unknown_app_guid', 'unknown_task_id') }
 
         before do
           handle_staging_result(success_response)
@@ -157,23 +157,7 @@ module VCAP::CloudController
         end
 
         it 'logs info for the CF operator since the app may have been deleted by the CF user' do
-          expect(logger).to have_received(:error).with('diego.staging.unknown-app', response: success_response)
-        end
-      end
-
-      context 'when the task_id is invalid' do
-        before do
-          success_response['task_id'] = 'another-task-id'
-          handle_staging_result(success_response)
-        end
-
-        it 'should not attempt to start anything' do
-          expect(runner).not_to have_received(:start)
-          expect(Dea::Client).not_to have_received(:start)
-        end
-
-        it 'logs info for the CF operator since the user may have attempted a second concurrent push and returns' do
-          expect(logger).to have_received(:warn).with('diego.staging.not-current', response: success_response, current: staged_app.staging_task_id)
+          expect(logger).to have_received(:error).with('diego.staging.unknown-app', staging_guid: staging_guid)
         end
       end
 
@@ -189,7 +173,12 @@ module VCAP::CloudController
         end
 
         it 'logs an error for the CF operator' do
-          expect(logger).to have_received(:error).with('diego.staging.invalid-message', payload: malformed_success_response, error: '{ detected_buildpack => Missing key }')
+          expect(logger).to have_received(:error).with(
+            'diego.staging.success.invalid-message',
+            staging_guid: staging_guid,
+            payload: malformed_success_response,
+            error: '{ detected_start_command => Missing key }'
+          )
         end
       end
 
@@ -219,6 +208,7 @@ module VCAP::CloudController
 
           expect(logger).to have_received(:error).with(
             'diego.staging.saving-staging-result-failed',
+            staging_guid: staging_guid,
             response: success_response,
             error: 'save-error',
           )

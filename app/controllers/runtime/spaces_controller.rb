@@ -1,13 +1,15 @@
 require 'actions/space_delete'
+require 'queries/space_user_roles_fetcher'
 
 module VCAP::CloudController
   class SpacesController < RestController::ModelController
     def self.dependencies
-      [:space_event_repository]
+      [:space_event_repository, :username_and_roles_populating_collection_renderer]
     end
 
     define_attributes do
       attribute  :name,            String
+      attribute  :allow_ssh, Message::Boolean, default: true
       attribute  :is_default, Message::Boolean, default: false
       to_one     :organization
       to_many    :developers
@@ -41,6 +43,26 @@ module VCAP::CloudController
     def inject_dependencies(dependencies)
       super
       @space_event_repository = dependencies.fetch(:space_event_repository)
+      @user_roles_collection_renderer = dependencies.fetch(:username_and_roles_populating_collection_renderer)
+    end
+
+    get '/v2/spaces/:guid/user_roles', :enumerate_user_roles
+    def enumerate_user_roles(guid)
+      logger.debug('cc.enumerate.related', guid: guid, association: 'user_roles')
+
+      space = find_guid_and_validate_access(:read, guid)
+
+      associated_controller = UsersController
+      associated_path = "#{self.class.url_for_guid(guid)}/user_roles"
+      opts = @opts.merge(transform_opts: { space_id: space.id })
+
+      @user_roles_collection_renderer.render_json(
+        associated_controller,
+        SpaceUserRolesFetcher.new.fetch(space),
+        associated_path,
+        opts,
+        {},
+      )
     end
 
     get '/v2/spaces/:guid/services', :enumerate_services
@@ -116,7 +138,7 @@ module VCAP::CloudController
 
       @space_event_repository.record_space_delete_request(space, SecurityContext.current_user, SecurityContext.current_user_email, recursive?)
 
-      delete_action = SpaceDelete.new(current_user.id, current_user_email)
+      delete_action = SpaceDelete.new(current_user.guid, current_user_email)
       deletion_job = VCAP::CloudController::Jobs::DeleteActionJob.new(Space, guid, delete_action)
       enqueue_deletion_job(deletion_job)
     end

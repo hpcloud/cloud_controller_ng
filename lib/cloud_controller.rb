@@ -1,4 +1,3 @@
-require 'bcrypt'
 require 'sinatra'
 require 'sequel'
 require 'thin'
@@ -22,6 +21,7 @@ require 'active_support/core_ext/object/to_query'
 require 'active_support/json/encoding'
 
 Sequel.default_timezone = :utc
+ActiveSupport::JSON::Encoding.time_precision = 0
 
 module VCAP::CloudController; end
 
@@ -48,10 +48,12 @@ require 'cloud_controller/dea/staging_response'
 require 'cloud_controller/dea/staging_message'
 require 'cloud_controller/dea/package_stager_task'
 require 'cloud_controller/dea/app_stager_task'
-require 'cloud_controller/collection_transformers'
+require 'cloud_controller/transformers'
 require 'cloud_controller/controllers'
 require 'cloud_controller/roles'
 require 'cloud_controller/encryptor'
+require 'cloud_controller/membership'
+require 'cloud_controller/serializer'
 require 'cloud_controller/blobstore/client'
 require 'cloud_controller/blobstore/url_generator'
 require 'cloud_controller/dependency_locator'
@@ -76,7 +78,9 @@ require 'cloud_controller/dea/pool'
 require 'cloud_controller/dea/client'
 require 'cloud_controller/dea/respondent'
 
-require 'cloud_controller/diego/client'
+require 'cloud_controller/diego/nsync_client'
+require 'cloud_controller/diego/stager_client'
+require 'cloud_controller/diego/tps_client'
 
 require 'cloud_controller/dea/stager_pool'
 

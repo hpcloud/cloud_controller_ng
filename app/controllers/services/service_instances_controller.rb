@@ -1,9 +1,9 @@
 require 'services/api'
 require 'jobs/audit_event_job'
-require 'jobs/services/service_instance_deletion'
-require 'controllers/services/lifecycle/service_instance_provisioner'
-require 'controllers/services/lifecycle/service_instance_updater'
+require 'actions/services/service_instance_create'
+require 'actions/services/service_instance_update'
 require 'controllers/services/lifecycle/service_instance_deprovisioner'
+require 'queries/service_instance_fetcher'
 
 module VCAP::CloudController
   class ServiceInstancesController < RestController::ModelController
@@ -14,9 +14,10 @@ module VCAP::CloudController
       to_one :space
       to_one :service_plan
       to_many :service_bindings
+      to_many :service_keys
     end
 
-    query_parameters :name, :space_guid, :service_plan_guid, :service_binding_guid, :gateway_name, :organization_guid
+    query_parameters :name, :space_guid, :service_plan_guid, :service_binding_guid, :gateway_name, :organization_guid, :service_key_guid
     # added :organization_guid here for readability, it is actually implemented as a search filter
     # in the #get_filtered_dataset_for_enumeration method because ModelControl does not support
     # searching on parameters that are not directly associated with the model
@@ -55,18 +56,6 @@ module VCAP::CloudController
       Errors::ApiError.new_from_details('ServiceInstanceInvalid', e.errors.full_messages)
     end
 
-    def self.not_found_exception(guid)
-      Errors::ApiError.new_from_details('ServiceInstanceNotFound', guid)
-    end
-
-    def self.url_for_guid(guid)
-      if ServiceInstance.find(guid: guid).instance_of? UserProvidedServiceInstance
-        "#{ROUTE_PREFIX}/user_provided_service_instances/#{guid}"
-      else
-        super
-      end
-    end
-
     def self.dependencies
       [:services_event_repository]
     end
@@ -77,63 +66,104 @@ module VCAP::CloudController
     end
 
     def create
-      json_msg = self.class::CreateMessage.decode(body)
-      @request_attrs = json_msg.extract(stringify_keys: true)
-      logger.debug 'cc.create', model: self.class.model_class_name, attributes: request_attrs
+      @request_attrs = validate_create_request
+      accepts_incomplete = convert_flag_to_bool(params['accepts_incomplete'])
 
-      provisioner = ServiceInstanceProvisioner.new(
-        @services_event_repository,
-        self,
-        logger,
-        @access_context
-      )
-      service_instance = provisioner.create_service_instance(@request_attrs, params)
+      service_plan = ServicePlan.first(guid: request_attrs['service_plan_guid'])
+      space = Space.filter(guid: request_attrs['space_guid']).first
+      organization = space.organization if space
 
-      if service_instance.last_operation.state == 'in progress'
-        state = HTTP::ACCEPTED
-      else
-        state = HTTP::CREATED
-      end
+      service_plan_not_found! unless service_plan
 
-      [state,
+      service_instance = ManagedServiceInstance.new(request_attrs.except('parameters'))
+      validate_access(:create, service_instance)
+
+      invalid_service_instance!(service_instance) unless service_instance.valid?
+      space_not_found! unless space
+      org_not_authorized! unless plan_visible_to_org?(organization, service_plan)
+
+      service_instance = ServiceInstanceCreate.new(@services_event_repository, logger).
+                             create(request_attrs, accepts_incomplete)
+
+      [status_from_operation_state(service_instance),
        { 'Location' => "#{self.class.path}/#{service_instance.guid}" },
        object_renderer.render_json(self.class, service_instance, @opts)
       ]
-    rescue ServiceInstanceProvisioner::Unauthorized
-      raise Errors::ApiError.new_from_details('NotAuthorized')
-    rescue ServiceInstanceProvisioner::ServiceInstanceCannotAccessServicePlan
-      raise Errors::ApiError.new_from_details('ServiceInstanceOrganizationNotAuthorized')
-    rescue ServiceInstanceProvisioner::InvalidRequest
-      raise Errors::ApiError.new_from_details('InvalidRequest')
-    rescue ServiceInstanceProvisioner::InvalidServicePlan
-      raise Errors::ApiError.new_from_details('ServiceInstanceInvalid', 'not a valid service plan')
-    rescue ServiceInstanceProvisioner::InvalidSpace
-      raise Errors::ApiError.new_from_details('ServiceInstanceInvalid', 'not a valid space')
     end
 
     def update(guid)
-      @request_attrs = self.class::UpdateMessage.decode(body).extract(stringify_keys: true)
-      logger.debug 'cc.update', guid: guid, attributes: request_attrs
+      @request_attrs = validate_update_request(guid)
+      accepts_incomplete = convert_flag_to_bool(params['accepts_incomplete'])
 
-      service_instance = find_guid(guid)
-      updater = ServiceInstanceUpdater.new(@services_event_repository, self, logger, @access_context)
-      updater.update_service_instance(service_instance, @request_attrs, params)
+      service_instance, related_objects = ServiceInstanceFetcher.new.fetch(guid)
+      validate_access(:read_for_update, service_instance)
+      validate_access(:update, service_instance)
 
-      if service_instance.last_operation.state == 'in progress'
-        state = HTTP::ACCEPTED
-      else
-        state = HTTP::CREATED
+      validate_space_update(related_objects[:space])
+      validate_plan_update(related_objects[:plan], related_objects[:service])
+
+      update = ServiceInstanceUpdate.new(accepts_incomplete: accepts_incomplete, services_event_repository: @services_event_repository)
+      update.update_service_instance(service_instance, request_attrs)
+
+      status_code = status_from_operation_state(service_instance)
+      if status_code == HTTP::ACCEPTED
+        headers = { 'Location' => "#{self.class.path}/#{service_instance.guid}" }
       end
 
-      [state, {}, object_renderer.render_json(self.class, service_instance, @opts)]
-    rescue ServiceInstanceUpdater::InvalidRequest
-      raise Errors::ApiError.new_from_details('InvalidRequest')
-    rescue ServiceInstanceUpdater::ServicePlanNotUpdatable
-      raise Errors::ApiError.new_from_details('ServicePlanNotUpdateable')
-    rescue ServiceInstanceUpdater::InvalidServicePlan
-      raise Errors::ApiError.new_from_details('InvalidRelation', 'Plan')
-    rescue ServiceInstanceUpdater::ServiceInstanceSpaceChangeNotAllowed
-      raise Errors::ApiError.new_from_details('ServiceInstanceSpaceChangeNotAllowed')
+      [
+        status_code,
+        headers,
+        object_renderer.render_json(self.class, service_instance, @opts)
+      ]
+    end
+
+    def read(guid)
+      logger.debug 'cc.read', model: :ServiceInstance, guid: guid
+
+      service_instance = find_guid_and_validate_access(:read, guid, ServiceInstance)
+      object_renderer.render_json(self.class, service_instance, @opts)
+    end
+
+    def delete(guid)
+      accepts_incomplete = convert_flag_to_bool(params['accepts_incomplete'])
+      async = convert_flag_to_bool(params['async'])
+
+      service_instance = find_guid(guid, ServiceInstance)
+
+      validate_access(:delete, service_instance)
+      association_not_empty!(:service_bindings) if has_bindings?(service_instance) && !recursive?
+      association_not_empty!(:service_keys) if has_keys?(service_instance) && !recursive?
+
+      deprovisioner = ServiceInstanceDeprovisioner.new(@services_event_repository, self, logger)
+      delete_job = deprovisioner.deprovision_service_instance(service_instance, accepts_incomplete, async)
+
+      if delete_job
+        [
+          HTTP::ACCEPTED,
+          { 'Location' => "/v2/jobs/#{delete_job.guid}" },
+          JobPresenter.new(delete_job).to_json
+        ]
+      elsif service_instance.exists?
+        [
+          HTTP::ACCEPTED,
+          { 'Location' => "#{self.class.path}/#{service_instance.guid}" },
+          object_renderer.render_json(self.class, service_instance.refresh, @opts)
+        ]
+      else
+        [HTTP::NO_CONTENT, nil]
+      end
+    end
+
+    get '/v2/service_instances/:guid/permissions', :permissions
+    def permissions(guid)
+      find_guid_and_validate_access(:read_permissions, guid, ServiceInstance)
+      [HTTP::OK, {}, JSON.generate({ manage: true })]
+    rescue Errors::ApiError => e
+      if e.name == 'NotAuthorized'
+        [HTTP::OK, {}, JSON.generate({ manage: false })]
+      else
+        raise e
+      end
     end
 
     class BulkUpdateMessage < VCAP::RestAPI::Message
@@ -168,39 +198,8 @@ module VCAP::CloudController
       end
     end
 
-    def read(guid)
-      logger.debug 'cc.read', model: :ServiceInstance, guid: guid
-
-      service_instance = find_guid_and_validate_access(:read, guid, ServiceInstance)
-      object_renderer.render_json(self.class, service_instance, @opts)
-    end
-
-    get '/v2/service_instances/:guid/permissions', :permissions
-    def permissions(guid)
-      find_guid_and_validate_access(:read_permissions, guid, ServiceInstance)
-      [HTTP::OK, {}, JSON.generate({ manage: true })]
-    rescue Errors::ApiError => e
-      if e.name == 'NotAuthorized'
-        [HTTP::OK, {}, JSON.generate({ manage: false })]
-      else
-        raise e
-      end
-    end
-
-    def delete(guid)
-      service_instance = find_guid(guid, ServiceInstance)
-      raise_if_has_associations!(service_instance) if v2_api? && !recursive?
-
-      deprovisioner = ServiceInstanceDeprovisioner.new(@services_event_repository, self, logger)
-      service_instance, delete_job = deprovisioner.deprovision_service_instance(service_instance, params)
-
-      if service_instance
-        [HTTP::ACCEPTED, {}, object_renderer.render_json(self.class, service_instance, @opts)]
-      elsif delete_job
-        [HTTP::ACCEPTED, JobPresenter.new(delete_job).to_json]
-      else
-        [HTTP::NO_CONTENT, nil]
-      end
+    def self.not_found_exception(guid)
+      Errors::ApiError.new_from_details('ServiceInstanceNotFound', guid)
     end
 
     def get_filtered_dataset_for_enumeration(model, ds, qp, opts)
@@ -225,17 +224,117 @@ module VCAP::CloudController
 
     private
 
-    def raise_if_has_associations!(obj)
-      associations = obj.class.associations.select do |association|
-        association_action = obj.class.association_dependencies_hash[association]
-        if association_action == :destroy && association != :service_instance_operation
-          obj.has_one_to_many?(association) || obj.has_one_to_one?(association)
-        end
-      end
+    def validate_create_request
+      request_attrs = self.class::CreateMessage.decode(body).extract(stringify_keys: true)
+      logger.debug('cc.create', model: self.class.model_class_name, attributes: request_attrs)
+      invalid_request! unless request_attrs
+      request_attrs
+    end
 
-      if associations.any?
-        raise VCAP::Errors::ApiError.new_from_details('AssociationNotEmpty', associations.join(', '), obj.class.table_name)
+    def validate_update_request(guid)
+      request_attrs = self.class::UpdateMessage.decode(body).extract(stringify_keys: true)
+      logger.debug('cc.update', guid: guid, attributes: request_attrs)
+      invalid_request! unless request_attrs
+      request_attrs
+    end
+
+    def validate_plan_update(current_plan, service)
+      requested_plan_guid = request_attrs['service_plan_guid']
+      if plan_update_requested?(requested_plan_guid, current_plan)
+        plan_not_updateable! if service_disallows_plan_update?(service)
+        invalid_relation! if invalid_plan?(requested_plan_guid, service)
       end
+    end
+
+    def validate_space_update(space)
+      space_change_not_allowed! if space_change_requested?(request_attrs['space_guid'], space)
+    end
+
+    def invalid_service_instance!(service_instance)
+      raise Sequel::ValidationFailed.new(service_instance)
+    end
+
+    def org_not_authorized!
+      raise Errors::ApiError.new_from_details('ServiceInstanceOrganizationNotAuthorized')
+    end
+
+    def space_not_found!
+      raise Errors::ApiError.new_from_details('ServiceInstanceInvalid', 'not a valid space')
+    end
+
+    def service_plan_not_found!
+      raise Errors::ApiError.new_from_details('ServiceInstanceInvalid', 'not a valid service plan')
+    end
+
+    def plan_not_updateable!
+      raise Errors::ApiError.new_from_details('ServicePlanNotUpdateable')
+    end
+
+    def invalid_relation!
+      raise Errors::ApiError.new_from_details('InvalidRelation', 'Plan')
+    end
+
+    def invalid_request!
+      raise Errors::ApiError.new_from_details('InvalidRequest')
+    end
+
+    def association_not_empty!(association)
+      raise VCAP::Errors::ApiError.new_from_details('AssociationNotEmpty', association, :service_instances)
+    end
+
+    def space_change_not_allowed!
+      raise Errors::ApiError.new_from_details('ServiceInstanceSpaceChangeNotAllowed')
+    end
+
+    def plan_visible_to_org?(organization, service_plan)
+      ServicePlan.organization_visible(organization).filter(guid: service_plan.guid).count > 0
+    end
+
+    def invalid_plan?(requested_plan_guid, service)
+      requested_plan = ServicePlan.find(guid: requested_plan_guid)
+      plan_not_found?(requested_plan) || plan_in_different_service?(requested_plan, service)
+    end
+
+    def plan_update_requested?(requested_plan_guid, old_plan)
+      requested_plan_guid && requested_plan_guid != old_plan.guid
+    end
+
+    def has_bindings?(service_instance)
+      !service_instance.service_bindings.empty?
+    end
+
+    def has_keys?(service_instance)
+      !service_instance.service_keys.empty?
+    end
+
+    def space_change_requested?(requested_space_guid, current_space)
+      requested_space_guid && requested_space_guid != current_space.guid
+    end
+
+    def plan_not_found?(service_plan)
+      !service_plan
+    end
+
+    def plan_in_different_service?(service_plan, service)
+      service_plan.service.guid != service.guid
+    end
+
+    def service_disallows_plan_update?(service)
+      !service.plan_updateable
+    end
+
+    def status_from_operation_state(service_instance)
+      if service_instance.last_operation.state == 'in progress'
+        state = HTTP::ACCEPTED
+      else
+        state = HTTP::CREATED
+      end
+      state
+    end
+
+    def convert_flag_to_bool(flag)
+      raise Errors::ApiError.new_from_details('InvalidRequest') unless ['true', 'false', nil].include? flag
+      flag == 'true'
     end
   end
 end

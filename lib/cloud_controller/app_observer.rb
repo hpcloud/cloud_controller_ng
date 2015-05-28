@@ -27,7 +27,7 @@ module VCAP::CloudController
         changes = app.previous_changes
         return unless changes
 
-        if changes.key?(:state) || changes.key?(:diego)
+        if changes.key?(:state) || changes.key?(:diego) || changes.key?(:enable_ssh)
           react_to_state_change(app)
         elsif changes.key?(:instances)
           react_to_instances_change(app)
@@ -49,7 +49,7 @@ module VCAP::CloudController
       end
 
       def routes_changed(app)
-        @runners.runner_for_app(app).update_routes
+        @runners.runner_for_app(app).update_routes if app.started?
       end
 
       private

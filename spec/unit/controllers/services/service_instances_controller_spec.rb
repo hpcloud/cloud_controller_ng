@@ -20,6 +20,7 @@ module VCAP::CloudController
           space_guid: { type: 'string', required: true },
           service_plan_guid: { type: 'string', required: true },
           service_binding_guids: { type: '[string]' },
+          service_key_guids: { type: '[string]' },
           parameters: { type: 'hash', default: nil },
         })
       end
@@ -30,6 +31,7 @@ module VCAP::CloudController
           space_guid: { type: 'string' },
           service_plan_guid: { type: 'string' },
           service_binding_guids: { type: '[string]' },
+          service_key_guids: { type: '[string]' },
           parameters: { type: 'hash' },
         })
       end
@@ -63,8 +65,6 @@ module VCAP::CloudController
       end
 
       describe 'App Space Level Permissions' do
-        user_sees_empty_enumerate('SpaceManager', :@space_a_manager, :@space_b_manager)
-
         describe 'Developer' do
           let(:member_a) { @space_a_developer }
           let(:member_b) { @space_b_developer }
@@ -178,19 +178,29 @@ module VCAP::CloudController
                            path: '/v2/service_instances',
                            enumerate: 1
         end
+
+        describe 'SpaceManager' do
+          let(:member_a) { @space_a_manager }
+          let(:member_b) { @space_b_manager }
+
+          include_examples 'permission enumeration', 'SpaceManager',
+            name: 'managed service instance',
+            path: '/v2/service_instances',
+            enumerate: 1
+        end
       end
     end
 
     describe 'Associations' do
       it do
-        expect(described_class).to have_nested_routes({ service_bindings: [:get, :put, :delete] })
+        expect(described_class).to have_nested_routes({ service_bindings: [:get, :put, :delete], service_keys: [:get, :put, :delete] })
       end
     end
 
     describe 'POST', '/v2/service_instances' do
       context 'with a v2 service' do
         let(:service_broker_url) { "http://auth_username:auth_password@example.com/v2/service_instances/#{ServiceInstance.last.guid}" }
-        let(:service_broker_url_with_async) { "#{service_broker_url}?accepts_incomplete=true" }
+        let(:service_broker_url_with_accepts_incomplete) { "#{service_broker_url}?accepts_incomplete=true" }
         let(:service_broker) { ServiceBroker.make(broker_url: 'http://example.com', auth_username: 'auth_username', auth_password: 'auth_password') }
         let(:service) { Service.make(service_broker: service_broker) }
         let(:space) { Space.make }
@@ -199,10 +209,6 @@ module VCAP::CloudController
         let(:response_body) do
           {
             dashboard_url: 'the dashboard_url',
-            last_operation: {
-              state: 'succeeded',
-              description: '',
-            },
           }.to_json
         end
         let(:response_code) { 201 }
@@ -217,14 +223,13 @@ module VCAP::CloudController
           stub_request(:put, service_broker_url_regex).
             with(headers: { 'Accept' => 'application/json' }).
             to_return(status: response_code, body: response_body, headers: { 'Content-Type' => 'application/json' })
-
-          stub_delete_and_return(200, '{}')
         end
 
         it 'provisions a service instance' do
-          instance = create_managed_service_instance(async: 'false')
+          instance = create_managed_service_instance(accepts_incomplete: 'false')
 
-          expect(last_response.status).to eq(201)
+          expect(last_response).to have_status_code(201)
+          expect(last_response.headers['Location']).to eq "/v2/service_instances/#{instance.guid}"
 
           expect(instance.credentials).to eq({})
           expect(instance.dashboard_url).to eq('the dashboard_url')
@@ -238,7 +243,7 @@ module VCAP::CloudController
         it 'creates a CREATED service usage event' do
           instance = nil
           expect {
-            instance = create_managed_service_instance(async: 'false')
+            instance = create_managed_service_instance(accepts_incomplete: 'false')
           }.to change { ServiceUsageEvent.count }.by(1)
 
           event = ServiceUsageEvent.last
@@ -250,7 +255,7 @@ module VCAP::CloudController
           before do
             create_managed_service_instance(
               email: 'developer@example.com',
-              async: false,
+              accepts_incomplete: false,
               parameters: parameters
             )
           end
@@ -280,17 +285,13 @@ module VCAP::CloudController
           end
         end
 
-        context 'when the client does not support asynchronous provisioning (no accepts_incomplete parameter)' do
+        context 'when the client does not support accepts_incomplete parameter' do
           let(:response_body) do
-            {
-              last_operation: {
-                state: 'succeeded',
-              }
-            }.to_json
+            {}.to_json
           end
 
           it 'creates a service audit event for creating the service instance' do
-            instance = create_managed_service_instance(email: 'developer@example.com', async: false)
+            instance = create_managed_service_instance(email: 'developer@example.com', accepts_incomplete: false)
 
             event = VCAP::CloudController::Event.first(type: 'audit.service_instance.create')
             expect(event.type).to eq('audit.service_instance.create')
@@ -314,14 +315,14 @@ module VCAP::CloudController
           end
 
           it 'tells the service broker to provision a new service instance synchronously' do
-            create_managed_service_instance(async: false)
+            create_managed_service_instance(accepts_incomplete: false)
 
             expect(a_request(:put, service_broker_url)).to have_been_made.times(1)
             expect(a_request(:delete, service_broker_url)).to have_been_made.times(0)
           end
 
           it 'fails with with InvalidRequest when accepts_incomplete is not true or false strings' do
-            create_managed_service_instance(async: 'lol')
+            create_managed_service_instance(accepts_incomplete: 'lol')
 
             expect(a_request(:put, service_broker_url_regex)).to have_been_made.times(0)
             expect(a_request(:delete, service_broker_url_regex)).to have_been_made.times(0)
@@ -349,20 +350,16 @@ module VCAP::CloudController
           end
         end
 
-        context 'when the client explicitly allows asynchronous provisioning (accepts_incomplete=true)' do
+        context 'when the client explicitly allows accepts_incomplete' do
           let(:response_code) { 202 }
           let(:response_body) do
-            {
-              last_operation: {
-                state: 'in progress'
-              }
-            }.to_json
+            {}.to_json
           end
 
-          it 'tells the service broker to provision a new service instance asynchronously' do
+          it 'tells the service broker to provision a new service instance with accepts_incomplete=true' do
             create_managed_service_instance
 
-            expect(a_request(:put, service_broker_url_with_async)).to have_been_made.times(1)
+            expect(a_request(:put, service_broker_url_with_accepts_incomplete)).to have_been_made.times(1)
             expect(a_request(:delete, service_broker_url)).to have_been_made.times(0)
           end
 
@@ -380,9 +377,17 @@ module VCAP::CloudController
             expect(service_instance.last_operation.state).to eq('in progress')
           end
 
+          it 'immediately enqueues a fetch job' do
+            Timecop.freeze do
+              create_managed_service_instance
+              job = Delayed::Job.last
+              poll_interval = VCAP::CloudController::Config.config[:broker_client_default_async_poll_interval_seconds].seconds
+              expect(job.run_at).to be < Time.now.utc + poll_interval
+            end
+          end
+
           context 'and the broker provisions the instance synchronously' do
             let(:response_code) { 201 }
-            let(:response_body) { '{}' }
 
             it 'returns a 201 with the last operation state as succeeded' do
               service_instance = create_managed_service_instance
@@ -392,82 +397,23 @@ module VCAP::CloudController
             end
           end
 
-          context 'and the broker specifies a custom polling interval' do
-            let(:response_body) do
-              {
-                dashboard_url: 'the dashboard_url',
-                last_operation: {
-                  state: 'in progress',
-                  description: '',
-                  async_poll_interval_seconds: polling_interval
-                }
-              }.to_json
-            end
-
-            before do
-              stub_request(:get, service_broker_url_regex).
-                with(headers: { 'Accept' => 'application/json' }).
-                to_return(status: 200, body: {
-                   last_operation: {
-                     state: 'succeeded'
-                   }
-                }.to_json)
-            end
-
-            context 'and the polling interval is within the default value and 24 hours' do
-              let(:polling_interval) { 300 }
-
-              it 'enqueues a fetch job to run at the custom polling interval' do
-                create_managed_service_instance
-
-                Timecop.freeze(Time.now + 290.seconds) do
-                  expect(Delayed::Worker.new.work_off).to eq([0, 0])
-                end
-
-                Timecop.freeze(Time.now + 301.seconds) do
-                  expect(Delayed::Worker.new.work_off).to eq([1, 0])
-                end
-              end
-            end
-
-            context 'and the polling interval is less than the default value' do
-              let(:polling_interval) { 0 }
-
-              it 'enqueues a fetch job to run at the default interval' do
-                create_managed_service_instance
-
-                expect(Delayed::Worker.new.work_off).to eq([0, 0])
-
-                Timecop.freeze(Time.now + 300.seconds) do
-                  expect(Delayed::Worker.new.work_off).to eq([1, 0])
-                end
-              end
-            end
-
-            context 'and the polling interval is greater than 24 hours' do
-              let(:polling_interval) { 5.days }
-
-              it 'enqueues a fetch job to run at the maximum interval (24 hours)' do
-                create_managed_service_instance
-
-                expect(Delayed::Worker.new.work_off).to eq([0, 0])
-
-                Timecop.freeze(Time.now + 24.hours + 1.second) do
-                  expect(Delayed::Worker.new.work_off).to eq([1, 0])
-                end
-              end
-            end
-          end
-
           context 'and the worker processes the request successfully' do
             before do
               stub_request(:get, service_broker_url_regex).
                 with(headers: { 'Accept' => 'application/json' }).
                 to_return(status: 200, body: {
-                  last_operation: {
-                    state: 'succeeded'
-                  }
+                  state: 'succeeded',
+                  description: 'new description'
                 }.to_json)
+            end
+
+            it 'updates the description of the service instance last operation' do
+              service_instance = create_managed_service_instance(email: 'developer@example.com')
+
+              Delayed::Job.last.invoke_job
+
+              expect(service_instance.last_operation.reload.state).to eq('succeeded')
+              expect(service_instance.last_operation.reload.description).to eq('new description')
             end
 
             it 'creates an audit event' do
@@ -496,18 +442,61 @@ module VCAP::CloudController
               })
             end
           end
+
+          context 'and the worker never gets a success response during polling' do
+            let!(:now) { Time.now }
+            let(:max_poll_duration) { VCAP::CloudController::Config.config[:broker_client_max_async_poll_duration_minutes] }
+            let(:before_poll_timeout) { now + (max_poll_duration / 2).minutes  }
+            let(:after_poll_timeout) { now + max_poll_duration.minutes + 1.minutes }
+
+            before do
+              stub_request(:get, service_broker_url_regex).
+                with(headers: { 'Accept' => 'application/json' }).
+                to_return(status: 200, body: {
+                    state: 'in progress',
+                    description: 'new description'
+                  }.to_json)
+            end
+
+            it 'does not enqueue additional delay_jobs after broker_client_max_async_poll_duration_minutes' do
+              service_instance_guid = nil
+              Timecop.freeze now do
+                create_managed_service_instance
+                service_instance_guid = decoded_response['metadata']['guid']
+              end
+
+              Timecop.travel(before_poll_timeout) do
+                successes, failures = Delayed::Worker.new.work_off
+                expect(successes).to eq 1
+                expect(failures).to eq 0
+                expect(Delayed::Job.count).to eq 1
+              end
+
+              Timecop.travel(after_poll_timeout) do
+                successes, failures = Delayed::Worker.new.work_off
+                expect(successes).to eq 1
+                expect(failures).to eq 0
+                expect(Delayed::Job.count).to eq 0
+              end
+
+              get "/v2/service_instances/#{service_instance_guid}", {}, admin_headers
+              expect(last_response).to have_status_code 200
+              expect(decoded_response['entity']['last_operation']['state']).to eq 'failed'
+              expect(decoded_response['entity']['last_operation']['description']).to match /Service Broker failed to provision within the required time/
+            end
+          end
         end
 
-        context 'when the client explicitly does not request asynchronous provisioning (accepts_incomplete=false)' do
+        context 'when the client explicitly does not request accepts_incomplete provisioning' do
           it 'tells the service broker to provision a new service instance synchronous' do
-            create_managed_service_instance(async: 'false')
+            create_managed_service_instance(accepts_incomplete: 'false')
 
             expect(a_request(:put, service_broker_url)).to have_been_made.times(1)
             expect(a_request(:delete, service_broker_url)).to have_been_made.times(0)
           end
 
           it 'creates a service audit event for creating the service instance' do
-            instance = create_managed_service_instance(email: 'developer@example.com', async: 'false')
+            instance = create_managed_service_instance(email: 'developer@example.com', accepts_incomplete: 'false')
 
             event = VCAP::CloudController::Event.first(type: 'audit.service_instance.create')
             expect(event.type).to eq('audit.service_instance.create')
@@ -620,7 +609,7 @@ module VCAP::CloudController
 
         context 'with naming collisions' do
           it 'does not allow duplicate managed service instances' do
-            create_managed_service_instance(async: 'false')
+            create_managed_service_instance(accepts_incomplete: 'false')
             expect(last_response.status).to eq(201)
 
             create_managed_service_instance
@@ -629,7 +618,7 @@ module VCAP::CloudController
           end
 
           it 'does not allow duplicate user provided service instances' do
-            create_managed_service_instance(async: 'false')
+            create_managed_service_instance(accepts_incomplete: 'false')
             expect(last_response.status).to eq(201)
 
             create_user_provided_service_instance
@@ -638,7 +627,7 @@ module VCAP::CloudController
           end
 
           it 'does not allow a user provided service instance with same name as managed service instance' do
-            create_managed_service_instance(async: 'false')
+            create_managed_service_instance(accepts_incomplete: 'false')
             expect(last_response.status).to eq(201)
 
             create_user_provided_service_instance
@@ -668,24 +657,30 @@ module VCAP::CloudController
             post '/v2/service_instances', req, headers
           end
 
-          it 'returns a 404' do
+          it 'returns a 400' do
             expect(last_response).to have_status_code(400)
-            expect(decoded_response['code']).to eq(60003)
             expect(decoded_response['description']).to include('not a valid service plan')
+            expect(decoded_response['code']).to eq(60003)
           end
         end
 
         describe 'orphan mitigation' do
+          let(:delete_request_status) { 200 }
+          before do
+            stub_delete_and_return(delete_request_status, '{}')
+          end
+
           context 'when the broker returns an error' do
             let(:response_code) { 500 }
-
-            it 'enqueues a job to deprovision the instance' do
-              req = MultiJson.dump(
+            let(:req) do
+              MultiJson.dump(
                 name: 'foo',
                 space_guid: space.guid,
                 service_plan_guid: plan.guid
               )
+            end
 
+            it 'mitigates orphans by deprovisioning the instance' do
               post '/v2/service_instances', req, json_headers(headers_for(developer))
 
               expect(last_response.status).to eq(502)
@@ -694,7 +689,32 @@ module VCAP::CloudController
 
               orphan_mitigation_job = Delayed::Job.first
               expect(orphan_mitigation_job).not_to be_nil
-              expect(orphan_mitigation_job).to be_a_fully_wrapped_job_of Jobs::Services::ServiceInstanceDeprovision
+              expect(orphan_mitigation_job).to be_a_fully_wrapped_job_of Jobs::Services::DeleteOrphanedInstance
+
+              expect(Delayed::Worker.new.work_off).to eq([1, 0])
+              expect(a_request(:delete, service_broker_url_regex)).to have_been_made.times(1)
+            end
+
+            context 'and the broker returns a 202 for the follow up deletion request' do
+              let(:delete_request_status) { 202 }
+
+              it 'treats the 202 as a successful deletion and does not poll the last_operation endpoint' do
+                post '/v2/service_instances', req, json_headers(headers_for(developer))
+
+                expect(last_response.status).to eq(502)
+                expect(a_request(:put, service_broker_url_regex)).to have_been_made.times(1)
+                expect(a_request(:delete, service_broker_url_regex)).not_to have_been_made.times(1)
+
+                orphan_mitigation_job = Delayed::Job.first
+                expect(orphan_mitigation_job).not_to be_nil
+                expect(orphan_mitigation_job).to be_a_fully_wrapped_job_of Jobs::Services::DeleteOrphanedInstance
+
+                expect(Delayed::Worker.new.work_off).to eq([1, 0])
+                expect(a_request(:delete, service_broker_url_regex)).to have_been_made.times(1)
+                expect(a_request(:get, /#{service_broker_url_regex}\/last_operation/)).not_to have_been_made.times(1)
+
+                expect(Delayed::Job.count).to eq 0
+              end
             end
           end
 
@@ -853,6 +873,60 @@ module VCAP::CloudController
           expect(last_response).to have_status_code 201
         end
 
+        it 'does not set a Location header' do
+          put "/v2/service_instances/#{service_instance.guid}", body, headers_for(admin_user, email: 'admin@example.com')
+          expect(last_response.headers['Location']).to be_nil
+        end
+
+        context 'when the request has arbitrary parameters' do
+          let(:body) do
+            {
+              service_plan_guid: new_service_plan.guid,
+              parameters: parameters
+            }.to_json
+          end
+
+          let(:parameters) do
+            { myParam: 'some-value' }
+          end
+
+          it 'should pass along the parameters to the service broker' do
+            put "/v2/service_instances/#{service_instance.guid}", body, headers_for(admin_user, email: 'admin@example.com')
+            expect(last_response).to have_status_code(201)
+            expect(a_request(:patch, service_broker_url_regex).with(body: hash_including(parameters: parameters))).to have_been_made.times(1)
+          end
+
+          context 'and the parameter is not a JSON object' do
+            let(:parameters) { 'foo' }
+
+            it 'should reject the request' do
+              put "/v2/service_instances/#{service_instance.guid}", body, headers_for(admin_user, email: 'admin@example.com')
+              expect(last_response).to have_status_code(400)
+              expect(a_request(:put, service_broker_url_regex).
+                       with(body: hash_including(parameters: parameters))).
+                to have_been_made.times(0)
+            end
+          end
+
+          context 'when only arbitrary parameters are passed' do
+            let(:body) do
+              {
+                parameters: parameters
+              }.to_json
+            end
+
+            let(:parameters) do
+              { myParam: 'some-value' }
+            end
+
+            it 'should pass along the parameters to the service broker' do
+              put "/v2/service_instances/#{service_instance.guid}", body, headers_for(admin_user, email: 'admin@example.com')
+              expect(last_response).to have_status_code(201)
+              expect(a_request(:patch, service_broker_url_regex).with(body: hash_including(parameters: parameters))).to have_been_made.times(1)
+            end
+          end
+        end
+
         context 'when the request is a service instance rename' do
           let(:status) { 200 }
           let(:body) do
@@ -913,8 +987,8 @@ module VCAP::CloudController
 
             it 'should show an error message for update operation' do
               put "/v2/service_instances/#{service_instance.guid}", body, admin_headers
-              expect(last_response).to have_status_code 400
-              expect(last_response.body).to match 'ServiceInstanceOperationInProgress'
+              expect(last_response).to have_status_code 409
+              expect(last_response.body).to match 'AsyncServiceInstanceOperationInProgress'
             end
           end
 
@@ -964,6 +1038,25 @@ module VCAP::CloudController
               expect(last_response.status).to eq 400
               expect(last_response.body).to match 'InvalidRelation'
               expect(service_instance.reload.service_plan).to eq(old_service_plan)
+            end
+          end
+
+          context 'when the requested plan belongs to a different service' do
+            let(:other_broker) { ServiceBroker.make }
+            let(:other_service) { Service.make(plan_updateable: true, service_broker: other_broker) }
+            let(:other_plan) { ServicePlan.make(service: other_service) }
+
+            let(:body) do
+              MultiJson.dump(
+                  service_plan_guid: other_plan.guid
+              )
+            end
+
+            it 'rejects the request' do
+              put "/v2/service_instances/#{service_instance.guid}", body, headers_for(admin_user)
+              expect(last_response).to have_status_code 400
+              expect(decoded_response['error_code']).to match 'InvalidRelation'
+              expect(service_instance.reload.service_plan.guid).not_to eq other_plan.guid
             end
           end
 
@@ -1027,7 +1120,7 @@ module VCAP::CloudController
         end
       end
 
-      context 'when the request allows asynchronous update' do
+      context 'when the request allows accepts_incomplete update' do
         before do
           stub_request(:patch, "#{service_broker_url}?accepts_incomplete=true").
             to_return(status: status, body: response_body)
@@ -1055,28 +1148,19 @@ module VCAP::CloudController
               })
         end
 
-        context 'when the service instance client returns a 202 with an empty body' do
-          let(:status) { 202 }
-          let(:response_body) { '{}' }
+        it 'updates the service plan in the database' do
+          put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
 
-          it 'tells the user that the broker provided a bad response' do
-            put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user)
-
-            expect(last_response).to have_status_code 502
-            expect(last_response.body).to match /ResponseMalformed/
-          end
+          expect(service_instance.reload.service_plan).to eq(new_service_plan)
         end
 
-        context 'when the service instance client returns a last_operation with state `in progress`' do
+        it 'returns 201' do
+          put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+          expect(last_response).to have_status_code 201
+        end
+
+        context 'when the broker returns a 202' do
           let(:status) { 202 }
-          let(:response_body) do
-            {
-              last_operation: {
-                state: 'in progress',
-                description: ''
-              }
-            }.to_json
-          end
 
           it 'does not update the service plan in the database' do
             put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
@@ -1096,11 +1180,28 @@ module VCAP::CloudController
             expect(last_response).to have_status_code 202
           end
 
+          it 'sets the Location header' do
+            put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
+            expect(last_response.headers['Location']).to eq("/v2/service_instances/#{service_instance.guid}")
+          end
+
+          it 'immediately enqueues a job to fetch the state' do
+            Timecop.freeze do
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user)
+
+              job = Delayed::Job.first
+              expect(job).to be_a_fully_wrapped_job_of Jobs::Services::ServiceInstanceStateFetch
+
+              poll_interval = VCAP::CloudController::Config.config[:broker_client_default_async_poll_interval_seconds].seconds
+              expect(job.run_at).to be < Time.now.utc + poll_interval
+            end
+          end
+
           context 'when the broker returns 410 for a service instance fetch request' do
             before do
               put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
 
-              stub_request(:get, service_broker_url).
+              stub_request(:get, last_operation_state_url(service_instance)).
                 to_return(status: 410, body: {}.to_json)
             end
 
@@ -1118,13 +1219,18 @@ module VCAP::CloudController
             before do
               put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, headers_for(admin_user, email: 'admin@example.com')
 
-              stub_request(:get, service_broker_url).
+              stub_request(:get, last_operation_state_url(service_instance)).
                 to_return(status: 200, body: {
-                    last_operation: {
-                      state: 'succeeded',
-                      description: 'Phew, all done'
-                    }
+                    state: 'succeeded',
+                    description: 'Phew, all done'
                   }.to_json)
+            end
+
+            it 'updates the description of the service instance last operation' do
+              Delayed::Job.last.invoke_job
+
+              expect(service_instance.last_operation.reload.state).to eq('succeeded')
+              expect(service_instance.last_operation.reload.description).to eq('Phew, all done')
             end
 
             it 'creates a service audit event for updating the service instance' do
@@ -1171,28 +1277,6 @@ module VCAP::CloudController
               expect(service_instance.last_operation.reload.state).to eq 'succeeded'
               expect(service_instance.last_operation.reload.description).to be_nil
             end
-          end
-        end
-
-        context 'when the service instance client returns a last_operation with state `succeeded`' do
-          let(:response_body) do
-            {
-              last_operation: {
-                state: 'succeeded',
-                description: 'some description'
-              }
-            }.to_json
-          end
-
-          it 'updates the service plan in the database' do
-            put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
-
-            expect(service_instance.reload.service_plan).to eq(new_service_plan)
-          end
-
-          it 'returns 201' do
-            put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
-            expect(last_response).to have_status_code 201
           end
         end
 
@@ -1256,8 +1340,25 @@ module VCAP::CloudController
 
             it 'should show an error message for update operation' do
               put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
-              expect(last_response).to have_status_code 400
-              expect(last_response.body).to match 'ServiceInstanceOperationInProgress'
+              expect(last_response).to have_status_code 409
+              expect(last_response.body).to match 'AsyncServiceInstanceOperationInProgress'
+            end
+          end
+
+          describe 'concurrent requests' do
+            it 'succeeds for exactly one request' do
+              stub_request(:patch, "#{service_broker_url}?accepts_incomplete=true").to_return do |_|
+                put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+                expect(last_response).to have_status_code 409
+                expect(last_response.body).to match /AsyncServiceInstanceOperationInProgress/
+
+                { status: 202, body: {}.to_json }
+              end.times(1).then.to_return do |_|
+                { status: 202, body: {}.to_json }
+              end
+
+              put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
+              expect(last_response).to have_status_code 202
             end
           end
 
@@ -1304,7 +1405,7 @@ module VCAP::CloudController
 
             it 'returns an InvalidRelationError' do
               put "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", body, admin_headers
-              expect(last_response.status).to eq 400
+              expect(last_response).to have_status_code 400
               expect(last_response.body).to match 'InvalidRelation'
               expect(service_instance.reload.service_plan).to eq(old_service_plan)
             end
@@ -1467,6 +1568,7 @@ module VCAP::CloudController
             delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
           }.to change(ServiceInstance, :count).by(-1)
           expect(last_response.status).to eq(204)
+          expect(last_response.headers['Location']).to be_nil
           expect(ServiceInstance.find(guid: service_instance.guid)).to be_nil
         end
 
@@ -1490,20 +1592,88 @@ module VCAP::CloudController
           expect(event.metadata).to eq({ 'request' => {} })
         end
 
-        context 'when recursive=true' do
+        context 'when the instance has bindings' do
           let(:service_binding) { ServiceBinding.make(service_instance: service_instance) }
 
           before do
             stub_unbind(service_binding)
           end
 
-          it 'deletes the associated service bindings' do
+          it 'does not delete the associated service bindings' do
             expect {
-              delete "/v2/service_instances/#{service_instance.guid}?recursive=true", {}, admin_headers
-            }.to change(ServiceBinding, :count).by(-1)
-            expect(last_response.status).to eq(204)
-            expect(ServiceInstance.find(guid: service_instance.guid)).to be_nil
-            expect(ServiceBinding.find(guid: service_binding.guid)).to be_nil
+              delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
+            }.to change(ServiceBinding, :count).by(0)
+            expect(ServiceInstance.find(guid: service_instance.guid)).to be
+            expect(ServiceBinding.find(guid: service_binding.guid)).to be
+          end
+
+          it 'should give the user an error' do
+            delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
+
+            expect(last_response).to have_status_code 400
+            expect(last_response.body).to match /AssociationNotEmpty/
+            expect(last_response.body).to match /Please delete the service_bindings associations for your service_instances/
+          end
+
+          context 'and recursive=true' do
+            it 'deletes the associated service bindings' do
+              expect {
+                delete "/v2/service_instances/#{service_instance.guid}?recursive=true", {}, admin_headers
+              }.to change(ServiceBinding, :count).by(-1)
+              expect(last_response.status).to eq(204)
+              expect(ServiceInstance.find(guid: service_instance.guid)).to be_nil
+              expect(ServiceBinding.find(guid: service_binding.guid)).to be_nil
+            end
+          end
+        end
+
+        context 'when the instance has service keys' do
+          let!(:service_key) { ServiceKey.make(service_instance: service_instance) }
+
+          context 'does not provide the recursive parameter' do
+            it 'does not delete the associated service keys' do
+              expect {
+                delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
+              }.to change(ServiceKey, :count).by(0)
+              expect(ServiceInstance.find(guid: service_instance.guid)).to be
+              expect(ServiceKey.find(guid: service_key.guid)).to be
+            end
+
+            it 'should give the user an error' do
+              delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
+
+              expect(last_response).to have_status_code 400
+              expect(last_response.body).to match /AssociationNotEmpty/
+              expect(last_response.body).to match /Please delete the service_keys associations for your service_instances/
+            end
+          end
+
+          context 'the recursive parameter is true' do
+            before do
+              stub_unbind(service_key)
+            end
+
+            it 'deletes the associated service keys' do
+              expect {
+                delete "/v2/service_instances/#{service_instance.guid}?recursive=true", {}, admin_headers
+              }.to change(ServiceKey, :count).by(-1)
+              expect(last_response.status).to eq(204)
+
+              expect(ServiceInstance.find(guid: service_instance.guid)).to be_nil
+              expect(ServiceKey.find(guid: service_key.guid)).to be_nil
+            end
+
+            it 'does not delete the service instance if failed to delete the service key' do
+              service_key_1 = ServiceKey.make(service_instance: service_instance)
+              stub_unbind(service_key_1, status: 500)
+
+              expect {
+                delete "/v2/service_instances/#{service_instance.guid}?recursive=true", {}, admin_headers
+              }.to change(ServiceKey, :count).by(-1)
+              expect(ServiceInstance.find(guid: service_instance.guid)).to be
+              expect(ServiceKey.find(guid: service_key.guid)).to be_nil
+              expect(ServiceKey.find(guid: service_key_1.guid)).to be
+            end
           end
         end
 
@@ -1512,15 +1682,27 @@ module VCAP::CloudController
             stub_deprovision(service_instance, body: body, status: status, accepts_incomplete: true)
           end
 
-          context 'when the broker returns state `in progress`' do
+          describe 'concurrent requests' do
+            it 'succeeds for exactly one of the requests' do
+              stub_deprovision(service_instance, accepts_incomplete: true) do |req|
+                delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, admin_headers
+                expect(last_response).to have_status_code 409
+                expect(last_response.body).to match /AsyncServiceInstanceOperationInProgress/
+
+                { status: 202, body: {}.to_json }
+              end.times(1).then.to_return do |_|
+                { status: 202, body: {}.to_json }
+              end
+
+              delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, admin_headers
+              expect(last_response).to have_status_code 202
+            end
+          end
+
+          context 'when the broker returns a 202' do
             let(:status) { 202 }
             let(:body) do
-              {
-                last_operation: {
-                  state: 'in progress',
-                  description: 'fake-description'
-                }
-              }.to_json
+              {}.to_json
             end
 
             it 'should not create a delete event' do
@@ -1536,16 +1718,14 @@ module VCAP::CloudController
               broker_uri = URI.parse(broker.broker_url)
               broker_uri.user = broker.auth_username
               broker_uri.password = broker.auth_password
-              stub_request(:get, "#{broker_uri}/v2/service_instances/#{service_instance.guid}").
+              stub_request(:get, last_operation_state_url(service_instance)).
                 to_return(status: 200, body: {
-                  last_operation: {
-                    state: 'succeeded',
-                    description: 'Done!'
-                  }
+                  state: 'succeeded',
+                  description: 'Done!'
                 }.to_json)
 
               Timecop.freeze Time.now + 2.minute do
-                expect(Delayed::Worker.new.work_off).to eq [1, 0]
+                Delayed::Job.last.invoke_job
                 expect(Event.find(type: 'audit.service_instance.delete')).to be
               end
             end
@@ -1554,26 +1734,21 @@ module VCAP::CloudController
               delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
 
               expect(last_response).to have_status_code 202
+              expect(last_response.headers['Location']).to eq "/v2/service_instances/#{service_instance.guid}"
               expect(service_instance.last_operation.state).to eq 'in progress'
 
               expect(ManagedServiceInstance.last.last_operation.type).to eq('delete')
               expect(ManagedServiceInstance.last.last_operation.state).to eq('in progress')
-              expect(ManagedServiceInstance.last.last_operation.description).to eq('fake-description')
 
               expect(decoded_response['entity']['last_operation']).to be
               expect(decoded_response['entity']['last_operation']['type']).to eq('delete')
               expect(decoded_response['entity']['last_operation']['state']).to eq('in progress')
-              expect(decoded_response['entity']['last_operation']['description']).to eq('fake-description')
             end
 
             it 'enqueues a polling job to fetch state from the broker' do
               delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
 
-              broker = service_instance.service_plan.service.service_broker
-              broker_uri = URI.parse(broker.broker_url)
-              broker_uri.user = broker.auth_username
-              broker_uri.password = broker.auth_password
-              stub_request(:get, "#{broker_uri}/v2/service_instances/#{service_instance.guid}").
+              stub_request(:get, last_operation_state_url(service_instance)).
                 to_return(status: 200, body: {
                   last_operation: {
                     state: 'in progress',
@@ -1586,16 +1761,30 @@ module VCAP::CloudController
                 expect(Delayed::Worker.new.work_off).to eq [1, 0]
               end
             end
+
+            context 'when the broker successfully fetches updated information about the instance' do
+              before do
+                delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
+                stub_request(:get, last_operation_state_url(service_instance)).
+                  to_return(status: 200, body: {
+                      state: 'in progress',
+                      description: 'still going'
+                    }.to_json)
+              end
+
+              it 'updates the description of the service instance last operation' do
+                Delayed::Job.last.invoke_job
+
+                expect(service_instance.last_operation.reload.state).to eq('in progress')
+                expect(service_instance.last_operation.reload.description).to eq('still going')
+              end
+            end
           end
 
-          context 'when the broker returns 200 and state `succeeded`' do
+          context 'when the broker returns 200' do
             let(:status) { 200 }
             let(:body) do
-              {
-                last_operation: {
-                  state: 'succeeded',
-                }
-              }.to_json
+              {}.to_json
             end
 
             it 'remove the service instance' do
@@ -1604,6 +1793,26 @@ module VCAP::CloudController
 
               expect(last_response).to have_status_code(204)
               expect(ManagedServiceInstance.find(guid: service_instance_guid)).to be_nil
+            end
+
+            it 'logs an audit event' do
+              delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
+
+              expect(last_response).to have_status_code 204
+
+              event = VCAP::CloudController::Event.first(type: 'audit.service_instance.delete')
+              expect(event.type).to eq('audit.service_instance.delete')
+              expect(event.actor_type).to eq('user')
+              expect(event.actor).to eq(admin_user.guid)
+              expect(event.actor_name).to eq('admin@example.com')
+              expect(event.timestamp).to be
+              expect(event.actee).to eq(service_instance.guid)
+              expect(event.actee_type).to eq('service_instance')
+              expect(event.actee_name).to eq(service_instance.name)
+              expect(event.space_guid).to eq(service_instance.space.guid)
+              expect(event.space_id).to eq(service_instance.space.id)
+              expect(event.organization_guid).to eq(service_instance.space.organization.guid)
+              expect(event.metadata).to eq({ 'request' => {} })
             end
 
             context 'and with ?async=true' do
@@ -1617,7 +1826,7 @@ module VCAP::CloudController
             end
           end
 
-          context 'when the broker returns state `failed`' do
+          context 'when the broker returns a 400' do
             let(:status) { 400 }
             let(:body) do
               {
@@ -1670,59 +1879,6 @@ module VCAP::CloudController
               expect(decoded_response['description']).to eq(response_description)
             end
           end
-
-          context 'when broker returns 202 with an unkown state' do
-            let(:status) { 202 }
-            let(:body) do
-              {
-                last_operation: {
-                  state: 'fake-state',
-                  description: 'fake-description'
-                }
-              }.to_json
-            end
-
-            it 'fails with CF-ServiceBrokerResponseMalformed' do
-              delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
-
-              expect(last_response).to have_status_code 502
-              expect(decoded_response['error_code']).to eq('CF-ServiceBrokerResponseMalformed')
-            end
-          end
-
-          context 'when broker returns 200 with invalid state' do
-            let(:status) { 200 }
-            let(:body) do
-              {
-                last_operation: {
-                  state: 'in progress',
-                  description: 'fake-description'
-                }
-              }.to_json
-            end
-
-            it 'fails with CF-ServiceBrokerResponseMalformed' do
-              delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
-
-              expect(last_response).to have_status_code 502
-              expect(decoded_response['error_code']).to eq('CF-ServiceBrokerResponseMalformed')
-            end
-          end
-
-          context 'when the broker returns a 200 with empty json' do
-            let(:status) { 200 }
-            let(:body) do
-              {}.to_json
-            end
-
-            it 'remove the service instance' do
-              service_instance_guid = service_instance.guid
-              delete "/v2/service_instances/#{service_instance.guid}?accepts_incomplete=true", {}, headers_for(admin_user, email: 'admin@example.com')
-
-              expect(last_response).to have_status_code(204)
-              expect(ManagedServiceInstance.find(guid: service_instance_guid)).to be_nil
-            end
-          end
         end
 
         context 'with ?async=true & accepts_incomplete=false' do
@@ -1730,16 +1886,67 @@ module VCAP::CloudController
             require 'support/stackato_yaml_override'
             delete "/v2/service_instances/#{service_instance.guid}?async=true", {}, admin_headers
             expect(last_response).to have_status_code 202
+            expect(last_response.headers['Location']).to eq "/v2/jobs/#{decoded_response['entity']['guid']}"
             expect(decoded_response['entity']['guid']).to be
             expect(decoded_response['entity']['status']).to eq 'queued'
-
-            expect(service_instance.last_operation.state).to eq 'in progress'
-            expect(service_instance.last_operation.type).to eq 'delete'
 
             successes, failures = Delayed::Worker.new.work_off
             expect(successes).to eq 1
             expect(failures).to eq 0
             expect(ServiceInstance.find(guid: service_instance.guid)).to be_nil
+          end
+
+          it 'creates a service audit event for deleting the service instance' do
+            delete "/v2/service_instances/#{service_instance.guid}?async=true", {}, headers_for(admin_user, email: 'admin@example.com')
+            expect(last_response).to have_status_code 202
+
+            event = VCAP::CloudController::Event.first(type: 'audit.service_instance.delete')
+            expect(event).to be_nil
+
+            expect(Delayed::Worker.new.work_off).to eq([1, 0])
+
+            event = VCAP::CloudController::Event.first(type: 'audit.service_instance.delete')
+            expect(event.type).to eq('audit.service_instance.delete')
+            expect(event.actor_type).to eq('user')
+            expect(event.actor).to eq(admin_user.guid)
+            expect(event.actor_name).to eq('admin@example.com')
+            expect(event.timestamp).to be
+            expect(event.actee).to eq(service_instance.guid)
+            expect(event.actee_type).to eq('service_instance')
+            expect(event.actee_name).to eq(service_instance.name)
+            expect(event.space_guid).to eq(service_instance.space.guid)
+            expect(event.space_id).to eq(service_instance.space.id)
+            expect(event.organization_guid).to eq(service_instance.space.organization.guid)
+            expect(event.metadata).to eq({ 'request' => {} })
+          end
+
+          it 'does not get stuck in progress if the service instance is delete synchronously before the job runs' do
+            delete "/v2/service_instances/#{service_instance.guid}?async=true", {}, admin_headers
+            expect(last_response).to have_status_code 202
+
+            job_url = decoded_response['metadata']['url']
+
+            delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
+            expect(last_response).to have_status_code 204
+
+            Delayed::Worker.new.work_off
+
+            get job_url, {}, admin_headers
+            expect(decoded_response['entity']['status']).to eq 'finished'
+          end
+
+          context 'when a synchronous request is made before the enqueued job can run' do
+            it 'succeeds the synchronous request and assumes the job will properly handle the missing resource when it eventually runs' do
+              delete "/v2/service_instances/#{service_instance.guid}?async=true", {}, admin_headers
+              expect(last_response).to have_status_code 202
+              expect(service_instance.exists?).to be_truthy
+
+              delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
+              expect(last_response).to have_status_code 204
+              expect(service_instance.exists?).to be_falsey
+
+              expect(Delayed::Worker.new.work_off).to eq([1, 0])
+            end
           end
 
           context 'when the service broker returns 500' do
@@ -1770,7 +1977,6 @@ module VCAP::CloudController
           it 'it returns a CF-ServiceBrokerBadResponse error' do
             delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
 
-            # expect(last_response.status).to eq 409  old handeling, check to make sure we don't do this anymore
             expect(decoded_response['error_code']).to eq 'CF-ServiceBrokerBadResponse'
             expect(JSON.parse(last_response.body)['description']).to include 'service broker error'
           end
@@ -1791,8 +1997,8 @@ module VCAP::CloudController
 
           it 'should show an error message for delete operation' do
             delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
-            expect(last_response.status).to eq 400
-            expect(last_response.body).to match 'ServiceInstanceOperationInProgress'
+            expect(last_response.status).to eq 409
+            expect(last_response.body).to match 'AsyncServiceInstanceOperationInProgress'
           end
         end
       end
@@ -1845,11 +2051,40 @@ module VCAP::CloudController
         end
 
         it 'deletes the service instance with the given guid' do
-          expect {
-            delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
-          }.to change(ServiceInstance, :count).by(-1)
-          expect(last_response.status).to eq(204)
+          delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
+          expect(last_response).to have_status_code 204
           expect(ServiceInstance.find(guid: service_instance.guid)).to be_nil
+        end
+
+        context 'when the instance has bindings' do
+          let!(:service_binding) { ServiceBinding.make(service_instance: service_instance) }
+
+          it 'does not delete the associated service bindings' do
+            expect {
+              delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
+            }.to change(ServiceBinding, :count).by(0)
+            expect(ServiceInstance.find(guid: service_instance.guid)).to be
+            expect(ServiceBinding.find(guid: service_binding.guid)).to be
+          end
+
+          it 'should give the user an error' do
+            delete "/v2/service_instances/#{service_instance.guid}", {}, admin_headers
+
+            expect(last_response).to have_status_code 400
+            expect(last_response.body).to match /AssociationNotEmpty/
+            expect(last_response.body).to match /Please delete the service_bindings associations for your service_instances/
+          end
+
+          context 'when recursive=true' do
+            it 'deletes the associated service bindings' do
+              expect {
+                delete "/v2/service_instances/#{service_instance.guid}?recursive=true", {}, admin_headers
+              }.to change(ServiceBinding, :count).by(-1)
+              expect(last_response.status).to eq(204)
+              expect(ServiceInstance.find(guid: service_instance.guid)).to be_nil
+              expect(ServiceBinding.find(guid: service_binding.guid)).to be_nil
+            end
+          end
         end
       end
     end
@@ -1910,6 +2145,59 @@ module VCAP::CloudController
         it 'returns an error saying the instance was not found' do
           get '/v2/service_instances/nonexistent_instance/permissions', {}, json_headers(headers_for(developer))
           expect(last_response.status).to eql 404
+        end
+      end
+    end
+
+    describe 'GET', '/v2/service_instances/:service_instance_guid/service_keys' do
+      let(:space)   { Space.make }
+      let(:developer) { make_developer_for_space(space) }
+
+      context 'when the user is not a member of the space this instance exists in' do
+        let(:space_a)   { Space.make }
+        let(:instance)  { ManagedServiceInstance.make(space: space_a) }
+
+        it 'returns the forbidden code' do
+          get "/v2/service_instances/#{instance.guid}/service_keys", {}, json_headers(headers_for(developer))
+          expect(last_response.status).to eql(403)
+        end
+      end
+
+      context 'when the user is a member of the space this instance exists in' do
+        let(:instance_a)  { ManagedServiceInstance.make(space: space) }
+        let(:instance_b)  { ManagedServiceInstance.make(space: space) }
+        let(:service_key_a) { ServiceKey.make(name: 'fake-key-a', service_instance: instance_a) }
+        let(:service_key_b) { ServiceKey.make(name: 'fake-key-b', service_instance: instance_a) }
+        let(:service_key_c) { ServiceKey.make(name: 'fake-key-c', service_instance: instance_b) }
+
+        before do
+          service_key_a.save
+          service_key_b.save
+          service_key_c.save
+        end
+
+        it 'returns the service keys that belong to the service instance' do
+          get "/v2/service_instances/#{instance_a.guid}/service_keys", {}, json_headers(headers_for(developer))
+          expect(last_response.status).to eql(200)
+          expect(decoded_response.fetch('total_results')).to eq(2)
+          expect(decoded_response.fetch('resources').first.fetch('metadata').fetch('guid')).to eq(service_key_a.guid)
+          expect(decoded_response.fetch('resources')[1].fetch('metadata').fetch('guid')).to eq(service_key_b.guid)
+
+          get "/v2/service_instances/#{instance_b.guid}/service_keys", {}, json_headers(headers_for(developer))
+          expect(last_response.status).to eql(200)
+          expect(decoded_response.fetch('total_results')).to eq(1)
+          expect(decoded_response.fetch('resources').first.fetch('metadata').fetch('guid')).to eq(service_key_c.guid)
+        end
+
+        it 'returns the service keys filtered by key name' do
+          get "/v2/service_instances/#{instance_a.guid}/service_keys?q=name:fake-key-a", {}, json_headers(headers_for(developer))
+          expect(last_response.status).to eql(200)
+          expect(decoded_response.fetch('total_results')).to eq(1)
+          expect(decoded_response.fetch('resources').first.fetch('metadata').fetch('guid')).to eq(service_key_a.guid)
+
+          get "/v2/service_instances/#{instance_b.guid}/service_keys?q=name:non-exist-key-name", {}, json_headers(headers_for(developer))
+          expect(last_response.status).to eql(200)
+          expect(decoded_response.fetch('total_results')).to eq(0)
         end
       end
     end
@@ -2027,15 +2315,15 @@ module VCAP::CloudController
           }
 
           post '/v2/service_instances', MultiJson.dump(body), json_headers(headers_for(make_developer_for_space(space)))
+          expect(last_response).to have_status_code 400
           expect(decoded_response['description']).to match(/invalid.*space.*/)
-          expect(last_response.status).to eq(400)
         end
       end
     end
 
     def create_managed_service_instance(user_opts={})
       arbitrary_params = user_opts.delete(:parameters)
-      use_async = user_opts.delete(:async) { |_| 'true' }
+      accepts_incomplete = user_opts.delete(:accepts_incomplete) { |_| 'true' }
       headers = json_headers(headers_for(developer, user_opts))
 
       body = {
@@ -2046,8 +2334,8 @@ module VCAP::CloudController
       body[:parameters] = arbitrary_params if arbitrary_params
       req = MultiJson.dump(body)
 
-      if use_async
-        post "/v2/service_instances?accepts_incomplete=#{use_async}", req, headers
+      if accepts_incomplete
+        post "/v2/service_instances?accepts_incomplete=#{accepts_incomplete}", req, headers
       else
         post '/v2/service_instances', req, headers
       end

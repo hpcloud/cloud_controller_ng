@@ -1,15 +1,15 @@
 module VCAP::CloudController
   module Diego
     class InstancesReporter
-      attr_reader :diego_client
+      attr_reader :tps_client
 
-      def initialize(diego_client)
-        @diego_client = diego_client
+      def initialize(tps_client)
+        @tps_client = tps_client
       end
 
       def all_instances_for_app(app)
         result    = {}
-        instances = diego_client.lrp_instances(app)
+        instances = tps_client.lrp_instances(app)
 
         for_each_desired_instance(instances, app) do |instance|
           info = {
@@ -21,7 +21,9 @@ module VCAP::CloudController
         end
 
         fill_unreported_instances_with_down_instances(result, app)
-      rescue Unavailable => e
+      rescue Errors::InstancesUnavailable => e
+        raise e
+      rescue => e
         raise Errors::InstancesUnavailable.new(e)
       end
 
@@ -33,7 +35,7 @@ module VCAP::CloudController
 
       def number_of_starting_and_running_instances_for_app(app)
         return 0 unless app.started?
-        instances = diego_client.lrp_instances(app)
+        instances = tps_client.lrp_instances(app)
 
         running_indices = Set.new
 
@@ -43,13 +45,15 @@ module VCAP::CloudController
         end
 
         running_indices.length
-      rescue Unavailable => e
+      rescue Errors::InstancesUnavailable => e
+        raise e
+      rescue => e
         raise Errors::InstancesUnavailable.new(e)
       end
 
       def crashed_instances_for_app(app)
         result    = []
-        instances = diego_client.lrp_instances(app)
+        instances = tps_client.lrp_instances(app)
 
         for_each_desired_instance(instances, app) do |instance|
           if instance[:state] == 'CRASHED'
@@ -61,25 +65,28 @@ module VCAP::CloudController
         end
 
         result
-      rescue Unavailable => e
+
+      rescue Errors::InstancesUnavailable => e
+        raise e
+      rescue => e
         raise Errors::InstancesUnavailable.new(e)
       end
 
-      # TODO: this is only a stub. stats are not yet available from diego.
       def stats_for_app(app)
         result    = {}
-        instances = diego_client.lrp_instances(app)
+        instances = tps_client.lrp_instances_stats(app)
 
         for_each_desired_instance(instances, app) do |instance|
+          usage = instance[:stats] || {}
           info = {
             'state' => instance[:state],
             'stats' => {
-              'mem_quota'  => 0,
-              'disk_quota' => 0,
+              'mem_quota'  => app[:memory] * 1024 * 1024,
+              'disk_quota' => app[:disk_quota] * 1024 * 1024,
               'usage'      => {
-                  'cpu'  => 0,
-                  'mem'  => 0,
-                  'disk' => 0,
+                  'cpu'  => usage['cpu'] || 0,
+                  'mem'  => usage['mem'] || 0,
+                  'disk' => usage['disk'] || 0,
               }
             }
           }
@@ -88,7 +95,10 @@ module VCAP::CloudController
         end
 
         fill_unreported_instances_with_down_instances(result, app)
-      rescue Unavailable => e
+
+      rescue Errors::InstancesUnavailable => e
+        raise e
+      rescue => e
         raise Errors::InstancesUnavailable.new(e)
       end
 

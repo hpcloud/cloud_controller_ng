@@ -27,16 +27,14 @@ describe VCAP::CloudController::Jobs::Runtime::Stackato::DockerRegistryCleanup d
       apps << { docker_image: "some_image", droplet_hash: ["1", "2"] }
       apps << { docker_image: "other_image", droplet_hash: ["0123456789abcdef"] }
       req = stub_request(:post, "http://docker.registry:12345/v1/cleanup/")
-        .with(:body => {"cleanup_limit"=>"1024", "known_hashes"=>"1,2,0123456789abcdef"},
-              :headers => {'Content-Type'=>'application/x-www-form-urlencoded'})
+         .with(:body => {cleanup_limit: 10240, known_hashes: ["1","2","0123456789abcdef"]}.to_json)
       cleanup.perform
       expect(req).to have_been_made
     end
     it 'should support custom target sizes' do
       config[:docker_apps][:storage_limit_mb] = 12345
       req = stub_request(:post, "http://docker.registry:12345/v1/cleanup/")
-        .with(:body => {"cleanup_limit"=>"12345", "known_hashes"=>""},
-              :headers => {'Content-Type'=>'application/x-www-form-urlencoded'})
+         .with(:body => {cleanup_limit: 12345, known_hashes:[]}.to_json)
       cleanup.perform
       expect(req).to have_been_made
     end

@@ -167,7 +167,7 @@ module VCAP::CloudController
 
   ServiceInstanceOperation.blueprint do
     type                      { 'create' }
-    state                     { 'in progress' }
+    state                     { 'succeeded' }
     description               { 'description goes here' }
     updated_at                { Time.now.utc }
   end
@@ -192,6 +192,12 @@ module VCAP::CloudController
     service_instance  { ManagedServiceInstance.make }
     app               { AppFactory.make(space: service_instance.space) }
     syslog_drain_url  { nil }
+  end
+
+  ServiceKey.blueprint do
+    credentials       { Sham.service_credentials }
+    service_instance  { ManagedServiceInstance.make }
+    name               { Sham.name }
   end
 
   ServiceBroker.blueprint do
@@ -336,6 +342,7 @@ module VCAP::CloudController
     space_name { Sham.name }
     buildpack_guid { Sham.guid }
     buildpack_name { Sham.name }
+    process_type { 'web' }
   end
 
   ServiceUsageEvent.blueprint do

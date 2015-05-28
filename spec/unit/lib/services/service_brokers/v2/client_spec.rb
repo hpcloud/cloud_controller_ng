@@ -15,13 +15,7 @@ module VCAP::Services::ServiceBrokers::V2
     subject(:client) { Client.new(client_attrs) }
 
     let(:http_client) { instance_double(HttpClient) }
-    let(:orphan_mitigator) { instance_double(OrphanMitigator, cleanup_failed_provision: nil, cleanup_failed_bind: nil) }
-    let(:options) do
-      {
-        event_repository_opts: nil,
-        request_attrs: {}
-      }
-    end
+    let(:orphan_mitigator) { instance_double(OrphanMitigator, cleanup_failed_provision: nil, cleanup_failed_bind: nil, cleanup_failed_key: nil) }
 
     before do
       allow(HttpClient).to receive(:new).
@@ -115,7 +109,7 @@ module VCAP::Services::ServiceBrokers::V2
       end
 
       it 'makes a put request with correct path' do
-        client.provision(instance, options)
+        client.provision(instance)
 
         expect(http_client).to have_received(:put).
           with(path, anything)
@@ -125,7 +119,7 @@ module VCAP::Services::ServiceBrokers::V2
         let(:path) { "/v2/service_instances/#{instance.guid}?accepts_incomplete=true" }
 
         it 'adds the flag to the path of the service broker request' do
-          client.provision(instance, options.merge(accepts_incomplete: true))
+          client.provision(instance, accepts_incomplete: true)
 
           expect(http_client).to have_received(:put).
             with(path, anything)
@@ -133,7 +127,7 @@ module VCAP::Services::ServiceBrokers::V2
       end
 
       it 'makes a put request with correct message' do
-        client.provision(instance, options)
+        client.provision(instance)
 
         expect(http_client).to have_received(:put).with(
           anything,
@@ -145,164 +139,66 @@ module VCAP::Services::ServiceBrokers::V2
       end
 
       it 'returns the attributes to update on a service instance' do
-        attributes, error = client.provision(instance, options)
+        attributes, _ = client.provision(instance)
         # ensure updating attributes and saving to service instance works
-        instance.save_with_operation(attributes)
+        instance.save_and_update_operation(attributes)
 
         expect(instance.dashboard_url).to eq('foo')
-        expect(error).to be_nil
       end
 
       it 'defaults the state to "succeeded"' do
-        attributes, error = client.provision(instance, options)
+        attributes, _ = client.provision(instance)
 
         expect(attributes[:last_operation][:state]).to eq('succeeded')
-        expect(error).to be_nil
       end
 
       it 'leaves the description blank' do
-        attributes, error = client.provision(instance, options)
+        attributes, _ = client.provision(instance)
 
         expect(attributes[:last_operation][:description]).to eq('')
-        expect(error).to be_nil
       end
 
       it 'DEPRECATED, maintain for database not null constraint: sets the credentials on the instance' do
-        attributes, error = client.provision(instance, options)
+        attributes, _ = client.provision(instance)
 
         expect(attributes[:credentials]).to eq({})
-        expect(error).to be_nil
+      end
+
+      it 'passes arbitrary params in the broker request' do
+        arbitrary_parameters = {
+            'some_param' => 'some-value'
+        }
+
+        client.provision(instance, arbitrary_parameters: arbitrary_parameters)
+        expect(http_client).to have_received(:put).with(path, hash_including(parameters: arbitrary_parameters))
       end
 
       context 'when the broker returns 204 (No Content)' do
         let(:code) { '204' }
         let(:client) { Client.new(client_attrs) }
 
-        it 'throws ServiceBrokerBadResponse and initiates orphan mitigation' do
+        it 'raises ServiceBrokerBadResponse and initiates orphan mitigation' do
           expect {
-            client.provision(instance, options)
+            client.provision(instance)
           }.to raise_error(Errors::ServiceBrokerBadResponse)
 
           expect(orphan_mitigator).to have_received(:cleanup_failed_provision).with(client_attrs, instance)
         end
       end
 
-      context 'when the broker returns no state or the state is created, or succeeded' do
-        let(:response_data) do
-          {
-            'last_operation' => {}
-          }
-        end
-
-        it 'return immediately with the broker response' do
-          client = Client.new(client_attrs.merge(accepts_incomplete: true))
-          attributes, error = client.provision(instance, options)
-
-          expect(attributes[:last_operation][:type]).to eq('create')
-          expect(attributes[:last_operation][:state]).to eq('succeeded')
-          expect(attributes[:last_operation][:description]).to eq('')
-          expect(error).to be_nil
-        end
-
-        it 'does not enqueue a polling job' do
-          client.provision(instance, options)
-          Timecop.freeze(Time.now + 1.hour) do
-            expect(Delayed::Worker.new.work_off).to eq([0, 0])
-          end
-        end
-      end
-
-      context 'when the broker returns no description' do
-        let(:response_data) do
-          {
-            'last_operation' => { 'state' => 'succeeded' }
-          }
-        end
-
-        it 'return immediately with the broker response' do
-          client = Client.new(client_attrs.merge(accepts_incomplete: true))
-          attributes, error = client.provision(instance, options)
-
-          expect(attributes[:last_operation][:type]).to eq('create')
-          expect(attributes[:last_operation][:state]).to eq('succeeded')
-          expect(attributes[:last_operation][:description]).to eq('')
-          expect(error).to be_nil
-        end
-
-        it 'does not enqueue a polling job' do
-          client.provision(instance, options)
-          Timecop.freeze(Time.now + 1.hour) do
-            expect(Delayed::Worker.new.work_off).to eq([0, 0])
-          end
-        end
-      end
-
-      context 'when the broker returns the state as `in progress`' do
+      context 'when the broker returns a 202' do
         let(:code) { 202 }
         let(:message) { 'Accepted' }
         let(:response_data) do
-          {
-            last_operation: {
-              state: 'in progress',
-              description: '10% done'
-            },
-          }
+          {}
         end
 
         it 'return immediately with the broker response' do
-          client = Client.new(client_attrs.merge(accepts_incomplete: true))
-          attributes, error = client.provision(instance, options)
+          client = Client.new(client_attrs)
+          attributes, _ = client.provision(instance, accepts_incomplete: true)
 
           expect(attributes[:last_operation][:type]).to eq('create')
           expect(attributes[:last_operation][:state]).to eq('in progress')
-          expect(attributes[:last_operation][:description]).to eq('10% done')
-          expect(error).to be_nil
-        end
-
-        it 'enqueues a polling job' do
-          expect {
-            client.provision(instance, options)
-          }.to change {
-            Delayed::Job.count
-          }.by(1)
-
-          expect(Delayed::Job.last).to be_a_fully_wrapped_job_of VCAP::CloudController::Jobs::Services::ServiceInstanceStateFetch
-          inner_job = unwrap_delayed_job(Delayed::Job.last)
-          expect(inner_job.name).to eq 'service-instance-state-fetch'
-          expect(inner_job.client_attrs).to eq client.attrs
-          expect(inner_job.service_instance_guid).to eq instance.guid
-          expect(inner_job.services_event_repository_opts).to eq options[:event_repository_opts]
-          expect(inner_job.request_attrs).to eq options[:request_attrs]
-        end
-
-        context 'and async_poll_interval_seconds is set by the broker' do
-          let(:poll_interval) { '120' }
-          let(:response_data) do
-            {
-              last_operation: {
-                state: 'in progress',
-                description: '10% done',
-                async_poll_interval_seconds: poll_interval
-              },
-            }
-          end
-
-          it 'parses the value as an integer and passes it to the state poller' do
-            expect {
-              client.provision(instance, options)
-            }.to change {
-              Delayed::Job.count
-            }.by(1)
-
-            expect(Delayed::Job.last).to be_a_fully_wrapped_job_of VCAP::CloudController::Jobs::Services::ServiceInstanceStateFetch
-            inner_job = unwrap_delayed_job(Delayed::Job.last)
-            expect(inner_job.name).to eq 'service-instance-state-fetch'
-            expect(inner_job.client_attrs).to eq client.attrs
-            expect(inner_job.service_instance_guid).to eq instance.guid
-            expect(inner_job.services_event_repository_opts).to eq options[:event_repository_opts]
-            expect(inner_job.request_attrs).to eq options[:request_attrs]
-            expect(inner_job.poll_interval).to eq poll_interval.to_i
-          end
         end
       end
 
@@ -310,21 +206,12 @@ module VCAP::Services::ServiceBrokers::V2
         let(:code) { 400 }
         let(:message) { 'Failed' }
         let(:response_data) do
-          {
-            description: '100% failed'
-          }
+          {}
         end
 
         it 'raises an error' do
-          client = Client.new(client_attrs.merge(accepts_incomplete: true))
-          expect { client.provision(instance, options) }.to raise_error(Errors::ServiceBrokerRequestRejected)
-        end
-
-        it 'does not enqueue a polling job' do
-          client.provision(instance, options) rescue nil
-          Timecop.freeze(Time.now + 1.hour) do
-            expect(Delayed::Worker.new.work_off).to eq([0, 0])
-          end
+          client = Client.new(client_attrs)
+          expect { client.provision(instance, accepts_incomplete: true) }.to raise_error(Errors::ServiceBrokerRequestRejected)
         end
       end
 
@@ -344,7 +231,7 @@ module VCAP::Services::ServiceBrokers::V2
 
             it 'propagates the error and follows up with a deprovision request' do
               expect {
-                client.provision(instance, options)
+                client.provision(instance)
               }.to raise_error(Errors::ServiceBrokerApiTimeout)
 
               expect(orphan_mitigator).to have_received(:cleanup_failed_provision).with(client_attrs, instance)
@@ -356,7 +243,7 @@ module VCAP::Services::ServiceBrokers::V2
           let(:response_parser) { instance_double(ResponseParser) }
 
           before do
-            allow(response_parser).to receive(:parse).and_raise(error)
+            allow(response_parser).to receive(:parse_provision).and_raise(error)
             allow(VCAP::Services::ServiceBrokers::V2::ResponseParser).to receive(:new).and_return(response_parser)
           end
 
@@ -365,7 +252,7 @@ module VCAP::Services::ServiceBrokers::V2
 
             it 'propagates the error and follows up with a deprovision request' do
               expect {
-                client.provision(instance, options)
+                client.provision(instance)
               }.to raise_error(Errors::ServiceBrokerApiTimeout)
 
               expect(orphan_mitigator).to have_received(:cleanup_failed_provision).
@@ -378,7 +265,7 @@ module VCAP::Services::ServiceBrokers::V2
 
             it 'propagates the error and follows up with a deprovision request' do
               expect {
-                client.provision(instance, options)
+                client.provision(instance)
               }.to raise_error(Errors::ServiceBrokerBadResponse)
 
               expect(orphan_mitigator).to have_received(:cleanup_failed_provision).with(client_attrs, instance)
@@ -386,11 +273,11 @@ module VCAP::Services::ServiceBrokers::V2
           end
 
           context 'ServiceBrokerResponseMalformed error' do
-            let(:error) { Errors::ServiceBrokerResponseMalformed.new(uri, :put, response) }
+            let(:error) { Errors::ServiceBrokerResponseMalformed.new(uri, :put, response, '') }
 
             it 'propagates the error and follows up with a deprovision request' do
               expect {
-                client.provision(instance, options)
+                client.provision(instance)
               }.to raise_error(Errors::ServiceBrokerResponseMalformed)
 
               expect(orphan_mitigator).to have_received(:cleanup_failed_provision).with(client_attrs, instance)
@@ -401,7 +288,7 @@ module VCAP::Services::ServiceBrokers::V2
 
               it 'does not initiate orphan mitigation' do
                 expect {
-                  client.provision(instance, options)
+                  client.provision(instance)
                 }.to raise_error(Errors::ServiceBrokerResponseMalformed)
 
                 expect(orphan_mitigator).not_to have_received(:cleanup_failed_provision).with(client_attrs, instance)
@@ -424,11 +311,8 @@ module VCAP::Services::ServiceBrokers::V2
 
       let(:response_data) do
         {
-          'dashboard_url' => 'bar',
-          'last_operation' => {
-            'state' => 'succeeded',
-            'description' => '100% created'
-          }
+          'state' => 'succeeded',
+          'description' => '100% created'
         }
       end
 
@@ -439,7 +323,7 @@ module VCAP::Services::ServiceBrokers::V2
       let(:message) { 'OK' }
 
       before do
-        instance.save_with_operation(
+        instance.save_with_new_operation(
           last_operation: { type: 'create' }
         )
         allow(http_client).to receive(:get).and_return(response)
@@ -449,14 +333,29 @@ module VCAP::Services::ServiceBrokers::V2
         client.fetch_service_instance_state(instance)
 
         expect(http_client).to have_received(:get).
-          with("/v2/service_instances/#{instance.guid}")
+          with("/v2/service_instances/#{instance.guid}/last_operation")
       end
 
       it 'returns the attributes to update the service instance model' do
         attrs = client.fetch_service_instance_state(instance)
-        expected_attrs = response_data.symbolize_keys
-        expected_attrs[:last_operation] = response_data['last_operation'].symbolize_keys
+        expected_attrs = { last_operation: response_data.symbolize_keys }
         expect(attrs).to eq(expected_attrs)
+      end
+
+      context 'when the broker provides other fields' do
+        let(:response_data) do
+          {
+            'state' => 'succeeded',
+            'description' => '100% created',
+            'foo' => 'bar'
+          }
+        end
+
+        it 'passes through the extra fields' do
+          attrs = client.fetch_service_instance_state(instance)
+          expect(attrs[:foo]).to eq 'bar'
+          expect(attrs[:last_operation]).to eq({ state: 'succeeded', description: '100% created' })
+        end
       end
 
       context 'when the broker returns 410' do
@@ -468,7 +367,7 @@ module VCAP::Services::ServiceBrokers::V2
 
         context 'when the last operation type is `delete`' do
           before do
-            instance.save_with_operation(
+            instance.save_with_new_operation(
               last_operation: {
                 type: 'delete',
               }
@@ -479,8 +378,7 @@ module VCAP::Services::ServiceBrokers::V2
             attrs = client.fetch_service_instance_state(instance)
             expect(attrs).to include(
               last_operation: {
-                state: 'succeeded',
-                description: ''
+                state: 'succeeded'
               }
             )
           end
@@ -488,7 +386,7 @@ module VCAP::Services::ServiceBrokers::V2
 
         context 'with any other operation type' do
           before do
-            instance.save_with_operation(
+            instance.save_with_new_operation(
               last_operation: {
                 type: 'update'
               }
@@ -499,11 +397,23 @@ module VCAP::Services::ServiceBrokers::V2
             attrs = client.fetch_service_instance_state(instance)
             expect(attrs).to include(
               last_operation: {
-                state: 'failed',
-                description: ''
+                state: 'failed'
               }
             )
           end
+        end
+      end
+
+      context 'when the broker does not provide a description' do
+        let(:response_data) do
+          {
+            'state' => 'succeeded'
+          }
+        end
+
+        it 'does not return a description field' do
+          attrs = client.fetch_service_instance_state(instance)
+          expect(attrs).to eq({ last_operation: { state: 'succeeded' } })
         end
       end
     end
@@ -542,7 +452,7 @@ module VCAP::Services::ServiceBrokers::V2
       end
 
       it 'makes a patch request with the new service plan' do
-        client.update_service_plan(instance, new_plan, options)
+        client.update_service_plan(instance, new_plan)
 
         expect(http_client).to have_received(:patch).with(
           anything,
@@ -559,136 +469,78 @@ module VCAP::Services::ServiceBrokers::V2
       end
 
       it 'makes a patch request to the correct path' do
-        client.update_service_plan(instance, new_plan, options)
+        client.update_service_plan(instance, new_plan)
 
         expect(http_client).to have_received(:patch).with(path, anything)
+      end
+
+      context 'when the caller passes arbitrary parameters' do
+        it 'includes the parameters in the request to the broker' do
+          client.update_service_plan(instance, new_plan, arbitrary_parameters: { myParam: 'some-value' })
+
+          expect(http_client).to have_received(:patch).with(
+            anything,
+            {
+              plan_id:	new_plan.broker_provided_id,
+              parameters: { myParam: 'some-value' },
+              previous_values: {
+                plan_id: old_plan.broker_provided_id,
+                service_id: old_plan.service.broker_provided_id,
+                organization_id: instance.organization.guid,
+                space_id: instance.space.guid
+              }
+            }
+          )
+        end
       end
 
       context 'when the caller passes the accepts_incomplete flag' do
         let(:path) { "/v2/service_instances/#{instance.guid}?accepts_incomplete=true" }
 
         it 'adds the flag to the path of the service broker request' do
-          client.update_service_plan(instance, new_plan, options.merge(accepts_incomplete: true))
+          client.update_service_plan(instance, new_plan, accepts_incomplete: true)
 
           expect(http_client).to have_received(:patch).
             with(path, anything)
         end
 
-        context 'and the broker returns last_operation state `succeeded`' do
+        context 'and the broker returns a 200' do
           let(:response_data) do
-            {
-              last_operation: {
-                state: 'succeeded',
-                description: 'finished updating'
-              }
-            }
+            {}
           end
 
-          it 'forwards the last operation state from the broker' do
-            attributes, err = client.update_service_plan(instance, new_plan, options.merge(accepts_incomplete: true))
+          it 'marks the last operation as succeeded' do
+            attributes, _, err = client.update_service_plan(instance, new_plan, accepts_incomplete: true)
 
             last_operation = attributes[:last_operation]
             expect(err).to be_nil
             expect(last_operation[:type]).to eq('update')
             expect(last_operation[:state]).to eq('succeeded')
-            expect(last_operation[:description]).to eq('finished updating')
             expect(last_operation[:proposed_changes]).to be_nil
           end
 
           it 'returns the new service_plan in a hash' do
-            attributes, err = client.update_service_plan(instance, new_plan, options.merge(accepts_incomplete: true))
+            attributes, _, err = client.update_service_plan(instance, new_plan, accepts_incomplete: true)
             expect(err).to be_nil
             expect(attributes[:service_plan]).to eq new_plan
           end
         end
 
-        context 'when the broker does not return a last_operation' do
-          let(:response_data) { { bogus_key: 'bogus_value' } }
-
-          it 'defaults the last operation state to `succeeded`' do
-            attributes, err = client.update_service_plan(instance, new_plan, options.merge(accepts_incomplete: true))
-
-            last_operation = attributes[:last_operation]
-            expect(err).to be_nil
-            expect(last_operation[:type]).to eq('update')
-            expect(last_operation[:state]).to eq('succeeded')
-            expect(last_operation[:description]).to eq('')
-            expect(last_operation[:proposed_changes]).to be_nil
-          end
-
-          it 'returns the new service_plan in a hash' do
-            attributes, err = client.update_service_plan(instance, new_plan, options.merge(accepts_incomplete: true))
-            expect(err).to be_nil
-            expect(attributes[:service_plan]).to eq new_plan
-          end
-        end
-
-        context 'when the broker returns the state as `in progress`' do
+        context 'when the broker returns a 202' do
           let(:code) { 202 }
           let(:message) { 'Accepted' }
           let(:response_data) do
-            {
-              last_operation: {
-                state: 'in progress',
-                description: '10% done'
-              },
-            }
+            {}
           end
 
           it 'return immediately with the broker response' do
             client = Client.new(client_attrs.merge(accepts_incomplete: true))
-            attributes, error = client.update_service_plan(instance, new_plan, options.merge(accepts_incomplete: true))
+            attributes, _, error = client.update_service_plan(instance, new_plan, accepts_incomplete: true)
 
             expect(attributes[:last_operation][:type]).to eq('update')
             expect(attributes[:last_operation][:state]).to eq('in progress')
-            expect(attributes[:last_operation][:description]).to eq('10% done')
+            expect(attributes[:last_operation][:description]).to eq('')
             expect(error).to be_nil
-          end
-
-          it 'enqueues a polling job' do
-            expect {
-              client.update_service_plan(instance, new_plan, options.merge(accepts_incomplete: true))
-            }.to change {
-                Delayed::Job.count
-              }.by(1)
-
-            expect(Delayed::Job.last).to be_a_fully_wrapped_job_of VCAP::CloudController::Jobs::Services::ServiceInstanceStateFetch
-            inner_job = unwrap_delayed_job(Delayed::Job.last)
-            expect(inner_job.name).to eq 'service-instance-state-fetch'
-            expect(inner_job.client_attrs).to eq client.attrs
-            expect(inner_job.service_instance_guid).to eq instance.guid
-            expect(inner_job.services_event_repository_opts).to eq options[:event_repository_opts]
-            expect(inner_job.request_attrs).to eq options[:request_attrs]
-          end
-
-          context 'and async_poll_interval_seconds is set by the broker' do
-            let(:poll_interval) { '120' }
-            let(:response_data) do
-              {
-                last_operation: {
-                  state: 'in progress',
-                  description: '10% done',
-                  async_poll_interval_seconds: poll_interval
-                },
-              }
-            end
-
-            it 'parses the value as an integer and passes it to the state poller' do
-              expect {
-                client.update_service_plan(instance, new_plan, options.merge(accepts_incomplete: true))
-              }.to change {
-                  Delayed::Job.count
-                }.by(1)
-
-              expect(Delayed::Job.last).to be_a_fully_wrapped_job_of VCAP::CloudController::Jobs::Services::ServiceInstanceStateFetch
-              inner_job = unwrap_delayed_job(Delayed::Job.last)
-              expect(inner_job.name).to eq 'service-instance-state-fetch'
-              expect(inner_job.client_attrs).to eq client.attrs
-              expect(inner_job.service_instance_guid).to eq instance.guid
-              expect(inner_job.services_event_repository_opts).to eq options[:event_repository_opts]
-              expect(inner_job.request_attrs).to eq options[:request_attrs]
-              expect(inner_job.poll_interval).to eq poll_interval.to_i
-            end
           end
         end
       end
@@ -706,7 +558,7 @@ module VCAP::Services::ServiceBrokers::V2
           end
 
           it 'returns an array containing the update attributes and the error' do
-            attrs, err = client.update_service_plan(instance, new_plan, options.merge(accepts_incomplete: 'true'))
+            attrs, err = client.update_service_plan(instance, new_plan, accepts_incomplete: true)
 
             expect(err).to eq error
             expect(attrs).to eq({
@@ -723,11 +575,11 @@ module VCAP::Services::ServiceBrokers::V2
           let(:response) { instance_double(HttpResponse, code: 500, body: { description: 'BOOOO' }.to_json) }
           let(:error) { Errors::ServiceBrokerBadResponse.new('some-uri.com', :patch, response) }
           before do
-            allow(response_parser).to receive(:parse).and_raise(error)
+            allow(response_parser).to receive(:parse_update).and_raise(error)
           end
 
           it 'returns an array containing the update attributes and the error' do
-            attrs, err = client.update_service_plan(instance, new_plan, options.merge(accepts_incomplete: 'true'))
+            attrs, err = client.update_service_plan(instance, new_plan, accepts_incomplete: true)
 
             expect(err).to eq error
             expect(attrs).to eq({
@@ -742,13 +594,13 @@ module VCAP::Services::ServiceBrokers::V2
 
         describe 'when the response parser raises a ServiceBrokerResponseMalformed error' do
           let(:response) { instance_double(HttpResponse, code: 200, body: 'some arbitrary body') }
-          let(:error) { Errors::ServiceBrokerResponseMalformed.new('some-uri.com', :patch, response) }
+          let(:error) { Errors::ServiceBrokerResponseMalformed.new('some-uri.com', :patch, response, '') }
           before do
-            allow(response_parser).to receive(:parse).and_raise(error)
+            allow(response_parser).to receive(:parse_update).and_raise(error)
           end
 
           it 'returns an array containing the update attributes and the error' do
-            attrs, err = client.update_service_plan(instance, new_plan, options.merge(accepts_incomplete: 'true'))
+            attrs, err = client.update_service_plan(instance, new_plan, accepts_incomplete: true)
 
             expect(err).to eq error
             expect(attrs).to eq({
@@ -765,11 +617,11 @@ module VCAP::Services::ServiceBrokers::V2
           let(:response) { instance_double(HttpResponse, code: 422, body: { description: 'update not allowed' }.to_json) }
           let(:error) { Errors::ServiceBrokerRequestRejected.new('some-uri.com', :patch, response) }
           before do
-            allow(response_parser).to receive(:parse).and_raise(error)
+            allow(response_parser).to receive(:parse_update).and_raise(error)
           end
 
           it 'returns an array containing the update attributes and the error' do
-            attrs, err = client.update_service_plan(instance, new_plan, options.merge(accepts_incomplete: 'true'))
+            attrs, err = client.update_service_plan(instance, new_plan, accepts_incomplete: 'true')
 
             expect(err).to eq error
             expect(attrs).to eq({
@@ -786,11 +638,11 @@ module VCAP::Services::ServiceBrokers::V2
           let(:response) { instance_double(HttpResponse, code: 422, body: { error: 'AsyncRequired', description: 'update not allowed' }.to_json) }
           let(:error) { Errors::AsyncRequired.new('some-uri.com', :patch, response) }
           before do
-            allow(response_parser).to receive(:parse).and_raise(error)
+            allow(response_parser).to receive(:parse_update).and_raise(error)
           end
 
           it 'returns an array containing the update attributes and the error' do
-            attrs, err = client.update_service_plan(instance, new_plan, options.merge(accepts_incomplete: 'true'))
+            attrs, err = client.update_service_plan(instance, new_plan, accepts_incomplete: 'true')
 
             expect(err).to eq error
             expect(attrs).to eq({
@@ -800,6 +652,131 @@ module VCAP::Services::ServiceBrokers::V2
                 description: error.message,
               }
             })
+          end
+        end
+      end
+    end
+
+    describe '#create_service_key' do
+      let(:instance) { VCAP::CloudController::ManagedServiceInstance.make }
+      let(:key) do
+        VCAP::CloudController::ServiceKey.new(
+            name: 'fake-service_key',
+            service_instance: instance
+        )
+      end
+
+      let(:response_data) do
+        {
+            'credentials' => {
+                'username' => 'admin',
+                'password' => 'secret'
+            }
+        }
+      end
+
+      let(:path) { "/v2/service_instances/#{instance.guid}/service_bindings/#{key.guid}" }
+      let(:response) { HttpResponse.new(body: response_body, code: code, message: message) }
+      let(:response_body) { response_data.to_json }
+      let(:code) { '201' }
+      let(:message) { 'Created' }
+
+      before do
+        allow(http_client).to receive(:put).and_return(response)
+      end
+
+      it 'makes a put request with correct path' do
+        client.create_service_key(key)
+
+        expect(http_client).to have_received(:put).with("/v2/service_instances/#{instance.guid}/service_bindings/#{key.guid}", anything)
+      end
+
+      it 'makes a put request with correct message' do
+        client.create_service_key(key)
+
+        expect(http_client).to have_received(:put).
+                                   with(anything,
+                                        plan_id:    key.service_plan.broker_provided_id,
+                                        service_id: key.service.broker_provided_id
+                               )
+      end
+
+      it 'sets the credentials on the key' do
+        attributes = client.create_service_key(key)
+        key.set_all(attributes)
+        key.save
+
+        expect(key.credentials).to eq({
+                                          'username' => 'admin',
+                                          'password' => 'secret'
+                                      })
+      end
+
+      context 'when the caller provides an arbitrary parameters in an optional request_attrs hash' do
+        it 'make a put request with correct message and arbitrary parameters' do
+          arbitrary_parameters = { 'name' => 'value' }
+          client.create_service_key(key, arbitrary_parameters: arbitrary_parameters)
+          expect(http_client).to have_received(:put).
+                                     with(anything,
+                                          plan_id:    key.service_plan.broker_provided_id,
+                                          service_id: key.service.broker_provided_id,
+                                          parameters: arbitrary_parameters
+                                 )
+        end
+      end
+
+      context 'when creating service key fails' do
+        let(:uri) { 'some-uri.com/v2/service_instances/instance-guid/service_bindings/key-guid' }
+
+        context 'due to an http client error' do
+          before do
+            allow(http_client).to receive(:put).and_raise(error)
+          end
+
+          context 'Errors::ServiceBrokerApiTimeout error' do
+            let(:error) { Errors::ServiceBrokerApiTimeout.new(uri, :put, Timeout::Error.new) }
+
+            it 'propagates the error and follows up with a deprovision request' do
+              expect {
+                client.create_service_key(key)
+              }.to raise_error(Errors::ServiceBrokerApiTimeout)
+
+              expect(orphan_mitigator).to have_received(:cleanup_failed_key).
+                                              with(client_attrs, key)
+            end
+          end
+        end
+
+        context 'due to a response parser error' do
+          let(:response_parser) { instance_double(ResponseParser) }
+
+          before do
+            allow(response_parser).to receive(:parse_bind).and_raise(error)
+            allow(VCAP::Services::ServiceBrokers::V2::ResponseParser).to receive(:new).and_return(response_parser)
+          end
+
+          context 'Errors::ServiceBrokerApiTimeout error' do
+            let(:error) { Errors::ServiceBrokerApiTimeout.new(uri, :put, Timeout::Error.new) }
+
+            it 'propagates the error and follows up with a deprovision request' do
+              expect {
+                client.create_service_key(key)
+              }.to raise_error(Errors::ServiceBrokerApiTimeout)
+
+              expect(orphan_mitigator).to have_received(:cleanup_failed_key).with(client_attrs, key)
+            end
+          end
+
+          context 'ServiceBrokerBadResponse error' do
+            let(:error) { Errors::ServiceBrokerBadResponse.new(uri, :put, response) }
+
+            it 'propagates the error and follows up with a deprovision request' do
+              expect {
+                client.create_service_key(key)
+              }.to raise_error(Errors::ServiceBrokerBadResponse)
+
+              expect(orphan_mitigator).to have_received(:cleanup_failed_key).with(client_attrs, key)
+            end
           end
         end
       end
@@ -831,7 +808,6 @@ module VCAP::Services::ServiceBrokers::V2
       let(:message) { 'Created' }
 
       before do
-        instance.service_plan.service.update_from_hash(requires: ['syslog_drain'])
         allow(http_client).to receive(:put).and_return(response)
       end
 
@@ -865,7 +841,25 @@ module VCAP::Services::ServiceBrokers::V2
         })
       end
 
+      context 'when the caller provides an arbitrary parameters in an optional request_attrs hash' do
+        it 'make a put request with correct message and arbitrary parameters' do
+          arbitrary_parameters = { 'name' => 'value' }
+          client.bind(binding, arbitrary_parameters: arbitrary_parameters)
+          expect(http_client).to have_received(:put).
+            with(anything,
+                 plan_id:    binding.service_plan.broker_provided_id,
+                 service_id: binding.service.broker_provided_id,
+                 app_guid:   binding.app_guid,
+                 parameters: arbitrary_parameters
+            )
+        end
+      end
+
       context 'with a syslog drain url' do
+        before do
+          instance.service_plan.service.update_from_hash(requires: ['syslog_drain'])
+        end
+
         let(:response_data) do
           {
             'credentials' => {},
@@ -880,6 +874,20 @@ module VCAP::Services::ServiceBrokers::V2
           binding.save
 
           expect(binding.syslog_drain_url).to eq('syslog://example.com:514')
+        end
+
+        context 'and the service does not require syslog_drain' do
+          before do
+            instance.service_plan.service.update_from_hash(requires: [])
+          end
+
+          it 'raises an error and initiates orphan mitigation' do
+            expect {
+              client.bind(binding)
+            }.to raise_error(Errors::ServiceBrokerInvalidSyslogDrainUrl)
+
+            expect(orphan_mitigator).to have_received(:cleanup_failed_bind).with(client_attrs, binding)
+          end
         end
       end
 
@@ -897,6 +905,7 @@ module VCAP::Services::ServiceBrokers::V2
       end
 
       context 'when binding fails' do
+        let(:instance) { VCAP::CloudController::ManagedServiceInstance.make }
         let(:binding) do
           VCAP::CloudController::ServiceBinding.make(
             binding_options: { 'this' => 'that' }
@@ -930,7 +939,7 @@ module VCAP::Services::ServiceBrokers::V2
           let(:response_parser) { instance_double(ResponseParser) }
 
           before do
-            allow(response_parser).to receive(:parse).and_raise(error)
+            allow(response_parser).to receive(:parse_bind).and_raise(error)
             allow(VCAP::Services::ServiceBrokers::V2::ResponseParser).to receive(:new).and_return(response_parser)
           end
 
@@ -991,12 +1000,23 @@ module VCAP::Services::ServiceBrokers::V2
         client.unbind(binding)
 
         expect(http_client).to have_received(:delete).
-          with(anything,
-               {
-            plan_id:    binding.service_plan.broker_provided_id,
-            service_id: binding.service.broker_provided_id,
-          }
-              )
+            with(anything,
+              {
+                plan_id: binding.service_plan.broker_provided_id,
+                service_id: binding.service.broker_provided_id,
+              }
+            )
+      end
+
+      context 'when the broker returns a 204 NO CONTENT' do
+        let(:code) { '204' }
+        let(:message) { 'NO CONTENT' }
+
+        it 'raises a ServiceBrokerBadResponse error' do
+          expect {
+            client.unbind(binding)
+          }.to raise_error(Errors::ServiceBrokerBadResponse)
+        end
       end
     end
 
@@ -1036,7 +1056,7 @@ module VCAP::Services::ServiceBrokers::V2
 
       context 'when the caller does not pass the accepts_incomplete flag' do
         it 'returns a last_operation hash with a state defaulted to `succeeded`' do
-          attrs = client.deprovision(instance)
+          attrs, _  = client.deprovision(instance)
           expect(attrs).to eq({
             last_operation: {
               type: 'delete',
@@ -1045,27 +1065,9 @@ module VCAP::Services::ServiceBrokers::V2
             }
           })
         end
-
-        it 'does not enqueue a job to fetch the state of the instance' do
-          expect {
-            client.deprovision(instance, options)
-          }.not_to change {
-            Delayed::Job.count
-          }
-        end
       end
 
       context 'when the caller passes the accepts_incomplete flag' do
-        let(:state) { 'succeeded' }
-        let(:response_data) do
-          {
-            last_operation: {
-              state: state,
-              description: 'working on it'
-            }
-          }
-        end
-
         it 'adds the flag to the path of the service broker request' do
           client.deprovision(instance, accepts_incomplete: true)
 
@@ -1073,98 +1075,26 @@ module VCAP::Services::ServiceBrokers::V2
             with(path, hash_including(accepts_incomplete: true))
         end
 
-        context 'when the last_operation state is `in progress`' do
+        context 'when the broker returns a 202' do
           let(:code) { 202 }
-          let(:state) { 'in progress' }
 
           it 'returns the last_operation hash' do
-            attrs = client.deprovision(instance, options.merge(accepts_incomplete: true))
+            attrs, _ = client.deprovision(instance, accepts_incomplete: true)
             expect(attrs).to eq({
               last_operation: {
                 type: 'delete',
-                state: state,
-                description: 'working on it'
+                state: 'in progress',
+                description: ''
               }
             })
           end
-
-          it 'enqueues a job to fetch the state of the instance' do
-            expect {
-              client.deprovision(instance, options)
-            }.to change {
-              Delayed::Job.count
-            }.by(1)
-
-            expect(Delayed::Job.last).to be_a_fully_wrapped_job_of VCAP::CloudController::Jobs::Services::ServiceInstanceStateFetch
-            inner_job = unwrap_delayed_job(Delayed::Job.last)
-            expect(inner_job.name).to eq 'service-instance-state-fetch'
-            expect(inner_job.client_attrs).to eq client.attrs
-            expect(inner_job.service_instance_guid).to eq instance.guid
-            expect(inner_job.services_event_repository_opts).to eq options[:event_repository_opts]
-            expect(inner_job.request_attrs).to eq options[:request_attrs]
-          end
-
-          context 'and async_poll_interval_seconds is set by the broker' do
-            let(:poll_interval) { '500' }
-            let(:response_data) do
-              {
-                last_operation: {
-                  state: 'in progress',
-                  description: '10% done',
-                  async_poll_interval_seconds: poll_interval
-                },
-              }
-            end
-
-            it 'parses the value as an integer and passes it to the state poller' do
-              expect {
-                client.deprovision(instance, options)
-              }.to change {
-                Delayed::Job.count
-              }.by(1)
-
-              expect(Delayed::Job.last).to be_a_fully_wrapped_job_of VCAP::CloudController::Jobs::Services::ServiceInstanceStateFetch
-              inner_job = unwrap_delayed_job(Delayed::Job.last)
-              expect(inner_job.name).to eq 'service-instance-state-fetch'
-              expect(inner_job.client_attrs).to eq client.attrs
-              expect(inner_job.service_instance_guid).to eq instance.guid
-              expect(inner_job.services_event_repository_opts).to eq options[:event_repository_opts]
-              expect(inner_job.request_attrs).to eq options[:request_attrs]
-              expect(inner_job.poll_interval).to eq poll_interval.to_i
-            end
-          end
         end
 
-        context 'when the last_operation state is `succeeded`' do
+        context 'when the broker returns a 200' do
           let(:code) { 200 }
-          let(:state) { 'succeeded' }
 
           it 'returns the last_operation hash' do
-            attrs = client.deprovision(instance, options.merge(accepts_incomplete: true))
-            expect(attrs).to eq({
-              last_operation: {
-                type: 'delete',
-                state: 'succeeded',
-                description: 'working on it'
-              }
-            })
-          end
-
-          it 'does not enqueue a job to fetch the state of the instance' do
-            expect {
-              client.deprovision(instance, options)
-            }.not_to change {
-              Delayed::Job.count
-            }
-          end
-        end
-
-        context 'when the last_operation is not included' do
-          let(:code) { 200 }
-          let(:response_data) { {} }
-
-          it 'returns a last_operation hash that has state defaulted to `succeeded`' do
-            attrs = client.deprovision(instance, options.merge(accepts_incomplete: true))
+            attrs, _ = client.deprovision(instance, accepts_incomplete: true)
             expect(attrs).to eq({
               last_operation: {
                 type: 'delete',
@@ -1173,14 +1103,18 @@ module VCAP::Services::ServiceBrokers::V2
               }
             })
           end
+        end
+      end
 
-          it 'does not enqueue a job to fetch the state of the instance' do
-            expect {
-              client.deprovision(instance, options)
-            }.not_to change {
-              Delayed::Job.count
-            }
-          end
+      context 'when the broker returns a 204 NO CONTENT' do
+        let(:code) { '204' }
+        let(:message) { 'NO CONTENT' }
+        let(:client) { Client.new(client_attrs) }
+
+        it 'raises a ServiceBrokerBadResponse error' do
+          expect {
+            client.deprovision(instance)
+          }.to raise_error(Errors::ServiceBrokerBadResponse)
         end
       end
     end

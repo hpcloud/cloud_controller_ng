@@ -88,147 +88,65 @@ module VCAP::CloudController
       end
     end
 
-    describe '#lock_by_blocking_other_operations' do
-      it 'locks the service instance' do
-        allow(service_instance).to receive(:lock!).and_call_original
+    describe '#save_with_new_operation'  do
+      it 'creates a new last_operation object and associates it with the service instance' do
+        service_instance = ManagedServiceInstance.make
+        attrs = {
+          last_operation: {
+            state: 'in progress',
+            description: '10%'
+          },
+          dashboard_url: 'a-different-url.com'
+        }
+        service_instance.save_with_new_operation(attrs)
 
-        service_instance.lock_by_blocking_other_operations {}
-
-        expect(service_instance).to have_received(:lock!)
-      end
-
-      context 'when the instance has a last_operation' do
-        let(:last_operation) { ServiceInstanceOperation.make(state: 'succeeded') }
-        before do
-          allow(service_instance).to receive(:last_operation).and_return(last_operation)
-        end
-
-        it 'locks the last_operation' do
-          allow(last_operation).to receive(:lock!).and_call_original
-
-          service_instance.lock_by_blocking_other_operations {}
-
-          expect(last_operation).to have_received(:lock!)
-        end
-      end
-
-      context 'when there is an operation in progress' do
-        before do
-          service_instance.save_with_operation({
-            last_operation: {
-              state: 'in progress'
-            }
-          })
-        end
-
-        it 'raises an error' do
-          expect {
-            service_instance.lock_by_blocking_other_operations {}
-          }.to raise_error(Errors::ApiError)
-        end
-      end
-    end
-
-    describe '#lock_by_failing_other_operations' do
-      it 'locks the service instance' do
-        allow(service_instance).to receive(:lock!).and_call_original
-
-        service_instance.lock_by_failing_other_operations('update') {}
-
-        expect(service_instance).to have_received(:lock!).twice
-      end
-
-      context 'when the instance has a last_operation' do
-        let(:last_operation) { ServiceInstanceOperation.make(state: 'succeeded') }
-        before do
-          allow(service_instance).to receive(:last_operation).and_return(last_operation)
-        end
-
-        it 'locks the last_operation' do
-          allow(last_operation).to receive(:lock!).and_call_original
-
-          service_instance.lock_by_failing_other_operations('update') {}
-
-          expect(last_operation).to have_received(:lock!)
-        end
-      end
-
-      it 'initially saves the last_operation state as `in progress`' do
-        service_instance.lock_by_failing_other_operations('update') {}
-
-        service_instance.reload.last_operation.reload
-        expect(service_instance.last_operation.type).to eq 'update'
+        service_instance.reload
+        expect(service_instance.dashboard_url).to eq 'a-different-url.com'
         expect(service_instance.last_operation.state).to eq 'in progress'
+        expect(service_instance.last_operation.description).to eq '10%'
       end
 
-      context 'when there is an operation in progress' do
+      context 'when the instance already has a last operation' do
         before do
-          service_instance.save_with_operation({
-            last_operation: {
-              state: 'in progress'
-            }
-          })
+          attrs = { last_operation: { state: 'finished' } }
+          service_instance.save_with_new_operation(attrs)
+          service_instance.reload
+          @old_guid = service_instance.last_operation.guid
         end
 
-        it 'raises an error' do
-          expect {
-            service_instance.lock_by_failing_other_operations('update') {}
-          }.to raise_error(Errors::ApiError)
-        end
-      end
+        it 'creates a new operation' do
+          attrs = { last_operation: { state: 'in progress' } }
+          service_instance.save_with_new_operation(attrs)
 
-      context 'when the block fails' do
-        it 'updates the last_operation to state `failed`' do
-          expect {
-            service_instance.lock_by_failing_other_operations('update') { raise 'BOOO' }
-          }.to raise_error(StandardError, /BOOO/)
-
-          service_instance.reload.last_operation.reload
-          expect(service_instance.last_operation.type).to eq 'update'
-          expect(service_instance.last_operation.state).to eq 'failed'
+          service_instance.reload
+          expect(service_instance.last_operation.guid).not_to eq(@old_guid)
         end
       end
     end
 
-    describe '#save_with_operation' do
-      context 'when the operation does not exist' do
-        it 'also creates a last_operation object and assoicates it with the service instance' do
-          service_instance = ManagedServiceInstance.make
-          attrs = {
-            last_operation: {
-              state: 'in progress',
-              description: '10%'
-            },
-            dashboard_url: 'a-different-url.com'
-          }
-          service_instance.save_with_operation(attrs)
-
-          service_instance.reload
-          expect(service_instance.dashboard_url).to eq 'a-different-url.com'
-          expect(service_instance.last_operation.state).to eq 'in progress'
-          expect(service_instance.last_operation.description).to eq '10%'
-        end
+    describe '#save_and_update_operation' do
+      before do
+        attrs = { last_operation: { state: 'in progress', description: '10%' } }
+        service_instance.save_with_new_operation(attrs)
+        service_instance.reload
+        @old_guid = service_instance.last_operation.guid
       end
 
-      context 'when the operation already exists' do
-        it 'updates the existing operation associated with the service instance' do
-          operation = ServiceInstanceOperation.make
-          service_instance = ManagedServiceInstance.make
-          service_instance.service_instance_operation = operation
-          attrs = {
-            last_operation: {
-              state: 'in progress',
-              description: '10%'
-            },
-            dashboard_url: 'a-different-url.com'
-          }
-          service_instance.save_with_operation(attrs)
+      it 'updates the existing last_operation object' do
+        attrs = {
+          last_operation: {
+            state: 'in progress',
+            description: '20%'
+          },
+          dashboard_url: 'a-different-url.com'
+        }
+        service_instance.save_and_update_operation(attrs)
 
-          service_instance.reload
-          expect(service_instance.dashboard_url).to eq 'a-different-url.com'
-          expect(service_instance.last_operation.state).to eq 'in progress'
-          expect(service_instance.last_operation.description).to eq '10%'
-        end
+        service_instance.reload
+        expect(service_instance.dashboard_url).to eq 'a-different-url.com'
+        expect(service_instance.last_operation.state).to eq 'in progress'
+        expect(service_instance.last_operation.guid).to eq @old_guid
+        expect(service_instance.last_operation.description).to eq '20%'
       end
     end
 

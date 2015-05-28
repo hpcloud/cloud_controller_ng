@@ -6,7 +6,8 @@ require 'cloud_controller/upload_handler'
 require 'cloud_controller/blob_sender/ngx_blob_sender'
 require 'cloud_controller/blob_sender/default_blob_sender'
 require 'cloud_controller/blob_sender/missing_blob_handler'
-require 'cloud_controller/diego/client'
+require 'cloud_controller/diego/stager_client'
+require 'cloud_controller/diego/tps_client'
 require 'cloud_controller/diego/messenger'
 require 'cloud_controller/diego/traditional/protocol'
 
@@ -54,8 +55,16 @@ module CloudController
       @dependencies[:stagers] || raise('stagers not set')
     end
 
-    def diego_client
-      @dependencies[:diego_client] || raise('diego_client not set')
+    def nsync_client
+      @dependencies[:nsync_client] || raise('nsync_client not set')
+    end
+
+    def stager_client
+      @dependencies[:stager_client] || raise('stager_client not set')
+    end
+
+    def tps_client
+      @dependencies[:tps_client] || raise('tps_client not set')
     end
 
     def upload_handler
@@ -135,13 +144,16 @@ module CloudController
       )
     end
 
-    def blobstore_url_generator
+    def blobstore_url_generator(use_service_dns=false)
+      hostname = use_service_dns && @config[:internal_service_hostname] || @config[:external_host]
+
       connection_options = {
-        blobstore_host: @config[:external_host],
+        blobstore_host: hostname,
         blobstore_port: @config[:external_port],
         user: @config[:staging][:auth][:user],
         password: @config[:staging][:auth][:password]
       }
+
       Blobstore::UrlGenerator.new(
         connection_options,
         package_blobstore,
@@ -170,44 +182,20 @@ module CloudController
       VCAP::Services::ServiceBrokers::ServiceManager.new(services_event_repository)
     end
 
-    def process_repository
-      ProcessRepository.new
-    end
-
     def app_repository
       AppRepository.new
-    end
-
-    def processes_handler
-      ProcessesHandler.new(process_repository, app_event_repository)
-    end
-
-    def procfile_handler
-      ProcfileHandler.new(apps_handler, processes_handler)
     end
 
     def process_presenter
       ProcessPresenter.new
     end
 
-    def apps_handler
-      AppsHandler.new(packages_handler, droplets_handler, processes_handler)
-    end
-
     def app_presenter
       AppPresenter.new
     end
 
-    def packages_handler
-      PackagesHandler.new(@config)
-    end
-
     def package_presenter
       PackagePresenter.new
-    end
-
-    def droplets_handler
-      DropletsHandler.new(@config, stagers)
     end
 
     def droplet_presenter
@@ -239,6 +227,14 @@ module CloudController
       create_paginated_collection_renderer(collection_transformer: UsernamePopulator.new(username_lookup_uaa_client))
     end
 
+    def username_and_roles_populating_collection_renderer
+      create_paginated_collection_renderer(collection_transformer: UsernamesAndRolesPopulator.new(username_lookup_uaa_client))
+    end
+
+    def quota_usage_populating_renderer
+      create_object_renderer(transformer: QuotaUsagePopulator.new)
+    end
+
     def username_lookup_uaa_client
       client_id = @config[:cloud_controller_username_lookup_client_name]
       secret = @config[:cloud_controller_username_lookup_client_secret]
@@ -260,6 +256,18 @@ module CloudController
     end
 
     private
+
+    def create_object_renderer(opts={})
+      eager_loader               = opts[:eager_loader] || VCAP::CloudController::RestController::SecureEagerLoader.new
+      serializer                 = opts[:serializer] || VCAP::CloudController::RestController::PreloadedObjectSerializer.new
+      max_inline_relations_depth = opts[:max_inline_relations_depth] || @config[:renderer][:max_inline_relations_depth]
+      transformer     = opts[:transformer]
+
+      VCAP::CloudController::RestController::ObjectRenderer.new(eager_loader, serializer, {
+        max_inline_relations_depth: max_inline_relations_depth,
+        transformer: transformer
+      })
+    end
 
     def create_paginated_collection_renderer(opts={})
       eager_loader               = opts[:eager_loader] || VCAP::CloudController::RestController::SecureEagerLoader.new

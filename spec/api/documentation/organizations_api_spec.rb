@@ -51,6 +51,64 @@ resource 'Organizations', type: [:api, :legacy_api] do
 
   describe 'Nested endpoints' do
     include_context 'guid_parameter'
+    let(:everything_user) { VCAP::CloudController::User.make }
+    let(:user_user) { VCAP::CloudController::User.make }
+    let(:username_map) do
+      {
+        everything_user.guid => 'everything@example.com',
+        user_user.guid => 'user@example.com',
+      }
+    end
+
+    describe 'User Roles' do
+      before do
+        organization.add_user(everything_user)
+        organization.add_manager(everything_user)
+        organization.add_auditor(everything_user)
+        organization.add_billing_manager(everything_user)
+
+        organization.add_user(user_user)
+
+        allow_any_instance_of(VCAP::CloudController::UaaClient).to receive(:usernames_for_ids).and_return(username_map)
+      end
+
+      get '/v2/organizations/:guid/user_roles' do
+        pagination_parameters
+
+        example 'Retrieving the roles of all Users in the Organization' do
+          client.get "/v2/organizations/#{guid}/user_roles?results-per-page=1&page=1", {}, headers
+
+          expect(status).to eq(200)
+          expect(parsed_response['resources'].length).to eq(1)
+          expect(parsed_response['resources'][0]['entity']['organization_roles']).
+            to include('org_manager', 'org_auditor', 'billing_manager', 'org_user')
+        end
+      end
+    end
+
+    describe 'Quota Usage' do
+      before do
+        organization.add_space(space)
+        app_obj.add_route(route)
+        space.add_service_instance(service_instance)
+        space.add_app(app_obj)
+      end
+
+      let(:space) { VCAP::CloudController::Space.make(organization: organization) }
+      let(:route) { VCAP::CloudController::Route.make(space: space) }
+      let(:service_instance) { VCAP::CloudController::ManagedServiceInstance.make(space: space) }
+      let(:app_obj) { VCAP::CloudController::AppFactory.make(space: space, instances: 1, memory: 500, state: 'STARTED') }
+
+      get '/v2/organizations/:guid/quota_usage' do
+        example 'Retrieving quota usage for the Organization' do
+          client.get "/v2/organizations/#{guid}/quota_usage", {}, headers
+
+          expect(status).to eq(200)
+          expect(parsed_response['entity']['org_usage']).
+            to include('routes', 'services', 'memory')
+        end
+      end
+    end
 
     describe 'Spaces' do
       before do

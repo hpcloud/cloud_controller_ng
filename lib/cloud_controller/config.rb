@@ -19,12 +19,15 @@ module VCAP::CloudController
         :port => Integer,
         :external_port => Integer,
         :external_protocol => String,
+        optional(:internal_service_hostname) => String,
         :info => {
           name: String,
           build: String,
           version: Fixnum,
           support_address: String,
           description: String,
+          optional(:app_ssh_endpoint) => String,
+          optional(:app_ssh_host_key_fingerprint) => String
         },
 
         :system_domain => String,
@@ -198,7 +201,7 @@ module VCAP::CloudController
         optional(:disable_custom_buildpacks) => bool,
         optional(:broker_client_timeout_seconds) => Integer,
         optional(:broker_client_default_async_poll_interval_seconds) => Integer,
-        optional(:broker_client_max_async_poll_attempts) => Integer,
+        optional(:broker_client_max_async_poll_duration_minutes) => Integer,
         optional(:uaa_client_name) => String,
         optional(:uaa_client_secret) => String,
         optional(:uaa_client_scope) => String,
@@ -238,6 +241,7 @@ module VCAP::CloudController
         optional(:dea_advertisement_timeout_in_seconds) => Integer,
 
         optional(:diego_docker) => bool,
+        optional(:diego_stager_url) => String,
         optional(:diego_tps_url) => String,
         optional(:users_can_select_backend) => bool,
         optional(:default_to_diego_backend) => bool,
@@ -295,6 +299,12 @@ module VCAP::CloudController
         QuotaDefinition.configure(config)
         Stack.configure(config[:stacks_file])
 
+        dependency_locator = CloudController::DependencyLocator.instance
+        nsync_client = Diego::NsyncClient.new(@config)
+        dependency_locator.register(:nsync_client, nsync_client)
+        stager_client = Diego::StagerClient.new(@config)
+        dependency_locator.register(:stager_client, stager_client)
+
         run_initializers(config)
       end
 
@@ -309,8 +319,8 @@ module VCAP::CloudController
           hm_client = Dea::HM9000::Client.new(legacy_hm_client, @config)
         end
         dependency_locator.register(:health_manager_client, hm_client)
-        diego_client = Diego::Client.new(@config)
-        dependency_locator.register(:diego_client, diego_client)
+        tps_client = Diego::TPSClient.new(@config)
+        dependency_locator.register(:tps_client, tps_client)
         dependency_locator.register(:upload_handler, UploadHandler.new(config))
         dependency_locator.register(:app_event_repository, Repositories::Runtime::AppEventRepository.new)
 
@@ -324,7 +334,7 @@ module VCAP::CloudController
 
         dependency_locator.register(:stagers, stagers)
         dependency_locator.register(:runners, runners)
-        dependency_locator.register(:instances_reporters, InstancesReporters.new(diego_client, hm_client))
+        dependency_locator.register(:instances_reporters, InstancesReporters.new(tps_client, hm_client))
         dependency_locator.register(:index_stopper, IndexStopper.new(runners))
 
         Dea::Client.configure(@config, message_bus, dea_pool, stager_pool, blobstore_url_generator, docker_registry)

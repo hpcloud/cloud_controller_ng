@@ -52,8 +52,6 @@ module VCAP::CloudController
       end
 
       describe 'App Space Level Permissions' do
-        user_sees_empty_enumerate('SpaceManager', :@space_a_manager, :@space_b_manager)
-
         describe 'Developer' do
           let(:member_a) { @space_a_developer }
           let(:member_b) { @space_b_developer }
@@ -72,6 +70,16 @@ module VCAP::CloudController
                            name: 'user provided service instance',
                            path: '/v2/user_provided_service_instances',
                            enumerate: 1
+        end
+
+        describe 'SpaceManager' do
+          let(:member_a) { @space_a_manager }
+          let(:member_b) { @space_b_manager }
+
+          include_examples 'permission enumeration', 'SpaceManager',
+            name: 'user provided service instance',
+            path: '/v2/user_provided_service_instances',
+            enumerate: 1
         end
       end
     end
@@ -203,6 +211,16 @@ module VCAP::CloudController
         it 'succeeds when the space_guid is not provided' do
           put "/v2/user_provided_service_instances/#{instance.guid}", {}.to_json, json_headers(headers_for(user))
           expect(last_response.status).to eq 201
+        end
+      end
+
+      context 'when the service instance has a binding' do
+        let!(:binding) { ServiceBinding.make service_instance: service_instance }
+
+        it 'propagates the updated credentials to the binding' do
+          put "/v2/user_provided_service_instances/#{service_instance.guid}", req.to_json, headers_for(developer)
+
+          expect(binding.reload.credentials).to eq({ 'uri' => 'https://user:password@service-location.com:port/db' })
         end
       end
     end

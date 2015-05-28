@@ -1,6 +1,5 @@
 require 'spec_helper'
-require 'actions/service_binding_delete'
-require 'actions/deletion_errors'
+require 'actions/services/service_binding_delete'
 
 module VCAP::CloudController
   describe ServiceBindingDelete do
@@ -8,6 +7,7 @@ module VCAP::CloudController
 
     describe '#delete' do
       let!(:service_binding_1) { ServiceBinding.make }
+      let(:service_instance) { service_binding_1.service_instance }
       let!(:service_binding_2) { ServiceBinding.make }
       let!(:service_binding_dataset) { ServiceBinding.dataset }
       let(:user) { User.make }
@@ -23,6 +23,13 @@ module VCAP::CloudController
 
         expect { service_binding_1.refresh }.to raise_error Sequel::Error, 'Record not found'
         expect { service_binding_2.refresh }.to raise_error Sequel::Error, 'Record not found'
+      end
+
+      it 'fails if the instance has another operation in progress' do
+        service_instance.service_instance_operation = ServiceInstanceOperation.make state: 'in progress'
+        service_binding_delete = ServiceBindingDelete.new
+        errors = service_binding_delete.delete([service_binding_1])
+        expect(errors.first).to be_instance_of Errors::ApiError
       end
 
       context 'when one binding deletion fails' do

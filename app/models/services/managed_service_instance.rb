@@ -185,85 +185,48 @@ module VCAP::CloudController
       false
     end
 
-    def lock_by_blocking_other_operations(&block)
+    def save_with_new_operation(attributes_to_update)
       ManagedServiceInstance.db.transaction do
         lock!
-        last_operation.lock! if last_operation
 
-        if operation_in_progress?
-          raise Errors::ApiError.new_from_details('ServiceInstanceOperationInProgress')
+        instance_attrs, operation_attrs = extract_operation_attrs(attributes_to_update)
+        update_attributes(instance_attrs)
+
+        if self.last_operation
+          self.last_operation.destroy
         end
 
-        block.call
+        self.service_instance_operation = ServiceInstanceOperation.create(operation_attrs)
       end
     end
 
-    # It is the caller's responsibility to save the operation state as 'succeeded' or 'failed'
-    def lock_by_failing_other_operations(type, &block)
-      ManagedServiceInstance.db.transaction do
-        lock!
-        last_operation.lock! if last_operation
-
-        if operation_in_progress?
-          raise Errors::ApiError.new_from_details('ServiceInstanceOperationInProgress')
-        end
-
-        save_with_operation(
-          last_operation: {
-            type: type,
-            state: 'in progress'
-          }
-        )
-      end
-
-      begin
-        block.call
-      rescue
-        save_with_operation(
-          last_operation: {
-            type: type,
-            state: 'failed',
-          },
-        )
-        raise
-      end
-    end
-
-    def save_with_operation(attributes_to_update)
+    def save_and_update_operation(attributes_to_update)
       ManagedServiceInstance.db.transaction do
         lock!
 
-        last_operation_attributes = attributes_to_update.delete(:last_operation)
+        instance_attrs, operation_attrs = extract_operation_attrs(attributes_to_update)
+        update_attributes(instance_attrs)
 
-        set_all(attributes_to_update)
-        save
-
-        if last_operation_attributes
-          if self.service_instance_operation
-            self.service_instance_operation.set_all(last_operation_attributes)
-            self.service_instance_operation.save
-          else
-            operation = ServiceInstanceOperation.create(last_operation_attributes)
-            self.service_instance_operation = operation
-          end
+        if operation_attrs
+          update_last_operation(operation_attrs)
         end
       end
     end
 
-    def update_from_broker_response(attributes_to_update)
-      return unless attributes_to_update
-      attributes_to_update = attributes_to_update.clone
-      ManagedServiceInstance.db.transaction do
-        lock!
+    private
 
-        last_operation_attributes = attributes_to_update.delete(:last_operation)
+    def update_attributes(instance_attrs)
+      set_all(instance_attrs)
+      save
+    end
 
-        update_from_hash(attributes_to_update)
+    def update_last_operation(operation_attrs)
+      self.last_operation.update_attributes operation_attrs
+    end
 
-        if last_operation_attributes
-          self.service_instance_operation.update_from_hash(last_operation_attributes)
-        end
-      end
+    def extract_operation_attrs(attributes_to_update)
+      operation_attrs = attributes_to_update.delete(:last_operation)
+      [attributes_to_update, operation_attrs]
     end
   end
 end

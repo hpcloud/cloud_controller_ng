@@ -31,10 +31,8 @@ module VCAP::CloudController
         describe '#stage_app_request' do
           let(:request) { protocol.stage_app_request(app, staging_config) }
 
-          it 'returns arguments intended for CfMessageBus::MessageBus#publish' do
-            expect(request.size).to eq(2)
-            expect(request.first).to eq('diego.staging.start')
-            expect(request.last).to match_json(protocol.stage_app_message(app, staging_config))
+          it 'returns the staging request message to be used by the stager client' do
+            expect(request).to eq(protocol.stage_app_message(app, staging_config).to_json)
           end
         end
 
@@ -56,20 +54,23 @@ module VCAP::CloudController
 
           it 'contains the correct payload for staging a traditional app' do
             expect(message).to eq({
-              'app_id' => app.guid,
-              'task_id' => 'fake-staging-task-id',
-              'memory_mb' => app.memory,
-              'disk_mb' => app.disk_quota,
-              'file_descriptors' => app.file_descriptors,
-              'environment' => Environment.new(app).as_json,
-              'stack' => app.stack.name,
-              'build_artifacts_cache_download_uri' => 'http://buildpack-artifacts-cache.com',
-              'build_artifacts_cache_upload_uri' => 'http://buildpack-artifacts-cache.up.com',
-              'app_bits_download_uri' => 'http://app-package.com',
-              'buildpacks' => buildpack_generator.buildpack_entries(app),
-              'droplet_upload_uri' => 'http://droplet-upload-uri',
-              'egress_rules' => ['staging_egress_rule'],
-              'timeout' => 90,
+              app_id: app.guid,
+              log_guid: app.guid,
+              memory_mb: app.memory,
+              disk_mb: app.disk_quota,
+              file_descriptors: app.file_descriptors,
+              environment: Environment.new(app).as_json,
+              egress_rules: ['staging_egress_rule'],
+              timeout: 90,
+              lifecycle: 'buildpack',
+              lifecycle_data: {
+                build_artifacts_cache_download_uri: 'http://buildpack-artifacts-cache.com',
+                build_artifacts_cache_upload_uri: 'http://buildpack-artifacts-cache.up.com',
+                app_bits_download_uri: 'http://app-package.com',
+                droplet_upload_uri: 'http://droplet-upload-uri',
+                buildpacks: buildpack_generator.buildpack_entries(app),
+                stack: app.stack.name,
+              },
             })
           end
 
@@ -83,8 +84,8 @@ module VCAP::CloudController
 
             context 'when auto-detecting' do
               it 'sends buildpacks without skip_detect' do
-                expect(message['buildpacks']).to have(1).items
-                buildpack = message['buildpacks'][0]
+                expect(message[:lifecycle_data][:buildpacks]).to have(1).items
+                buildpack = message[:lifecycle_data][:buildpacks][0]
                 expect(buildpack).to include(name: 'ruby')
                 expect(buildpack).to_not include(:skip_detect)
               end
@@ -96,8 +97,8 @@ module VCAP::CloudController
               end
 
               it 'sends buildpacks with skip detect' do
-                expect(message['buildpacks']).to have(1).items
-                buildpack = message['buildpacks'][0]
+                expect(message[:lifecycle_data][:buildpacks]).to have(1).items
+                buildpack = message[:lifecycle_data][:buildpacks][0]
                 expect(buildpack).to include(name: 'ruby', skip_detect: true)
               end
             end
@@ -109,8 +110,8 @@ module VCAP::CloudController
               end
 
               it 'sends buildpacks with skip detect' do
-                expect(message['buildpacks']).to have(1).items
-                buildpack = message['buildpacks'][0]
+                expect(message[:lifecycle_data][:buildpacks]).to have(1).items
+                buildpack = message[:lifecycle_data][:buildpacks][0]
                 expect(buildpack).to include(url: buildpack_url, skip_detect: true)
               end
             end
@@ -124,7 +125,7 @@ module VCAP::CloudController
             end
 
             it 'uses the minimum staging memory' do
-              expect(message['memory_mb']).to eq(staging_config[:minimum_staging_memory_mb])
+              expect(message[:memory_mb]).to eq(staging_config[:minimum_staging_memory_mb])
             end
           end
 
@@ -136,7 +137,7 @@ module VCAP::CloudController
             end
 
             it 'includes the fields needed to stage a Docker app' do
-              expect(message['disk_mb']).to eq(staging_config[:minimum_staging_disk_mb])
+              expect(message[:disk_mb]).to eq(staging_config[:minimum_staging_disk_mb])
             end
           end
 
@@ -148,7 +149,7 @@ module VCAP::CloudController
             end
 
             it 'includes the fields needed to stage a Docker app' do
-              expect(message['file_descriptors']).to eq(staging_config[:minimum_staging_file_descriptor_limit])
+              expect(message[:file_descriptors]).to eq(staging_config[:minimum_staging_file_descriptor_limit])
             end
           end
         end
@@ -156,10 +157,8 @@ module VCAP::CloudController
         describe '#desire_app_request' do
           let(:request) { protocol.desire_app_request(app, default_health_check_timeout) }
 
-          it 'returns arguments intended for CfMessageBus::MessageBus#publish' do
-            expect(request.size).to eq(2)
-            expect(request.first).to eq('diego.desire.app')
-            expect(request.last).to match_json(protocol.desire_app_message(app, default_health_check_timeout))
+          it 'returns the message' do
+            expect(request).to match_json(protocol.desire_app_message(app, default_health_check_timeout))
           end
         end
 
@@ -179,6 +178,7 @@ module VCAP::CloudController
               version: 'version-guid',
               updated_at: Time.at(12345.6789),
               uris: ['fake-uris'],
+              enable_ssh: true,
             )
           end
 
@@ -206,7 +206,8 @@ module VCAP::CloudController
               'execution_metadata' => 'staging-metadata',
               'routes' => ['fake-uris'],
               'egress_rules' => ['running_egress_rule'],
-              'etag' => '12345.6789'
+              'etag' => '12345.6789',
+              'allow_ssh' => true,
             })
           end
 
@@ -220,39 +221,6 @@ module VCAP::CloudController
             it 'uses the default app health check from the config' do
               expect(message['health_check_timeout_in_seconds']).to eq(default_health_check_timeout)
             end
-          end
-        end
-
-        describe '#stop_staging_app_request' do
-          let(:task_id) { 'staging_task_id' }
-          let(:request) { protocol.stop_staging_app_request(app, task_id) }
-
-          it 'returns an array of arguments including the subject and message' do
-            expect(request.size).to eq(2)
-            expect(request[0]).to eq('diego.staging.stop')
-            expect(request[1]).to match_json(protocol.stop_staging_message(app, task_id))
-          end
-        end
-
-        describe '#stop_staging_message' do
-          let(:task_id) { 'staging_task_id' }
-          let(:message) { protocol.stop_staging_message(app, task_id) }
-
-          it 'is a nats message with the appropriate staging subject and payload' do
-            expect(message).to eq(
-              'app_id' => app.guid,
-              'task_id' => task_id,
-            )
-          end
-        end
-
-        describe '#stop_index_request' do
-          before { allow(common_protocol).to receive(:stop_index_request) }
-
-          it 'delegates to the common protocol' do
-            protocol.stop_index_request(app, 33)
-
-            expect(common_protocol).to have_received(:stop_index_request).with(app, 33)
           end
         end
       end

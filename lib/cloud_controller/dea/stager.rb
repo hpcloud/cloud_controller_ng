@@ -17,7 +17,7 @@ module VCAP::CloudController
 
         staging_message = PackageDEAStagingMessage.new(
           @app, droplet.guid, droplet.guid, stack, memory_limit, disk_limit, buildpack_key,
-          buildpack_git_url, @config, blobstore_url_generator, docker_registry)
+          buildpack_git_url, @config, droplet.environment_variables, blobstore_url_generator, docker_registry)
 
         task.stage(staging_message) do |staging_result, error|
           if error
@@ -29,6 +29,7 @@ module VCAP::CloudController
               droplet.state                  = DropletModel::STAGED_STATE
               droplet.buildpack_guid         = buildpack.guid if buildpack
               droplet.detected_start_command = staging_result.detected_start_command
+              droplet.procfile               = YAML.dump(staging_result.procfile)
               droplet.save
             end
           end
@@ -48,7 +49,7 @@ module VCAP::CloudController
         end
       end
 
-      def staging_complete(_)
+      def staging_complete(_, _)
         raise NotImplementedError
       end
 

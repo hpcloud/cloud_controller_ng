@@ -12,7 +12,8 @@ module VCAP::CloudController
         expect(described_class).to have_creatable_attributes({
           binding_options: { type: 'hash', default: {} },
           app_guid: { type: 'string', required: true },
-          service_instance_guid: { type: 'string', required: true }
+          service_instance_guid: { type: 'string', required: true },
+          parameters: { type: 'hash', required: false }
         })
       end
 
@@ -20,12 +21,11 @@ module VCAP::CloudController
         expect(described_class).to have_updatable_attributes({
           binding_options: { type: 'hash' },
           app_guid: { type: 'string' },
-          service_instance_guid: { type: 'string' }
+          service_instance_guid: { type: 'string' },
+          parameters: { type: 'hash', required: false }
         })
       end
     end
-
-    CREDENTIALS = { 'foo' => 'bar' }
 
     def fake_app_staging(app)
       app.package_hash = 'abc'
@@ -36,9 +36,12 @@ module VCAP::CloudController
 
     let(:guid_pattern) { '[[:alnum:]-]+' }
     let(:bind_status) { 200 }
-    let(:bind_body) { { credentials: CREDENTIALS } }
+    let(:bind_body) { { credentials: credentials } }
     let(:unbind_status) { 200 }
     let(:unbind_body) { {} }
+    let(:credentials) do
+      { 'foo' => 'bar' }
+    end
 
     def broker_url(broker)
       base_broker_uri = URI.parse(broker.broker_url)
@@ -132,7 +135,7 @@ module VCAP::CloudController
           include_examples 'permission enumeration', 'SpaceManager',
             name: 'service binding',
             path: '/v2/service_bindings',
-            enumerate: 0
+            enumerate: 1
         end
 
         describe 'Developer' do
@@ -158,14 +161,15 @@ module VCAP::CloudController
     end
 
     describe 'create' do
+      let(:space) { Space.make }
+      let(:developer) { make_developer_for_space(space) }
+      let(:app_obj) { AppFactory.make(space: space) }
+
       context 'for user provided instances' do
-        let(:space) { Space.make }
-        let(:developer) { make_developer_for_space(space) }
-        let(:application) { AppFactory.make(space: space) }
         let(:service_instance) { UserProvidedServiceInstance.make(space: space) }
         let(:params) do
           {
-            'app_guid' => application.guid,
+            'app_guid' => app_obj.guid,
             'service_instance_guid' => service_instance.guid
           }
         end
@@ -178,38 +182,55 @@ module VCAP::CloudController
           expect(last_response).to have_status_code(201)
           expect(ServiceBinding.last.binding_options).to eq(binding_options)
         end
+
+        context 'when the client passes arbitrary params' do
+          it 'does not use the arbitrary params' do
+            body = params.merge(parameters: { 'key' => 'value' })
+            post '/v2/service_bindings', body.to_json, headers_for(developer)
+            expect(last_response).to have_status_code 201
+          end
+        end
+
+        context 'when the service instance has a syslog_drain_url' do
+          before do
+            service_instance.syslog_drain_url = 'syslog.com/drain'
+            service_instance.save
+          end
+
+          it 'creates a service binding with the provided binding options' do
+            binding_options = Sham.binding_options
+            body =  params.merge('binding_options' => binding_options).to_json
+            post '/v2/service_bindings', body, headers_for(developer)
+
+            expect(last_response).to have_status_code(201)
+            expect(ServiceBinding.last.binding_options).to eq(binding_options)
+          end
+        end
       end
 
       context 'for managed instances' do
-        let(:instance) { ManagedServiceInstance.make }
-        let(:space) { instance.space }
-        let(:service) { instance.service }
-        let(:developer) { make_developer_for_space(space) }
-        let(:app_obj) { AppFactory.make(space: space) }
-
-        before do
-          stub_requests(service.service_broker)
-        end
-
-        it 'binds a service instance to an app' do
-          req = {
-            app_guid: app_obj.guid,
-            service_instance_guid: instance.guid
-          }.to_json
-
-          post '/v2/service_bindings', req, json_headers(headers_for(developer))
-          expect(last_response).to have_status_code(201)
-
-          binding = ServiceBinding.last
-          expect(binding.credentials).to eq(CREDENTIALS)
-        end
-
-        it 'creates an audit event upon binding' do
-          req = {
+        let(:broker) { instance.service.service_broker }
+        let(:instance) { ManagedServiceInstance.make(space: space) }
+        let(:req) do
+          {
             app_guid: app_obj.guid,
             service_instance_guid: instance.guid
           }
+        end
 
+        before do
+          stub_requests(broker)
+        end
+
+        it 'binds a service instance to an app' do
+          post '/v2/service_bindings', req.to_json, json_headers(headers_for(developer))
+          expect(last_response).to have_status_code(201)
+
+          binding = ServiceBinding.last
+          expect(binding.credentials).to eq(credentials)
+        end
+
+        it 'creates an audit event upon binding' do
           email = 'email@example.com'
           post '/v2/service_bindings', req.to_json, json_headers(headers_for(developer, email: email))
 
@@ -235,55 +256,28 @@ module VCAP::CloudController
           })
         end
 
-        describe 'orphan mitigation' do
-          context 'when saving to the DB fails' do
-            it 'unbinds the service instance' do
-              req = MultiJson.dump(
-                app_guid: app_obj.guid,
-                service_instance_guid: instance.guid
-              )
-
-              allow_any_instance_of(ServiceBinding).to receive(:save).and_raise
-
-              post '/v2/service_bindings', req, json_headers(headers_for(developer))
-              expect(a_request(:put, bind_url_regex(service_instance: instance))).to have_been_made.times(1)
-              expect(a_request(:delete, bind_url_regex(service_instance: instance))).to have_been_made.times(1)
-
-              orphan_mitigating_job = Delayed::Job.first
-              expect(orphan_mitigating_job).to be_nil
-            end
+        context 'when the client provides arbitrary parameters' do
+          let(:parameters) { { 'key' => 'value' } }
+          let(:req) do
+            {
+              app_guid: app_obj.guid,
+              service_instance_guid: instance.guid,
+              parameters: parameters
+            }
           end
 
-          context 'when the broker returns an error' do
-            let(:bind_status) { 500 }
-            let(:bind_body) { {} }
-
-            it 'enqueues a ServiceInstanceUnbind job' do
-              req = MultiJson.dump(
-                app_guid: app_obj.guid,
-                service_instance_guid: instance.guid
-              )
-
-              post '/v2/service_bindings', req, json_headers(headers_for(developer))
-              expect(last_response).to have_status_code 502
-
-              expect(ServiceBinding.count).to eq 0
-
-              expect(Delayed::Job.count).to eq 1
-
-              orphan_mitigating_job = Delayed::Job.first
-              expect(orphan_mitigating_job).not_to be_nil
-              expect(orphan_mitigating_job).to be_a_fully_wrapped_job_of Jobs::Services::ServiceInstanceUnbind
-
-              expect(a_request(:delete, bind_url_regex(service_instance: instance))).to_not have_been_made
-            end
+          it 'sends the parameters in the request to the broker' do
+            post '/v2/service_bindings', req.to_json, json_headers(headers_for(developer))
+            expect(last_response).to have_status_code(201)
+            binding_endpoint = %r{#{broker_url(broker)}/v2/service_instances/#{guid_pattern}/service_bindings/#{guid_pattern}}
+            expect(a_request(:put, binding_endpoint).with(body: hash_including(parameters: parameters))).to have_been_made
           end
         end
 
         context 'when attempting to bind to an unbindable service' do
           before do
-            service.bindable = false
-            service.save
+            instance.service.bindable = false
+            instance.service.save
 
             req = {
               app_guid: app_obj.guid,
@@ -332,33 +326,12 @@ module VCAP::CloudController
               }.to_json
             end
 
-            before do
-              service.save
-            end
-
             it 'returns CF-ServiceInstanceNotFound error' do
               post '/v2/service_bindings', req, json_headers(headers_for(developer))
 
               hash_body = JSON.parse(last_response.body)
               expect(hash_body['error_code']).to eq('CF-ServiceInstanceNotFound')
               expect(last_response.status).to eq(404)
-            end
-          end
-
-          context 'because the service instance is destroyed after controller validation and before binding save' do
-            let(:req) do
-              {
-                app_guid: app_obj.guid,
-                service_instance_guid: 'THISISWRONG'
-              }.to_json
-            end
-
-            it 'returns CF-ServiceInstanceNotFound error' do
-              post '/v2/service_bindings', req, json_headers(headers_for(developer))
-
-              expect(last_response).to have_status_code(404)
-              hash_body = JSON.parse(last_response.body)
-              expect(hash_body['error_code']).to eq('CF-ServiceInstanceNotFound')
             end
           end
         end
@@ -372,7 +345,7 @@ module VCAP::CloudController
           end
 
           before do
-            instance.save_with_operation(
+            instance.save_with_new_operation(
               last_operation: {
                 type: 'delete',
                 state: 'in progress',
@@ -381,7 +354,6 @@ module VCAP::CloudController
           end
 
           it 'does not tell the service broker to bind the service' do
-            broker = service.service_broker
             post '/v2/service_bindings', request_body, json_headers(headers_for(developer))
 
             expect(a_request(:put, %r{#{broker_url(broker)}/v2/service_instances/#{guid_pattern}/service_bindings/#{guid_pattern}})).
@@ -399,8 +371,8 @@ module VCAP::CloudController
 
           it 'should show an error message for create bind operation' do
             post '/v2/service_bindings', request_body, json_headers(headers_for(developer))
-            expect(last_response).to have_status_code 400
-            expect(last_response.body).to match 'ServiceInstanceOperationInProgress'
+            expect(last_response).to have_status_code 409
+            expect(last_response.body).to match 'AsyncServiceInstanceOperationInProgress'
           end
         end
 
@@ -504,6 +476,82 @@ module VCAP::CloudController
                 expect(instance.refresh.last_operation.type).to eq 'create'
               end
             end
+          end
+
+          context 'when the broker returns a syslog_drain_url and the service does not require one' do
+            let(:bind_body) { { 'syslog_drain_url' => 'http://syslog.com/drain' } }
+
+            it 'returns ServiceBrokerInvalidSyslogDrainUrl error to the user' do
+              make_request
+              expect(last_response).to have_status_code 502
+              expect(decoded_response['error_code']).to eq 'CF-ServiceBrokerInvalidSyslogDrainUrl'
+            end
+
+            it 'triggers orphan mitigation' do
+              make_request
+              expect(last_response).to have_status_code 502
+
+              orphan_mitigation_job = Delayed::Job.first
+              expect(orphan_mitigation_job).not_to be_nil
+              expect(orphan_mitigation_job).to be_a_fully_wrapped_job_of Jobs::Services::DeleteOrphanedBinding
+            end
+          end
+        end
+      end
+
+      context 'for v1 service instances' do
+        let(:fake_client) { double(:v1_client) }
+        let(:fake_bind_response) do
+          {
+            'service_id' => Sham.guid,
+            'configuration' => 'CONFIGURATION',
+            'credentials' => credentials,
+          }
+        end
+
+        before do
+          allow(fake_client).to receive(:bind).and_return(fake_bind_response)
+          allow(VCAP::Services::ServiceBrokers::V1::HttpClient).to receive(:new).and_return(fake_client)
+        end
+
+        let(:service_instance) { ManagedServiceInstance.make(:v1, space: space) }
+        let(:req) do
+          {
+            service_instance_guid: service_instance.guid,
+            app_guid: app_obj.guid
+          }
+        end
+
+        it 'binds a service instance to an app' do
+          post '/v2/service_bindings', req.to_json, json_headers(headers_for(developer))
+          expect(last_response).to have_status_code(201)
+
+          binding = ServiceBinding.last
+          expect(binding.credentials).to eq(credentials)
+        end
+
+        context 'and the client provides arbitrary params' do
+          let(:req) do
+            {
+              service_instance_guid: service_instance.guid,
+              app_guid: app_obj.guid,
+              parameters: { 'key' => 'value' }
+            }
+          end
+
+          it 'ignores arbitrary params' do
+            post '/v2/service_bindings', req.to_json, json_headers(headers_for(developer, email: 'email@example.com'))
+            expect(last_response).to have_status_code(201)
+
+            label_with_version = "#{service_instance.service.label}-#{service_instance.service.version}"
+
+            expect(fake_client).to have_received(:bind).with(
+               service_instance.broker_provided_id,
+               app_obj.guid,
+               label_with_version,
+               'email@example.com',
+               ServiceBinding.last.binding_options
+             )
           end
         end
       end
@@ -628,8 +676,8 @@ module VCAP::CloudController
 
         it 'should show an error message for unbind operation' do
           delete "/v2/service_bindings/#{service_binding.guid}", '', json_headers(headers_for(developer))
-          expect(last_response).to have_status_code 400
-          expect(last_response.body).to match 'ServiceInstanceOperationInProgress'
+          expect(last_response).to have_status_code 409
+          expect(last_response.body).to match 'AsyncServiceInstanceOperationInProgress'
           expect(ServiceBinding.find(guid: service_binding.guid)).not_to be_nil
         end
       end
