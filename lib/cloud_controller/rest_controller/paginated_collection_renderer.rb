@@ -131,12 +131,12 @@ module VCAP::CloudController::RestController
       # If the options were run through CommonParams.parse then the exclude/include_relations
       # will come through as an array.
       if opts[:exclude_relations]
-        params['exclude_relations'] = opts[:exclude_relations].respond_to?(:join) ?
+        params['exclude-relations'] = opts[:exclude_relations].respond_to?(:join) ?
                                      opts[:exclude_relations].join(',') :
                                      opts[:exclude_relations]
       end
       if opts[:include_relations]
-        params['include_relations'] = opts[:include_relations].respond_to?(:join) ?
+        params['include-relations'] = opts[:include_relations].respond_to?(:join) ?
                                      opts[:include_relations].join(',') :
                                      opts[:include_relations]
       end
