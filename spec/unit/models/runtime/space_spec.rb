@@ -280,6 +280,9 @@ module VCAP::CloudController
       end
 
       it "destroys all routes" do
+        # Stackato's SSO feature perform scim requests on Route deletion - see the following commit for more details:
+        # https://github.com/ActiveState/cloud_controller_ng/commit/93b29f7f0aa2e3088908ff44bf392910186b92b2
+        allow_any_instance_of(VCAP::CloudController::Route).to receive(:delete_oauth_client).and_return nil
         route = Route.make(space: space)
         expect {
           subject.destroy
