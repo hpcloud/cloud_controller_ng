@@ -1,3 +1,12 @@
 [submodule "vendor/errors"]
 	path = vendor/errors
 	url = git@github.com:ActiveState/errors.git
+[submodule "gems/kato"]
+	path = gems/kato
+	url = git@github.com:ActiveState/kato
+[submodule "gems/steno-codec-text"]
+	path = gems/steno-codec-text
+	url = git@github.com:ActiveState/steno-codec-text.git
+[submodule "gems/vcap-common"]
+	path = gems/vcap-common
+	url = git@github.com:ActiveState/vcap-common.git
