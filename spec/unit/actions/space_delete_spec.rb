@@ -115,7 +115,7 @@ module VCAP::CloudController
             results = space_delete.delete(space_dataset)
             expect(results.length).to eq(2)
             expect(results.first).to be_instance_of(VCAP::Errors::ApiError)
-            expect(results.second).to be_instance_of(VCAP::Errors::ApiError)
+            expect(results[1]).to be_instance_of(VCAP::Errors::ApiError)
 
             instance_1_url = remove_basic_auth(deprovision_url(service_instance_1))
             instance_2_url = remove_basic_auth(deprovision_url(service_instance_2))
@@ -125,8 +125,8 @@ module VCAP::CloudController
             expect(results.first.message).to include("\tThe service broker returned an invalid response for the request to #{instance_1_url}")
             expect(results.first.message).to include("\tThe service broker returned an invalid response for the request to #{instance_2_url}")
 
-            expect(results.second.message).to include("Deletion of space #{space_4.name} failed because one or more resources within could not be deleted.")
-            expect(results.second.message).to include("\tThe service broker returned an invalid response for the request to #{instance_4_url}")
+            expect(results[1].message).to include("Deletion of space #{space_4.name} failed because one or more resources within could not be deleted.")
+            expect(results[1].message).to include("\tThe service broker returned an invalid response for the request to #{instance_4_url}")
           end
         end
       end
