@@ -1,7 +1,7 @@
 source (ENV['RUBYGEMS_MIRROR'] or 'https://rubygems.org')
 
 # prevents hard-to-diagnose errors with bundle install
-ruby '2.1.6'
+ruby '2.1.5'
 
 gem 'activemodel', '4.1.10'
 gem 'activerecord', '4.1.10'
