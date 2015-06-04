@@ -1,17 +1,7 @@
 require "spec_helper"
 
-describe BackgroundJobEnvironment do
-  it "warns that everything has been pended out" do
-    pending("All tests have been commented out: see bug 301159")
-    fail("Not yet fixed")
-  end
-end
-
-=begin
-# Bug https://openproject.activestate.com/work_packages/301159
-# Fix lib/background_job_environment_spec.rb
-#
-# XXX: Comment out this test -- it deadlocks.
+# Bug https://openproject.activestate.com/work_packages/301159 -- Do everything
+# in one test to avoid deadlocking and running out of threads (??)
 
 describe BackgroundJobEnvironment do
   let(:bg_config) { { db: "cc-db", logging: { level: 'debug2' } } }
@@ -32,17 +22,9 @@ describe BackgroundJobEnvironment do
       allow(EM).to receive(:run).and_yield
     end
 
-    it "loads models" do
+    it "loads models, configures components, and configures app observer" do
       expect(VCAP::CloudController::DB).to receive(:load_models)
-      background_job_environment.setup_environment
-    end
-
-    it "configures components" do
       expect(VCAP::CloudController::Config).to receive(:configure_components)
-      background_job_environment.setup_environment
-    end
-
-    it "configures app observer with null stager and dea pool" do
       expect(VCAP::CloudController::AppObserver).to receive(:configure).with(
         instance_of(VCAP::CloudController::StackatoBackends)
       )
@@ -50,4 +32,4 @@ describe BackgroundJobEnvironment do
     end
   end
 end
-=end
+
