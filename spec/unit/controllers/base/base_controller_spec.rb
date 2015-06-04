@@ -84,12 +84,6 @@ module VCAP::CloudController
           get '/test_endpoint', '', headers_for(user)
           expect(last_response.body).to eq 'test_response'
         end
-
-        it 'should log a debug message' do
-          pending("Don't test for logged messages unless the point of the cmd is to log something")
-          expect(logger).to receive(:debug).with('cc.dispatch', endpoint: :test_endpoint, args: [])
-          get '/test_endpoint', '', headers_for(user)
-        end
       end
 
       context 'when the dispatch raises an error' do
