@@ -33,7 +33,6 @@ module VCAP::CloudController
     private
 
     def logger
-      $stderr.puts(">> StackatoStagers#logger !")
       @logger ||= Steno.logger("cc.stackato.backends.stagers")
     end
     
