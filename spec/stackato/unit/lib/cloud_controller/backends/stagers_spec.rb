@@ -16,6 +16,7 @@ module VCAP::CloudController
 
     let(:app) do
       instance_double(App,
+        name: "Chemda",
         docker_image: docker_image,
         package_hash: package_hash,
         buildpack: buildpack,
@@ -24,6 +25,9 @@ module VCAP::CloudController
         diego?: false,
         "last_stager_response=".to_sym => nil
       )
+    end
+    let(:fake_logger) do
+      double(info: :info_logger, warn: :warn_logger)
     end
 
     subject(:stagers) do
@@ -47,6 +51,32 @@ module VCAP::CloudController
           expect {
             stager.stage_app
           }.to_not raise_error
+        end
+      end
+      context "when the App can't be staged to the DEA" do
+        before do
+          allow_any_instance_of(Dea::StackatoAppStagerTask).to receive(:stage).and_yield(:staging_result)
+          allow_any_instance_of(Dea::Runner).to receive(:start)
+          allow(app).to receive("needs_staging?".to_sym).and_return(true)
+          allow(subject).to receive(:stage_app).with(app).and_raise(Errors::ApiError.new_from_details("StagingError"))
+        end
+        it "logs a problem" do
+          c = config
+          c[:staging] ||= {}
+          num_tries = 3
+          c[:staging][:num_repeated_tries] = num_tries
+          c[:staging][:time_between_tries] = 0.1
+          # Here it makes sense that the logger is tested as we have a bug against it.
+          # It also captures the behavior of failing every time, and never succeeding.
+          expect(subject).to receive(:logger).and_return(fake_logger).exactly(num_tries).times
+          expect(fake_logger).to receive(:warn).exactly(num_tries).times
+          expect(fake_logger).to receive(:info).exactly(0).times
+          expect {
+            subject.stage_if_needed(app) do
+              expect("In callback").to eq("shouldn't be called")
+            end
+          }.to raise_error(Errors::ApiError)
+          # Here's a case where we want to verify that the logger is called.
         end
       end
     end
