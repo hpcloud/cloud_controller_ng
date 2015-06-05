@@ -21,3 +21,7 @@ log
 tmp
 .tags*
 tags
+
+
+# Testing output
+rspec-junit.xml
