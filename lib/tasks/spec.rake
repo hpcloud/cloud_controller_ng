@@ -56,7 +56,7 @@ namespace :spec do
   end
 
   def run_specs(path)
-    puts "Running rspec against #{path}..."e
-    sh "bundle exec rspec #{path} --require rspec/instafail --format RSpec::Instafail  --format RspecJunitFormatter --out rspec-junit-#{path.gsub("/","-")}.xml"
+    puts "Running rspec against #{path}..."
+    sh "bundle exec rspec #{path} --require rspec/instafail --format RSpec::Instafail  --format RspecJunitFormatter --out #{path.gsub("/","-")}-rspec-junit.xml"
   end
 end
