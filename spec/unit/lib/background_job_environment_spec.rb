@@ -26,7 +26,8 @@ describe BackgroundJobEnvironment do
       expect(VCAP::CloudController::DB).to receive(:load_models)
       expect(VCAP::CloudController::Config).to receive(:configure_components)
       expect(VCAP::CloudController::AppObserver).to receive(:configure).with(
-        instance_of(VCAP::CloudController::StackatoBackends)
+        instance_of(VCAP::CloudController::StackatoStagers),
+        instance_of(VCAP::CloudController::StackatoRunners)
       )
       background_job_environment.setup_environment
     end
