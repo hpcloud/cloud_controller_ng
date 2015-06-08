@@ -1,7 +1,7 @@
 require 'yajl'
 
 require "kato/config"
-require 'kato/cluster/util'
+require 'kato/license'
 
 module VCAP::CloudController
   class StackatoLicenseController < RestController::BaseController
@@ -35,7 +35,7 @@ module VCAP::CloudController
       end
 
       begin
-        Yajl::Encoder.encode(Kato::Cluster::Util.parse_license(data['license']))
+        Yajl::Encoder.encode(Kato::License.parse_license(data['license']))
       rescue KatoBadParamsException
         raise Errors::ApiError.new_from_details("StackatoLicenseInvalid")
       end

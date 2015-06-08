@@ -81,6 +81,7 @@ PATH
   specs:
     kato-config (3.5.0)
       kato-common (~> 3.5.0)
+      kato-license (~> 3.5.0)
       redis (= 3.0.6)
       yajl-ruby (= 1.1.0)
 
@@ -92,9 +93,16 @@ PATH
       ipaddress (= 0.8.0)
       kato-common (~> 3.5.0)
       kato-config (~> 3.5.0)
+      kato-node-process-controller (~> 3.5.0)
       mustache (= 0.99.4)
       pg (= 0.14.1)
       yajl-ruby (= 1.1.0)
+
+PATH
+  remote: gems/kato/license
+  specs:
+    kato-license (3.5.0)
+      kato-common (~> 3.5.0)
 
 PATH
   remote: gems/kato/node-process-controller
@@ -482,6 +490,7 @@ DEPENDENCIES
   kato-common!
   kato-config!
   kato-core!
+  kato-license!
   kato-node-process-controller!
   librrd (= 1.0.3)
   listen (= 2.3.1)

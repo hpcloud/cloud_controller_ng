@@ -168,6 +168,7 @@ group :test do
 end
 
 gem 'kato-config', :path => 'gems/kato/config'
+gem 'kato-license', :path => 'gems/kato/license'
 gem 'kato-node-process-controller', :path => 'gems/kato/node-process-controller'
 gem 'kato-core', :path => 'gems/kato/core'
 gem 'kato-common', :path => 'gems/kato/common'
