@@ -11,14 +11,14 @@ describe VCAP::CloudController::Jobs::Runtime::Stackato::Monitor do
   before do
     allow(Steno).to receive(:logger).and_return(logger)
   end
-  
+
   describe '#vmsize_limit' do
     it 'should have a default value' do
       expect(monitor.vmsize_limit).to be_a Integer
     end
 
     it 'should be configurable' do
-      expect(monitor.vmsize_limit).to be config[:resource_monitoring][:max_vm_size]
+      expect(monitor.vmsize_limit).to be 4294967296
     end
   end
 
@@ -28,7 +28,7 @@ describe VCAP::CloudController::Jobs::Runtime::Stackato::Monitor do
     end
 
     it 'should be configurable' do
-      expect(monitor.rss_limit).to be config[:resource_monitoring][:max_rss_size]
+      expect(monitor.rss_limit).to be 2147483648
     end
   end
 
@@ -64,6 +64,14 @@ describe VCAP::CloudController::Jobs::Runtime::Stackato::Monitor do
     before do
       expect(Kato::Local::Node).to receive(:get_local_node_id).and_return('0')
       expect(Kato::NodeProcessController).to receive(:new).and_return(process_controller)
+    end
+
+    context 'when calling perform' do
+      it 'should call check_cc_memory_usage' do
+        expect(process_controller).to receive(:controller_running?).and_return(false)
+        expect(monitor).to receive(:check_cc_memory_usage).and_call_original
+        monitor.perform
+      end
     end
 
     it 'should do nothing if the process controller is not running' do
