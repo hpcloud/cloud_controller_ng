@@ -1,6 +1,5 @@
 require 'stackato/spec_helper'
 require 'spec_helper'
-# require 'app/jobs/runtime/stackato/monitor'
 require 'stringio'
 
 describe VCAP::CloudController::Jobs::Runtime::Stackato::Monitor do
@@ -12,74 +11,50 @@ describe VCAP::CloudController::Jobs::Runtime::Stackato::Monitor do
   before do
     allow(Steno).to receive(:logger).and_return(logger)
   end
-
-  describe '#start' do
-
-    before do
-      allow(Clockwork).to receive(:every).and_yield('dummy.scheduled.job')
-      allow(Clockwork).to receive(:run)
-      allow(monitor).to receive(:check_cc_memory_usage).and_return(nil)
-      allow(logger).to receive(:info) # started monitoring message
-      monitor.start
-    end
-
-    it 'runs Clockwork' do
-      expect(Clockwork).to have_received(:run)
-    end
-
-    it 'schedules a monitoring job' do
-      expect(Clockwork).to have_received(:every).with(1.hour, 'cc.monitor.job')
-    end
-  end
-
+  
   describe '#vmsize_limit' do
     it 'should have a default value' do
-      expect(Kato::Config).to receive(:get).with('cloud_controller_ng', 'resource_monitoring/max_vm_size').and_return(nil)
       expect(monitor.vmsize_limit).to be_a Integer
     end
 
     it 'should be configurable' do
-      expect(Kato::Config).to receive(:get).with('cloud_controller_ng', 'resource_monitoring/max_vm_size').and_return(1000)
-      expect(monitor.vmsize_limit).to be 1000
+      expect(monitor.vmsize_limit).to be config[:resource_monitoring][:max_vm_size]
     end
   end
 
   describe '#rss_limit' do
     it 'should have a default value' do
-      expect(Kato::Config).to receive(:get).with('cloud_controller_ng', 'resource_monitoring/max_rss_size').and_return(nil)
       expect(monitor.rss_limit).to be_a Integer
     end
 
     it 'should be configurable' do
-      expect(Kato::Config).to receive(:get).with('cloud_controller_ng', 'resource_monitoring/max_rss_size').and_return(1000)
-      expect(monitor.rss_limit).to be 1000
+      expect(monitor.rss_limit).to be config[:resource_monitoring][:max_rss_size]
     end
   end
 
   describe '#get_threshold_ratio' do
     it 'should have a default value' do
-      expect(Kato::Config).to receive(:get).with('cloud_controller_ng', 'resource_monitoring/threshold_ratio').and_return(nil)
       expect(monitor.get_threshold_ratio).to be_between(0.0, 1.0).inclusive
     end
 
     it 'should be configurable' do
-      expect(Kato::Config).to receive(:get).with('cloud_controller_ng', 'resource_monitoring/threshold_ratio').and_return(0.5)
-      expect(monitor.get_threshold_ratio).to eq 0.5
+      expect(monitor.get_threshold_ratio).to eq 0.95
     end
 
-    it 'should fall back to default values when set too large' do
-      expect(Kato::Config).to receive(:get).with('cloud_controller_ng', 'resource_monitoring/threshold_ratio').and_return(1000)
-      expect(Kato::Config).to receive(:set).with('cloud_controller_ng', 'resource_monitoring/threshold_ratio', instance_of(Float))
-      expect(logger).to receive(:warn)
-      expect(monitor.get_threshold_ratio).to be_between(0.0, 1.0).inclusive
+    context 'when too large' do
+      before { config[:resource_monitoring][:threshold_ratio] = 1000 }
+      it 'should fall back to default values' do
+        expect(logger).to receive(:warn)
+        expect(monitor.get_threshold_ratio).to be_between(0.0, 1.0).inclusive
+      end
     end
 
-
-    it 'should fall back to default values when set too small' do
-      expect(Kato::Config).to receive(:get).with('cloud_controller_ng', 'resource_monitoring/threshold_ratio').and_return(-1000)
-      expect(Kato::Config).to receive(:set).with('cloud_controller_ng', 'resource_monitoring/threshold_ratio', instance_of(Float))
-      expect(logger).to receive(:warn)
-      expect(monitor.get_threshold_ratio).to be_between(0.0, 1.0).inclusive
+    context 'when too small' do
+      before { config[:resource_monitoring][:threshold_ratio] = -1000 }
+      it 'should fall back to default values' do
+        expect(logger).to receive(:warn)
+        expect(monitor.get_threshold_ratio).to be_between(0.0, 1.0).inclusive
+      end
     end
   end
 
