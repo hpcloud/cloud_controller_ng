@@ -225,7 +225,7 @@ module VCAP::CloudController
         instance.save_changes
       elsif binding
         binding.set(
-          :configuration => req.configuration,
+          :configuration => req.configuration.to_s,
           :credentials => req.credentials,
         )
         binding.save_changes
