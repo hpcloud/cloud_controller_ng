@@ -34,8 +34,8 @@ module VCAP::CloudController
     end
 
     describe 'for a given store' do
-      before { Kato::Config.set("cloud_controller_ng", "app_store/stores/#{store_req[:name]}", store_req.select{|k,v| k != :name}) }
-      after  { Kato::Config.del("cloud_controller_ng", "app_store/stores/#{store_req[:name]}") }
+      before(:each) { Kato::Config.set("cloud_controller_ng", "app_store/stores/#{store_req[:name]}", store_req.select{|k,v| k != :name}) }
+      after(:each)  { Kato::Config.del("cloud_controller_ng", "app_store/stores/#{store_req[:name]}") }
 
       describe 'GET /v2/stackato/app_stores/:store_name' do
         it 'should get store configuration' do
