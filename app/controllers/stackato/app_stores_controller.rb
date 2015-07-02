@@ -86,11 +86,13 @@ module VCAP::CloudController
           proxy ||= URI.parse("")
           http = Net::HTTP::Proxy(proxy.host, proxy.port, proxy.user, proxy.password)
           if uri.scheme == 'https'
-            http.use_ssl = true
-            http.verify_mode = verify_ssl(store)
+            session = http.start(uri.host, uri.port, :use_ssl => true, :verify_mode => verify_ssl(store))
+          else
+            session = http.start(uri.host, uri.port)
           end
 
-          content = http.start(uri.host, uri.port).request_get(uri.request_uri).body
+          content = session.request_get(uri.request_uri).body
+
 
           # XXX:TODO:Stackato: Replace with YAML.safe_load (https://github.com/tenderlove/psych/issues/119)
           store_content = YAML.load(content)

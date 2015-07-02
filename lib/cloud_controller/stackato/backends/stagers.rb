@@ -1,4 +1,5 @@
 require "cloud_controller/backends/stagers"
+require "steno"
 
 module VCAP::CloudController
   class StackatoStagers < Stagers
@@ -31,7 +32,11 @@ module VCAP::CloudController
     end
     
     private
-    
+
+    def logger
+      @logger ||= Steno.logger("cc.backends")
+    end
+
     def stage_app(app, &completion_callback)
       validate_app(app)
       blobstore_url_generator = CloudController::DependencyLocator.instance.blobstore_url_generator
