@@ -59,7 +59,7 @@ gem 'fog-brightbox'     ,    '0.1.1'
 gem 'fog-core'          ,   '1.22.0'
 gem 'fog-json'          ,    '1.0.0'
 gem 'formatador'        ,    '0.2.4', :groups => [:default, :test]
-gem 'futuroscope'       ,    '0.1.5'
+gem 'futuroscope'       ,    '0.1.11'
 gem 'grape'             ,    '0.7.0', :github => "intridea/grape", :ref => "df8caf7d4065a26d15db73dbdcc651e0abf06216"
 gem 'guard'             ,    '2.2.4', :groups => [:test]
 gem 'hashie'            ,    '2.1.1'
