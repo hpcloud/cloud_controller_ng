@@ -138,7 +138,7 @@ module VCAP::CloudController
           start_thin_server(app)
 
           router_registrar.register_with_router
-          
+
           ::Kato::ProcReady.i_am_ready("cloud_controller_ng")
 
           VCAP::CloudController::Varz.setup_updates
@@ -224,19 +224,19 @@ module VCAP::CloudController
     end
 
     def setup_loggregator_emitter
-      # xxx: As of 14-08-06 Stackato doesn't use Loggregator so we make sure to never initialize the emitter here
-      return true
       if @config[:loggregator] && @config[:loggregator][:router] && @config[:loggregator][:shared_secret]
-        Loggregator.emitter = LoggregatorEmitter::Emitter.new(@config[:loggregator][:router], 'API', @config[:index], @config[:loggregator][:shared_secret])
-        Loggregator.logger = logger
+        Loggregator.emitter = LoggregatorEmitter::Emitter.new(@config[:loggregator][:router], "API", @config[:index], @config[:loggregator][:shared_secret])
+        Steno.logger("cc.runner").info("Initializing Loggregator emitter to point to #{@config[:loggregator][:router]}")
+      else
+        Steno.logger("cc.runner").warn("Unable to initialize Loggregator emitter due to missing configurations")
       end
     end
 
     def start_thin_server(app)
       if @config[:nginx][:use_nginx] || @config[:stackato_upload_handler][:enabled]
         @thin_server = Thin::Server.new(
-            @config[:nginx][:instance_socket],
-            :signals => false
+          @config[:nginx][:instance_socket],
+          :signals => false
         )
       else
         @thin_server = Thin::Server.new(@config[:external_host], @config[:external_port], signals: false)
@@ -259,26 +259,26 @@ module VCAP::CloudController
 
     def router_registrar
       @registrar ||= Cf::Registrar.new(
-          message_bus_servers: @config[:message_bus_servers],
-          host: @config[:external_host],
-          port: @config[:external_port],
-          uri: @config[:external_domain],
-          tags: { component: 'CloudController' },
-          index: @config[:index],
+        message_bus_servers: @config[:message_bus_servers],
+        host: @config[:external_host],
+        port: @config[:external_port],
+        uri: @config[:external_domain],
+        tags: { component: 'CloudController' },
+        index: @config[:index],
       )
     end
 
     def register_with_collector(message_bus)
       VCAP::Component.register(
-          type: 'CloudController',
-          host: @config[:external_host],
-          port: @config[:varz_port],
-          user: @config[:varz_user],
-          password: @config[:varz_password],
-          index: @config[:index],
-          nats: message_bus,
-          logger: logger,
-          log_counter: @log_counter
+        type: 'CloudController',
+        host: @config[:external_host],
+        port: @config[:varz_port],
+        user: @config[:varz_user],
+        password: @config[:varz_password],
+        index: @config[:index],
+        nats: message_bus,
+        logger: logger,
+        log_counter: @log_counter
       )
     end
 

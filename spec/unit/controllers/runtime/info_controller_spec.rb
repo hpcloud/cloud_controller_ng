@@ -35,11 +35,18 @@ module VCAP::CloudController
         expect(hash['authorization_endpoint']).to eq('login_url')
       end
 
+      it "includes the legacy logging endpoint when configured" do
+        TestConfig.override(:loggregator => { :legacy_url => "ws://logging.vcap.me:80" })
+        get "/v2/info", {}, {}
+        hash = MultiJson.load(last_response.body)
+        expect(hash['logging_endpoint']).to eq("ws://logging.vcap.me:80")
+      end
+
       it 'includes the logging endpoint when configured' do
-        TestConfig.override(loggregator: { url: 'loggregator_url' })
+        TestConfig.override(:loggregator => { :url => 'ws://loggregator.vcap.me:51170' })
         get '/v2/info', {}, {}
         hash = MultiJson.load(last_response.body)
-        expect(hash['logging_endpoint']).to eq('loggregator_url')
+        expect(hash['trafficcontroller_endpoint']).to eq('ws://loggregator.vcap.me:51170')
       end
 
       it 'includes cli version info when confgired' do
