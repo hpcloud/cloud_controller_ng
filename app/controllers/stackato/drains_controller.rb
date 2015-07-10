@@ -9,18 +9,12 @@ module VCAP::CloudController
     def list
       raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       drain_uris = Kato::Logyard.list_drains
-      drain_statuses = Kato::Logyard.status
       drain_hash = {}
       if drain_uris
-        drain_uris.each do |drain_name, uri|
+        drain_uris.each do |entry|
+          drain_name, uri = entry.strip.split(/\s+/, 2)
           drain_hash[drain_name] ||= {}
           drain_hash[drain_name][:uri] = uri
-        end
-      end
-      if drain_statuses
-        drain_statuses.each do |drain_name, status|
-          drain_hash[drain_name] ||= {}
-          drain_hash[drain_name][:status] = status
         end
       end
       resources = []
@@ -45,12 +39,10 @@ module VCAP::CloudController
 
     def get(drain_name)
       raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
-      drain_statuses = Kato::Logyard.status({ :drains => [drain_name] })
-      unless drain_statuses.size == 1
+      drain_uri = Kato::Logyard.drain_uri(drain_name)
+      if !drain_uri
         raise Errors::ApiError.new_from_details("StackatoDrainNotExists", drain_name)
       end
-      drain_uri = Kato::Logyard.drain_uri(drain_name)
-      drain_status = drain_statuses.values.first
       Yajl::Encoder.encode({
         :metadata => {
           :guid => drain_name,
@@ -59,7 +51,6 @@ module VCAP::CloudController
         :entity => {
           :name => drain_name,
           :uri => drain_uri,
-          :status => drain_status
         }
       })
     end
@@ -85,7 +76,7 @@ module VCAP::CloudController
       raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       check_maintenance_mode
       logger.info("Deleting drain '#{name}'")
-      response = Kato::Logyard.run_logyard_remote "delete", [name]
+      response = Kato::Logyard.remove_drain(name)
       Yajl::Encoder.encode(response)
     end
 
@@ -94,9 +85,9 @@ module VCAP::CloudController
     end
 
     # TODO:Stackato: We need to limit scope and define what this API is.
-    #                "Anything that logyard-cli accepts" is too broad.
+    #                "Anything that Kato::Logyard accepts" is too broad.
 
-    # Exposing logyard-cli/logyard-remote via CC API
+    # Exposing Kato::Logyard via CC API
     get    DRAINS_BASE_URL,            :list
     post   DRAINS_BASE_URL,            :add
     get    "#{DRAINS_BASE_URL}/:name", :get
