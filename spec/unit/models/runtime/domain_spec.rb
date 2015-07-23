@@ -8,9 +8,25 @@ module VCAP::CloudController
       expect { Domain.make name: 'com' }.to raise_error
     end
 
-    it "can't be created if a would become parent" do
-      PrivateDomain.make name: 'bar.foo.com'
-      expect { PrivateDomain.make name: 'foo.com' }.to raise_error
+    context 'when overlapping domains' do
+
+      context 'when allow_overlapping_domain_names is set to false' do
+        it "can't be created if a would become parent" do
+          PrivateDomain.make name: 'bar.foo.com'
+          expect { PrivateDomain.make name: 'foo.com' }.to raise_error
+        end
+      end
+
+      context 'when allow_overlapping_domain_names is set to true' do
+        before { TestConfig.override({ allow_overlapping_domain_names: true }) }
+        after  { TestConfig.override({ allow_overlapping_domain_names: false  }) }
+
+        it "can't be created if a would become parent" do
+          PrivateDomain.make name: 'bar.foo.com'
+          expect { PrivateDomain.make name: 'foo.com' }.to_not raise_error
+        end
+      end
+
     end
 
     describe 'Associations' do

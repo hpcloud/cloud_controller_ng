@@ -16,7 +16,7 @@ app_domains:
   - customer-app-domain1.com
   - customer-app-domain2.com
 
-allow_overlapping_domain_names: true
+allow_overlapping_domain_names: false
 
 app_events:
   cutoff_age_in_days: 31

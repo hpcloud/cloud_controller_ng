@@ -108,64 +108,152 @@ module VCAP::CloudController
     end
 
     context 'domain overlapping' do
-      context 'when the domain exists in a different casing' do
-        before do
-          PrivateDomain.make name: 'foo.com'
-          subject.name = 'FoO.CoM'
+
+      context 'when allow_overlapping_domain_names is set to be true' do
+        before { TestConfig.override({ allow_overlapping_domain_names: true }) }
+        after  { TestConfig.override({ allow_overlapping_domain_names: false  }) }
+
+        context 'when the domains are exact match and it is already a private domain' do
+          before do
+            PrivateDomain.make name: 'foo.com'
+            subject.name = 'foo.com'
+          end
+
+          it { is_expected.not_to be_valid }
         end
 
-        # Sometimes this passes, sometimes it fails. Haven't figured out the pattern yet.
-        it { is_expected.not_to be_valid }
+        context 'when the domains are exact match and it is already a shared domain' do
+          before do
+            SharedDomain.make name: 'foo.com'
+            subject.name = 'foo.com'
+          end
+
+          # this is supposedly an incorrect test. needs to be fixed.
+          it { is_expected.to be_valid }
+        end
+
+        context 'when the domain exists in a different casing' do
+          before do
+            PrivateDomain.make name: 'foo.com'
+            subject.name = 'FoO.CoM'
+          end
+
+          # Sometimes this passes, sometimes it fails. Haven't figured out the pattern yet.
+          it { is_expected.not_to be_valid }
+        end
+
+        context 'when the name is bar.foo.com and another org has foo.com' do
+          before do
+            PrivateDomain.make name: 'foo.com'
+            subject.name = 'bar.foo.com'
+          end
+
+          it { is_expected.to be_valid }
+        end
+
+        context 'when the name is baz.bar.foo.com and another org has bar.foo.com' do
+          before do
+            PrivateDomain.make name: 'bar.foo.com'
+            subject.name = 'baz.bar.foo.com'
+          end
+
+          it {
+            is_expected.to be_valid
+          }
+        end
+
+        context 'when the name is baz.bar.foo.com and another org has bar.foo.com and foo.com is shared' do
+          before do
+            SharedDomain.make name: 'foo.com'
+            PrivateDomain.make name: 'bar.foo.com'
+            subject.name = 'baz.bar.foo.com'
+          end
+
+          it {
+            is_expected.to be_valid
+          }
+        end
+
+        context 'when the name is bar.foo.com and foo.com is a shared domain' do
+          before do
+            SharedDomain.make name: 'foo.com'
+            subject.name = 'bar.foo.com'
+          end
+
+          it { is_expected.to be_valid }
+        end
+
+        context 'when the name is baz.bar.foo.com and bar.foo.com is a shared domain' do
+          before do
+            SharedDomain.make name: 'bar.foo.com'
+            subject.name = 'baz.bar.foo.com'
+          end
+
+          it { is_expected.to be_valid }
+        end
       end
 
-      context 'when the name is bar.foo.com and another org has foo.com' do
-        before do
-          PrivateDomain.make name: 'foo.com'
-          subject.name = 'bar.foo.com'
+      context 'when allow_overlapping_domain_names is set to be false' do
+
+        context 'when the domain exists in a different casing' do
+          before do
+            PrivateDomain.make name: 'foo.com'
+            subject.name = 'FoO.CoM'
+          end
+
+          # Sometimes this passes, sometimes it fails. Haven't figured out the pattern yet.
+          it { is_expected.not_to be_valid }
         end
 
-        it { is_expected.not_to be_valid }
-      end
+        context 'when the name is bar.foo.com and another org has foo.com' do
+          before do
+            PrivateDomain.make name: 'foo.com'
+            subject.name = 'bar.foo.com'
+          end
 
-      context 'when the name is baz.bar.foo.com and another org has bar.foo.com' do
-        before do
-          PrivateDomain.make name: 'bar.foo.com'
-          subject.name = 'baz.bar.foo.com'
+          it { is_expected.not_to be_valid }
         end
 
-        it {
-          is_expected.not_to be_valid
-        }
-      end
+        context 'when the name is baz.bar.foo.com and another org has bar.foo.com' do
+          before do
+            PrivateDomain.make name: 'bar.foo.com'
+            subject.name = 'baz.bar.foo.com'
+          end
 
-      context 'when the name is baz.bar.foo.com and another org has bar.foo.com and foo.com is shared' do
-        before do
-          SharedDomain.make name: 'foo.com'
-          PrivateDomain.make name: 'bar.foo.com'
-          subject.name = 'baz.bar.foo.com'
+          it {
+            is_expected.not_to be_valid
+          }
         end
 
-        it {
-          is_expected.not_to be_valid
-        }
-      end
+        context 'when the name is baz.bar.foo.com and another org has bar.foo.com and foo.com is shared' do
+          before do
+            SharedDomain.make name: 'foo.com'
+            PrivateDomain.make name: 'bar.foo.com'
+            subject.name = 'baz.bar.foo.com'
+          end
 
-      context 'when the name is bar.foo.com and foo.com is a shared domain' do
-        before do
-          SharedDomain.make name: 'foo.com'
-          subject.name = 'bar.foo.com'
+          it {
+            is_expected.not_to be_valid
+          }
         end
 
-        it { is_expected.to be_valid }
-      end
+        context 'when the name is bar.foo.com and foo.com is a shared domain' do
+          before do
+            SharedDomain.make name: 'foo.com'
+            subject.name = 'bar.foo.com'
+          end
 
-      context 'when the name is baz.bar.foo.com and bar.foo.com is a shared domain' do
-        before do
-          SharedDomain.make name: 'bar.foo.com'
-          subject.name = 'baz.bar.foo.com'
+          it { is_expected.to be_valid }
         end
 
-        it { is_expected.to be_valid }
+        context 'when the name is baz.bar.foo.com and bar.foo.com is a shared domain' do
+          before do
+            SharedDomain.make name: 'bar.foo.com'
+            subject.name = 'baz.bar.foo.com'
+          end
+
+          it { is_expected.to be_valid }
+        end
       end
     end
   end
