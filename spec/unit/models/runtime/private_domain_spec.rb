@@ -20,9 +20,6 @@ module VCAP::CloudController
     end
 
     describe 'Validations' do
-      # before { TestConfig.override({ allow_overlapping_domain_names: false }) }
-      # after  { TestConfig.override({ allow_overlapping_domain_names: true  }) }
-      
       it { is_expected.to validate_presence :owning_organization }
 
       describe 'domain' do
