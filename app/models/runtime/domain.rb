@@ -85,7 +85,8 @@ module VCAP::CloudController
     def name_overlaps?
       return true unless intermediate_domains.drop(1).all? do |suffix|
         d = Domain.find(name: suffix)
-        d.nil? || d.owning_organization == owning_organization || d.shared?
+        ((d.nil? || d.shared? || d.owning_organization == owning_organization) && !VCAP::CloudController::Config.config[:allow_overlapping_domain_names]) || 
+        VCAP::CloudController::Config.config[:allow_overlapping_domain_names]
       end
 
       false
