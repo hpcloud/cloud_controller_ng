@@ -1,5 +1,5 @@
 
-require "kato/logyard"
+require "kato/log/drains"
 
 module VCAP::CloudController
   class StackatoDrainsController < RestController::BaseController
@@ -8,7 +8,7 @@ module VCAP::CloudController
 
     def list
       raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
-      drain_uris = Kato::Logyard.list_drains
+      drain_uris = Kato::Log::Drains.list_drains
       drain_hash = {}
       if drain_uris
         drain_uris.each do |entry|
@@ -34,12 +34,12 @@ module VCAP::CloudController
         :prev_url => nil,
         :next_url => nil,
         :resources => resources
-      })
+                           })
     end
 
     def get(drain_name)
       raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
-      drain_uri = Kato::Logyard.drain_uri(drain_name)
+      drain_uri = Kato::Log::Drains.drain_uri(drain_name)
       if !drain_uri
         raise Errors::ApiError.new_from_details("StackatoDrainNotExists", drain_name)
       end
@@ -66,7 +66,7 @@ module VCAP::CloudController
         raise Errors::ApiError.new_from_details("StackatoDrainAddUriRequired")
       end
       logger.info("Adding drain with args: #{drain}")
-      Kato::Logyard.add_drain drain["name"], drain["uri"]
+      Kato::Log::Drains.add_drain drain["name"], drain["uri"]
 
       # Return HTTP 201 (Created) and set the Location header to URL of resource
       [ 201, { "Location" => drain_url(drain["name"]) }, nil ]
@@ -76,7 +76,7 @@ module VCAP::CloudController
       raise Errors::ApiError.new_from_details("NotAuthorized") unless roles.admin?
       check_maintenance_mode
       logger.info("Deleting drain '#{name}'")
-      response = Kato::Logyard.remove_drain(name)
+      response = Kato::Log::Drains.remove_drain(name)
       Yajl::Encoder.encode(response)
     end
 
@@ -85,9 +85,9 @@ module VCAP::CloudController
     end
 
     # TODO:Stackato: We need to limit scope and define what this API is.
-    #                "Anything that Kato::Logyard accepts" is too broad.
+    #                "Anything that Kato::Log::Drains accepts" is too broad.
 
-    # Exposing Kato::Logyard via CC API
+    # Exposing Kato::Log::Drains via CC API
     get    DRAINS_BASE_URL,            :list
     post   DRAINS_BASE_URL,            :add
     get    "#{DRAINS_BASE_URL}/:name", :get
