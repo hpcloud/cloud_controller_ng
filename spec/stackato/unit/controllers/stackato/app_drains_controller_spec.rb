@@ -17,11 +17,31 @@ module VCAP::CloudController
 
     describe "POST /v2/apps/:id/stackato_drains" do
       let(:req_body)  { MultiJson.dump({ drain: drain_name, uri: drain_uri }) }
-      it "should crete app drains" do
+      it "should create app drains" do
         post "/v2/apps/#{app_obj.guid}/stackato_drains", req_body, headers
         expect(last_response.status).to eq(204)
         expect(Kato::Config.get("logyard", "drains").size).to be > 0
         expect(Kato::Config.get("logyard", "drains").keys.first).to match(/test_drain/)
+      end
+
+      context "complain about disallowed drains" do
+        let(:file_drain_uri) { 'file:///s/logs/debug-1.log' }
+        let(:file_req_body)  { MultiJson.dump({ drain: drain_name, uri: file_drain_uri }) }
+        let(:redis_drain_uri) { 'redis://192.168.1.157:5000' }
+        let(:redis_req_body)  { MultiJson.dump({ drain: drain_name, uri: redis_drain_uri }) }
+
+        it "should complain about a file drain" do
+          post "/v2/apps/#{app_obj.guid}/stackato_drains", file_req_body, headers
+          expect(last_response.status).to eq(400)
+          expect(JSON.parse(last_response.body)['description']).to eq('Drain URI has an invalid scheme.')
+        end
+
+        it "should complain about a redis drain" do
+          post "/v2/apps/#{app_obj.guid}/stackato_drains", redis_req_body, headers
+          expect(last_response.status).to eq(400)
+          expect(JSON.parse(last_response.body)['description']).to eq('Drain URI has an invalid scheme.')
+        end
+
       end
     end
 
