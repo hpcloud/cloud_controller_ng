@@ -34,7 +34,7 @@ module VCAP::CloudController
         :prev_url => nil,
         :next_url => nil,
         :resources => resources
-                           })
+      })
     end
 
     def get(drain_name)
