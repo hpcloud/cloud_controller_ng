@@ -612,7 +612,7 @@ module VCAP::CloudController
 
         expect {
           app.add_route(route)
-        }.to raise_error(Errors::InvalidRouteRelation, /URL was not available/)
+        }.to raise_error(Errors::ApiError, /The host is taken/)
       end
 
       it "should not associate an app with a route created on another space with a shared domain" do
@@ -628,7 +628,7 @@ module VCAP::CloudController
 
         expect {
           app.add_route(route)
-        }.to raise_error Errors::InvalidRouteRelation
+        }.to raise_error(Errors::ApiError, /The host is taken/)
       end
     end
 
@@ -1515,7 +1515,7 @@ module VCAP::CloudController
                       :space => space,
                       :stack => Stack.make)
         app.add_route_by_guid(Route.make.guid)
-        expect { app.save }.to raise_error(Errors::InvalidRouteRelation)
+        expect { app.save }.to raise_error(Errors::ApiError)
         expect(app.routes).to be_empty
       end
     end
