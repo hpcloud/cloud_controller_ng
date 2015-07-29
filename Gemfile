@@ -100,7 +100,6 @@ gem 'squash_ruby'       ,    '1.4.0'
 gem 'stager-client', '~> 0.0.02', :github => 'cloudfoundry/stager-client', :ref => 'bf0e728a7acf2dbb2a369a70fb5e3e72c2fca71c' 
 # ref 'b1e11235dc6cd7d8d4680e005526de37201305ea' no longer exists!
 gem 'steno', '1.1.0'
-gem 'talentbox-delayed_job_sequel', '4.0.0'
 gem 'term-ansicolor', '1.0.7'
 gem 'thin', '1.6.3'
 gem 'thread_safe', '0.1.3'
