@@ -26,6 +26,10 @@ module VCAP::CloudController
         end
       end
 
+      # We had issues with choosing units; the new-style keys are explicit.
+      stats_total[:memory_in_megabytes] = stats_total[:mem].to_f / 1024 / 1024
+      allocated_total[:memory_in_megabytes] = allocated_total[:mem].to_f / 1024
+
       Yajl::Encoder.encode({
         :usage => stats_total,
         :allocated => allocated_total
