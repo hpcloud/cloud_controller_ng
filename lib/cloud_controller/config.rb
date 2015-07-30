@@ -31,6 +31,7 @@ module VCAP::CloudController
         # Not creating default org-- done by first user setup (disabled in 67a488b98c)
         #:system_domain_organization => enum(String, NilClass),
         :app_domains => [ String ],
+        optional(:allow_overlapping_domain_names) => bool,
         :app_events => {
           cutoff_age_in_days: Fixnum
         },
@@ -360,6 +361,7 @@ module VCAP::CloudController
 
       def merge_defaults(config)
         config[:stacks_file] ||= File.join(config_dir, 'stacks.yml')
+        config[:allow_overlapping_domain_names] ||= false
         config[:maximum_app_disk_in_mb] ||= 2048
         config[:request_timeout_in_seconds] ||= 900
         config[:directories] ||= {}

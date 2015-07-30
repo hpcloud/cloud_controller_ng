@@ -41,7 +41,7 @@ module VCAP::CloudController
       super
       validates_presence :owning_organization
       exclude_domains_from_same_org = Domain.dataset.exclude(owning_organization_id: owning_organization_id).or(SHARED_DOMAIN_CONDITION)
-      errors.add(:name, :overlapping_domain) if (exclude_domains_from_same_org.filter(Sequel.like(:name, "%.#{name}")).count > 0 and not VCAP::CloudController::Config.config[:allow_overlapping_domain_names])
+      errors.add(:name, :overlapping_domain) if (not VCAP::CloudController::Config.config[:allow_overlapping_domain_names] and exclude_domains_from_same_org.filter(Sequel.like(:name, "%.#{name}")).count > 0)
     end
 
     def in_suspended_org?
