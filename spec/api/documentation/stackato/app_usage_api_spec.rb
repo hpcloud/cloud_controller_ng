@@ -26,7 +26,7 @@ resource 'Apps', type: [:api, :legacy_api] do
             "state" => "RUNNING",
             "stats" => {
               "usage" => {
-                "mem" => (1.23 * 1024 * 1024).to_i # bytes
+                "mem" => (1.23 * 1024.0 * 1024.0).to_i # bytes
               }
             }
           }
@@ -35,9 +35,9 @@ resource 'Apps', type: [:api, :legacy_api] do
 
       do_request
       response_json = JSON.parse(response_body)
-      expect(response_json["usage"]["mem"]).to be_within(0.01).of 1.23 * 1024 # megabytes -> kilobytes
+      expect(response_json["usage"]["mem"]).to be_within(0.01).of 1.23 * 1024.0 # megabytes -> kilobytes
       expect(response_json["usage"]["memory_in_megabytes"]).to be_within(0.01).of 1.23
-      expect(response_json["allocated"]["mem"]).to be_within(0.01).of 12 * 1024 # megabytes -> kilobytes
+      expect(response_json["allocated"]["mem"]).to be_within(0.01).of 12.0 * 1024.0 # megabytes -> kilobytes
       expect(response_json["allocated"]["memory_in_megabytes"]).to be_within(0.01).of 12.0
     end
   end

@@ -38,9 +38,9 @@ resource 'Spaces', type: [:api, :legacy_api] do
 
       do_request
       response_json = JSON.parse(response_body)
-      expect(response_json["usage"]["mem"]).to be_within(0.01).of (12 + 34) * 1024 * 1024 / 2 # megabytes -> bytes
-      expect(response_json["usage"]["memory_in_megabytes"]).to be_within(0.01).of (12 + 34) / 2
-      expect(response_json["allocated"]["mem"]).to be_within(0.01).of (12 + 34) * 1024 # megabytes -> kilobytes
+      expect(response_json["usage"]["mem"]).to be_within(0.01).of (12 + 34) * 1024.0 * 1024.0 / 2.0 # megabytes -> bytes
+      expect(response_json["usage"]["memory_in_megabytes"]).to be_within(0.01).of (12 + 34) / 2.0
+      expect(response_json["allocated"]["mem"]).to be_within(0.01).of (12 + 34) * 1024.0 # megabytes -> kilobytes
       expect(response_json["allocated"]["memory_in_megabytes"]).to be_within(0.01).of (12 + 34)
     end
   end
