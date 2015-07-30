@@ -56,7 +56,7 @@ module VCAP::CloudController
       validates_unique [:host, :domain_id]
 
       main_domain = Kato::Config.get("cluster", "endpoint").gsub(/^api\./, '')
-      builtin_routes = ["www", "api", "login", "ports", "aok", "logs"]
+      builtin_routes = ["www", "api", "login", "ports", "aok", "logs", "doppler"]
       configured_routes = Kato::Config.get("cloud_controller_ng", "app_uris/reserved_list")
       reserved_domains = (builtin_routes + configured_routes).map { |x| "#{x}.#{main_domain}" }
       reserved_domains.push(URI(Kato::Config.get("cloud_controller_ng", "uaa/url")).host)
@@ -138,13 +138,13 @@ module VCAP::CloudController
           authorities: %W{uaa.none},
           redirect_uri: sso_redirect_uri
         }
-        begin 
+        begin
           oauth_client = scim_api.add :client, client_info
           logger.debug "Response from client registration: #{oauth_client.inspect}"
         rescue Exception => e
           logger.debug e.inspect
           raise e
-        end          
+        end
       end
     end
 
@@ -157,7 +157,7 @@ module VCAP::CloudController
         # The route is in a partial state right now -- and we don't care if
         # it's not valid because we're in the middle of deleting it.
         save(:raise_on_failure => false)
-        begin 
+        begin
           scim_api.delete :client, client_id
         rescue Exception => e
           if e.kind_of? CF::UAA::NotFound
