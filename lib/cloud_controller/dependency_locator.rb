@@ -237,7 +237,9 @@ module CloudController
 
     def username_lookup_uaa_client
       client_id = @config[:cloud_controller_username_lookup_client_name]
-      secret = @config[:cloud_controller_username_lookup_client_secret]
+      # xxx: Stackato makes use of the aok/client_secret value instead of cloud_controller_username_lookup_client_secret
+      # as client_secret is already kept in sync
+      secret = @config[:aok][:client_secret]
       target = @config[:uaa][:url]
       skip_cert_verify = @config[:skip_cert_verify]
       UaaClient.new(target, client_id, secret, { skip_ssl_validation: skip_cert_verify })
