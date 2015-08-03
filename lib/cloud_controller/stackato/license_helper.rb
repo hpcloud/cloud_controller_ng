@@ -21,7 +21,7 @@ module VCAP::CloudController
           !user.username.nil?
         end
 
-        if admin_users_with_username.count > 0
+        if admin_users_with_username
           Kato::Config.set('cluster', 'eula_accepted', true)
           eula_accepted = true
         end
