@@ -5,7 +5,8 @@ module VCAP::CloudController
     include StackatoUserCreation
 
     class InvalidOrganizationRelation < VCAP::Errors::InvalidRelation; end
-    attr_accessor :username, :organization_roles, :space_roles
+    # xxx: Stackato caches usernames from AOK and doesn't required username to be an entry here (see #302249).
+    attr_accessor :organization_roles, :space_roles
 
     no_auto_guid
 
