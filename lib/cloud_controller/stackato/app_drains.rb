@@ -4,7 +4,6 @@
 require 'uri'
 require 'cgi'
 require "kato/config"
-require "kato/logyard"
 
 module VCAP::CloudController
   class StackatoAppDrains
@@ -127,9 +126,6 @@ module VCAP::CloudController
 
       # prefix of drains this app is allowed to touch
       prefix = "appdrain.#{app.guid}."
-
-      # get drain status
-      statuses = Kato::Logyard.run_logyard_remote("status", ["-prefix", prefix])
     
       result = {}
       drains.select { |drain_name|
@@ -137,37 +133,6 @@ module VCAP::CloudController
       }.each do |drain_name, uri|
         details = user_uri(drain_name, uri)
         result[drain_name] = details
-      end
-
-      # Pick one error, if any, from the list of errors (on all nodes)
-      # for each drains. We don't care about showing all errors from the
-      # many nodes as that would be flood (however, 'kato drain status'
-      # is designed to show all of them).
-    
-      result.keys.each do |drain_name|
-        result[drain_name]["status"] = "Unknown status"
-        status = statuses[drain_name]
-        if status.nil? or status.empty?
-          result[drain_name]["status"] = "Not running"
-        else
-          notrunning = status.select do |node, node_status|
-            node_status["name"] != "RUNNING"
-          end
-          if notrunning.empty?
-            result[drain_name]["status"] = "RUNNING"
-          else
-            # Some drains are not running.
-            witherrors = notrunning.select do |node, node_status|
-              node_status["error"]
-            end
-            unless witherrors.empty?
-              status = "Error: " + witherrors.first[1]["error"]
-            else
-              status = "Unknown error"
-            end
-            result[drain_name]["status"] = status
-          end
-        end
       end
 
       return result.map {|drain_name, details| details}
