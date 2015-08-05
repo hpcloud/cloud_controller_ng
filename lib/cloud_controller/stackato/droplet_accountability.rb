@@ -69,7 +69,7 @@ module VCAP::CloudController
       rescue Redis::BaseConnectionError
         logger.debug2 "Ignoring connection error getting instances"
       rescue Redis::CommandError => e
-        logger.exception "Error getting dea instances: #{e}"
+        logger.error "Error getting dea instances: #{e}"
       end
       if !keys.nil? && keys.length > 0
         instances_on_dea = redis { |r| r.mget(keys || []) }
@@ -93,16 +93,13 @@ module VCAP::CloudController
 
       begin
         instance_keys = redis { |r| r.keys("droplet:#{droplet_id}:instance:*") }
-      rescue Redis::BaseConnectionError
+      rescue Redis::BaseConnectionError => e
         logger.warn("Failed to connect to redis to gather statistics for app ID #{app.guid} (#{app.name}: #{e.message})")
         instance_keys = []
       end
 
       app.instances.times do |index|
-        indices[index] = {
-          "state" => "DOWN",
-          "since" => Time.now.to_i
-        }
+        indices[index] = { "state" => "DOWN" }
       end
 
       instance_keys.each do |keyname|
@@ -130,7 +127,6 @@ module VCAP::CloudController
             "disk" => disk,
             "mem"  => mem,
             "cpu"  => cpu,
-            "time" => Time.now.to_s,
           }
         )
 
@@ -280,10 +276,11 @@ module VCAP::CloudController
 
       uptime = stats.delete("uptime")
       usage = stats.delete("usage")
-      mem = usage["mem"]
       mem_quota = stats["mem_quota"]
 
       return unless usage
+
+      mem = usage["mem"]
 
       # Save the instances stats against the dea for dea driven memory reporting
       dea_instance_key  = "dea:#{dea_id}:instances:#{instance_id}"
