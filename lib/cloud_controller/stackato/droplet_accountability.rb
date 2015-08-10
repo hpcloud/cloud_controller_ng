@@ -5,9 +5,9 @@ require "cloud_controller/stackato/redis_client"
 module VCAP::CloudController
   class StackatoDropletAccountability
 
-    STATS_UPDATES_EXPIRY = 30 # secs
+    STATS_UPDATES_EXPIRY = 5 * 60 # secs
     STATS_UPDATER_SLEEP = 30 # secs
-    HOUSEKEEPING_SLEEP = 2 # secs
+    STATS_UPDATER_TIMEOUT = 30 # secs
 
     def self.configure(config, message_bus)
       @@cc_config = config
@@ -32,7 +32,6 @@ module VCAP::CloudController
 
     def self.start
       start_stats_updater
-      start_housekeeping
       subscribe_to_dea_heartbeats
     end
 
@@ -46,20 +45,6 @@ module VCAP::CloudController
         while true
           sleep STATS_UPDATER_SLEEP
           update_stats_for_all_droplets
-        end
-      end
-    end
-
-    def self.start_housekeeping
-      @@housekeeping_thread ||= nil
-      if @@housekeeping_thread
-        raise Errors::ApiError.new_from_details("StackatoDropletAccountabilityHouseKeepingAlreadyRunning")
-      end
-      logger.info("Droplet accountability housekeeping starting")
-      @@housekeeping_thread = Thread.new do
-        while true
-          sleep HOUSEKEEPING_SLEEP
-          housekeeping
         end
       end
     end
@@ -78,20 +63,23 @@ module VCAP::CloudController
     end
 
     def self.get_dea_stats(dea_id)
-      mb = 1024 * 1024
-      dea_stats = {:total_allocated => 0, :total_used => 0}
-      keys = redis { |r| r.keys("dea:#{dea_id}:instances:*") } #TODO may want to look at maintaining a set
+      total_allocated, total_used = 0, 0
+      begin
+        keys = redis { |r| r.keys("dea:#{dea_id}:instances:*") }
+      rescue Redis::BaseConnectionError
+        logger.debug2 "Ignoring connection error getting instances"
+      rescue Redis::CommandError => e
+        logger.error "Error getting dea instances: #{e}"
+      end
       if !keys.nil? && keys.length > 0
         instances_on_dea = redis { |r| r.mget(keys || []) }
-        instances_on_dea.each do |instance|
-          if !instance.nil?
-            instance_data = instance.split(':') 
-            dea_stats[:total_used] += instance_data[0].to_i / mb
-            dea_stats[:total_allocated] += instance_data[1].to_i / mb
-          end
+        instances_on_dea.compact.each do |instance|
+          instance_data = instance.split(':')
+          total_used += instance_data[0].to_f / 1024.0 / 1024.0
+          total_allocated += instance_data[1].to_f / 1024.0 / 1024.0
         end
       end
-      dea_stats
+      return { total_allocated: total_allocated.to_i, total_used: total_used.to_i }
     end
 
     def self.get_app_stats(app)
@@ -104,105 +92,72 @@ module VCAP::CloudController
       return indices if (app.nil? || !app.started?)
 
       begin
-        instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
-      rescue Redis::CannotConnectError
-        logger.warn("Failed to connect to redis to gather statistics for app ID #{app.guid} (#{app.name}: #{e.message}")
-        instance_ids = []
-      end
-
-      instance_ids.each do |instance_id|
-        logger.debug2("Getting droplet instance stats for droplet_id:#{droplet_id} instance_id:#{instance_id}")
-
-        keyname = "droplet:#{droplet_id}:instance:#{instance_id}"
-        index = redis { |r| r.hget(keyname, "index") }
-
-        next unless index
-
-        index = index.to_i
-
-        if index >= 0 && index < app.instances
-          stats_ar = redis { |r| r.hmget(keyname, "uptime", "disk", "mem", "cpu", "stats") }
-
-          next unless stats_ar[4]
-
-          stats = Yajl::Parser.parse(stats_ar[4])
-
-          stats.merge!(
-            "uptime" => stats_ar[0],
-            "usage"  => {
-              "disk" => stats_ar[1],
-              "mem"  => stats_ar[2],
-              "cpu"  => stats_ar[3],
-              "time" => Time.now.to_s,
-            }
-          )
-
-          indices[index] = {
-            "state" => redis { |r| r.hget(keyname, "state") },
-            "stats" => stats,
-          }
-        end
+        instance_keys = redis { |r| r.keys("droplet:#{droplet_id}:instance:*") }
+      rescue Redis::BaseConnectionError => e
+        logger.warn("Failed to connect to redis to gather statistics for app ID #{app.guid} (#{app.name}: #{e.message})")
+        instance_keys = []
       end
 
       app.instances.times do |index|
-        index_entry = indices[index]
-        unless index_entry
-          indices[index] = {
-            "state" => "DOWN",
-            "since" => Time.now.to_i
-          }
+        indices[index] = { "state" => "DOWN" }
+      end
+
+      instance_keys.each do |keyname|
+        instance_id = keyname.split(":").last
+        logger.debug2("Getting droplet instance stats for droplet_id:#{droplet_id} instance_id:#{instance_id}")
+
+        begin
+          (index, uptime, disk, mem, cpu, stats, state) = redis do |r|
+            r.hmget(keyname, "index", "uptime", "disk", "mem", "cpu", "stats", "state")
+          end
+        rescue Redis::BaseConnectionError => e
+          logger.warn "Connection error getting droplet stats for #{droplet_id}:#{instance_id}: #{e}"
         end
+
+        next unless index
+        index = index.to_i
+        next unless index >= 0 && index < app.instances
+        next unless stats
+
+        stats = Yajl::Parser.parse(stats)
+
+        stats.merge!(
+          "uptime" => uptime,
+          "usage"  => {
+            "disk" => disk,
+            "mem"  => mem,
+            "cpu"  => cpu,
+          }
+        )
+
+        indices[index] = {
+          "state" => state,
+          "stats" => stats,
+        }
       end
 
       indices
     end
 
-    def self.housekeeping
-      logger.debug2 "Housekeeping iteration..."
-      droplet_ids = redis { |r| r.smembers("droplets") }
-      droplet_ids.each do |droplet_id|
-        redis do |r|
-          r.watch("droplet:#{droplet_id}:instances") do
-            instance_ids = r.smembers("droplet:#{droplet_id}:instances")
-            logger.debug2 "Housekeeping for droplet droplet_id:#{droplet_id} instance_ids:#{instance_ids}"
-            if ((instance_ids.is_a? Array) && (instance_ids.count > 0))
-              instance_ids.each do |instance_id|
-                r.watch("droplet:#{droplet_id}:instance:#{instance_id}") do
-                  droplet_exists = r.exists("droplet:#{droplet_id}:instance:#{instance_id}")
-                  unless droplet_exists
-                    r.multi do |m|
-                      m.srem("droplet:#{droplet_id}:instances", instance_id)
-                    end
-                  end
-                end
-              end
-              r.unwatch
-            else
-              r.multi do |m|
-                m.del("droplet:#{droplet_id}:instances")
-                m.srem("droplets", droplet_id)
-              end
-            end
-          end
-        end
-      end
-
-    rescue Redis::BaseConnectionError
-      logger.debug2 "Redis connection error in housekeeping, ignoring"
-    rescue Redis::CommandError
-      logger.exception "Redis command error in housekeeping: #{$!}"
-    end
-
     def self.update_stats_for_all_droplets
       logger.debug2 "Stats update iteration..."
-      droplets = redis { |r| r.smembers("droplets") }
-      droplets.each do |droplet_id|
-        update_stats_for_droplet(droplet_id)
+      begin
+        instances = redis { |r| r.keys("droplet:*:instance:*") }
+      rescue Redis::BaseConnectionError
+        logger.debug "Connection error getting instances for droplets"
+        instances = []
+      end
+      droplets = Hash.new { |h, k| h[k] = [] }
+      instances.each do |instance_key|
+        _, droplet_id, _, instance_id = instance_key.split(":")
+        droplets[droplet_id] << instance_id
+      end
+      droplets.each_pair do |droplet_id, instance_ids|
+        update_stats_for_droplet(droplet_id, instance_ids)
       end
     end
 
-    def self.update_stats_for_droplet(droplet_id)
-      instance_ids = redis { |r| r.smembers("droplet:#{droplet_id}:instances") }
+    def self.update_stats_for_droplet(droplet_id, instance_ids)
       logger.debug2 "Stats update for droplet droplet_id:#{droplet_id} instances=#{instance_ids}"
       instance_ids.each do |instance_id|
         request = {
@@ -212,8 +167,13 @@ module VCAP::CloudController
         }
         logger.debug2 "Request dea.find.droplet for droplet_id:#{droplet_id} instance_id:#{instance_id} request:#{request}"
         # timeout this request in 30 secs
-        message_bus.request("dea.find.droplet", request, {:timeout => 30, :result_count => 1}) do |response|
-          update_stats_for_droplet_instance(response)
+        message_bus.request("dea.find.droplet", request, {:timeout => STATS_UPDATER_SLEEP, :result_count => 1}) do |response|
+          # Ignore timeouts; either the key will expire, or the next attempt will succeed.
+          if response[:timeout]
+            logger.debug2 "Timed out finding droplet #{droplet_id} instance #{instance_id}"
+          else
+            update_stats_for_droplet_instance(response)
+          end
         end
       end
     end
@@ -231,19 +191,28 @@ module VCAP::CloudController
     end
 
     def self.handle_dea_heartbeat(msg)
-      logger.debug2("DEA heartbeat received")
-
       dea = msg["dea"]
+      logger.debug2("DEA heartbeat received from #{dea}")
       droplets = msg["droplets"]
 
       # make sure we know about this DEA already
-      dea_exists = redis { |r| r.exists("dea:#{dea}") }
+      begin
+        dea_exists = redis { |r| r.exists("dea:#{dea}") }
+      rescue Redis::BaseConnectionError
+        logger.debug "Connection error checking for existing dea info for #{dea}"
+        return
+      end
 
-      unless dea_exists
+      if dea_exists
+        begin
+          redis { |r| r.expire("dea:#{dea}", STATS_UPDATES_EXPIRY) }
+        rescue Redis::BaseConnectionError
+          # Do nothing; this will expire by itself later
+        end
+      else
         # DEAs announce yourselves!
         logger.debug2("DEA heartbeat. dea.status")
-        # timeout this request in 30 secs
-        message_bus.request("dea.status", nil, :timeout => 30) do |response|
+        message_bus.request("dea.status", nil, :timeout => STATS_UPDATER_TIMEOUT) do |response|
           logger.debug2("DEA heartbeat. dea.status response:#{response}")
           handle_dea_status(response)
         end
@@ -257,28 +226,41 @@ module VCAP::CloudController
 
         next unless droplet_id.to_s.match(/^[\da-z\-]+$/)
 
-        redis { |r| r.sadd("droplets", droplet_id) }
-        redis { |r| r.sadd("droplet:#{droplet_id}:instances", instance_id) }
-        redis { |r| r.hmset("droplet:#{droplet_id}:instance:#{instance_id}",
-          "state",   drop["state"],
-          "index",   drop["index"],
-          "dea",     dea,
-          "version", drop["version"])
-        }
-        redis { |r| r.expire("droplet:#{droplet_id}:instance:#{instance_id}",
-          STATS_UPDATES_EXPIRY)
-        }
+        instance_key = "droplet:#{droplet_id}:instance:#{instance_id}"
+
+        begin
+          redis do |r|
+            r.multi do
+              r.hmset(instance_key, {
+                "state"   => drop["state"],
+                "index"   => drop["index"],
+                "dea"     => dea,
+                "version" => drop["version"]
+              }.flatten)
+              r.expire(instance_key, STATS_UPDATES_EXPIRY)
+            end
+          end
+        rescue Redis::BaseConnectionError
+          logger.debug "DEA heartbeat. Connection error updating instance."
+          # Do nothing; either the next update will catch it, or it will expire out
+        end
       end
     end
 
     def self.handle_dea_status(msg)
-      redis { |r| r.hmset(
-          "dea:#{msg["id"]}",
-          "ip", msg["ip"],
-          "version", msg["version"]
-        )
-      }
-      redis { |r| r.expire("dea:#{msg["id"]}", STATS_UPDATES_EXPIRY) }
+      return unless msg["id"]
+      redis do |r|
+        r.multi do
+          r.hmset(
+            "dea:#{msg["id"]}",
+            "ip", msg["ip"],
+            "version", msg["version"]
+          )
+          r.expire("dea:#{msg["id"]}", STATS_UPDATES_EXPIRY)
+        end
+      end
+    rescue Redis::BaseConnectionError
+      logger.debug "Connection error updating DEA status"
     end
 
     def self.update_stats_for_droplet_instance(droplet_instance)
@@ -294,36 +276,44 @@ module VCAP::CloudController
 
       uptime = stats.delete("uptime")
       usage = stats.delete("usage")
-      mem = usage["mem"]
       mem_quota = stats["mem_quota"]
 
       return unless usage
 
+      mem = usage["mem"]
+
       # Save the instances stats against the dea for dea driven memory reporting
       dea_instance_key  = "dea:#{dea_id}:instances:#{instance_id}"
-      redis { |r| r.set(dea_instance_key, "#{mem}:#{mem_quota}" )}
-      redis { |r| r.expire(
-          dea_instance_key,
-          STATS_UPDATES_EXPIRY
-        )
-      }
+      begin
+        redis do |r|
+          r.multi do
+            r.set dea_instance_key, "#{mem}:#{mem_quota}"
+            r.expire dea_instance_key, STATS_UPDATES_EXPIRY
+          end
+        end
+      rescue Redis::BaseConnectionError
+        logger.debug "Connection error updating DEA droplet stats"
+      end
 
       # Save the instance stats against the droplet for app driven reporting
-      redis { |r| r.hmset(
-          "droplet:#{droplet_id}:instance:#{instance_id}",
-          "stats",  Yajl::Encoder.encode(stats),
-          "uptime", uptime,
-          "mem",    usage["mem"],
-          "disk",   usage["disk"],
-          "cpu",    usage["cpu"],
-        )
-      }
-      redis { |r| r.expire(
-          "droplet:#{droplet_id}:instance:#{instance_id}",
-          STATS_UPDATES_EXPIRY
-        )
-      }
+      droplet_instance_key = "droplet:#{droplet_id}:instance:#{instance_id}"
+      begin
+        redis do |r|
+          r.multi do
+            r.hmset(droplet_instance_key,
+              "stats",  Yajl::Encoder.encode(stats),
+              "uptime", uptime,
+              "mem",    usage["mem"],
+              "disk",   usage["disk"],
+              "cpu",    usage["cpu"],
+              "dea",    dea_id
+            )
+            r.expire droplet_instance_key, STATS_UPDATES_EXPIRY
+          end
+        end
+      rescue Redis::BaseConnectionError
+        logger.debug "Connection error updating droplet stats"
+      end
     end
-
   end
 end
