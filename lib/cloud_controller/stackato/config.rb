@@ -96,6 +96,10 @@ module VCAP::CloudController
     end
 
     def get_viewable
+      alt_method_name = "_get_viewable_config_for_#{@component_name}".to_s
+      if self.respond_to?(alt_method_name, true) # true: include private methods
+        return self.send(alt_method_name)
+      end
       component_config = get_component_config
       return nil unless component_config
       can_read, readable_config = filter_permissible_values(component_config, PERMISSIONS[@component_name], "R")
@@ -174,6 +178,11 @@ module VCAP::CloudController
       Kato::Config.set(component, key, value)
     end
   
+    def _get_viewable_config_for_doppler
+      # Drains aren't stored in a config, get them this way:
+      return {drains: Kato::Log::Drains.list_drains({json:true})}
+    end
+
     def _update__logging(component, key, logging)
       logging.each do |logging_key, logging_value|
         if logging_key == "level"

@@ -141,7 +141,6 @@ processes:
           allow_over_provisioning: RW
 
   doppler:
-    retrylimits: R
     drains: R
 
   systail:
