@@ -63,15 +63,15 @@ module VCAP::CloudController
       it "should create a drain with name and uri" do
         expect(StackatoAppDrains).to have_received(:sanitize_uri).with(drain_uri)
         expect(StackatoAppDrains).to have_received(:globally_unique_drain_id).with(app, drain_name)
-        expect(Kato::Config.get("logyard", "drains").size).to be > 0
-        expect(Kato::Config.get("logyard", "drains").keys.first).to match(/test_drain/)
+        expect(Kato::Config.get("doppler", "drains").size).to be > 0
+        expect(Kato::Config.get("doppler", "drains").keys.first).to match(/test_drain/)
       end
     end
 
     describe "#delete" do
       it "should delete a drain with the given name" do
         StackatoAppDrains.delete(app, drain_name)
-        expect(Kato::Config.get("logyard", "drains").size).to be 0
+        expect(Kato::Config.get("doppler", "drains").size).to be 0
       end
     end
 
@@ -100,9 +100,9 @@ module VCAP::CloudController
 
       describe "#delete_all" do
         it "should delete all drains for a given app" do
-          expect(Kato::Config.get("logyard", "drains").size).to be 2
+          expect(Kato::Config.get("doppler", "drains").size).to be 2
           StackatoAppDrains.delete_all(app)
-          expect(Kato::Config.get("logyard", "drains").size).to be 0
+          expect(Kato::Config.get("doppler", "drains").size).to be 0
         end
       end
     end

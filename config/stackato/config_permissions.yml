@@ -140,7 +140,7 @@ processes:
         free:
           allow_over_provisioning: RW
 
-  logyard:
+  doppler:
     retrylimits: R
     drains: R
 

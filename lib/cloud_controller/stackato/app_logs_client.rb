@@ -19,6 +19,7 @@ module VCAP::CloudController
     end
 
     def self.fetch_app_loglines(app, num=25, raw=false, as_is=false)
+      raise Errors::ApiError.new_from_details("UnableToPerform", "Getting app logs not yet implemented")
       key = "apptail.#{app.guid}"
       num = 25 unless num > 0
 

@@ -80,49 +80,49 @@ module VCAP::CloudController
       if json
         uri += "?" + URI.encode_www_form("filter" => filter)
       else
-        format = "apptail"  # kato config get logyard drainformats/apptail
+        format = "apptail"  # kato config get doppler drainformats/apptail #XXX not supported
         uri += "?" + URI.encode_www_form("filter" => filter,
                                          "format" => format)
       end
 
       drain_id = globally_unique_drain_id(app, drain_name)
-      old = Kato::Config.get("logyard", "drains/#{drain_id}")
+      old = Kato::Config.get("doppler", "drains/#{drain_id}")
       unless old.nil?
         raise Errors::ApiError.new_from_details("StackatoAppDrainExists")
       end
 
       logger.info("Creating a drain #{drain_id} => #{uri}")
-      Kato::Config.set("logyard", "drains/#{drain_id}", uri)
+      Kato::Config.set("doppler", "drains/#{drain_id}", uri)
     end
 
     def self.delete(app, drain_name)
       drain_id = globally_unique_drain_id(app, drain_name)
-      if Kato::Config.get("logyard", "drains/#{drain_id}").nil?
+      if Kato::Config.get("doppler", "drains/#{drain_id}").nil?
         raise Errors::ApiError.new_from_details("StackatoAppDrainNotExists")
       end
       logger.info("Deleting drain #{drain_id}")
-      Kato::Config.del("logyard", "drains/#{drain_id}")
+      Kato::Config.del("doppler", "drains/#{drain_id}")
     end
 
     def self.delete_all(app)
-      drains = Kato::Config.get("logyard", "drains") || []
+      drains = Kato::Config.get("doppler", "drains") || []
       drains.each do |drain_id, uri| 
         if drain_id.start_with? "appdrain.#{app.guid}."
           logger.info("Deleting drain #{drain_id}")          
-          Kato::Config.del("logyard", "drains/#{drain_id}")
+          Kato::Config.del("doppler", "drains/#{drain_id}")
         end
       end
     end
 
     # Return the total number of drains for this app
     def self.app_drains_count(app)
-      Kato::Config.get("logyard", "drains").select { |drain|
+      Kato::Config.get("doppler", "drains").select { |drain|
         drain.to_s.start_with? "appdrain.#{app.guid}."
       }.count
     end
 
     def self.list(app)
-      drains = Kato::Config.get("logyard", "drains")
+      drains = Kato::Config.get("doppler", "drains")
 
       # prefix of drains this app is allowed to touch
       prefix = "appdrain.#{app.guid}."

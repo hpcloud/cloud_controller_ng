@@ -74,8 +74,8 @@ def mock_hostname(hostname="stackato-test.local")
     .and_return(@hostname)
 end
 
-def init_logyard_drains
-  Kato::Config.set("logyard", "drains", Hash.new)
+def init_doppler_drains
+  Kato::Config.set("doppler", "drains", Hash.new)
 end
 
 def stub_logyard_request

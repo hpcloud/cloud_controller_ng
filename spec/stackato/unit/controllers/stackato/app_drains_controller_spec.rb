@@ -11,7 +11,7 @@ module VCAP::CloudController
     let(:drain_uri) { 'tcp://test.stackato.com/' }
 
     before do
-      init_logyard_drains
+      init_doppler_drains
       stub_logyard_request
     end
 
@@ -20,8 +20,8 @@ module VCAP::CloudController
       it "should create app drains" do
         post "/v2/apps/#{app_obj.guid}/stackato_drains", req_body, headers
         expect(last_response.status).to eq(204)
-        expect(Kato::Config.get("logyard", "drains").size).to be > 0
-        expect(Kato::Config.get("logyard", "drains").keys.first).to match(/test_drain/)
+        expect(Kato::Config.get("doppler", "drains").size).to be > 0
+        expect(Kato::Config.get("doppler", "drains").keys.first).to match(/test_drain/)
       end
 
       context "complain about disallowed drains" do
@@ -59,10 +59,10 @@ module VCAP::CloudController
     describe "DELETE /v2/apps/:id/stackato_drains" do
       before { VCAP::CloudController::StackatoAppDrains.create(app_obj, drain_name, drain_uri, nil) }
       it "should delete app drain" do
-        expect(Kato::Config.get("logyard", "drains")).not_to be_empty
+        expect(Kato::Config.get("doppler", "drains")).not_to be_empty
         delete "/v2/apps/#{app_obj.guid}/stackato_drains/#{drain_name}", {}, headers
         expect(last_response.status).to eq(204)
-        expect(Kato::Config.get("logyard", "drains")).to be_empty
+        expect(Kato::Config.get("doppler", "drains")).to be_empty
       end
     end
 
