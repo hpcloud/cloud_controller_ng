@@ -3,7 +3,7 @@ require "steno"
 
 module VCAP::CloudController
   class StackatoStagers < Stagers
-    
+
     def stage_if_needed(app, &success_callback)
       if app.needs_staging?
         # Bug 104558 - Allow for dead droplet-slots to be made available
@@ -34,7 +34,7 @@ module VCAP::CloudController
     private
 
     def logger
-      @logger ||= Steno.logger("cc.backends")
+      @logger ||= Steno.logger("cc.stackato.stagers")
     end
 
     def stage_app(app, &completion_callback)
