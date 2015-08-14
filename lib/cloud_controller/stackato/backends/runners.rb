@@ -1,4 +1,5 @@
 require "cloud_controller/backends/runners"
+require "steno"
 
 module VCAP::CloudController
   class StackatoRunners < Runners
@@ -8,10 +9,6 @@ module VCAP::CloudController
       @health_manager_client = health_manager_client
     end
 
-    def logger
-      @logger ||= Steno.logger("cc.stackato.runners")
-    end
-    
     def update_autoscaling_fields(changes)
       @health_manager_client.update_autoscaling_fields(changes)
     end
@@ -47,6 +44,10 @@ module VCAP::CloudController
     end
 
     private
+
+    def logger
+      @logger ||= Steno.logger("cc.stackato.runners")
+    end
 
     def stage_app(app, &completion_callback)
       validate_app_for_staging(app)
