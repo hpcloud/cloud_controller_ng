@@ -53,8 +53,7 @@ module CloudController
         size = -1
 
         File.open(source_path) do |file|
-          size = file.size
-          next unless within_limits?(size)
+          next unless within_limits?(file.size)
 
           begin
             mime_type = MIME::Types.of(source_path).first.try(:content_type)
