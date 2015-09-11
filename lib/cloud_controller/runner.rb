@@ -203,7 +203,6 @@ module VCAP::CloudController
       RestController::PreloadedObjectSerializer::configure(@config)
       EphemeralRedisClient::configure(@config)
       AppLogsRedisClient::configure(@config)
-      StackatoAppLogsClient::configure(@config)
       StackatoDropletAccountability::configure(@config, message_bus)
       StackatoDropletAccountability::start
       StackatoDeactivateServices::start
