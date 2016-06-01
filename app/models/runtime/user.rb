@@ -111,6 +111,10 @@ module VCAP::CloudController
       end
     end
 
+    def ==(other)
+      (other.class == model) && (other.values[:guid] == @values[:guid])
+    end
+
     def admin?
       admin
     end

@@ -31,10 +31,13 @@ module VCAP::CloudController
       end
 
       def update_user_logged_in_time(token, user)
-
         login_timestamp = Time.at(token['iat']) rescue nil
 
-        if login_timestamp && user.logged_in_at != login_timestamp
+        # Update the timestamp only if it's older than this 'iat' value. This
+        # stops the logged_in_at from bouncing back and forth when a user is
+        # accessing the CC with tokens that have different 'iat' values.
+        if login_timestamp &&
+            (user.logged_in_at.nil? || (user.logged_in_at < login_timestamp))
           user.logged_in_at = login_timestamp
           user.save
         end
